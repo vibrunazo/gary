@@ -1,6 +1,6 @@
 # BW Sparring Partner — Architecture
 
-Status: **draft v0.2** (2026-09-30)
+Status: **draft v0.3** (2026-10-01)
 
 A StarCraft: Brood War AI that pro and aspiring players can use as a **sparring partner**:
 it plays with pro-level game sense, but with **human hands** (human APM, attention, reaction time
@@ -123,7 +123,7 @@ replay"), and it can **explain why** it did what it did.
 |---|---|---|---|
 | **Game Adapter** | Step the game, read state, submit low-level commands. Hides the differences between backends. | backend ↔ `RawState`, `GameCommand[]` | OpenBW headless (vectorized, many games in parallel), BWAPI 4.4 client, SC:R bridge |
 | **Perception** | Build the fog-filtered observation tensors and symbolic facts the player is allowed to know. Track memory of last-seen enemy units. | `RawState` → `Observation`, `Fact[]` | Feature sets v1/v2…; fact extractors |
-| **Strategy Compiler** | Turn a natural-language request into a valid *z*. Ask for clarification or reject if impossible. | text → `StrategySpec` | LLM model/prompt versions; template library |
+| **Strategy Compiler** | Turn a natural-language request into a valid *z*: resolve build names via the taxonomy (§7.3) and sample a real human *z* from that cluster. Ask for clarification or reject if impossible. | text → `StrategySpec` | LLM model/prompt versions; template library |
 | **Replay Extractor** | Turn a replay into *z* for one player: build order, timing targets, style statistics. Optionally suggest branches for human review. | `.rep` → `StrategySpec` | screp-only (commands) vs. resim (full state) |
 | **Plan Supervisor** | Deterministic branch logic over facts and belief heads. Decides which segment of *z* is active. Logs every switch with its evidence. | `Fact[]`, beliefs, *z* → `z_active` | Rule engine (default); later a learned branch selector |
 | **Policy** | Perception → intent → human-interface actions, conditioned on *z* and *h*. | obs, `z_active`, *h* → `Intent`, `HumanAction` | Backbone size/architecture, training recipe, checkpoint |
@@ -142,6 +142,11 @@ All schemas are versioned protobuf definitions (`schemas/`). They are shown here
 ### 6.1 `StrategySpec` (*z*): what to play
 
 Modeled on AlphaStar's *z*, extended with explicit branches and style.
+
+> **In plain terms:** *z* is the bot's game plan, written down as data.
+> - It's like a recipe card: "make these units and buildings, in roughly this order, by roughly these times."
+> - The policy reads the card as an input every step and tries to play the game that matches it. Hand it a different card and you get a different game.
+> - The card doesn't need a name. Names like "2 hatch muta" live in the build taxonomy (§7.3), which maps each name to many real recipe cards taken from human games.
 
 ```yaml
 strategy:
@@ -319,11 +324,13 @@ class Provider(Protocol):
 
 | Slot | Latency class | Candidate providers |
 |---|---|---|
-| `opening_class` (replay or live) | offline / ≤1 s | script, laya_ft, jev, llm, human |
+| `opening_class` (replay or live) | offline / ≤1 s | script (taxonomy rules, §7.3), laya_ft, jev, llm, human |
+| `build_cluster_name` (cluster card → name or "new") | offline | llm, human |
+| `build_cluster_review` (merge / split / accept) | offline | human |
 | `intent_label` (replay windows) | offline | script, laya_ft, llm, human |
 | `z_extract` (replay → StrategySpec) | offline | script (default), llm |
 | `branch_suggest` (replay → branches) | offline | llm, human |
-| `camera_infer` (replay → camera track) | offline | script, small learned model |
+| `camera_infer` (replay → camera track) | offline | script, small learned model (validated against camera logs, §7.4) |
 | `supervisor_branch` (live z switch) | ≤50 ms, every few seconds | rules (default), laya_ft, learned_head |
 | `strategy_compile` (prompt → z) | interactive | llm, template script |
 | `narrate` (trace → answer) | interactive | llm |
@@ -343,7 +350,7 @@ class Provider(Protocol):
 | **RepMastered** (repmastered.app, by the author of screp) | Large SC:R database with pro, ladder and tournament games; filter by matchup, player, map, APM, date | Best source of modern pro TvZ. Downloads are blocked for unverified email domains unless you donate. **No bulk API: contact the maintainer rather than scraping.** |
 | **Liquipedia replay packs** | Tournament packs (ASL and others) linked from event pages | Small, high quality. Good for gold sets and the strategy library. |
 | **bwreplays.com, reps.ru, TL.net replay pack threads** | Community archives | Variable quality; many old links are dead. |
-| **Contributor-recorded games** | Self-recorded | The only source with **ground-truth camera**, if recorded with a camera-logging tool. Needed to validate camera inference. |
+| **Camera-logged games** | Games played by contributors with the camera logger running (§7.4) | `.rep` files **never** store screen position, whoever recorded them. Camera ground truth only exists when a logger records it during play. Needed to validate camera inference. |
 | Bot self-play games | Generated | RL stage only. |
 
 Check each site's terms before bulk use, and keep provenance (source, URL, date) per replay in the dataset index.
@@ -353,15 +360,96 @@ Check each site's terms before bulk use, and keep provenance (source, URL, date)
 1. **Parse** with screp: commands, players, APM, metadata.
 2. **Resim** in OpenBW to recover full state per frame. **Risk:** SC:R (1.18+) replays must replay correctly in a 1.16.1 engine. Validate early on a sample.
 3. **Per-player observations**, fog-filtered.
-4. **Infer the camera.** Replays don't record screen position, so estimate it from click targets, selection boxes and hotkey jumps. Use a heuristic first, then a small model.
+4. **Infer the camera.** Replays don't record screen position, so estimate it from click targets, selection boxes and hotkey jumps. Use a heuristic first, then a small model. Measure accuracy against camera-logged games (§7.4).
 5. **Map labels to the action space.** Convert human commands into the `HumanAction` format (selections, hotkeys and commands are recorded).
-6. **Extract *z*** (deterministic) from each player's own game. This gives hindsight conditioning for supervised learning.
+6. **Extract *z*** (deterministic) from each player's own game. This gives hindsight conditioning for supervised learning. Assign each *z* to a build-taxonomy cluster (§7.3).
 7. **Extract *h*-conditioning** (rating band, APM and burst statistics) from metadata and command timing.
 8. **Fit `HumanProfile.limits`** per rating band from command timing: inter-action gaps, burst sizes, reaction to events (for example, time from first sight of an enemy unit to the first related command).
 9. **Label intents.** Start with heuristic rules, then add LLM/Jev classification over windowed summaries. Keep labels above a confidence threshold, using calibrated probabilities. Spot-check by hand.
 10. **Belief targets** come from ground truth in the full resim state (enemy opening, composition, tech).
 
-### 7.3 Stages
+### 7.3 Build taxonomy (automated discovery)
+
+**Goal:** find the builds that humans actually play, name them, and map each name to real *z*'s, with a human only reviewing summaries, never labeling replays one by one.
+
+**Division of labor:** algorithms find patterns, an LLM proposes names, a human approves. An LLM reading raw replays directly doesn't scale (they don't fit in its context) and pattern-matches loosely.
+
+**Pipeline:**
+
+1. **Extract build sequences.** For each player, list production, tech and expansion items with supply count and game time.
+   - Replays store commands, not results. Build commands can fail, be spammed or be cancelled.
+   - screp flags ineffective commands, which removes most of the noise. OpenBW resim gives the exact truth (what was actually built, and when) and is the reference.
+2. **Discover patterns at several levels.**
+
+   | Level | Window | Example labels |
+   |---|---|---|
+   | Opening | First ~4 min | 12 hatch, 9 pool, overpool |
+   | Tech path | ~3–8 min | 2 hatch muta, 3 hatch lurker, 3 hatch muta |
+   | Style | Mid/late game | Muta-ling-defiler, hive tech switch |
+
+   Methods:
+   - **Opening tree:** sequences share prefixes and then branch. Build a prefix tree and cut it where branches have enough games.
+   - **Clustering:** timing-tolerant sequence distance (e.g. edit distance with supply/time windows), then HDBSCAN. This catches the same plan executed in a slightly different order.
+3. **Make cluster cards.** For each cluster: the typical build (the medoid), timing ranges per item, game count, win rate by matchup, and links to example replays.
+4. **Name clusters** (`build_cluster_name` slot). An LLM gets the card plus reference build definitions (e.g. Liquipedia strategy pages) and proposes a known name, or "unknown: suggested name X".
+5. **Distill readable rules.** Train a shallow decision tree that separates the clusters. It produces definitions like *"pool before 3rd hatch, lair before 4:00, spire before 3rd hatch"*. These rules become the deterministic `script` provider for `opening_class`.
+6. **Human review** (`build_cluster_review` slot). A person reviews ~30–50 cluster cards: accept, rename, merge, split. They also label a small held-out gold set. Expected effort is about an hour per matchup.
+7. **Automatic quality checks:**
+   - Cluster stability under bootstrap resampling.
+   - Agreement between the readable rules and the cluster assignments.
+   - Matchup and race sanity (no Protoss games in a Zerg cluster).
+   - Gold-set accuracy of each `opening_class` provider (a slot bake-off, §9.1).
+
+**Output: a versioned taxonomy file** per matchup, e.g. `taxonomy/tvz/v1.yaml`:
+
+```yaml
+taxonomy:
+  schema: taxonomy/v1
+  matchup: TvZ
+  perspective: zerg
+  version: 1
+  method: {extract: resim, cluster: hdbscan_editdist_v1, namer: llm/<model-id>, reviewed_by: [<reviewer-id>]}
+  builds:
+    - id: z_2hatch_muta
+      name: "2 Hatch Muta"
+      aliases: ["2 hatch spire", "2h muta"]
+      level: tech_path
+      parent: z_12hatch          # from the opening tree
+      rule: "hatch_count_at_spire_start == 2 && lair_before('4:00') && spire_before(third_hatch)"
+      typical: {lair: "3:10–3:40", spire: "4:00–4:30", first_muta: "5:30–6:10"}
+      members: {count: 412, replay_index: tvz_modern_v1/clusters/z_2hatch_muta.parquet}
+      stability: 0.91
+```
+
+**How the policy uses it:** the policy never sees names. "Go 2 hatch muta" → the Strategy Compiler looks up `z_2hatch_muta` → samples a real human *z* from that cluster's members. Twenty practice games then give natural variety *within* the build, the way a human sparring partner would vary.
+
+### 7.4 Camera ground truth: the camera logger
+
+Replays don't record where the player's screen was, so camera inference (§7.2 step 4) needs a separate source of truth to be validated and trained against.
+
+| Option | How | Status |
+|---|---|---|
+| **BWAPI camera-logger module (1.16.1)** | A BWAPI module loaded while a **human** plays normally. It issues no commands and only logs screen position and mouse position each frame, keyed to the replay file. | **Primary.** Clean ground truth, stable API. Ship it as a tool (`tools/camera_logger`) so community volunteers can build an open camera dataset. |
+| SC:R memory reader | The same idea for Remastered, reading the client's memory as the Pluto SC:R bridge does | Optional. Breaks on every patch. Offline and custom games only. |
+| Minimap computer vision | Detect the viewport rectangle on the minimap in screen recordings (e.g. player-POV streams) | Research only. Syncing video to replays is hard, and platform terms and copyright make scraping questionable. |
+
+**Logger output** (one file per game, next to the `.rep`):
+
+```yaml
+camera_log:
+  schema: camera_log/v1
+  replay: <replay file hash>
+  player: <in-game player slot>
+  game_version: "1.16.1"
+  frames:            # sampled every frame, stored columnar
+    - {frame, screen_x, screen_y, mouse_x, mouse_y}
+```
+
+**Target:** a few hundred logged TvZ games is enough to measure and train `camera_infer`. Logged games are **not** needed for every training game, only for the camera-inference model and its evaluation.
+
+**Privacy:** logs contain no account data beyond what's already in the replay. Contributors opt in per upload.
+
+### 7.5 Stages
 
 | Stage | Method | Constraints on? | Output |
 |---|---|---|---|
@@ -475,6 +563,8 @@ adapters/     openbw_env (vectorized), bwapi_client (C++ shim), scr_bridge
 interface/    human interface + humanizer — ONE implementation (C++ core + pybind11)
 perception/   observation encoding, fact extractors
 data/         replay ingest (screp), resim, camera inference, labeling, profile fitting
+taxonomy/     build discovery (prefix tree, clustering), cluster cards, rule distillation, versioned taxonomy files
+tools/        camera_logger (BWAPI module), dataset utilities
 compiler/     prompt→z (LLM), replay→z
 supervisor/   plan supervisor (rules engine)
 slots/        slot schemas, providers (script, decision_model, llm, human, cascade), label store, calibrators, bake-off runner
@@ -494,7 +584,8 @@ docs/         this document, ADRs
 | Phase | Deliverable | Exit criteria |
 |---|---|---|
 | **P0 Infra** | OpenBW vectorized env, human interface v1, trace schema, eval harness with classic bots | 1k headless games/hour on dev hardware; interface parity test (train vs. runtime) passes |
-| **P1 Data** | Replay → (obs, HumanAction, z, h) pipeline; camera inference; profile fitting | SC:R resim validity measured; camera inference accuracy measured on games with known camera (e.g. self-recorded) |
+| **P1 Data** | Replay → (obs, HumanAction, z, h) pipeline; camera logger tool and first logged games; camera inference; profile fitting | SC:R resim validity measured; camera inference accuracy measured against camera-logged games (§7.4) |
+| **P1b Taxonomy** | TvZ build taxonomy v1 (§7.3): discovery, naming, readable rules, human review | Reviewed `taxonomy/tvz/v1.yaml`; cluster stability and gold-set accuracy reported; `opening_class` bake-off done |
 | **P2 Micro** | T0 curriculum in muta/marine/drop scenarios | Harass suite: responses within human distribution for ≥2 profiles |
 | **P3 BC full game** | T1 policy with *z*, *h*, intent and belief heads; supervisor; compiler | Adherence target met for 10 library strategies; humanlikeness classifier ≤ X% |
 | **P4 RL** | T2 league fine-tuning | Elo gain at equal humanlikeness and adherence |
@@ -543,7 +634,9 @@ Contributors with different hardware should report their throughput benchmark (P
 |---|---|
 | RL compute for full-game BW is unknown (Pluto's budget is unpublished) | Prove value in P2 (micro) first; scale model size gradually; supervised-only fallback |
 | SC:R replays may not resim in OpenBW 1.16.1 | Validate on a sample in P1; fall back to STARDATA plus 1.16.1 games |
-| Camera inference quality limits how human the interface is | Record ground-truth camera from self-played games to train and evaluate the inference model |
+| Camera inference quality limits how human the interface is | Collect camera-logged games with the BWAPI logger (§7.4) to train and evaluate the inference model |
+| Too few volunteers for camera logging | A few hundred games is enough; recruit from the community and make the logger zero-config |
+| Discovered clusters don't match community build names (or split them oddly) | Multi-level taxonomy, human review step, aliases; treat names as a UI layer over clusters |
 | Humanlike vs. strong is a trade-off | Make it explicit via λ_KL, λ_D and profile conditioning; track both metrics together |
 | Intent labels are noisy | Confidence filtering, manual audit set, and iterating on intent vocab versions |
 | SC:R bridge fragility and ToS | Primary target is 1.16.1; SC:R is offline only; no ladder |
