@@ -1,6 +1,6 @@
 # BW Sparring Partner — Architecture
 
-Status: **draft v0.5** (2026-10-01)
+Status: **draft v0.7** (2026-10-01)
 
 A StarCraft: Brood War AI that pro and aspiring players can use as a **sparring partner**:
 it plays with pro-level game sense, but with **human hands** (human APM, attention, reaction time
@@ -144,7 +144,7 @@ replay"), and it can **explain why** it did what it did.
 | Component | Responsibility | Inputs → Outputs | Swappable implementations |
 |---|---|---|---|
 | **Game Adapter** | Step the game, read state, submit low-level commands. Hides the differences between backends. | backend ↔ `RawState`, `GameCommand[]` | OpenBW headless (vectorized, many games in parallel), BWAPI 4.4 client, SC:R bridge |
-| **Perception** | Build the fog-filtered observation tensors and symbolic facts the player is allowed to know. Track memory of last-seen enemy units. | `RawState` → `Observation`, `Fact[]` | Feature sets v1/v2…; fact extractors |
+| **Perception** | Build observation tensors and symbolic facts under the **UI-visibility rule**: only what the BW interface would show this player (fog, plus hidden enemy HP/shields/energy/upgrades unless inspected, §6.9). Scramble unit IDs on fog entry; keep building snapshots; maintain the decaying group memory of fogged units (§6.10) and last-inspected values. | `RawState` → `Observation`, `Fact[]` | Feature sets v1/v2…; fact extractors |
 | **Strategy Compiler** | Turn a natural-language request into a valid *z*: resolve build names via the taxonomy (§7.3) and sample a real human *z* from that cluster. Ask for clarification or reject if impossible. | text → `StrategySpec` | LLM model/prompt versions; template library |
 | **Replay Extractor** | Turn a replay into *z* for one player: build order, timing targets, style statistics. Optionally suggest branches for human review. | `.rep` → `StrategySpec` | screp-only (commands) vs. resim (full state) |
 | **Opponent Model** | Infers hidden information from what the player has actually seen. Main output: a probability distribution over the opponent's *z* cluster (from the build taxonomy, §7.3), plus other beliefs (army size, tech, proxy). **Never reads hidden game state.** | `Observation`, `Fact[]` → `Belief[]` | NN belief model (default; trained on replays with hindsight labels), Bayesian/symbolic, fine-tuned decision model |
@@ -242,6 +242,9 @@ human_profile:
       max_selection: 12
       precise_commands_require_on_screen: true
       minimap_scatter_px: 48
+    pointing:                    # Fitts's law, fitted from camera-logger mouse data
+      fitts_a_ms: 90
+      fitts_b_ms: 110
     precision:
       click_scatter_px: {base: 3, per_bucket_pressure: 6}  # sloppier when spamming
       misclick_rate: 0.008
@@ -249,6 +252,12 @@ human_profile:
       idle_production: 0.10
       missed_supply: 0.05
       forgotten_unit_group: 0.03
+    memory:                      # fogged-unit memory (§6.10)
+      max_groups: 8              # enemy groups tracked at once
+      minimap_notice_prob: 0.6   # chance a minimap-only sighting is stored
+      pos_blur: speed_x_time     # location uncertainty growth
+      half_life_s: 45            # confidence half-life without refresh
+      hp_reset_s: 5              # HP estimate returns to prior
   seed: 42
 ```
 
@@ -256,14 +265,18 @@ human_profile:
 
 Every action costs APM tokens. Screen-space targets are only valid inside the current viewport.
 
+**Targets are pixels, never unit IDs.** The policy may *reason* about units, for example with a pointer network over the unit list, but every click it emits is a **screen point**. The Human Interface resolves what's under that point using BW's own hit-testing, so the topmost sprite wins. Consequences:
+- Clicking a muta stack selects or targets whatever is on top, as it would for a human. Picking the lowest-HP muta only works if it's actually exposed.
+- Clicking an enemy unit replaces the current selection, exactly as in the game (see §6.9).
+
 | Action | Args | Notes |
 |---|---|---|
 | `CAMERA_MOVE` | map point | Costs a token. Edge scrolling is modeled as a series of moves. |
 | `CAMERA_JUMP` | hotkey / base / last alert | |
 | `SELECT_BOX` | screen rect, shift? | At most 12 units. Selection rules (type filters, buildings) follow BW. |
-| `SELECT_CLICK` | on-screen unit, shift?, double? | Double-click selects same-type units on screen, at most 12. |
+| `SELECT_CLICK` | screen point, shift?, double? | Resolved by hit-test. Double-click selects same-type units on screen, at most 12. Clicking an enemy unit selects it for inspection (§6.9). |
 | `HOTKEY_RECALL` / `HOTKEY_SET` / `HOTKEY_ADD` | 0–9 | |
-| `COMMAND` | type, target (screen point / on-screen unit / minimap point), queued? | Minimap targets get extra scatter. |
+| `COMMAND` | type, target (screen point / minimap point), queued? | A screen point on a unit becomes a unit target via hit-test. Minimap targets get extra scatter. |
 | `BUILD` | type, screen point | Applies to the selected worker. |
 | `TRAIN` / `RESEARCH` / `UPGRADE` | type | Applies to selected buildings. |
 | `NOOP` | | Explicit "do nothing this step". |
@@ -275,13 +288,16 @@ Unlike Pluto, one action affects **at most one selection**, and precise targets 
 | Limit | Mechanism | Where |
 |---|---|---|
 | APM bucket empty | Mask everything except `NOOP` | Policy action head (logit → −∞) |
-| Target outside viewport | Mask that unit/point in the pointer head; minimap targets stay legal | Policy action head |
+| Target outside viewport | Mask screen points outside the viewport; minimap targets stay legal | Policy action head |
 | Selection > 12 / invalid selection | Mask in the selection head | Policy action head |
 | Reaction time | Events enter the observation after a delay sampled from *h* (plus an attention-switch cost when off-screen) | Perception |
-| Click scatter, misclicks | Perturb the chosen target | Human Interface |
+| Mouse travel | The click lands after a **Fitts's-law** delay from the current cursor position: `T = a + b·log₂(D/W + 1)`, where *D* is the distance and *W* the target's on-screen size | Human Interface |
+| Click scatter, misclicks | Endpoint scatter grows when travel time is cut short (rushing) and shrinks for large targets; a scattered click may hit a different sprite or empty ground | Human Interface |
 | Lapses | Occasionally skip or delay a due macro action, scaled by load | Human Interface / Arbiter |
 
-**`InterfaceState`** (part of the observation): APM tokens left and refill rate, camera rectangle, current selection, hotkey groups, delayed actions still pending.
+**`InterfaceState`** (part of the observation): APM tokens left and refill rate, camera rectangle, **cursor position**, current selection (own units or one inspected enemy unit), hotkey groups, delayed actions still pending.
+
+**Mouse model scope:** the cursor is *not* steered pixel by pixel. That would explode the action space and make training very slow. Each click is charged its travel time and scatter from the last cursor position. This captures why small, far, densely packed targets are slow and error-prone for humans. Fitts parameters are fitted per rating band from camera-logger mouse data (§7.4).
 
 **Masks during supervised learning:** replay camera positions are *inferred* (§7.2), so a hard mask can wrongly mark a real human action as illegal. During BC, masks are **soft**: confidence-weighted from the camera-inference model, or relaxed to "near viewport". They become hard in RL and at runtime, where the camera is known exactly.
 
@@ -308,13 +324,14 @@ Each intent record includes the **probabilities of the top-k alternatives**. Tha
 { game_id, frame, t_game, seq, kind, payload, refs: [event ids] }
 
 kind: fact            # {key, value, source: seen|memory|inferred}
-kind: belief          # {head, distribution}  e.g. enemy_opening: {bio_timing: .62, mech: .21, ...}
+kind: belief          # {head, distribution}  e.g. enemy_opening: {bio_timing: .62, mech: .21, ...}; enemy_status: {unit, hp_est, ci, source: tracker|inspected}
 kind: z_switch        # {from, to, rule, evidence: [fact/belief ids]}
 kind: intent          # {chosen, params, alternatives: [{intent, p}], policy_ckpt}
 kind: action          # {human_action, tokens_left}
 kind: constraint      # {type: masked|obs_delayed|scattered|misclick|lapse, detail}
 kind: strategy_select # {chosen, belief, context, options: [{id, ev, cells: [{enemy, ctx, wr, n, ci}]}], feature_library, table_version}
 kind: arbiter         # {granted_to: micro|macro, waiting: [{executor, action, waited_ms}], reason}
+kind: memory          # {op: create|refresh|merge|decay|drop, entry: {type?, count_est, ci, last_pos, last_seen, confidence}}
 kind: outcome         # {engagement result, units lost/killed, ...}
 kind: slot_decision   # {slot, provider, provider_version, answer, p, alternatives, cached?}
 ```
@@ -378,6 +395,8 @@ class Provider(Protocol):
 | `strategy_compile` (prompt → z) | interactive | llm, template script |
 | `narrate` (trace → answer) | interactive | llm |
 | `engagement_outcome` (eval labeling) | offline | script, human |
+| `guide_extract` (guide/transcript → claims) | offline | llm, human |
+| `claim_verdict` (claim → supported/contradicted/insufficient) | offline | script (replay stats, self-play), human |
 
 **Live slots in training:** if a non-deterministic or slow provider fills a live slot (e.g. `supervisor_branch`), it must also be used during RL, or the policy will train against a different supervisor than the one it plays with. Hosted providers are therefore limited to offline slots in practice.
 
@@ -457,6 +476,81 @@ table_version: tvz_stats_v2
 | `strict` | Off. The Plan Supervisor follows *z* exactly. | Drills |
 | `pro` | Replay + self-play table, no per-opponent learning | "Play what a pro would do here" |
 | `adaptive` | Plus a per-opponent table updated between games | Tournament prep: the bot learns your habits, like a real sparring partner would |
+
+### 6.9 Hidden enemy status: HP, shields, energy, upgrades
+
+In the standard BW interface, an enemy unit's HP, shields, energy and upgrade levels are **not shown** unless you select it. Pros click enemy units to check whether they're weak, whether a Science Vessel has irradiate energy, or which upgrades are done. Bots usually skip this by reading game memory. We don't.
+
+**What the observation contains for enemy units:**
+
+| Information | Available? |
+|---|---|
+| Position, type, visible animations and attacks | Yes, under fog rules |
+| Visual damage cues (burning or bleeding buildings at damage thresholds, shield-hit flashes) | Yes, as discrete cues, not numbers |
+| Exact HP / shields / energy / upgrades | **Only for the currently inspected unit**, plus a remembered value with its timestamp |
+
+**Three parts:**
+
+1. **Damage tracker (symbolic, always on).** A per-unit Bayesian filter, like a player keeping count in their head:
+   - Prior: full HP, plus the expected upgrades given the enemy *z* belief and game time.
+   - Subtract expected damage for each observed hit, using weapon damage, armor, the damage-type table and the uncertainty about unknown upgrades.
+   - Add regeneration (Zerg HP, Protoss shields) over time.
+   - Output: estimated HP with an interval per unit. It's cheap, transparent, and fed to the policy and the trace.
+2. **Learned correction (NN, optional).** The policy, or a belief head, takes the tracker's estimates plus the observation history. It's trained with ground-truth HP from resim as an auxiliary target, so it learns what the tracker misses (e.g. medic healing it didn't see).
+3. **Active inspection: clicking to check.** `SELECT_CLICK` on an enemy unit reveals its exact status in the observation. It has real costs, which the interface models:
+   - Mouse travel and a click (Fitts cost, APM token).
+   - It **replaces your current selection**, so getting your army back costs at least one more action (a hotkey recall).
+   - The camera must be on the target.
+
+**When to inspect is learned, not hand-coded.** The policy isn't given a separate value-of-information planner:
+- **Supervised learning:** human inspection clicks in replays show when pros check (e.g. before committing to a fight).
+- **RL:** the reward implicitly prices the information. Checking pays off when it changes the decision (kill the weak unit, fight or retreat), and it costs APM and selection otherwise.
+- **Scripted executors:** they don't inspect in v1. An explicit value-of-information rule can be added later as a provider if needed.
+
+**Explainability:** each inspection and each tracker estimate goes into the trace (`belief` events with `head: enemy_status`). That makes questions like "why did you focus that tank?" answerable: "estimated 40±15 HP after 3 volleys; inspected at 7:42: 31 HP".
+
+**Open question:** do BW replays record selections of enemy units? Own-unit selections are recorded as network commands. If enemy inspections aren't recorded, supervised learning can't see them, and the camera logger must capture them (it hooks the local client, so it can).
+
+
+### 6.10 Memory of fogged units
+
+Perfect per-unit records of fogged enemies would be superhuman. Forgetting units the moment they enter the fog would be subhuman and easy to exploit with drops and harass. The target is **human-like memory: what was seen stays, but blurs.** Memory is about groups, not unit IDs, and how well something is remembered depends on how it was seen.
+
+**Rules enforced in Perception:**
+
+| Rule | Effect |
+|---|---|
+| **Unit IDs are scrambled when a unit enters the fog** | Visible units can be tracked continuously. Once fogged, identity is lost. On reappearance, "is that the same dropship?" must be inferred from type, location and timing, and can be wrong. |
+| **Buildings persist as last seen** | BW's own UI shows enemy buildings frozen at their last-seen state until re-scouted, so no decay applies. |
+| **Tech facts persist** | "Spire exists" or "lurker aspect researched" are facts that aren't forgotten mid-game. |
+
+**Group memory model:** Perception maintains entries `{type?, count_est, count_ci, last_pos, heading, last_seen, confidence}`.
+- **How well it's stored depends on how it was seen:**
+
+  | Seen via | Stored |
+  |---|---|
+  | On screen | Type, count, rough HP |
+  | Minimap only | Position and blob size, **no unit type** (the minimap doesn't show it) |
+  | Off-screen, not on minimap, or during heavy load | May not be stored at all (missed) |
+
+- **Blur over time:**
+  - Location uncertainty grows with elapsed time × unit speed.
+  - The count interval widens.
+  - HP estimates return to the prior within seconds.
+  - Confidence decays until the entry is dropped, unless something refreshes it.
+- **Merging:** new sightings are matched to existing entries by plausibility (type, distance reachable since last seen), not by ID. That allows double-counting or merging mistakes, like a human makes.
+
+**Parameters** live in *h* (`limits.memory`, §6.2) and are fitted per rating band where data allows.
+
+**Keeping the policy's own memory honest.** The policy's recurrent core could learn to track fogged units more precisely than the memory model allows.
+- The memory model is the primary memory input. The recurrent state is kept small and trained with noise or dropout, so the cheapest way to remember is to use the memory model.
+- **Memory probe test (P3+):** train a simple probe to decode the true positions and counts of fogged units from the policy's hidden state. If the probe beats the memory model's precision, the policy is remembering more than allowed. Then shrink or add noise to the core, and re-test. Memory capacity becomes a measured number, not an assumption.
+
+**Not too weak either: exploitability scenarios** (§9.4) such as repeated drops at the same spot, a muta flock leaving and returning, and fake retreats.
+- The bot's responses must fall within the human range. Time spent keeping defense home after a drop, for example, is measured from replays.
+- Adaptation across games ("he dropped me twice last game") belongs to `adaptive` mode (§6.8).
+
+**Trace:** `memory` events record entry creation, refresh, merging, decay and drop. That answers "why didn't you see the drop coming?": *"last saw 2 dropships at 8:10 (40 s ago); location uncertainty covered all three bases; confidence 0.2."*
 
 ---
 
@@ -574,7 +668,11 @@ camera_log:
   game_version: "1.16.1"
   frames:            # sampled every frame, stored columnar
     - {frame, screen_x, screen_y, mouse_x, mouse_y}
+  clicks:            # every local click, including enemy-unit inspections
+    - {frame, button, mouse_x, mouse_y, resolved_unit, selection_after}
 ```
+
+The mouse and click data also fit the Fitts's-law parameters in *h* (§6.3) and record enemy inspections in case replays don't (§6.9).
 
 **Target:** a few hundred logged TvZ games is enough to measure and train `camera_infer`. Logged games are **not** needed for every training game, only for the camera-inference model and its evaluation.
 
@@ -615,7 +713,44 @@ The policy may also have belief heads as auxiliary training targets. The Strateg
 
 **Precedents:** extracting decision trees from neural policies (VIPER), concept-bottleneck models (networks forced to predict named concepts), and SHAP-style attribution. The residual loop differs in keeping the network *outside* the decision path and using it only to grow the symbolic vocabulary.
 
-### 7.7 Stages
+### 7.7 Guide mining: pro knowledge as testable hypotheses
+
+Replays show *what* happened. Written guides and video tutorials explain *why* and *when*. **Guides propose; replays and self-play decide.** Guides add three things replays don't provide directly:
+1. **Causal claims.** "Turret at 6:30 *because* mutas arrive at 7:00." Replay statistics are confounded (§6.8), so a stated cause is a hypothesis we can test with self-play interventions.
+2. **Coverage of rare situations.** Conditional advice ("if nexus first on cross spawn, then…") that has few replay examples.
+3. **Named concepts.** Rush distance, gas timing, "did he scout my natural". These are candidate features for the feature library, *before* the residual loop (§7.6) has to discover them.
+
+**Pipeline** (`guide_extract` slot, offline):
+1. **Ingest** guides and video transcripts (many good ones are Korean; LLMs handle that). Keep the source URL, author, date and patch era.
+2. **Extract claims** with an LLM into a structured format:
+
+   ```yaml
+   claim:
+     id: <hash>
+     source: {url, author, date, kind: article|video_transcript}
+     matchup: TvP
+     when: ["enemy_z == nexus_first", "spawn == cross"]   # mapped to feature-library facts
+     do: t_allin_2fac_vult                                 # mapped to taxonomy/z options
+     why: "nexus first is weakest before its first gateway units on long rush distance"
+     claimed_effect: {metric: winrate, direction: up}
+     new_concepts: ["rush_distance_long"]                  # not yet in the feature library
+   ```
+
+3. **Map to our vocabulary.** Conditions map to feature-library facts, and options map to taxonomy *z* clusters. Unmappable terms become candidate concepts for the feature library (same validation as §7.6 step 4).
+4. **Test each claim:**
+   - Replay statistics for the claim's condition and option, with the confounding caveats.
+   - Later, self-play interventions.
+   - Verdict: **supported / contradicted / insufficient data**, stored with the evidence.
+5. **Use the results:**
+   - Supported claims can seed Strategy Selector priors where data is sparse.
+   - All claims feed the narrator, so explanations can say "guide X recommends this; data agrees (n=87)", or that the data disagrees.
+   - Contradicted claims are reported as well. Guides go out of date, and advice for one skill level may not hold at another.
+
+**Rules:**
+- **Store extracted claims and links, not copies of the guide text.** Check each source's license; Liquipedia content is reusable with attribution, but many guides aren't.
+- **Use video transcripts only where the platform allows it.** No bulk scraping.
+
+### 7.8 Stages
 
 | Stage | Method | Constraints on? | Output |
 |---|---|---|---|
@@ -637,6 +772,7 @@ The adherence pseudo-reward compares the bot's build order with *z* (supply/time
 | "Why did you all-in?" | `strategy_select` event: beliefs, context, and each option's win rate with sample size and interval (§6.8) |
 | "What did you think I was doing?" (strategy) | `belief` history from the Opponent Model, with the facts seen at each point |
 | "Why mutas instead of lurkers?" | `intent.alternatives` at the decision frames, plus beliefs at that time |
+| "Why did you focus that unit?" | `belief` events with `head: enemy_status` (tracker estimate or inspected value) |
 | "Why didn't you defend the drop?" | `constraint` events (masked off-screen, observation delay, empty APM bucket) and the intent at that time |
 | "Why were you supply-blocked?" | `arbiter` events: macro actions waiting while micro had priority |
 | "What did you think I was doing?" | `belief` history, compared with ground truth after the game |
@@ -714,6 +850,7 @@ Scenarios are reproducible starting states with fixed opponent scripts. A scenar
 - `harass_tvz/ling_runby_natural`
 - `harass_pvz/muta_vs_cannon_sair`
 - `drop_zvt/2_dropship_main_and_nat`
+- `exploit/repeat_drop_same_spot`, `exploit/muta_leave_and_return`, `exploit/fake_retreat` (memory: neither always fooled nor perfectly prepared, §6.10)
 - …
 
 ### 9.5 Human evaluation
@@ -746,7 +883,8 @@ tools/        camera_logger (BWAPI module), dataset utilities
 compiler/     prompt→z (LLM), replay→z
 supervisor/   plan supervisor (rules engine)
 strategy/     strategy selector, win-rate tables, feature library, feature-discovery loop (value net, residual trees)
-opponent/     opponent model (belief over enemy z) and baselines
+opponent/     opponent model (belief over enemy z), enemy-status damage tracker, baselines
+guides/       guide/transcript ingest, claim extraction, vocabulary mapping, claim verdicts
 slots/        slot schemas, providers (script, decision_model, llm, human, cascade), label store, calibrators, bake-off runner
 annotate/     small labeling UI for the human provider queue
 policy/       model definitions, encoders, heads
@@ -766,10 +904,10 @@ docs/         this document, ADRs
 | **P0 Infra** | OpenBW vectorized env, human interface v1, trace schema, eval harness with classic bots | 1k headless games/hour on a reference workstation (to be confirmed by the benchmark); interface parity test (train vs. runtime) passes |
 | **P1 Data** | Replay → (obs, HumanAction, z, h) pipeline; desync detection; camera logger tool and first logged games; camera inference; profile fitting | **SC:R resim go/no-go decided** (desync rate measured, fallback chosen if needed, §7.2); camera inference accuracy measured against camera-logged games (§7.4) |
 | **P1b Taxonomy** | TvZ build taxonomy v1 (§7.3): discovery, naming, readable rules, human review | Reviewed `taxonomy/tvz/v1.yaml`; cluster stability and gold-set accuracy reported; `opening_class` bake-off done |
-| **P1c Strategy stats** | Feature library v1; replay win-rate table (§6.8) from screp-level data; first feature-discovery pass with decision trees on outcomes (§7.6) | Table beats the no-context baseline at predicting held-out outcomes; at least one discovered feature validated (e.g. spawn) |
+| **P1c Strategy stats** | Feature library v1 (seeded from guide mining, §7.7); replay win-rate table (§6.8) from screp-level data; first feature-discovery pass with decision trees on outcomes (§7.6); first batch of guide claims with verdicts | Table beats the no-context baseline at predicting held-out outcomes; at least one discovered feature validated (e.g. spawn) |
 | **P2 Micro** | T0 curriculum in muta/marine/drop scenarios | Harass suite: responses within human distribution for ≥2 profiles |
 | **P2b First playable** | Scripted macro executor + micro policy + arbiter, all under the shared human interface; strict-adherence *z* from the taxonomy; optional `pro` mode with the P1c table, a first Opponent Model (symbolic Bayesian or fine-tuned decision model), and open-vocabulary branch conditions via a fine-tuned decision model | Plays full TvZ games vs. humans on BWAPI 1.16.1; build timings within tolerance in ≥18/20 unharassed runs; supply blocks/idle production under harass within the human band |
-| **P3 BC full game** | T1 policy with *z*, *h*, intent and belief heads; NN Opponent Model (§7.5); value network and residual feature-discovery loop (§7.6); supervisor; compiler | Adherence target met for 10 library strategies; humanlikeness classifier ≤ X% |
+| **P3 BC full game** | T1 policy with *z*, *h*, intent and belief heads; NN Opponent Model (§7.5); value network and residual feature-discovery loop (§7.6); supervisor; compiler | Adherence target met for 10 library strategies; humanlikeness classifier ≤ X%; memory probe within the memory model's precision (§6.10) |
 | **P4 RL** | T2a segment RL (workstation), then T2b league (rented compute) | Elo gain at equal humanlikeness and adherence |
 | **P5 Explain** | Query API, narrator, counterfactual tool | Counterfactual consistency ≥ target |
 | **P6 Deploy** | BWAPI client; SC:R bridge (offline) | Pro blind-test sessions |
@@ -827,7 +965,14 @@ Contributors with different hardware should report their throughput benchmark (P
 | Replay win rates are confounded (pros pick options when they're favorable) | Propensity weighting, richer context, validation with self-play interventions (§6.8) |
 | Win-rate table cells get too sparse as features are added | Hierarchical back-off to parent cells; report n and intervals; add features only when held-out prediction improves |
 | Feature discovery finds spurious features | Held-out validation, multiple-comparison correction, self-play confirmation (§7.6) |
+| Guide claims are outdated, wrong, or for a different skill level | Claims are hypotheses with verdicts, never rules; record date/patch era and author (§7.7) |
+| Guide copyright / platform terms | Store claims and links, not text; check licenses; no bulk transcript scraping |
+| Enemy-unit inspections may not be recorded in replays | Verify early; if missing, capture with the camera logger (§6.9) |
+| Fitts's-law parameters off for BW-specific habits (e.g. hotkeyed camera jumps) | Fit per rating band from logger mouse data; compare click-timing distributions with replays |
 | Opponent Model leaks hidden information | Inputs restricted to the fog-filtered observation; test that beliefs don't change when unseen enemy state is altered |
+| Policy's recurrent core rebuilds superhuman memory of fogged units | Small, noisy recurrent state; memory probe test (§6.10) |
+| Memory model too weak → exploitable by repeated harass | Exploitability scenarios compared against human replay behavior; `adaptive` mode across games |
+| Human memory parameters hard to measure | Fit indirectly from behavior (reaction to returning units, defense kept home after drops); treat as profile knobs |
 | Humanlike vs. strong is a trade-off | Make it explicit via λ_KL, λ_D and profile conditioning; track both metrics together |
 | Intent labels are noisy | Confidence filtering, manual audit set, and iterating on intent vocab versions |
 | SC:R bridge fragility and ToS | Primary target is 1.16.1; SC:R is offline only; no ladder |
@@ -879,5 +1024,6 @@ Contributors with different hardware should report their throughput benchmark (P
 - VIPER (decision-tree extraction from neural policies): Bastani, Pu, Solar-Lezama, "Verifiable Reinforcement Learning via Policy Extraction", NeurIPS 2018
 - Concept Bottleneck Models: Koh et al., ICML 2020
 - SHAP: Lundberg & Lee, "A Unified Approach to Interpreting Model Predictions", NeurIPS 2017
+- Fitts's law: Fitts, "The information capacity of the human motor system in controlling the amplitude of movement", 1954; MacKenzie's Shannon formulation, 1992
 - OpenBW replay viewer (1.16.1 only): http://www.openbw.com/replay-viewer/
 - SC:R keeps Brood War gameplay code: https://www.vice.com/en/article/starcraft-remastered-doesnt-fix-brood-wars-broken-perfection/ · https://starcraft.fandom.com/wiki/StarCraft:_Remastered
