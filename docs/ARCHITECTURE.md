@@ -1,6 +1,6 @@
 # BW Sparring Partner — Architecture
 
-Status: **draft v0.3** (2026-10-01)
+Status: **draft v0.4** (2026-10-01)
 
 A StarCraft: Brood War AI that pro and aspiring players can use as a **sparring partner**:
 it plays with pro-level game sense, but with **human hands** (human APM, attention, reaction time
@@ -67,17 +67,22 @@ replay"), and it can **explain why** it did what it did.
 
 ## 3. Design principles
 
-1. **Constraints live in the action space, during training.** The policy only ever acts through the human interface (§6.3). Adding a humanizer after training breaks policies that learned to rely on superhuman control. The **same implementation** of the interface is used in training and at runtime.
-2. **Steering goes through explicit conditioning.** What to play (*z*) and how well to play (*h*) are both policy inputs. Prompts and replays are compiled into *z*. They are never free-text instructions to the policy.
-3. **Neural for skill, symbolic for structure.** The neural policy handles perception, micro and macro execution. Symbolic components provide:
+1. **Constraints live in the action space, during training.** Adding a humanizer after training breaks policies that learned to rely on superhuman control. Concretely (§6.3):
+   - **Hard limits are action masks inside the policy:** off-screen targets, more than 12 units selected, empty APM bucket. Illegal actions are never sampled. They are not silently dropped.
+   - **Interface state is part of the observation:** APM tokens left, camera rectangle, current selection, pending delayed actions.
+   - **The Human Interface only adds noise:** click scatter, misclicks, lapses. **Reaction delay is applied to observations**: the bot sees events late.
+   - The **same implementation** of the interface is used in training and at runtime.
+2. **One pair of hands.** Every executor that issues commands (the neural policy, a scripted macro executor, anything else) spends from the **same APM budget and the same camera**. Nothing gets free parallel actions. Human mistakes like a missed depot while microing mutas come from this shared budget, not from bolted-on randomness alone (§6.7).
+3. **Steering goes through explicit conditioning.** What to play (*z*) and how well to play (*h*) are both policy inputs. Prompts and replays are compiled into *z*. They are never free-text instructions to the policy.
+4. **Neural for skill, symbolic for structure.** The neural policy handles perception and micro. Macro execution is a swappable executor, scripted or neural (§6.7). Symbolic components provide:
    - the strategy language (*z*)
    - the intent bottleneck
    - the plan supervisor (branch logic)
    - the trace
-4. **Explanations come from records, not stories.** Explanations are built from logged intents, beliefs, candidate probabilities and constraint events. The LLM only narrates. It never reconstructs reasoning after the fact.
-5. **Contracts are stable, implementations are swappable.** Schemas are versioned. Everything else is a plugin selected by a run manifest.
-6. **Every decision or label outside the policy is a slot.** Opening classification, intent labels, branch selection, camera inference and so on each have a typed interface. A deterministic script, a decision model, an LLM or a human can fill it, and they can be swapped and compared (§6.6).
-7. **Everything is reproducible.** Seeded sampling and humanization, plus logged model versions, let any game be re-run and **decision-diffed** against another pipeline.
+5. **Explanations come from records, not stories.** Explanations are built from logged intents, beliefs, candidate probabilities and constraint events. The LLM only narrates. It never reconstructs reasoning after the fact.
+6. **Contracts are stable, implementations are swappable.** Schemas are versioned. Everything else is a plugin selected by a run manifest.
+7. **Every decision or label outside the policy is a slot.** Opening classification, intent labels, branch selection, camera inference and so on each have a typed interface. A deterministic script, a decision model, an LLM or a human can fill it, and they can be swapped and compared (§6.6).
+8. **Everything is reproducible.** Seeded sampling and humanization, plus logged model versions, let any game be re-run and **decision-diffed** against another pipeline.
 
 ---
 
@@ -98,16 +103,22 @@ replay"), and it can **explain why** it did what it did.
  │       │                     ▼                                                   │
  │       │         Plan Supervisor (symbolic) ── selects active z segment          │
  │       │                     │  (branches on facts + belief heads)               │
- │       │                     ▼                                                   │
- │       │     ┌────────── Policy π(a | obs, z_active, h) ─────────┐               │
- │       │     │ encoders → core → INTENT head ─► ACTION head      │               │
- │       │     │                 └► BELIEF heads (aux)             │               │
- │       │     └───────────────────────────┬───────────────────────┘               │
- │       │                                 ▼                                       │
- │       └──────────── Human Interface (camera, select≤12, APM bucket,             │
- │                     reaction delay, click scatter, lapses) ◄── h                │
+ │       │          ┌──────────┴──────────────┐                                    │
+ │       │          ▼                         ▼                                    │
+ │       │  ┌── Policy π(a | obs, z, h, iface) ──┐   ┌── Macro Executor ───────┐   │
+ │       │  │ encoders → core → INTENT ► ACTION  │   │ scripted (queue from z) │   │
+ │       │  │   (masked by interface state)      │   │  or neural (= policy)   │   │
+ │       │  │ └► BELIEF heads (aux)              │   └───────────┬─────────────┘   │
+ │       │  └─────────────────┬──────────────────┘               │                 │
+ │       │                    ▼                                  ▼                 │
+ │       │          Attention Arbiter: one APM bucket, one camera ◄── h            │
+ │       │                    │          (interface state ──► obs, masks)          │
+ │       │                    ▼                                                    │
+ │       └──── Human Interface (click scatter, misclicks, lapses) ◄── h            │
+ │              + observation delay (reaction time) on the Perception side         │
  │                                                                                 │
- │  Trace Bus ◄── facts · z switches · intents+probs · beliefs · constraint events │
+ │  Trace Bus ◄── facts · z switches · intents+probs · beliefs · arbiter/          │
+ │                constraint events                                                │
  └─────────────────────────────────────────────────────────────────────────────────┘
                                    │
                     Trace Store ──► Query API ──► Narrator (LLM) ──► "why…?" answers
@@ -126,8 +137,10 @@ replay"), and it can **explain why** it did what it did.
 | **Strategy Compiler** | Turn a natural-language request into a valid *z*: resolve build names via the taxonomy (§7.3) and sample a real human *z* from that cluster. Ask for clarification or reject if impossible. | text → `StrategySpec` | LLM model/prompt versions; template library |
 | **Replay Extractor** | Turn a replay into *z* for one player: build order, timing targets, style statistics. Optionally suggest branches for human review. | `.rep` → `StrategySpec` | screp-only (commands) vs. resim (full state) |
 | **Plan Supervisor** | Deterministic branch logic over facts and belief heads. Decides which segment of *z* is active. Logs every switch with its evidence. | `Fact[]`, beliefs, *z* → `z_active` | Rule engine (default); later a learned branch selector |
-| **Policy** | Perception → intent → human-interface actions, conditioned on *z* and *h*. | obs, `z_active`, *h* → `Intent`, `HumanAction` | Backbone size/architecture, training recipe, checkpoint |
-| **Human Interface** | The only path from policy to game. Enforces human limits and emits a `ConstraintEvent` whenever it blocks, delays or perturbs an action. | `HumanAction` → `GameCommand[]` | **Single implementation** shared by training and runtime; parameterized only by *h* |
+| **Policy** | Perception → intent → human-interface actions, conditioned on *z*, *h* and interface state. Hard limits are applied as action masks. | obs, `z_active`, *h*, `InterfaceState` → `Intent`, `HumanAction` | Backbone size/architecture, training recipe, checkpoint |
+| **Macro Executor** | Turns the active *z* segment into production, tech, supply and building-placement actions. | `z_active`, `Fact[]`, `InterfaceState` → `HumanAction` | `scripted` (build queue plus placement library; default early on), `neural` (the policy does macro itself) |
+| **Attention Arbiter** | Gives every executor's actions **one** APM bucket and **one** camera. Decides whose action goes next. Emits arbiter events (e.g. "macro starved for 9 s during fight"). | candidate `HumanAction`s → one `HumanAction` per step | Priority rules (default), profile-weighted, learned (later) |
+| **Human Interface** | The only path to the game. Maintains `InterfaceState` (tokens, camera, selection) for masks and observations. Adds click scatter, misclicks and lapses. Delays observations to model reaction time. Emits a `ConstraintEvent` for every perturbation. | `HumanAction` → `GameCommand[]` | **Single implementation** shared by training and runtime; parameterized only by *h* |
 | **Trace Bus / Store** | Append-only, frame-stamped event log for every game, plus indexes for querying. | events → JSONL/Parquet | Storage backend |
 | **Narrator** | Answer "why" questions by retrieving trace records and turning them into text, citing event IDs. | question + trace slice → answer | LLM model/prompt versions |
 | **Eval Harness** | Run matches and scenarios at scale, compute metrics, keep the scoreboard. | manifests → metrics | Scenario suites, opponent pools |
@@ -193,7 +206,7 @@ The policy encoder sees the **active segment** (build order tokens, targets, sty
 
 Two parts:
 - `conditioning`: fed to the policy, so it learns to play like players at that level.
-- `limits`: enforced by the Human Interface.
+- `limits`: enforced by the Human Interface and the Attention Arbiter. `apm` and `interface` become **masks**; `reaction` becomes an **observation delay**; `precision` and `lapses` become **noise**.
 
 ```yaml
 human_profile:
@@ -245,6 +258,21 @@ Every action costs APM tokens. Screen-space targets are only valid inside the cu
 
 Unlike Pluto, one action affects **at most one selection**, and precise targets require the camera to be there.
 
+**How limits are enforced:**
+
+| Limit | Mechanism | Where |
+|---|---|---|
+| APM bucket empty | Mask everything except `NOOP` | Policy action head (logit → −∞) |
+| Target outside viewport | Mask that unit/point in the pointer head; minimap targets stay legal | Policy action head |
+| Selection > 12 / invalid selection | Mask in the selection head | Policy action head |
+| Reaction time | Events enter the observation after a delay sampled from *h* (plus an attention-switch cost when off-screen) | Perception |
+| Click scatter, misclicks | Perturb the chosen target | Human Interface |
+| Lapses | Occasionally skip or delay a due macro action, scaled by load | Human Interface / Arbiter |
+
+**`InterfaceState`** (part of the observation): APM tokens left and refill rate, camera rectangle, current selection, hotkey groups, delayed actions still pending.
+
+**Masks during supervised learning:** replay camera positions are *inferred* (§7.2), so a hard mask can wrongly mark a real human action as illegal. During BC, masks are **soft**: confidence-weighted from the camera-inference model, or relaxed to "near viewport". They become hard in RL and at runtime, where the camera is known exactly.
+
 ### 6.4 `Intent`: the symbolic bottleneck
 
 Emitted by the intent head every K policy steps, or whenever it changes. The action head is conditioned on the current intent.
@@ -272,7 +300,8 @@ kind: belief          # {head, distribution}  e.g. enemy_opening: {bio_timing: .
 kind: z_switch        # {from, to, rule, evidence: [fact/belief ids]}
 kind: intent          # {chosen, params, alternatives: [{intent, p}], policy_ckpt}
 kind: action          # {human_action, tokens_left}
-kind: constraint      # {type: delayed|dropped|scattered|lapse|offscreen, detail}
+kind: constraint      # {type: masked|obs_delayed|scattered|misclick|lapse, detail}
+kind: arbiter         # {granted_to: micro|macro, waiting: [{executor, action, waited_ms}], reason}
 kind: outcome         # {engagement result, units lost/killed, ...}
 kind: slot_decision   # {slot, provider, provider_version, answer, p, alternatives, cached?}
 ```
@@ -338,6 +367,32 @@ class Provider(Protocol):
 
 **Live slots in training:** if a non-deterministic or slow provider fills a live slot (e.g. `supervisor_branch`), it must also be used during RL, or the policy will train against a different supervisor than the one it plays with. Hosted providers are therefore limited to offline slots in practice.
 
+### 6.7 Executors and the Attention Arbiter
+
+Decision slots answer questions. **Executors** issue commands. Two executors exist in v1:
+
+| Executor | Provider options | Notes |
+|---|---|---|
+| `micro` | neural policy | Unit control, army posture, worker pulls. Always neural. |
+| `macro` | `scripted` / `neural` | Production, supply, tech, expansion, building placement for the active *z* segment. |
+
+**Why a scripted macro option:** practice drills need repeatable timings. A neural policy's build timings drift from game to game, and building placement (wall-offs, depots) is hard to learn but well solved by existing bot code and map-analysis libraries. `scripted` macro also gives a playable bot (P2b) long before full-game BC works.
+
+**Why it must not bypass the human limits:** a scripted macro executor that runs "for free" alongside the micro policy is perfect multitasking, which is exactly the superhuman trait this project removes. So:
+- The scripted executor emits ordinary `HumanAction`s (camera jump to base, select building, train…). Each one costs APM tokens and moves the camera away from wherever the fight is.
+- The **Attention Arbiter** picks one action per step from all executors' candidates, using one APM bucket and one camera.
+- When the micro policy is busy, macro actions wait. Supply blocks and idle production during fights then **emerge** from contention, the way they do for humans. `lapses` in *h* add extra mistakes on top.
+
+**Arbiter policy (v1, rules):**
+- Priority goes to the micro executor while an engagement fact is active, with a minimum macro share set by *h* (e.g. B-rank: macro gets ≥25% of actions during fights).
+- Otherwise macro has priority.
+- Every starvation interval is logged (`arbiter` trace events). That makes "why was I supply-blocked?" answerable.
+
+**Adherence modes** (in *z*):
+- `adherence: strict` → scripted macro, low variance. For drills: "hit this timing 20 times".
+- `adherence: loose` → neural macro. More human variety and adaptation.
+- Both run through the same arbiter and interface, so they can be compared directly (§9.2).
+
 ---
 
 ## 7. Training pipeline
@@ -346,8 +401,9 @@ class Provider(Protocol):
 
 | Source | What it is | Notes |
 |---|---|---|
-| **STARDATA** | ~65k human games (1.16.1), already extracted into states, public S3 bucket | Easiest first dataset (no resim needed). Older meta and mixed skill. Repo archived 2022. ~365 GB compressed: plan disk accordingly. |
-| **RepMastered** (repmastered.app, by the author of screp) | Large SC:R database with pro, ladder and tournament games; filter by matchup, player, map, APM, date | Best source of modern pro TvZ. Downloads are blocked for unverified email domains unless you donate. **No bulk API: contact the maintainer rather than scraping.** |
+| **STARDATA** | ~65k human games (1.16.1), already extracted into states, public S3 bucket | **Primary full-state dataset** (no resim needed). Older meta and mixed skill. Repo archived 2022. ~365 GB compressed: mirror a TvZ subset first. |
+| **1.16.1-era archives** (ICCup-era packs, old pro packs) | `.rep` files from the 1.16.1 era | Resim in OpenBW should be exact for these. Second full-state source. |
+| **RepMastered** (repmastered.app, by the author of screp) | Large SC:R database with pro, ladder and tournament games; filter by matchup, player, map, APM, date | Best source of modern pro TvZ. **screp-level data only (builds, timings, APM) until SC:R resim passes the P1 go/no-go (§7.2).** Downloads are blocked for unverified email domains unless you donate. **No bulk API: contact the maintainer rather than scraping.** |
 | **Liquipedia replay packs** | Tournament packs (ASL and others) linked from event pages | Small, high quality. Good for gold sets and the strategy library. |
 | **bwreplays.com, reps.ru, TL.net replay pack threads** | Community archives | Variable quality; many old links are dead. |
 | **Camera-logged games** | Games played by contributors with the camera logger running (§7.4) | `.rep` files **never** store screen position, whoever recorded them. Camera ground truth only exists when a logger records it during play. Needed to validate camera inference. |
@@ -358,7 +414,16 @@ Check each site's terms before bulk use, and keep provenance (source, URL, date)
 ### 7.2 Data processing
 
 1. **Parse** with screp: commands, players, APM, metadata.
-2. **Resim** in OpenBW to recover full state per frame. **Risk:** SC:R (1.18+) replays must replay correctly in a 1.16.1 engine. Validate early on a sample.
+2. **Resim** to recover full state per frame.
+   - **1.16.1 replays → OpenBW.** The default path.
+   - **SC:R (1.18+) replays are a go/no-go measurement in P1, not an assumption.**
+     - Blizzard kept the gameplay code: pathing is unchanged, 1.16 replays play in SC:R, and only a few bug fixes (e.g. sprite limits) changed.
+     - But the replay format differs (OpenBW's viewer doesn't read 1.18+ files), and lockstep replays amplify any 1-frame difference into total desync.
+   - **Go/no-go test:** convert and resim a few hundred SC:R TvZ replays in OpenBW. Check them against screp-derived facts: each build command's success, unit counts at fixed times, final score screen. Accept the replays that stay in sync and record the desync rate.
+   - **If no-go, two fallbacks:**
+     - (a) Use SC:R replays **only for screp-level data**: build orders and *z*, timings, APM profiles, results. That's enough for the build taxonomy (§7.3) and profile fitting.
+     - (b) **Resim inside the SC:R client itself** with a memory reader (the same technique as the Pluto SC:R bridge). This is correct by construction but slower, and it's pinned to one SC:R build.
+   - **Desync detection runs on every resim,** not just in P1. Replays that desync are excluded from full-state datasets automatically.
 3. **Per-player observations**, fog-filtered.
 4. **Infer the camera.** Replays don't record screen position, so estimate it from click targets, selection boxes and hotkey jumps. Use a heuristic first, then a small model. Measure accuracy against camera-logged games (§7.4).
 5. **Map labels to the action space.** Convert human commands into the `HumanAction` format (selections, hotkeys and commands are recorded).
@@ -378,7 +443,8 @@ Check each site's terms before bulk use, and keep provenance (source, URL, date)
 
 1. **Extract build sequences.** For each player, list production, tech and expansion items with supply count and game time.
    - Replays store commands, not results. Build commands can fail, be spammed or be cancelled.
-   - screp flags ineffective commands, which removes most of the noise. OpenBW resim gives the exact truth (what was actually built, and when) and is the reference.
+   - screp flags ineffective commands, which removes most of the noise. This works for **all** replays, SC:R included, so the taxonomy doesn't depend on resim.
+   - Where resim is available (1.16.1 replays, or SC:R replays that pass the desync check), it gives the exact truth and is used to measure screp-extraction error.
 2. **Discover patterns at several levels.**
 
    | Level | Window | Example labels |
@@ -453,9 +519,10 @@ camera_log:
 
 | Stage | Method | Constraints on? | Output |
 |---|---|---|---|
-| **T0 Micro curriculum** | Supervised on replay snippets plus RL in scenarios (muta vs marine/medic/turret, drops, ling runbys) | Yes | Validates the human interface. Micro-capable action head. |
-| **T1 Behavior cloning** | Supervised π(intent, action \| obs, z, h) plus belief heads | Yes (actions are human by construction) | Humanlike, steerable, weak-ish |
-| **T2 RL fine-tune** | League self-play against frozen supervised and earlier RL agents. Reward = win + λ_z·adherence + λ_KL·KL(π‖π_BC) + λ_D·discriminator | Yes | Stronger, still humanlike |
+| **T0 Micro curriculum** | Supervised on replay snippets plus RL in short scenarios (15–60 s: muta vs marine/medic/turret, drops, ling runbys) with the scripted macro executor and arbiter active where macro matters | Yes (hard masks) | Validates the human interface. Micro-capable policy. **Fits on a reference workstation.** |
+| **T1 Behavior cloning** | Supervised π(intent, action \| obs, z, h, iface) plus belief heads | Yes (soft masks: camera is inferred) | Humanlike, steerable, weak-ish |
+| **T2a Segment RL** | RL from mid-game states sampled from replays or BC games, over short horizons (a few minutes), with the same reward as T2b | Yes (hard masks) | Better fights and harass response without full-game cost |
+| **T2b Full-game RL** | League self-play against frozen supervised and earlier RL agents. Reward = win + λ_z·adherence + λ_KL·KL(π‖π_BC) + λ_D·discriminator | Yes (hard masks) | Stronger, still humanlike. **Rented compute only (B3).** |
 | **T3 Export** | Quantize and distill for runtime latency | n/a | Runtime checkpoint |
 
 The adherence pseudo-reward compares the bot's build order with *z* (supply/time-aligned edit distance) plus distance from the cumulative targets.
@@ -468,7 +535,8 @@ The adherence pseudo-reward compares the bot's build order with *z* (supply/time
 |---|---|
 | "Why mutas?" | *z* (it was instructed) and `z_switch` events with their evidence |
 | "Why mutas instead of lurkers?" | `intent.alternatives` at the decision frames, plus beliefs at that time |
-| "Why didn't you defend the drop?" | `constraint` events (off-screen, reaction delay, empty APM bucket) and the intent at that time |
+| "Why didn't you defend the drop?" | `constraint` events (masked off-screen, observation delay, empty APM bucket) and the intent at that time |
+| "Why were you supply-blocked?" | `arbiter` events: macro actions waiting while micro had priority |
 | "What did you think I was doing?" | `belief` history, compared with ground truth after the game |
 | "Would you have done X if…?" | Counterfactual rerun: same frame, edited facts or beliefs, compare intent distributions |
 
@@ -489,6 +557,10 @@ run:
   policy: {arch: unit_transformer_gru_m, ckpt: rl/tvz/0042}
   recipe: bc+rl+kl            # bc | bc+rl | bc+rl+kl | bc+rl+kl+disc
   profile: b_rank_terran
+  executors:                  # §6.7
+    micro: policy
+    macro: {provider: scripted/v1, placement: <placement-lib>}   # or: neural
+    arbiter: rules/v1
   slots:                      # §6.6 — provider per slot
     opening_class:     {provider: cascade, chain: [script/v2, laya_ft/0007@t=1.8, human]}
     intent_label:      {provider: laya_ft/0007}
@@ -512,6 +584,8 @@ bakeoff:
 ### 9.2 Experiment axes
 
 - Policy architecture and size
+- Macro executor (scripted vs. neural) and arbiter rules
+- Hard vs. soft masks during BC
 - Training recipe and λ weights
 - Intent vocabulary and label source
 - Supervisor rules vs. learned
@@ -560,7 +634,8 @@ Blind sessions: pros play a mix of the bot (various profiles) and real human spa
 ```
 schemas/      protobuf contracts (strategy, profile, action, intent, trace) — versioned
 adapters/     openbw_env (vectorized), bwapi_client (C++ shim), scr_bridge
-interface/    human interface + humanizer — ONE implementation (C++ core + pybind11)
+interface/    human interface, masks, InterfaceState, observation delay, attention arbiter — ONE implementation (C++ core + pybind11)
+executors/    scripted macro executor (build queue from z, building placement), executor API
 perception/   observation encoding, fact extractors
 data/         replay ingest (screp), resim, camera inference, labeling, profile fitting
 taxonomy/     build discovery (prefix tree, clustering), cluster cards, rule distillation, versioned taxonomy files
@@ -583,12 +658,13 @@ docs/         this document, ADRs
 
 | Phase | Deliverable | Exit criteria |
 |---|---|---|
-| **P0 Infra** | OpenBW vectorized env, human interface v1, trace schema, eval harness with classic bots | 1k headless games/hour on dev hardware; interface parity test (train vs. runtime) passes |
-| **P1 Data** | Replay → (obs, HumanAction, z, h) pipeline; camera logger tool and first logged games; camera inference; profile fitting | SC:R resim validity measured; camera inference accuracy measured against camera-logged games (§7.4) |
+| **P0 Infra** | OpenBW vectorized env, human interface v1, trace schema, eval harness with classic bots | 1k headless games/hour on a reference workstation (to be confirmed by the benchmark); interface parity test (train vs. runtime) passes |
+| **P1 Data** | Replay → (obs, HumanAction, z, h) pipeline; desync detection; camera logger tool and first logged games; camera inference; profile fitting | **SC:R resim go/no-go decided** (desync rate measured, fallback chosen if needed, §7.2); camera inference accuracy measured against camera-logged games (§7.4) |
 | **P1b Taxonomy** | TvZ build taxonomy v1 (§7.3): discovery, naming, readable rules, human review | Reviewed `taxonomy/tvz/v1.yaml`; cluster stability and gold-set accuracy reported; `opening_class` bake-off done |
 | **P2 Micro** | T0 curriculum in muta/marine/drop scenarios | Harass suite: responses within human distribution for ≥2 profiles |
+| **P2b First playable** | Scripted macro executor + micro policy + arbiter, all under the shared human interface; strict-adherence *z* from the taxonomy | Plays full TvZ games vs. humans on BWAPI 1.16.1; build timings within tolerance in ≥18/20 unharassed runs; supply blocks/idle production under harass within the human band |
 | **P3 BC full game** | T1 policy with *z*, *h*, intent and belief heads; supervisor; compiler | Adherence target met for 10 library strategies; humanlikeness classifier ≤ X% |
-| **P4 RL** | T2 league fine-tuning | Elo gain at equal humanlikeness and adherence |
+| **P4 RL** | T2a segment RL (workstation), then T2b league (rented compute) | Elo gain at equal humanlikeness and adherence |
 | **P5 Explain** | Query API, narrator, counterfactual tool | Counterfactual consistency ≥ target |
 | **P6 Deploy** | BWAPI client; SC:R bridge (offline) | Pro blind-test sessions |
 
@@ -611,8 +687,8 @@ Contributors with different hardware should report their throughput benchmark (P
 |---|---|---|
 | **B0** | 1 h on a reference workstation | Smoke tests, bake-offs, micro-scenario learning curves |
 | **B1** | Overnight (~10 h) on a reference workstation | Data preprocessing, small supervised runs, longer micro RL |
-| **B2** | Weekend (~48 h) on a reference workstation | Small full-game supervised policy, early RL fine-tuning |
-| **B3** | Rented multi-GPU (budget set later) | Full-game RL league at meaningful scale |
+| **B2** | Weekend (~48 h) on a reference workstation | Small full-game supervised policy (≤15M params); segment RL (T2a) from mid-game states. **No full-game RL.** |
+| **B3** | Rented multi-GPU (budget set later) | Full-game RL league (T2b), larger models |
 
 **What fits in B0 (1 hour).** All throughput numbers are **estimates to be measured in P0**. OpenBW's headless speed in our setup is the key unknown.
 
@@ -622,7 +698,9 @@ Contributors with different hardware should report their throughput benchmark (P
 | **B0-b Micro RL** | `harass_tvz/muta_5_vs_marines` scenario on a small map. Policy of ~1–5M params (small unit transformer). PPO with ~16–20 parallel OpenBW envs on CPU, learner on GPU. Human interface **on**. | Roughly 10⁶–10⁷ agent steps. Enough to see learning curves and compare 2–3 humanizer settings (e.g. C vs. B profile). Not enough for polished micro. |
 | **B0-c Supervised smoke test** | ~10–30M param model on a preprocessed TvZ subset (1–2k games, prepared in B1) | Action-prediction accuracy curves. Confirms the data pipeline end to end. |
 
-**Not in B0 or B1:** full-game RL, Pluto-scale models (315M params; training would be slow and tight on 16 GB), leagues.
+**Model size cap for prototypes (B0–B2): 5–15M parameters.** Scale up only after the pipeline and metrics are proven.
+
+**Not in B0–B2:** full-game RL, leagues, Pluto-scale models (315M params). Full-length recurrent training on one 16 GB GPU runs into memory limits and is far too slow.
 
 **Storage:** STARDATA alone is ~365 GB compressed. Extracted features for modern replays add more. Plan for 1–2 TB of fast disk (NVMe).
 
@@ -633,7 +711,10 @@ Contributors with different hardware should report their throughput benchmark (P
 | Risk / question | Mitigation / next step |
 |---|---|
 | RL compute for full-game BW is unknown (Pluto's budget is unpublished) | Prove value in P2 (micro) first; scale model size gradually; supervised-only fallback |
-| SC:R replays may not resim in OpenBW 1.16.1 | Validate on a sample in P1; fall back to STARDATA plus 1.16.1 games |
+| SC:R replays may not resim in OpenBW 1.16.1 (format differs; lockstep amplifies any difference) | P1 go/no-go with per-replay desync detection; fallbacks: screp-level data only for SC:R, or resim inside the SC:R client (§7.2) |
+| Scripted macro reintroduces superhuman multitasking | Scripted executor emits `HumanAction`s through the shared arbiter and interface; never issues commands directly (§6.7) |
+| Arbiter rules feel artificial (e.g. macro never slips, or slips too much) | Fit macro share during fights from replays per rating band; compare against neural macro in the harass suite |
+| Soft masks in BC leak illegal actions into the policy | Hard masks in RL and at runtime; track masked-action rate during the transition |
 | Camera inference quality limits how human the interface is | Collect camera-logged games with the BWAPI logger (§7.4) to train and evaluate the inference model |
 | Too few volunteers for camera logging | A few hundred games is enough; recruit from the community and make the logger zero-config |
 | Discovered clusters don't match community build names (or split them oddly) | Multi-level taxonomy, human review step, aliases; treat names as a UI layer over clusters |
@@ -654,7 +735,8 @@ Contributors with different hardware should report their throughput benchmark (P
 
 | Tool | Used for | Not used for |
 |---|---|---|
-| **Neural policy (BC → RL)** | All in-game perception, micro, macro execution, intent selection | — |
+| **Neural policy (BC → RL)** | In-game perception, micro, intent selection; macro when `adherence: loose` | Bypassing the shared APM budget/camera |
+| **Scripted macro executor** | Repeatable build execution and building placement for strict drills and the first playable bot | Issuing commands outside the arbiter/interface |
 | **Symbolic layer** (*z*, supervisor, intents, facts, trace) | Steering, branch logic, accountability, explanations | Low-level control |
 | **LLM** | Prompt → *z* compiler, replay branch suggestions, intent labeling, narrator | Real-time decisions |
 | **Decision models** (Laya/Kev local; Jev/OpenAI Decisions hosted) | Providers in decision slots: replay labeling, opening classification, a learned alternative for `supervisor_branch` (local models only) | Per-step control (that's the policy's job), RL teacher (it would only re-learn the replay labels through a lossy text view) |
@@ -681,3 +763,5 @@ Contributors with different hardware should report their throughput benchmark (P
 - Open Jev rivals overview: https://trilogyai.substack.com/p/jev-open-decision-models
 - RepMastered: https://repmastered.app
 - Liquipedia replay packs: https://liquipedia.net/starcraft/Template:ReplayPack
+- OpenBW replay viewer (1.16.1 only): http://www.openbw.com/replay-viewer/
+- SC:R keeps Brood War gameplay code: https://www.vice.com/en/article/starcraft-remastered-doesnt-fix-brood-wars-broken-perfection/ · https://starcraft.fandom.com/wiki/StarCraft:_Remastered
