@@ -1,6 +1,6 @@
 # BW Sparring Partner — Architecture
 
-Status: **draft v0.4** (2026-10-01)
+Status: **draft v0.5** (2026-10-01)
 
 A StarCraft: Brood War AI that pro and aspiring players can use as a **sparring partner**:
 it plays with pro-level game sense, but with **human hands** (human APM, attention, reaction time
@@ -62,6 +62,12 @@ replay"), and it can **explain why** it did what it did.
 - Open, local, fine-tunable models (Laya) remove the hosted-API and no-fine-tuning objections. They can run on our own GPU, and they're fast enough for the Plan Supervisor (one decision every few seconds) and for labeling replays at scale.
 - They are still **not** the per-step policy and **not** an RL teacher. A decision model fine-tuned on replay labels learns the same thing the policy's own belief and intent heads learn from the same data, but through a lossy text version of the game state.
 - They are treated as **providers in decision slots** (§6.6), compared against scripts, LLMs and human labels on a gold set. Calibration (ECE) is measured by us, not taken from vendor claims.
+- **To get a head start from a decision model, fine-tune it on replay labels. Don't distill its base version into a small network.**
+  - Distilling base Laya copies only its answers on the queried states. Those answers are mostly guesses, since it has no BW training. The replay stage then overwrites most of what was copied.
+  - Fine-tuning keeps its pretrained representations.
+  - If a small, fast network is needed, **fine-tune first, then distill the fine-tuned model**.
+  - Pretraining priors matter most for rare situations with few replay examples.
+- **Open-vocabulary conditions** are a lasting niche for decision models. A user-written branch like "if he goes lurker, transition to mech" can be evaluated as text against current facts. A fixed-vocabulary network head can't do that, and a rule engine needs someone to write the rule (§6.6, `supervisor_branch`).
 
 ---
 
@@ -74,11 +80,13 @@ replay"), and it can **explain why** it did what it did.
    - The **same implementation** of the interface is used in training and at runtime.
 2. **One pair of hands.** Every executor that issues commands (the neural policy, a scripted macro executor, anything else) spends from the **same APM budget and the same camera**. Nothing gets free parallel actions. Human mistakes like a missed depot while microing mutas come from this shared budget, not from bolted-on randomness alone (§6.7).
 3. **Steering goes through explicit conditioning.** What to play (*z*) and how well to play (*h*) are both policy inputs. Prompts and replays are compiled into *z*. They are never free-text instructions to the policy.
-4. **Neural for skill, symbolic for structure.** The neural policy handles perception and micro. Macro execution is a swappable executor, scripted or neural (§6.7). Symbolic components provide:
+4. **Neural for skill and inference, symbolic for structure and decisions of record.** The neural side handles perception, micro, and inferring hidden information (the opponent's likely *z*). Macro execution is a swappable executor, scripted or neural (§6.7). Symbolic components provide:
    - the strategy language (*z*)
    - the intent bottleneck
-   - the plan supervisor (branch logic)
+   - the strategy layer: branch rules, plus **learned, inspectable win-rate statistics** (§6.8)
    - the trace
+
+   **Symbolic does not mean static:** the strategy layer learns from replays and from games played, by counting outcomes. Neural models also help decide *which* context features those statistics should be conditioned on (§7.6).
 5. **Explanations come from records, not stories.** Explanations are built from logged intents, beliefs, candidate probabilities and constraint events. The LLM only narrates. It never reconstructs reasoning after the fact.
 6. **Contracts are stable, implementations are swappable.** Schemas are versioned. Everything else is a plugin selected by a run manifest.
 7. **Every decision or label outside the policy is a slot.** Opening classification, intent labels, branch selection, camera inference and so on each have a typed interface. A deterministic script, a decision model, an LLM or a human can fill it, and they can be swapped and compared (§6.6).
@@ -98,11 +106,14 @@ replay"), and it can **explain why** it did what it did.
                                    │
  ┌──────────────────────────────── Runtime (per game) ─────────────────────────────┐
  │                                                                                 │
- │  Game Adapter ──► Perception (fog-filtered obs + symbolic facts)                │
+ │  Game Adapter ──► Perception (fog-filtered obs + symbolic facts: what I SAW)    │
  │       ▲                     │                                                   │
  │       │                     ▼                                                   │
- │       │         Plan Supervisor (symbolic) ── selects active z segment          │
- │       │                     │  (branches on facts + belief heads)               │
+ │       │         Opponent Model (neural): P(enemy z | what I saw)  ── beliefs    │
+ │       │                     │                                                   │
+ │       │                     ▼                                                   │
+ │       │         Strategy Layer (symbolic): Plan Supervisor rules +              │
+ │       │           Strategy Selector (learned win-rate stats) → active z segment │
  │       │          ┌──────────┴──────────────┐                                    │
  │       │          ▼                         ▼                                    │
  │       │  ┌── Policy π(a | obs, z, h, iface) ──┐   ┌── Macro Executor ───────┐   │
@@ -136,7 +147,8 @@ replay"), and it can **explain why** it did what it did.
 | **Perception** | Build the fog-filtered observation tensors and symbolic facts the player is allowed to know. Track memory of last-seen enemy units. | `RawState` → `Observation`, `Fact[]` | Feature sets v1/v2…; fact extractors |
 | **Strategy Compiler** | Turn a natural-language request into a valid *z*: resolve build names via the taxonomy (§7.3) and sample a real human *z* from that cluster. Ask for clarification or reject if impossible. | text → `StrategySpec` | LLM model/prompt versions; template library |
 | **Replay Extractor** | Turn a replay into *z* for one player: build order, timing targets, style statistics. Optionally suggest branches for human review. | `.rep` → `StrategySpec` | screp-only (commands) vs. resim (full state) |
-| **Plan Supervisor** | Deterministic branch logic over facts and belief heads. Decides which segment of *z* is active. Logs every switch with its evidence. | `Fact[]`, beliefs, *z* → `z_active` | Rule engine (default); later a learned branch selector |
+| **Opponent Model** | Infers hidden information from what the player has actually seen. Main output: a probability distribution over the opponent's *z* cluster (from the build taxonomy, §7.3), plus other beliefs (army size, tech, proxy). **Never reads hidden game state.** | `Observation`, `Fact[]` → `Belief[]` | NN belief model (default; trained on replays with hindsight labels), Bayesian/symbolic, fine-tuned decision model |
+| **Strategy Layer** | **Plan Supervisor:** hard branch rules and constraints from *z* (always on; e.g. no switching in strict mode). **Strategy Selector:** picks among allowed branches using learned win-rate statistics conditioned on beliefs and context (§6.8). Logs every switch with its evidence. | `Fact[]`, `Belief[]`, *z* → `z_active` | `supervisor_branch` slot providers: rules, stats table (§6.8), NN intent head, fine-tuned decision model |
 | **Policy** | Perception → intent → human-interface actions, conditioned on *z*, *h* and interface state. Hard limits are applied as action masks. | obs, `z_active`, *h*, `InterfaceState` → `Intent`, `HumanAction` | Backbone size/architecture, training recipe, checkpoint |
 | **Macro Executor** | Turns the active *z* segment into production, tech, supply and building-placement actions. | `z_active`, `Fact[]`, `InterfaceState` → `HumanAction` | `scripted` (build queue plus placement library; default early on), `neural` (the policy does macro itself) |
 | **Attention Arbiter** | Gives every executor's actions **one** APM bucket and **one** camera. Decides whose action goes next. Emits arbiter events (e.g. "macro starved for 9 s during fight"). | candidate `HumanAction`s → one `HumanAction` per step | Priority rules (default), profile-weighted, learned (later) |
@@ -301,6 +313,7 @@ kind: z_switch        # {from, to, rule, evidence: [fact/belief ids]}
 kind: intent          # {chosen, params, alternatives: [{intent, p}], policy_ckpt}
 kind: action          # {human_action, tokens_left}
 kind: constraint      # {type: masked|obs_delayed|scattered|misclick|lapse, detail}
+kind: strategy_select # {chosen, belief, context, options: [{id, ev, cells: [{enemy, ctx, wr, n, ci}]}], feature_library, table_version}
 kind: arbiter         # {granted_to: micro|macro, waiting: [{executor, action, waited_ms}], reason}
 kind: outcome         # {engagement result, units lost/killed, ...}
 kind: slot_decision   # {slot, provider, provider_version, answer, p, alternatives, cached?}
@@ -360,7 +373,8 @@ class Provider(Protocol):
 | `z_extract` (replay → StrategySpec) | offline | script (default), llm |
 | `branch_suggest` (replay → branches) | offline | llm, human |
 | `camera_infer` (replay → camera track) | offline | script, small learned model (validated against camera logs, §7.4) |
-| `supervisor_branch` (live z switch) | ≤50 ms, every few seconds | rules (default), laya_ft, learned_head |
+| `enemy_z_belief` (live opponent model) | ≤50 ms, every few seconds | nn_belief (default), bayes_symbolic, laya_ft |
+| `supervisor_branch` (live z switch) | ≤50 ms, every few seconds | rules (constraints, always on), stats_table (§6.8), learned_head, laya_ft. laya_ft also handles **open-vocabulary conditions** written by the user. |
 | `strategy_compile` (prompt → z) | interactive | llm, template script |
 | `narrate` (trace → answer) | interactive | llm |
 | `engagement_outcome` (eval labeling) | offline | script, human |
@@ -392,6 +406,57 @@ Decision slots answer questions. **Executors** issue commands. Two executors exi
 - `adherence: strict` → scripted macro, low variance. For drills: "hit this timing 20 times".
 - `adherence: loose` → neural macro. More human variety and adaptation.
 - Both run through the same arbiter and interface, so they can be compared directly (§9.2).
+
+### 6.8 Learned symbolic strategy: the Strategy Selector
+
+A symbolic decision-maker that **learns by counting outcomes**. It's the same idea as a fighting-game AI that tries jump / block / attack against an unknown enemy move, records which response worked, and picks the best next time. Formally it's a **contextual bandit** over a lookup table. Every number it uses can be printed.
+
+**Ingredients:**
+- **Options:** the branches (*z* segments, or *z* clusters from the taxonomy) that the Plan Supervisor currently allows.
+- **Belief:** `P(enemy_z | what I saw)` from the Opponent Model.
+- **Context features:** a versioned **feature library** of symbolic facts, e.g. `spawn: close|cross`, map, rush distance, timings of scouted items. Which features matter is discovered, not guessed (§7.6).
+- **Statistics:** win counts for `(my_option, enemy_z, context)` cells, with Beta posteriors (wins + 1, losses + 1).
+
+**Decision rule:**
+
+```
+EV(option) = Σ_enemy_z  P(enemy_z | seen) × WinRate(option | enemy_z, context)
+choose argmax EV          (or Thompson-sample from the posteriors when exploring)
+```
+
+**Sparse cells back off to coarser ones.** Each extra context feature splits the data. A cell with few games borrows strength from its parent: `(option, enemy_z, cross_spawn, map)` → `(option, enemy_z, cross_spawn)` → `(option, enemy_z)`. This is hierarchical Bayesian shrinkage, and in practice the table is stored as a tree. Every estimate carries its sample count and interval.
+
+**Example trace record (what "why" questions read):**
+
+```yaml
+kind: strategy_select
+chosen: t_allin_2fac_vult
+belief: {p_nexus_first: 0.83, p_gate_core: 0.12, p_other: 0.05}
+context: {spawn: cross, map: <map-id>}
+options:
+  - {id: t_std_timing,      ev: 0.09, cells: [{enemy: nexus_first, ctx: cross, wr: 0.06, n: 212, ci: [0.03, 0.10]}]}
+  - {id: t_allin_2fac_vult, ev: 0.38, cells: [{enemy: nexus_first, ctx: cross, wr: 0.41, n: 87,  ci: [0.31, 0.51]}]}
+feature_library: v3        # which features were available
+table_version: tvz_stats_v2
+```
+
+**Sources of statistics, in layers:**
+1. **Replays** (offline). Pros' choices and outcomes. Only needs screp-level data plus spawn and map info, available for all replays.
+2. **Bot self-play** (offline). These are true *interventions*: the bot is made to play every option in every context. That fixes the confounding problem below.
+3. **Games against this human** (online, optional). A per-opponent table, updated after every game, the way bots in BW tournaments already learn opponent-specific opening win rates.
+
+**Confounding warning.** Replay win rates are observational. Pros all-in *when they judge it favorable*, so `WR(all-in)` from replays overstates what you'd get by always going all-in. Mitigations:
+- condition on more context
+- weight replays by how likely the option was to be chosen (propensity weighting)
+- validate the table with self-play interventions before trusting it
+
+**Modes:**
+
+| Mode | Strategy Selector behavior | Use |
+|---|---|---|
+| `strict` | Off. The Plan Supervisor follows *z* exactly. | Drills |
+| `pro` | Replay + self-play table, no per-opponent learning | "Play what a pro would do here" |
+| `adaptive` | Plus a per-opponent table updated between games | Tournament prep: the bot learns your habits, like a real sparring partner would |
 
 ---
 
@@ -515,7 +580,42 @@ camera_log:
 
 **Privacy:** logs contain no account data beyond what's already in the replay. Contributors opt in per upload.
 
-### 7.5 Stages
+### 7.5 Opponent Model training
+
+Guessing the opponent's strategy from scouting is supervised learning with **free labels**: every replay says what the opponent actually did.
+- **Input:** player A's fog-filtered observation and facts at time *t*: only what A had seen by then. This needs resim for visibility.
+- **Label:** player B's taxonomy cluster (§7.3), known in hindsight from the replay.
+- **Output:** `P(enemy_z | seen)` at every time step, plus auxiliary beliefs (enemy army size, tech, proxy yes/no).
+- **Evaluation:** calibration (ECE) and accuracy as a function of game time ("how sure is it by 4:00?"), and the effect of scouting ("does seeing the natural change the belief correctly?").
+- **Baselines:** a symbolic Bayesian model over scouted facts, and a fine-tuned decision model. Same slot (`enemy_z_belief`), same bake-off.
+
+The policy may also have belief heads as auxiliary training targets. The Strategy Layer consumes the standalone Opponent Model, so beliefs are one versioned, testable component.
+
+### 7.6 Feature discovery: neural networks tell the symbolic layer what to measure
+
+**The problem:** the Strategy Selector's table only knows the context features someone thought to include.
+- Example: `WR(standard timing | nexus first)` ≈ 50% overall, but ≈ 0% at cross spawn.
+- If `spawn` isn't a feature, the table averages the two and recommends the wrong thing in both cases.
+- A neural network trained on the same replays *would* pick up the spawn effect, but it can't say so.
+
+**The loop:** use a neural network as a **detector of what the table is missing**. The table stays the decision-maker of record.
+
+1. **Train a value network** `V(seen, my_option) → P(win)` on replays (and later self-play). It sees everything the player saw, including spawn positions, map and timings. It doesn't need to be explainable.
+2. **Compare it to the table.** For every decision point, compute `residual = V − table_estimate`.
+   - Near zero everywhere: the table's features capture what matters.
+   - Large, systematic residuals: the network knows something the table doesn't.
+3. **Find what explains the residuals.** In order of increasing cost:
+   - **Existing candidate features:** fit a shallow decision tree on the residuals using the full feature library (including features not yet in the table). If it splits on `spawn`, that's the missing feature. This is the cheap, common case: compute many candidate facts up front and let the data decide which ones the table uses.
+   - **Attribution:** compute feature attributions on the value network for high-residual cases (e.g. SHAP or integrated gradients over its structured inputs) to see which inputs drive the disagreement.
+   - **New concepts:** if no existing feature explains it, cluster the high-residual situations and show an LLM (and then a human) example games from inside vs. outside the cluster. They propose a concept ("all of these are cross spawn on maps with long rush distance") that gets implemented as a new fact extractor.
+4. **Validate before adopting.** A new feature is added only if it reduces residuals and improves the table's prediction of game outcomes **on held-out replays**. Many candidates are tested, so we correct for multiple comparisons. Self-play interventions confirm the effect when possible.
+5. **Version everything.** Feature library v*N* → table v*N*. Every strategy decision in the trace records both versions, so explanations stay reproducible.
+
+**The result:** the network does what it's good at (finding patterns in thousands of games), and the symbolic layer does what it's good at (stating them). The explanation for the all-in becomes "cross spawn + nexus first: standard timing wins 6% (n=212), all-in wins 41% (n=87)". That's a statement a pro can check and argue with.
+
+**Precedents:** extracting decision trees from neural policies (VIPER), concept-bottleneck models (networks forced to predict named concepts), and SHAP-style attribution. The residual loop differs in keeping the network *outside* the decision path and using it only to grow the symbolic vocabulary.
+
+### 7.7 Stages
 
 | Stage | Method | Constraints on? | Output |
 |---|---|---|---|
@@ -534,6 +634,8 @@ The adherence pseudo-reward compares the bot's build order with *z* (supply/time
 | Question type | Answered from |
 |---|---|
 | "Why mutas?" | *z* (it was instructed) and `z_switch` events with their evidence |
+| "Why did you all-in?" | `strategy_select` event: beliefs, context, and each option's win rate with sample size and interval (§6.8) |
+| "What did you think I was doing?" (strategy) | `belief` history from the Opponent Model, with the facts seen at each point |
 | "Why mutas instead of lurkers?" | `intent.alternatives` at the decision frames, plus beliefs at that time |
 | "Why didn't you defend the drop?" | `constraint` events (masked off-screen, observation delay, empty APM bucket) and the intent at that time |
 | "Why were you supply-blocked?" | `arbiter` events: macro actions waiting while micro had priority |
@@ -564,7 +666,8 @@ run:
   slots:                      # §6.6 — provider per slot
     opening_class:     {provider: cascade, chain: [script/v2, laya_ft/0007@t=1.8, human]}
     intent_label:      {provider: laya_ft/0007}
-    supervisor_branch: {provider: rules/v1}
+    enemy_z_belief:    {provider: nn_belief/0003}
+    supervisor_branch: {provider: stats_table, table: tvz_stats_v2, features: v3, mode: pro}
     strategy_compile:  {provider: llm, model: <model-id>, prompt: v3}
   data: {index: tvz_modern_v1, label_sources: {intent_label: laya_ft/0007}}
   budget: {tier: B0, wall_clock: 1h}    # §13
@@ -642,6 +745,8 @@ taxonomy/     build discovery (prefix tree, clustering), cluster cards, rule dis
 tools/        camera_logger (BWAPI module), dataset utilities
 compiler/     prompt→z (LLM), replay→z
 supervisor/   plan supervisor (rules engine)
+strategy/     strategy selector, win-rate tables, feature library, feature-discovery loop (value net, residual trees)
+opponent/     opponent model (belief over enemy z) and baselines
 slots/        slot schemas, providers (script, decision_model, llm, human, cascade), label store, calibrators, bake-off runner
 annotate/     small labeling UI for the human provider queue
 policy/       model definitions, encoders, heads
@@ -661,9 +766,10 @@ docs/         this document, ADRs
 | **P0 Infra** | OpenBW vectorized env, human interface v1, trace schema, eval harness with classic bots | 1k headless games/hour on a reference workstation (to be confirmed by the benchmark); interface parity test (train vs. runtime) passes |
 | **P1 Data** | Replay → (obs, HumanAction, z, h) pipeline; desync detection; camera logger tool and first logged games; camera inference; profile fitting | **SC:R resim go/no-go decided** (desync rate measured, fallback chosen if needed, §7.2); camera inference accuracy measured against camera-logged games (§7.4) |
 | **P1b Taxonomy** | TvZ build taxonomy v1 (§7.3): discovery, naming, readable rules, human review | Reviewed `taxonomy/tvz/v1.yaml`; cluster stability and gold-set accuracy reported; `opening_class` bake-off done |
+| **P1c Strategy stats** | Feature library v1; replay win-rate table (§6.8) from screp-level data; first feature-discovery pass with decision trees on outcomes (§7.6) | Table beats the no-context baseline at predicting held-out outcomes; at least one discovered feature validated (e.g. spawn) |
 | **P2 Micro** | T0 curriculum in muta/marine/drop scenarios | Harass suite: responses within human distribution for ≥2 profiles |
-| **P2b First playable** | Scripted macro executor + micro policy + arbiter, all under the shared human interface; strict-adherence *z* from the taxonomy | Plays full TvZ games vs. humans on BWAPI 1.16.1; build timings within tolerance in ≥18/20 unharassed runs; supply blocks/idle production under harass within the human band |
-| **P3 BC full game** | T1 policy with *z*, *h*, intent and belief heads; supervisor; compiler | Adherence target met for 10 library strategies; humanlikeness classifier ≤ X% |
+| **P2b First playable** | Scripted macro executor + micro policy + arbiter, all under the shared human interface; strict-adherence *z* from the taxonomy; optional `pro` mode with the P1c table, a first Opponent Model (symbolic Bayesian or fine-tuned decision model), and open-vocabulary branch conditions via a fine-tuned decision model | Plays full TvZ games vs. humans on BWAPI 1.16.1; build timings within tolerance in ≥18/20 unharassed runs; supply blocks/idle production under harass within the human band |
+| **P3 BC full game** | T1 policy with *z*, *h*, intent and belief heads; NN Opponent Model (§7.5); value network and residual feature-discovery loop (§7.6); supervisor; compiler | Adherence target met for 10 library strategies; humanlikeness classifier ≤ X% |
 | **P4 RL** | T2a segment RL (workstation), then T2b league (rented compute) | Elo gain at equal humanlikeness and adherence |
 | **P5 Explain** | Query API, narrator, counterfactual tool | Counterfactual consistency ≥ target |
 | **P6 Deploy** | BWAPI client; SC:R bridge (offline) | Pro blind-test sessions |
@@ -718,6 +824,10 @@ Contributors with different hardware should report their throughput benchmark (P
 | Camera inference quality limits how human the interface is | Collect camera-logged games with the BWAPI logger (§7.4) to train and evaluate the inference model |
 | Too few volunteers for camera logging | A few hundred games is enough; recruit from the community and make the logger zero-config |
 | Discovered clusters don't match community build names (or split them oddly) | Multi-level taxonomy, human review step, aliases; treat names as a UI layer over clusters |
+| Replay win rates are confounded (pros pick options when they're favorable) | Propensity weighting, richer context, validation with self-play interventions (§6.8) |
+| Win-rate table cells get too sparse as features are added | Hierarchical back-off to parent cells; report n and intervals; add features only when held-out prediction improves |
+| Feature discovery finds spurious features | Held-out validation, multiple-comparison correction, self-play confirmation (§7.6) |
+| Opponent Model leaks hidden information | Inputs restricted to the fog-filtered observation; test that beliefs don't change when unseen enemy state is altered |
 | Humanlike vs. strong is a trade-off | Make it explicit via λ_KL, λ_D and profile conditioning; track both metrics together |
 | Intent labels are noisy | Confidence filtering, manual audit set, and iterating on intent vocab versions |
 | SC:R bridge fragility and ToS | Primary target is 1.16.1; SC:R is offline only; no ladder |
@@ -738,6 +848,9 @@ Contributors with different hardware should report their throughput benchmark (P
 | **Neural policy (BC → RL)** | In-game perception, micro, intent selection; macro when `adherence: loose` | Bypassing the shared APM budget/camera |
 | **Scripted macro executor** | Repeatable build execution and building placement for strict drills and the first playable bot | Issuing commands outside the arbiter/interface |
 | **Symbolic layer** (*z*, supervisor, intents, facts, trace) | Steering, branch logic, accountability, explanations | Low-level control |
+| **Strategy Selector** (learned symbolic, §6.8) | Strategy switches by counted win rates under beliefs and context; per-opponent adaptation | Inferring hidden information (that's the Opponent Model) |
+| **Opponent Model** (NN) | `P(enemy z \| what I saw)` and other beliefs | Making the strategy decision itself |
+| **Value network** (NN, offline) | Detecting what the win-rate table is missing (§7.6) | Being in the live decision path |
 | **LLM** | Prompt → *z* compiler, replay branch suggestions, intent labeling, narrator | Real-time decisions |
 | **Decision models** (Laya/Kev local; Jev/OpenAI Decisions hosted) | Providers in decision slots: replay labeling, opening classification, a learned alternative for `supervisor_branch` (local models only) | Per-step control (that's the policy's job), RL teacher (it would only re-learn the replay labels through a lossy text view) |
 | **Python scripts** | Default provider for deterministic slots (z extraction, simple classifiers); baseline in every bake-off | — |
@@ -763,5 +876,8 @@ Contributors with different hardware should report their throughput benchmark (P
 - Open Jev rivals overview: https://trilogyai.substack.com/p/jev-open-decision-models
 - RepMastered: https://repmastered.app
 - Liquipedia replay packs: https://liquipedia.net/starcraft/Template:ReplayPack
+- VIPER (decision-tree extraction from neural policies): Bastani, Pu, Solar-Lezama, "Verifiable Reinforcement Learning via Policy Extraction", NeurIPS 2018
+- Concept Bottleneck Models: Koh et al., ICML 2020
+- SHAP: Lundberg & Lee, "A Unified Approach to Interpreting Model Predictions", NeurIPS 2017
 - OpenBW replay viewer (1.16.1 only): http://www.openbw.com/replay-viewer/
 - SC:R keeps Brood War gameplay code: https://www.vice.com/en/article/starcraft-remastered-doesnt-fix-brood-wars-broken-perfection/ · https://starcraft.fandom.com/wiki/StarCraft:_Remastered
