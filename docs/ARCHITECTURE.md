@@ -1,6 +1,6 @@
 # BW Sparring Partner — Architecture
 
-Status: **draft v0.7** (2026-10-01)
+Status: **draft v0.8** (2026-10-01)
 
 A StarCraft: Brood War AI that pro and aspiring players can use as a **sparring partner**:
 it plays with pro-level game sense, but with **human hands** (human APM, attention, reaction time
@@ -155,6 +155,7 @@ replay"), and it can **explain why** it did what it did.
 | **Human Interface** | The only path to the game. Maintains `InterfaceState` (tokens, camera, selection) for masks and observations. Adds click scatter, misclicks and lapses. Delays observations to model reaction time. Emits a `ConstraintEvent` for every perturbation. | `HumanAction` → `GameCommand[]` | **Single implementation** shared by training and runtime; parameterized only by *h* |
 | **Trace Bus / Store** | Append-only, frame-stamped event log for every game, plus indexes for querying. | events → JSONL/Parquet | Storage backend |
 | **Narrator** | Answer "why" questions by retrieving trace records and turning them into text, citing event IDs. | question + trace slice → answer | LLM model/prompt versions |
+| **POV Viewer / Broadcaster** | Render the bot's own screen and cursor from its POV track, draw belief/memory/APM overlays, and voice live commentary chosen by the commentary director (§8.1). Doubles as the main debugging tool. | POV track + trace → video/stream | Offline renderer, live client capture; template vs. LLM commentary; TTS voice |
 | **Eval Harness** | Run matches and scenarios at scale, compute metrics, keep the scoreboard. | manifests → metrics | Scenario suites, opponent pools |
 
 ---
@@ -782,6 +783,58 @@ Rules:
 - Narrator answers must cite trace event IDs.
 - Counterfactual consistency is tracked as a metric: if an explanation names fact F as the reason, removing F should change the choice.
 
+### 8.1 POV broadcast mode
+
+Bots that read game memory have no point of view: there's no screen to watch. This bot has one **by construction**. Its camera and cursor are part of its state, and every decision is in the trace. POV broadcast mode turns that into a video or stream: the bot's own screen, its mouse, live overlays of what it believes, and commentary on what it's doing **and why**.
+
+The same viewer is also the **primary debugging tool**, so a rough version is built early (see the roadmap).
+
+**1. POV track export.** At every step the bot writes its camera rectangle, cursor position and clicks in the **same format as the camera logger** (`camera_log/v1`, §7.4). Bot POV and human POV recordings are interchangeable, so the viewer can also show camera-logged human games, or a bot and a human side by side.
+
+**2. Rendering:**
+
+| Mode | How | Use |
+|---|---|---|
+| **Offline** (default) | Replay playback with the camera driven by the POV track; cursor drawn as an overlay | Videos, debugging, highest quality |
+| **Live** | In the real client (BWAPI 1.16.1, or SC:R via the bridge), drive the in-game camera to the bot's camera position, draw the cursor, capture with OBS | Streams, sparring sessions with an audience |
+
+**3. Cursor paths are rendered, not decided.** The interface models each click as a Fitts's-law travel time, not a pixel-by-pixel path (§6.3). For video, a smooth human-like path (e.g. minimum-jerk) is drawn between clicks with exactly that duration. **Where and when it clicks is real; the curve between clicks is cosmetic.** Say so in the video description.
+
+**4. Commentary director.** It selects what's worth saying from the live trace, rate-limits it, and hands it to the narrator, then text-to-speech:
+
+| Event source | Example line |
+|---|---|
+| `strategy_select` | "Nexus first on cross spawn. Standard play wins 6% here, so I'm going vulture all-in." |
+| `belief` shift (Opponent Model) | "That's a third hatch, not 2-hatch muta. Relaxing the turrets." |
+| `belief` `enemy_status` / inspection | "Checking that tank: 31 HP. Going in." |
+| `memory` | "Lost track of the dropships 40 seconds ago. Keeping marines home." |
+| `constraint` / `arbiter` | "Supply blocked. I was busy microing against the mutas." |
+| `z_switch` | "He's going lurker, so per plan I'm transitioning to mech." |
+
+- **Templates** cover frequent events. **The LLM** writes summaries and longer reasons.
+- In live mode the expected lag is ~1–3 s (LLM plus TTS), which is acceptable for commentary.
+
+**5. Honesty rules for commentary:**
+- **No hindsight in live commentary.** Lines may use only trace events **up to the current frame**. Otherwise the bot narrates what it knows now as if it had known it then.
+- **Post-game review is a separate mode** that may use hindsight, clearly labeled ("looking back, the all-in was wrong because…").
+- **Explain only what the records support.** Strategy choices, beliefs, memory, inspections and constraints are explained from records. Micro is explained only at the intent level ("harassing the mineral line"). The narrator must not invent reasons below that.
+- Every spoken line keeps its cited trace event IDs in a sidecar file, so a line can be checked after the fact.
+
+**6. Overlays (the "chain of thought" made visual):**
+- opponent-strategy belief bars
+- current intent and active *z* segment
+- APM-budget gauge
+- fogged-unit memory drawn on the map (ghost markers with growing uncertainty circles)
+- enemy HP estimates with intervals
+- Strategy Selector option table at decision moments
+
+Each overlay can be toggled; a clean POV mode shows none.
+
+**7. Practical rules:**
+- **Opponents:** bot vs. bot, or humans who agreed to be recorded, in custom games. **Never the ladder.**
+- **Blizzard's game video policy:** follow the current terms for videos and streams, including monetization.
+- **Platform disclosure:** label it clearly as an AI player with a synthetic voice, following each platform's synthetic-content rules.
+
 ---
 
 ## 9. Experiment framework
@@ -890,6 +943,7 @@ annotate/     small labeling UI for the human provider queue
 policy/       model definitions, encoders, heads
 train/        bc, rl, league, rewards
 trace/        bus, store, query API, narrator
+broadcast/    POV viewer, overlays, commentary director, TTS, OBS/live-client integration
 eval/         harness, scenarios, metrics, dashboards
 configs/      run manifests, profiles, strategy library
 docs/         this document, ADRs
@@ -907,9 +961,11 @@ docs/         this document, ADRs
 | **P1c Strategy stats** | Feature library v1 (seeded from guide mining, §7.7); replay win-rate table (§6.8) from screp-level data; first feature-discovery pass with decision trees on outcomes (§7.6); first batch of guide claims with verdicts | Table beats the no-context baseline at predicting held-out outcomes; at least one discovered feature validated (e.g. spawn) |
 | **P2 Micro** | T0 curriculum in muta/marine/drop scenarios | Harass suite: responses within human distribution for ≥2 profiles |
 | **P2b First playable** | Scripted macro executor + micro policy + arbiter, all under the shared human interface; strict-adherence *z* from the taxonomy; optional `pro` mode with the P1c table, a first Opponent Model (symbolic Bayesian or fine-tuned decision model), and open-vocabulary branch conditions via a fine-tuned decision model | Plays full TvZ games vs. humans on BWAPI 1.16.1; build timings within tolerance in ≥18/20 unharassed runs; supply blocks/idle production under harass within the human band |
+| **P2c Debug viewer** | Rough POV viewer: replay + POV track + trace overlays (no voice) | Used routinely to debug P2b games |
 | **P3 BC full game** | T1 policy with *z*, *h*, intent and belief heads; NN Opponent Model (§7.5); value network and residual feature-discovery loop (§7.6); supervisor; compiler | Adherence target met for 10 library strategies; humanlikeness classifier ≤ X%; memory probe within the memory model's precision (§6.10) |
 | **P4 RL** | T2a segment RL (workstation), then T2b league (rented compute) | Elo gain at equal humanlikeness and adherence |
 | **P5 Explain** | Query API, narrator, counterfactual tool | Counterfactual consistency ≥ target |
+| **P5b Broadcast** | Commentary director, TTS, polished overlays; offline videos first, then live | Commentary passes the no-hindsight check; every spoken line traceable to event IDs |
 | **P6 Deploy** | BWAPI client; SC:R bridge (offline) | Pro blind-test sessions |
 
 ---
@@ -976,6 +1032,8 @@ Contributors with different hardware should report their throughput benchmark (P
 | Humanlike vs. strong is a trade-off | Make it explicit via λ_KL, λ_D and profile conditioning; track both metrics together |
 | Intent labels are noisy | Confidence filtering, manual audit set, and iterating on intent vocab versions |
 | SC:R bridge fragility and ToS | Primary target is 1.16.1; SC:R is offline only; no ladder |
+| Broadcast commentary sounds insightful but isn't faithful | No-hindsight rule, cited event IDs per line, explanations limited to recorded decisions (§8.1) |
+| Video/streaming terms (game publisher, platforms) | Follow Blizzard's video policy; disclose AI player and synthetic voice; recorded opponents must consent |
 | Pluto is closed source | Use only as an evaluation opponent. Do not distill from it (license, and it would import superhuman habits). |
 | Decision-model probabilities aren't trustworthy out of the box (Laya ships over-confident; OpenAI's are self-reported) | Fit a calibrator per provider and slot on the gold set; report ECE in every bake-off |
 | No bulk access to modern pro replays | Start with STARDATA plus Liquipedia packs; ask the RepMastered maintainer about research access |
