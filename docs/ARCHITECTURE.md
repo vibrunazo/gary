@@ -1,8 +1,8 @@
-# BW Sparring Partner — Architecture
+# Gary — Architecture
 
 Status: **draft v0.8** (2026-10-01)
 
-A StarCraft: Brood War AI that pro and aspiring players can use as a **sparring partner**:
+Gary is a StarCraft: Brood War AI that pro and aspiring players can use as a **sparring partner**:
 it plays with pro-level game sense, but with **human hands** (human APM, attention, reaction time
 and mistakes), it can be **told what to play** ("go 2 hatch muta", "play the PvT build from this
 replay"), and it can **explain why** it did what it did.
