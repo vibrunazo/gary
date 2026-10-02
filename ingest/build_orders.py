@@ -175,6 +175,10 @@ PRODUCER = {
 }
 # Zerg rally points can only be set from hatcheries (lairs and hives keep the hatchery's ID).
 ZERG_RALLY_ORDERS = {"RallyPointTile", "RallyPointUnit"}
+# Commands only a mobile unit accepts. A drone that gets one after being sent to build is still a
+# drone, so that building didn't happen. (Right Click is excluded: on a hatchery it sets the rally.)
+UNIT_ONLY_ORDERS = {"Move", "AttackMove", "Attack1", "Harvest1", "Patrol", "Follow", "HoldPosition"}
+UNIT_ONLY_CMDS = {"Return Cargo", "Burrow", "Hold Position"}
 SELECT_CMDS = {"Select", "Select Add", "Select Remove"}
 
 KIND_OF_CMD = {
@@ -239,6 +243,14 @@ def extract_player(cmds: list[dict], race: str | None) -> tuple[list[dict], dict
         if race == "Z" and t == "Targeted Order" and (c.get("Order") or {}).get("Name") in ZERG_RALLY_ORDERS:
             for tag in selection:
                 producer_first_use["Hatchery"].setdefault(tag, c["Frame"])
+        if race == "Z" and by_builder and (t in UNIT_ONLY_CMDS or (
+                t == "Targeted Order" and (c.get("Order") or {}).get("Name") in UNIT_ONLY_ORDERS)):
+            for tag in selection:
+                pending = by_builder.get(tag)
+                if pending and pending["conf"] == "ordered":
+                    pending["conf"] = "not built"
+                    pending["evidence"] = f"drone given a unit order at {secs(c['Frame']) // 60}:{secs(c['Frame']) % 60:02d}"
+                    stats["zerg_drone_redirected"] += 1
         kind = KIND_OF_CMD.get(t)
         if t == "Build" and (c.get("Order") or {}).get("Name") == "BuildNydusExit":
             # placing the exit is done from the canal itself: proof the canal exists, not a new build
@@ -331,11 +343,18 @@ def extract_player(cmds: list[dict], race: str | None) -> tuple[list[dict], dict
     # that building type (the first ID is the starting building for Command Center / Nexus).
     for ptype, tags in producer_first_use.items():
         orders = list(by_name.get(ptype, []))
-        # Zerg: the building has its drone's ID, so match it exactly.
-        for o in orders:
-            used_at = tags.get(o.get("_builder"))
-            if used_at is not None and used_at > o["frame"]:
-                del tags[o["_builder"]]
+        # Zerg: the building has its drone's ID, so match it exactly. If the same drone was sent
+        # more than once, the last order before the ID acts as a building is the one that happened.
+        for builder in {o.get("_builder") for o in orders} - {None}:
+            used_at = tags.get(builder)
+            if used_at is None:
+                continue
+            before = [o for o in orders if o.get("_builder") == builder and o["frame"] < used_at]
+            if before:
+                o = before[-1]
+                del tags[builder]
+                if o["conf"] in ("not built", "cancelled?"):
+                    stats["negative_overridden_by_evidence"] += 1
                 o["conf"] = "confirmed"
                 o["evidence"] = f"used as {ptype} at {secs(used_at) // 60}:{secs(used_at) % 60:02d}"
         orders = [o for o in orders if o["conf"] not in ("confirmed", "not built")]
