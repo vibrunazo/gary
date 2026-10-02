@@ -49,3 +49,14 @@ def morph(unit_type: int) -> bytes:
 
 
 LARVA = 35
+
+
+ORDER_ATTACK_MOVE = 0x0E
+MARINE = 0
+REFINERY = 110
+
+
+def targeted_order(order: int, x: int, y: int, target_tag: int = 0, target_type: int = NO_UNIT,
+                   queued: bool = False) -> bytes:
+    """A specific order at a point or unit (attack-move, patrol, ...)."""
+    return struct.pack("<BhhHHBB", 0x15, x, y, target_tag, target_type, order, int(queued))

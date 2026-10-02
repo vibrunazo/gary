@@ -205,11 +205,11 @@ GARY_API const char* gary_env_observe(void* h) {
 		char buf[256];
 		snprintf(buf, sizeof buf,
 		         "{\"tag\":%u,\"owner\":%d,\"type\":%d,\"x\":%d,\"y\":%d,\"hp\":%d,\"shields\":%d,"
-		         "\"completed\":%d,\"visible_to\":%d,\"order\":%d,\"resources\":%d}",
+		         "\"completed\":%d,\"visible_to\":%d,\"order\":%d,\"resources\":%d,\"queue\":%d}",
 		         (unsigned)f.get_unit_id(u).raw_value, u->owner, (int)u->unit_type->id, u->sprite->position.x,
 		         u->sprite->position.y, u->hp.integer_part(), u->shield_points.integer_part(),
 		         f.u_completed(u) ? 1 : 0, u->sprite->visibility_flags, (int)u->order_type->id,
-		         f.ut_resource(u->unit_type) ? u->building.resource.resource_count : 0);
+		         f.ut_resource(u->unit_type) ? u->building.resource.resource_count : 0, (int)u->build_queue.size());
 		o += buf;
 	}
 	o += "]}";
@@ -543,4 +543,71 @@ GARY_API void* gary_env_create_game(const char* data_dir, const char* map_path, 
 		g_create_error = ex.what();
 		return nullptr;
 	}
+}
+
+// --- building placement and map knowledge ------------------------------------------------------
+
+// Whether a player could place unit_type with its top-left tile at (tile_x, tile_y) right now,
+// using the game's own check (the green/red placement grid): terrain, creep / pylon power,
+// units in the way, the resource-depot distance rule, and unexplored tiles (not allowed).
+// builder_tag: the worker that would build it (0 if none).
+GARY_API bool gary_env_can_place(void* h, int slot, unsigned builder_tag, int unit_type, int tile_x, int tile_y) {
+	auto* e = (env*)h;
+	auto& f = *e->funcs;
+	const unit_type_t* ut = f.get_unit_type((UnitTypes)unit_type);
+	const unit_t* builder = builder_tag ? f.get_unit(unit_id((uint16_t)builder_tag)) : nullptr;
+	xy pos(32 * tile_x + ut->placement_size.x / 2, 32 * tile_y + ut->placement_size.y / 2);
+	return f.can_place_building(builder, slot, ut, pos, false, true);
+}
+
+// Static map knowledge players have before the game starts (they know the maps): whether a
+// resource depot (Command Center / Nexus / Hatchery, 4x3 tiles) fits at a top-left tile by terrain
+// and the 3-tile distance from resources, ignoring units and fog. Used to find base locations.
+GARY_API bool gary_env_depot_spot_ok(void* h, int tile_x, int tile_y) {
+	auto* e = (env*)h;
+	auto& f = *e->funcs;
+	const state& st = e->player.st();
+	int w = (int)st.game->map_tile_width, hgt = (int)st.game->map_tile_height;
+	if (tile_x < 0 || tile_y < 0 || tile_x + 4 > w || tile_y + 3 > hgt) return false;
+	for (int y = tile_y; y != tile_y + 3; ++y) {
+		for (int x = tile_x; x != tile_x + 4; ++x) {
+			auto& tile = st.tiles[y * w + x];
+			if (tile.flags & (tile_t::flag_partially_walkable | tile_t::flag_unbuildable)) return false;
+		}
+	}
+	rect bb{xy(32 * (tile_x - 3), 32 * (tile_y - 3)), xy(32 * (tile_x + 4 + 3), 32 * (tile_y + 3 + 3))};
+	for (const unit_t* n : f.find_units_noexpand(bb)) {
+		if (f.ut_resource(n->unit_type)) return false;
+	}
+	return true;
+}
+
+// Start locations of the map (pixel centers), from its UNIT chunk: map knowledge.
+GARY_API const char* gary_env_start_locations(void* h) {
+	auto* e = (env*)h;
+	std::string& o = e->observation;
+	o = "[";
+	const auto& chk = e->map_data;
+	bool first = true;
+	for (size_t pos = 0; pos + 8 <= chk.size();) {
+		int32_t size;
+		memcpy(&size, chk.data() + pos + 4, 4);
+		if (size < 0 || pos + 8 + (size_t)size > chk.size()) break;
+		if (!memcmp(chk.data() + pos, "UNIT", 4)) {
+			for (size_t u = 0; u + 36 <= (size_t)size; u += 36) {
+				const uint8_t* d = chk.data() + pos + 8 + u;
+				uint16_t x, y, type;
+				memcpy(&x, d + 4, 2);
+				memcpy(&y, d + 6, 2);
+				memcpy(&type, d + 8, 2);
+				if (type != 214) continue;
+				if (!first) o += ',';
+				first = false;
+				o += "{\"x\":" + std::to_string(x) + ",\"y\":" + std::to_string(y) + ",\"slot\":" + std::to_string(d[16]) + "}";
+			}
+		}
+		pos += 8 + (size_t)size;
+	}
+	o += "]";
+	return o.c_str();
 }

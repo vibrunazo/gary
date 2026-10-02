@@ -48,6 +48,13 @@ def _load_dll() -> ctypes.CDLL:
     dll.gary_env_unit_type.restype = ctypes.c_int
     dll.gary_env_unit_type.argtypes = [ctypes.c_void_p, ctypes.c_uint]
     dll.gary_env_set_name.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p]
+    dll.gary_env_can_place.restype = ctypes.c_bool
+    dll.gary_env_can_place.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_uint, ctypes.c_int,
+                                       ctypes.c_int, ctypes.c_int]
+    dll.gary_env_depot_spot_ok.restype = ctypes.c_bool
+    dll.gary_env_depot_spot_ok.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+    dll.gary_env_start_locations.restype = ctypes.c_char_p
+    dll.gary_env_start_locations.argtypes = [ctypes.c_void_p]
     dll.gary_env_create_game.restype = ctypes.c_void_p
     dll.gary_env_create_game.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int,
                                          ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_char_p),
@@ -133,6 +140,18 @@ class Game:
     def set_name(self, slot: int, name: str) -> None:
         """Rename a player (also in replays saved from this game)."""
         _dll.gary_env_set_name(self._h, slot, name.encode()[:24])
+
+    def can_place(self, slot: int, unit_type: int, tile_x: int, tile_y: int, builder_tag: int = 0) -> bool:
+        """The game's own placement check (what the green/red grid shows the player)."""
+        return _dll.gary_env_can_place(self._h, slot, builder_tag, unit_type, tile_x, tile_y)
+
+    def depot_spot_ok(self, tile_x: int, tile_y: int) -> bool:
+        """Map knowledge: a resource depot fits here by terrain and resource distance."""
+        return _dll.gary_env_depot_spot_ok(self._h, tile_x, tile_y)
+
+    def start_locations(self) -> list[dict]:
+        """Map knowledge: the start locations' pixel centers."""
+        return json.loads(_dll.gary_env_start_locations(self._h).decode())
 
     def save_replay(self, path: str | Path) -> None:
         self._check(_dll.gary_env_save_replay(self._h, str(path).encode()))

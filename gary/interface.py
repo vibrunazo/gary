@@ -282,6 +282,17 @@ class HumanInterface:
             "x": round(map_x + self.rng.gauss(0, s)), "y": round(map_y + self.rng.gauss(0, s))}))
         return ActionResult(True, land_frame=land)
 
+    def minimap_command(self, order: int, map_x: int, map_y: int) -> ActionResult:
+        """A targeted order (e.g. attack-move: A, then click) on the minimap."""
+        if (r := self._spend()):
+            return r
+        land = max(self.frame, self.hand_free_at) + round((self.p.fitts_a_ms + self.p.key_ms) / FRAME_MS) + 1
+        s = self.p.minimap_scatter_px
+        self.hand_free_at = land
+        self.pending.append(_Pending(land, "minimap_order", {
+            "order": order, "x": round(map_x + self.rng.gauss(0, s)), "y": round(map_y + self.rng.gauss(0, s))}))
+        return ActionResult(True, land_frame=land)
+
     def train(self, unit_type: int) -> ActionResult:
         """Hotkey: train from the selected building."""
         return self._schedule_key("train", unit_type=unit_type)
@@ -360,6 +371,8 @@ class HumanInterface:
             self._send(C.right_click(x, y, tag, C.NO_UNIT if not tag else g.unit_type_of(tag), a.args["queued"]))
         elif a.kind == "minimap_right_click":
             self._send(C.right_click(a.args["x"], a.args["y"]))
+        elif a.kind == "minimap_order":
+            self._send(C.targeted_order(a.args["order"], a.args["x"], a.args["y"]))
         elif a.kind == "train":
             self._send(C.train(a.args["unit_type"]))
         elif a.kind == "morph":
