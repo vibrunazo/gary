@@ -208,6 +208,34 @@ struct counting_replay_functions : replay_functions {
 		execute_actions_counted();
 		state_functions::next_frame();
 		track_units();
+		if (debug_rejects) track_object_usage();
+	}
+
+	// Peak number of live engine objects, to see whether a game gets near OpenBW's (1.16.1)
+	// limits: units 1700, bullets 100, sprites 2500, images 5000, orders 2000.
+	struct usage { size_t peak = 0; int frame = 0; };
+	std::array<usage, 5> object_usage{};
+
+	template<typename C>
+	static size_t live(const C& c) {
+		size_t free_n = 0;
+		for (auto it = c.free_list.begin(); it != c.free_list.end(); ++it) ++free_n;
+		return c.size - free_n;
+	}
+
+	void track_object_usage() {
+		if (st.current_frame % 8) return;
+		size_t now[5] = {live(st.units_container), live(st.bullets_container), live(st.sprites_container),
+		                 live(st.images_container), live(st.orders_container)};
+		for (int i = 0; i != 5; ++i) {
+			if (now[i] > object_usage[i].peak) object_usage[i] = {now[i], st.current_frame};
+		}
+	}
+
+	void print_object_usage() {
+		const char* names[5] = {"units", "bullets", "sprites", "images", "orders"};
+		for (int i = 0; i != 5; ++i)
+			fprintf(stderr, "peak %s %zu at frame %d" "\n", names[i], object_usage[i].peak, object_usage[i].frame);
 	}
 
 	// --- unit events -------------------------------------------------------------------------
@@ -445,6 +473,7 @@ int main(int argc, char** argv) {
 			if (every > 0 && st.current_frame % every == 0) print_snapshot(st, replay_st, f);
 		}
 		print_snapshot(st, replay_st, f);
+		if (f.debug_rejects) f.print_object_usage();
 
 		std::string end = "{\"type\":\"end\",\"frame\":" + std::to_string(st.current_frame) + ",\"total_rejected\":{";
 		first = true;
