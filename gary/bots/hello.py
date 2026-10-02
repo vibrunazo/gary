@@ -5,7 +5,7 @@ they can see, a bit late; it has to click workers and mineral fields on its scre
 travel and scatter; and everything it does costs APM. It exists to prove that loop works end
 to end and to show what the human limits look like in a replay.
 
-    python -m gary.bots.hello --replay-map tests/fixtures/replays/stardata_tvz_standard_ozp3w.rep --minutes 4
+    python -m gary.bots.hello --map tests/fixtures/replays/stardata_tvz_standard_ozp3w.rep --races T Z --minutes 4
 """
 
 from __future__ import annotations
@@ -88,17 +88,18 @@ class HelloGary:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--replay-map", required=True, help="pre-1.18 replay whose map and players to use")
+    ap.add_argument("--map", required=True, help="a .scm/.scx map, or a pre-1.18 replay (its embedded map)")
+    ap.add_argument("--races", nargs="+", default=["T", "Z"], help="one race per player, e.g. T Z")
+    ap.add_argument("--seed", type=int, help="random start locations; default: current time")
     ap.add_argument("--minutes", type=float, default=4)
     ap.add_argument("--profile", default="b_rank", choices=sorted(PROFILES))
     ap.add_argument("--save", default="gary_hello.rep", help="where to save the resulting replay")
     args = ap.parse_args()
 
-    with Game.from_replay_map(args.replay_map) as game:
+    names = [f"Gary v0 ({r.upper()})" for r in args.races]
+    with Game.new(args.map, args.races, names, seed=args.seed) as game:
         players = game.observe()["players"]
         his = [HumanInterface(game, p["slot"], PROFILES[args.profile], seed=p["slot"]) for p in players]
-        for p in players:
-            game.set_name(p["slot"], "Gary v0")
         bots = [HelloGary(hi) for hi in his]
         end = int(args.minutes * 60 * 24)
         frame = 0

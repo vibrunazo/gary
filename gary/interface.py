@@ -3,7 +3,10 @@
 Gary acts like a person at a keyboard and mouse, and sees what a person would see:
 
 - **Camera.** Gary has a screen-sized view of the map. Clicks must land inside it (minimap
-  commands are the exception, with much worse precision). Moving the camera costs an action.
+  commands are the exception, with much worse precision). The view moves the ways a player moves
+  it: clicking the minimap (mouse travel, minimap-pixel precision), arrow-key scrolling (at a
+  scroll speed), location hotkeys (F2-F4) and double-tapping a group hotkey. Camera moves cost
+  time and a hand, not APM: the game doesn't count them as actions either.
 - **Mouse.** Clicks are screen pixels, never unit IDs. The game decides what's under the
   pixel, so in a stack of units the one on top gets clicked. The cursor has to travel: each
   click lands after a Fitts's-law delay from where the cursor was, with scatter that grows
@@ -52,6 +55,10 @@ class Profile:
     scatter_rushed_px: float = 6.0           # extra scatter when the APM bucket is nearly empty
     minimap_scatter_px: float = 48.0         # map pixels
     reaction_ms: float = 300.0               # observation delay
+    # camera (placeholders until measured from camera-logger data)
+    minimap_rect: tuple[int, int, int, int] = (6, 348, 128, 128)  # screen x, y, w, h (in the HUD)
+    scroll_px_per_frame: float = 24.0        # arrow-key scrolling speed
+    key_ms: float = 80.0                     # time between two key presses
 
 
 PROFILES = {
@@ -84,6 +91,7 @@ class HumanInterface:
         self.rng = random.Random(seed)
         obs = game.observe()
         self.frame = obs["frame"]
+        self.map_size = (obs["map"]["w"], obs["map"]["h"])
         start = next((u for u in obs["units"] if u["owner"] == slot and u["type"] in
                       (C.COMMAND_CENTER, C.HATCHERY, C.NEXUS)), None)
         vw, vh = self.p.viewport
@@ -91,6 +99,9 @@ class HumanInterface:
         self.camera = (max(0, cx - vw // 2), max(0, cy - vh // 2))   # top-left, map pixels
         self.cursor = (vw // 2, vh // 2)                              # screen pixels
         self.hand_free_at = self.frame                                # when the mouse is free
+        self.keys_free_at = self.frame                                # when the keyboard hand is free
+        self.camera_locations: dict[int, tuple[int, int]] = {}        # F2-F4 screen locations
+        self.scroll: tuple[float, float, int] | None = None           # (dx, dy per frame, frames left)
         self.tokens = self.p.apm_capacity
         self.selection: list[int] = []
         self.hotkeys: dict[int, list[int]] = {}
@@ -176,14 +187,73 @@ class HumanInterface:
             self.stats[key] = self.stats.get(key, 0) + 1
         return ok
 
+    def _move_camera(self, x: float, y: float) -> None:
+        vw, vh = self.p.viewport
+        map_w, map_h = self.map_size
+        self.camera = (round(min(max(0, x), map_w - vw)), round(min(max(0, y), map_h - vh)))
+
+    def _center_camera(self, x: int, y: int) -> None:
+        vw, vh = self.p.viewport
+        self._move_camera(x - vw // 2, y - vh // 2)
+
     def _to_map(self, sx: int, sy: int) -> tuple[int, int]:
         return self.camera[0] + sx, self.camera[1] + sy
 
     # --- actions (each costs one APM token) ----------------------------------------------
 
-    def camera_center(self, map_x: int, map_y: int) -> ActionResult:
-        """Move the view (minimap click or edge scroll, abstracted as one action)."""
-        return self._schedule_key("camera", x=map_x, y=map_y)
+    # --- camera ---------------------------------------------------------------------------
+    # Camera moves aren't game commands (replays don't record them and APM doesn't count them),
+    # so they cost no APM tokens. They cost time and the hand that does them instead: the
+    # minimap needs the mouse, scrolling and location hotkeys need the keyboard.
+
+    def camera_minimap(self, map_x: int, map_y: int) -> ActionResult:
+        """Left click on the minimap: the mouse travels to the minimap, and the view jumps there.
+        Precise to about one minimap pixel (a 128-tile map is 32 map pixels per minimap pixel)."""
+        mx, my, mw, mh = self.p.minimap_rect
+        map_w, map_h = self.map_size
+        target = (mx + map_x * mw / map_w, my + map_y * mh / map_h)
+        dist = math.dist(self.cursor, target)
+        travel_ms = self.p.fitts_a_ms + self.p.fitts_b_ms * math.log2(dist / 4 + 1)
+        land = max(self.frame, self.hand_free_at) + max(1, round(travel_ms / FRAME_MS))
+        self.hand_free_at = land
+        self.cursor = (round(target[0]), round(target[1]))
+        px = map_w / mw
+        x = map_x + self.rng.uniform(-px / 2, px / 2)
+        y = map_y + self.rng.uniform(-px / 2, px / 2)
+        self.pending.append(_Pending(land, "camera", {"x": round(x), "y": round(y)}))
+        return ActionResult(True, land_frame=land)
+
+    def camera_scroll(self, dx: int, dy: int) -> ActionResult:
+        """Arrow-key scrolling by (dx, dy) map pixels, at the profile's scroll speed."""
+        frames = max(1, math.ceil(math.hypot(dx, dy) / self.p.scroll_px_per_frame))
+        start = max(self.frame, self.keys_free_at)
+        self.keys_free_at = start + frames
+        self.pending.append(_Pending(start, "scroll", {"dx": dx / frames, "dy": dy / frames, "frames": frames}))
+        return ActionResult(True, land_frame=start + frames)
+
+    def camera_location_set(self, n: int) -> ActionResult:
+        """Shift+F2..F4: remember the current view."""
+        return self._key("camera_location_set", n=n)
+
+    def camera_location(self, n: int) -> ActionResult:
+        """F2..F4: jump to a remembered view."""
+        if n not in self.camera_locations:
+            return ActionResult(False, "no such location")
+        return self._key("camera_location", n=n)
+
+    def camera_to_group(self, n: int) -> ActionResult:
+        """Double-tap a group hotkey: select it (one APM token) and center the view on it."""
+        r = self.hotkey_recall(n)
+        if r.accepted:
+            self._key("camera_to_group", n=n)
+        return r
+
+    def _key(self, kind: str, **args) -> ActionResult:
+        """A key press that isn't a game command (no APM token)."""
+        land = max(self.frame, self.keys_free_at) + max(1, round(self.p.key_ms / FRAME_MS))
+        self.keys_free_at = land
+        self.pending.append(_Pending(land, kind, args))
+        return ActionResult(True, land_frame=land)
 
     def click(self, sx: int, sy: int, shift: bool = False) -> ActionResult:
         """Left click on the screen: select whatever is drawn there."""
@@ -244,6 +314,10 @@ class HumanInterface:
             for a in due:
                 self.pending.remove(a)
                 self._land(a)
+            if self.scroll:
+                dx, dy, left = self.scroll
+                self._move_camera(self.camera[0] + dx, self.camera[1] + dy)
+                self.scroll = (dx, dy, left - 1) if left > 1 else None
             if advance_game:
                 self.game.step(1)
             self.frame += 1
@@ -254,8 +328,18 @@ class HumanInterface:
     def _land(self, a: _Pending) -> None:
         g = self.game
         if a.kind == "camera":
-            vw, vh = self.p.viewport
-            self.camera = (max(0, a.args["x"] - vw // 2), max(0, a.args["y"] - vh // 2))
+            self._center_camera(a.args["x"], a.args["y"])
+        elif a.kind == "scroll":
+            self.scroll = (a.args["dx"], a.args["dy"], a.args["frames"])
+        elif a.kind == "camera_location_set":
+            self.camera_locations[a.args["n"]] = self.camera
+        elif a.kind == "camera_location":
+            self.camera = self.camera_locations[a.args["n"]]
+        elif a.kind == "camera_to_group":
+            tags = set(self.hotkeys.get(a.args["n"], []))
+            units = [u for u in self.history[-1][1]["units"] if u["tag"] in tags]
+            if units:
+                self._center_camera(sum(u["x"] for u in units) // len(units), sum(u["y"] for u in units) // len(units))
         elif a.kind == "click":
             tag = g.unit_at(self.slot, *self._to_map(a.args["sx"], a.args["sy"]))
             if tag:

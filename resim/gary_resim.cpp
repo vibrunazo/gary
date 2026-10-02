@@ -451,6 +451,10 @@ int main(int argc, char** argv) {
 		// can be adjusted before OpenBW loads it.
 		std::vector<uint8_t> stream = flat ? replay_bytes : decode_legacy_replay(replay_bytes);
 		disable_cosmetic_trigger_actions(stream);
+		if (getenv("GARY_PRINT_HEADER")) {  // debug: the decoded 633-byte game info, hex
+			for (size_t i = 4; i != 4 + 633; ++i) fprintf(stderr, "%02x", stream[i]);
+			fputc('\n', stderr);
+		}
 		data_loading::data_reader_le r(stream.data(), stream.data() + stream.size());
 		f.load_replay(r);
 		const state& st = player.st();

@@ -5,8 +5,8 @@ Python code can play through a small C API. The Python side is [`gary/env.py`](.
 
 **Status (v0):**
 
-- Starts a game on a pre-1.18 replay's map, with that replay's players and races (its commands
-  aren't played).
+- Starts a melee game on a map file (`.scm`/`.scx`, Remastered maps included) or on the map
+  embedded in a pre-1.18 replay, with chosen races and names and random start locations.
 - Steps the game, takes each player's commands in the replay command format
   ([`gary/commands.py`](../gary/commands.py)), and returns the full game state as JSON.
 - Saves the game as a replay that StarCraft (including Remastered) and `gary_resim` can play

@@ -1,7 +1,7 @@
 """Python access to a headless Brood War game (env/gary_env.dll, built on OpenBW).
 
     from gary.env import Game
-    game = Game.from_replay_map("tests/fixtures/replays/stardata_tvz_standard_ozp3w.rep")
+    game = Game.new("path/to/map.scx", races=["T", "Z"], names=["Gary", "Gary"], seed=1)
     obs = game.observe()                  # full state as a dict
     game.act(slot, commands.select([tag]))
     game.step(8)
@@ -16,6 +16,7 @@ from __future__ import annotations
 import ctypes
 import json
 import os
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -47,6 +48,10 @@ def _load_dll() -> ctypes.CDLL:
     dll.gary_env_unit_type.restype = ctypes.c_int
     dll.gary_env_unit_type.argtypes = [ctypes.c_void_p, ctypes.c_uint]
     dll.gary_env_set_name.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p]
+    dll.gary_env_create_game.restype = ctypes.c_void_p
+    dll.gary_env_create_game.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int,
+                                         ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_char_p),
+                                         ctypes.c_uint32]
     return dll
 
 
@@ -64,6 +69,26 @@ class GameError(RuntimeError):
 class Game:
     def __init__(self, handle: int):
         self._h = handle
+
+    @classmethod
+    def new(cls, map_path: str | Path, races: list[str], names: list[str] | None = None,
+            seed: int | None = None, gamedata: str | Path | None = None) -> "Game":
+        """A new melee game. map_path: a .scm/.scx map, or a pre-1.18 replay (its embedded map).
+        races: e.g. ["T", "Z"]. Players get random start locations (from seed). The seed is also
+        the replay's start time, as in the real game; it defaults to the current time."""
+        global _dll
+        _dll = _dll or _load_dll()
+        codes = {"Z": 0, "T": 1, "P": 2}
+        n = len(races)
+        seed = int(time.time()) if seed is None else seed
+        names = names or [f"Gary {i + 1}" for i in range(n)]
+        race_arr = (ctypes.c_int * n)(*[codes[r.upper()[0]] for r in races])
+        name_arr = (ctypes.c_char_p * n)(*[nm.encode()[:24] for nm in names])
+        h = _dll.gary_env_create_game(str(gamedata or _gamedata_dir()).encode(), str(map_path).encode(),
+                                      n, race_arr, name_arr, seed)
+        if not h:
+            raise GameError(_dll.gary_env_error(None).decode(errors="replace"))
+        return cls(h)
 
     @classmethod
     def from_replay_map(cls, replay: str | Path, gamedata: str | Path | None = None) -> "Game":

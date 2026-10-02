@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <algorithm>
 #include <vector>
 
 #ifdef _WIN32
@@ -179,7 +180,9 @@ GARY_API const char* gary_env_observe(void* h) {
 	const state& st = e->player.st();
 	auto& f = *e->funcs;
 	std::string& o = e->observation;
-	o = "{\"frame\":" + std::to_string(st.current_frame) + ",\"players\":[";
+	o = "{\"frame\":" + std::to_string(st.current_frame) + ",\"map\":{\"w\":" +
+	    std::to_string(st.game->map_tile_width * 32) + ",\"h\":" + std::to_string(st.game->map_tile_height * 32) +
+	    "},\"players\":[";
 	bool first = true;
 	for (int p = 0; p != 8; ++p) {
 		if (st.players[p].controller != player_t::controller_occupied) continue;
@@ -340,4 +343,204 @@ GARY_API int gary_env_unit_type(void* h, unsigned tag) {
 	auto* e = (env*)h;
 	const unit_t* u = e->funcs->get_unit(unit_id((uint16_t)tag));
 	return u ? (int)u->unit_type->id : -1;
+}
+
+// --- new games from a map --------------------------------------------------------------------
+
+namespace {
+
+void put16(uint8_t* p, uint16_t v) { memcpy(p, &v, 2); }
+void put32(uint8_t* p, uint32_t v) { memcpy(p, &v, 4); }
+
+// Remastered maps: version 206 -> 205, and an 'STR ' chunk built from 'STRx' if that's all there
+// is (same fix as resim/scr_format.py).
+std::vector<uint8_t> remastered_map_to_bw(std::vector<uint8_t> chk) {
+	struct chunk { size_t pos; std::string name; int32_t size; };
+	std::vector<chunk> chunks;
+	for (size_t pos = 0; pos + 8 <= chk.size();) {
+		int32_t size;
+		memcpy(&size, chk.data() + pos + 4, 4);
+		if (size < 0 || pos + 8 + (size_t)size > chk.size()) break;
+		chunks.push_back({pos, std::string((const char*)chk.data() + pos, 4), size});
+		pos += 8 + (size_t)size;
+	}
+	bool has_str = false, has_strx = false;
+	for (auto& c : chunks) {
+		if (c.name == "VER " && c.size >= 2 && chk[c.pos + 8] == 206 && chk[c.pos + 9] == 0) put16(chk.data() + c.pos + 8, 205);
+		has_str |= c.name == "STR ";
+		has_strx |= c.name == "STRx";
+	}
+	if (has_str || !has_strx) return chk;
+	const chunk* strx = nullptr;
+	for (auto& c : chunks) if (c.name == "STRx") strx = &c;
+	const uint8_t* d = chk.data() + strx->pos + 8;
+	uint32_t count;
+	memcpy(&count, d, 4);
+	if ((size_t)4 + 4 * (size_t)count > (size_t)strx->size) return chk;
+	size_t base = 2 + 2 * (size_t)count;
+	std::vector<uint8_t> body{0};
+	std::vector<uint16_t> offsets;
+	for (uint32_t i = 0; i != count; ++i) {
+		uint32_t off;
+		memcpy(&off, d + 4 + 4 * i, 4);
+		std::string str;
+		for (uint32_t j = off; j < (uint32_t)strx->size && d[j]; ++j) str += (char)d[j];
+		if (!str.empty() && base + body.size() + str.size() + 1 < 0x10000) {
+			offsets.push_back((uint16_t)(base + body.size()));
+			body.insert(body.end(), str.begin(), str.end());
+			body.push_back(0);
+		} else {
+			offsets.push_back((uint16_t)base);
+		}
+	}
+	std::vector<uint8_t> str_chunk(2 + 2 * offsets.size());
+	put16(str_chunk.data(), (uint16_t)count);
+	for (size_t i = 0; i != offsets.size(); ++i) put16(str_chunk.data() + 2 + 2 * i, offsets[i]);
+	str_chunk.insert(str_chunk.end(), body.begin(), body.end());
+	chk.insert(chk.end(), {'S', 'T', 'R', ' '});
+	uint8_t len[4];
+	put32(len, (uint32_t)str_chunk.size());
+	chk.insert(chk.end(), len, len + 4);
+	chk.insert(chk.end(), str_chunk.begin(), str_chunk.end());
+	return chk;
+}
+
+// Map data (CHK) from a map file (.scm/.scx) or from the map embedded in a pre-1.18 replay.
+std::vector<uint8_t> read_map(const std::string& path) {
+	std::string lower;
+	for (char c : path) lower += (char)tolower((unsigned char)c);
+	auto ends = [&](const char* x) { size_t n = strlen(x); return lower.size() >= n && lower.compare(lower.size() - n, n, x) == 0; };
+	if (ends(".rep")) {
+		std::ifstream in(path, std::ios::binary);
+		if (!in) error("can't open replay: %s", path.c_str());
+		std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+		data_loading::data_reader_le raw(bytes.data(), bytes.data() + bytes.size());
+		auto r = data_loading::make_replay_file_reader(raw);
+		r.template get<uint32_t>();
+		std::vector<uint8_t> skip(633);
+		r.get_bytes(skip.data(), skip.size());
+		skip.resize(r.template get<uint32_t>());
+		r.get_bytes(skip.data(), skip.size());
+		std::vector<uint8_t> map(r.template get<uint32_t>());
+		r.get_bytes(map.data(), map.size());
+		return map;
+	}
+	data_loading::mpq_file<> mpq(path.c_str());
+	a_vector<uint8_t> chk;
+	mpq(chk, "staredit\\scenario.chk");
+	return remastered_map_to_bw(std::vector<uint8_t>(chk.begin(), chk.end()));
+}
+
+// Player slots that have a start location on the map (UNIT chunk: start location = unit 214).
+std::vector<int> start_location_slots(const std::vector<uint8_t>& chk) {
+	std::vector<int> slots;
+	for (size_t pos = 0; pos + 8 <= chk.size();) {
+		int32_t size;
+		memcpy(&size, chk.data() + pos + 4, 4);
+		if (size < 0 || pos + 8 + (size_t)size > chk.size()) break;
+		if (!memcmp(chk.data() + pos, "UNIT", 4)) {
+			for (size_t u = 0; u + 36 <= (size_t)size; u += 36) {
+				const uint8_t* d = chk.data() + pos + 8 + u;
+				uint16_t type;
+				memcpy(&type, d + 8, 2);
+				int owner = d[16];
+				if (type == 214 && owner < 8 && std::find(slots.begin(), slots.end(), owner) == slots.end()) slots.push_back(owner);
+			}
+		}
+		pos += 8 + (size_t)size;
+	}
+	std::sort(slots.begin(), slots.end());
+	return slots;
+}
+
+}  // namespace
+
+// Starts a melee game on a map file (.scm/.scx, or a pre-1.18 replay's embedded map) with
+// n players. races: 0 zerg, 1 terran, 2 protoss. names: n strings. Players get random start
+// locations (from seed). Returns null on error (gary_env_error(null) has the message).
+GARY_API void* gary_env_create_game(const char* data_dir, const char* map_path, int n, const int* races,
+                                    const char* const* names, uint32_t seed) {
+	try {
+		auto e = std::make_unique<env>(data_dir);
+		e->map_data = read_map(map_path);
+		auto slots = start_location_slots(e->map_data);
+		if ((int)slots.size() < n) error("map has %d start locations, %d players requested", (int)slots.size(), n);
+		uint32_t rng = seed * 2654435761u + 1;
+		for (size_t i = slots.size(); i > 1; --i) {  // shuffle start locations
+			rng = rng * 1103515245u + 12345u;
+			std::swap(slots[i - 1], slots[(rng >> 16) % i]);
+		}
+		std::array<int, 12> race_of{}, controller{}, player_id{};
+		player_id.fill(-1);
+		for (int i = 0; i != n; ++i) {
+			int slot = slots[i];
+			controller[slot] = player_t::controller_occupied;
+			race_of[slot] = races[i];
+			player_id[slot] = i;
+			e->replay_st.player_name[slot] = names[i];
+		}
+		e->funcs.emplace(e->player.st(), e->action_st, e->replay_st);
+		for (size_t i = 0; i != 12; ++i) e->action_st.player_id[i] = player_id[i];
+		state& st = e->player.st();
+		game_load_functions load(st);
+		load.load_map_data(e->map_data.data(), e->map_data.size(), [&]() {
+			load.setup_info.victory_condition = 1;  // melee
+			load.setup_info.starting_units = 2;     // workers and a main building
+			load.setup_info.tournament_mode = 0;
+			load.setup_info.resource_type = 1;
+			load.setup_info.starting_minerals = 50;
+			for (size_t i = 0; i != 12; ++i) {
+				st.players[i].controller = controller[i];
+				st.players[i].race = (race_t)race_of[i];
+				st.players[i].force = 0;
+			}
+			st.lcg_rand_state = seed;
+		});
+		e->replay_st.end_frame = 0x7fffffff;
+		std::string stem = map_path;  // the map's file name, shown as the replay's map name
+		size_t slash = stem.find_last_of("/\\");
+		if (slash != std::string::npos) stem = stem.substr(slash + 1);
+		size_t dot = stem.find_last_of('.');
+		if (dot != std::string::npos) stem = stem.substr(0, dot);
+		e->replay_st.map_name = stem.c_str();
+
+		// Game info for saved replays, laid out like a melee replay saved by the game itself.
+		uint8_t* h = e->header.data();
+		memset(h, 0, e->header.size());
+		h[0] = 1;  // Brood War
+		h[7] = 72;
+		put32(h + 8, seed);
+		memset(h + 12, 8, 8);
+		strncpy((char*)h + 24, "Gary", 23);
+		put16(h + 52, (uint16_t)st.game->map_tile_width);
+		put16(h + 54, (uint16_t)st.game->map_tile_height);
+		h[56] = (uint8_t)n;  // active players
+		h[57] = (uint8_t)n;  // slots
+		h[58] = 6;           // fastest
+		put16(h + 60, 2);    // game type: melee
+		put16(h + 62, 1);
+		put16(h + 68, (uint16_t)st.game->tileset_index);
+		strncpy((char*)h + 72, "Gary", 24);
+		strncpy((char*)h + 97, stem.c_str(), 31);
+		put16(h + 129, 2);
+		put16(h + 131, 1);
+		const uint8_t settings[11] = {1, 1, 1, 2, 2, 0, 1, 1, 0, 1, 0};  // victory .. tournament
+		memcpy(h + 137, settings, sizeof settings);
+		put32(h + 152, 50);
+		for (int i = 0; i != 12; ++i) {
+			uint8_t* slot = h + 161 + i * 36;
+			put32(slot, (uint32_t)i);
+			put32(slot + 4, (uint32_t)player_id[i]);
+			slot[8] = (uint8_t)controller[i];
+			slot[9] = (uint8_t)(controller[i] ? race_of[i] : 6);
+			slot[10] = 0;
+			strncpy((char*)slot + 11, e->replay_st.player_name[i].c_str(), 24);
+		}
+		for (int i = 0; i != 8; ++i) put32(h + 161 + 12 * 36 + i * 4, (uint32_t)i);
+		for (int i = 0; i != 8; ++i) h[161 + 12 * 36 + 32 + i] = controller[i] ? 1 : 0;
+		return e.release();
+	} catch (const std::exception& ex) {
+		g_create_error = ex.what();
+		return nullptr;
+	}
 }
