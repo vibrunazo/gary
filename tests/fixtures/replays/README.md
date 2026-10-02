@@ -17,4 +17,12 @@ datasets. Bulk data lives in `data/` and is never committed.
 
 | File | Source | License | Version | Matchup | Why it's here |
 |---|---|---|---|---|---|
-| _(none yet)_ | | | | | |
+| `stardata_tvz_standard_ozp3w.rep` | STARDATA `12/bwrep_ozp3w.rep` | BSD (StarData) | 1.16.1 | TvZ, Fighting Spirit, 13 min | Typical-length TvZ |
+| `stardata_tvz_short_2yus7.rep` | STARDATA `0/bwrep_2yus7.rep` | BSD (StarData) | 1.16.1 | TvZ, Fighting Spirit, 4 min | Short game (early aggression / all-in) |
+| `stardata_tvz_long_7i821.rep` | STARDATA `13/bwrep_7i821.rep` | BSD (StarData) | 1.16.1 | TvZ, Fighting Spirit, 30 min | Long late-game TvZ |
+| `stardata_pvz_standard_56jkk.rep` | STARDATA `1/bwrep_56jkk.rep` | BSD (StarData) | 1.16.1 | PvZ, Fighting Spirit, 13 min | A non-TvZ matchup |
+| _(planned)_ | Self-recorded | MIT-0/CC0 | SC:R | TvZ | Remastered replay format |
+
+STARDATA attribution: replays from the StarData dataset, Lin et al., "STARDATA: A StarCraft AI
+Research Dataset" (2017), https://github.com/TorchCraft/StarData, BSD license. Selected with
+`ingest/inventory.py`: 1v1 human games, winner known, no in-game chat.

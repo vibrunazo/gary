@@ -14,8 +14,8 @@ data/
     stardata/           # STARDATA (1.16.1). Original .rep files and/or TorchCraft dumps
       replays/          #   original .rep files
       dumped/           #   TorchCraft-extracted states, if downloaded
-    wcg2003/            # WCG 2003 pro replay pack (1.16.1 era)
     tl/                 # TeamLiquid community replay packs, one subfolder per pack
+      progames/         #   pro players' replay folders, one subfolder per original pack
     cwal/               # cwal.gg ladder replays (SC:R)
   interim/              # parsed outputs: screp JSON, resim states, desync reports
   processed/            # training-ready datasets, indexes, splits

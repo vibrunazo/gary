@@ -12,17 +12,11 @@ sources:
     license: BSD (plus patent grant), see the StarData repo
     redistributable: yes        # with attribution
     game_version: "1.16.1"
-    notes: ~65k human games; original replays and TorchCraft dumps.
-    downloaded: null            # YYYY-MM-DD
-
-  - id: wcg2003
-    path: raw/wcg2003
-    name: WCG 2003 pro replay pack
-    url: null                   # TODO: where it was downloaded from
-    license: unknown
-    redistributable: unknown
-    game_version: "1.16.1-era"
-    downloaded: null
+    notes: >-
+      65,646 original replays in 20 numbered folders, plus the dataset's own split lists
+      (train/valid/test, small*, first1k, all) and map-name JSON. No TorchCraft dumps yet.
+    count: 65646
+    downloaded: "2026-10"
 
   - id: tl
     path: raw/tl
@@ -31,9 +25,58 @@ sources:
     license: unknown (varies per pack)
     redistributable: unknown
     game_version: mixed
-    notes: one subfolder per pack; record each pack's thread URL below.
-    packs: []
-    downloaded: null
+    notes: one subfolder per pack.
+    packs:
+      - id: sataNik
+        path: raw/tl/sataNik
+        url: https://tl.net/forum/brood-war/584979-satanik-replay-pack
+        count: 567
+        notes: also contains the original "sata new.rar" archive next to its extracted files.
+      - id: incontrol
+        path: raw/tl/incontrol
+        url: https://tl.net/forum/brood-war/604990-looking-for-replay-pack-old-media-games
+        count: 387
+      - id: progames
+        path: raw/tl/progames
+        notes: >-
+          Pro players' replay folders, one subfolder per original pack name.
+        subpacks:
+          - id: BoxeR
+            url: https://tl.net/forum/brood-war/641857-old-rep-packs-of-bw-legends
+            count: 519
+            notes: >-
+              Only the BoxeR folders were downloaded; likely practice games.
+              Contains replay-manager cache files (repcache, RplDB.db) that the inventory ignores.
+          - id: tl-replay-packs-thread
+            url: https://tl.net/forum/brood-war/531338-replay-packs
+            folders:
+              - "680 Progamer reps"
+              - "Bisu"
+              - "China vs Korea"
+              - "ESCvsKorea"
+              - "Europe vs Korea 1-6"
+              - "FlaSh"
+              - "IEF2008"
+              - "IEF2009 Korean Prelim"
+              - "IEF2009 Replays"
+              - "IpxZerg[gm]"
+              - "JulyZerg"
+              - "Korea vs usa"
+              - "NADA"
+              - "Nal_rA"
+              - "Pro-Semipro reps"
+              - "STX Cup Masters (2010)"
+              - "Star replays from Korea"
+              - "anytime"
+              - "pro"
+              - "replay heaven 3"
+              - "ygosu"
+            notes: >-
+              Many replays with mangled extensions (handled by the inventory), unextracted
+              .rar/.zip archives (Bisu, FlaSh, IEF2009, several in "Star replays from Korea"),
+              incomplete .part downloads and .lnk shortcuts (ignored), and a bundled
+              "StarCraft 1.15.3.exe" in "680 Progamer reps" that must never be run.
+    downloaded: "2026-10"
 
   - id: cwal
     path: raw/cwal
@@ -42,4 +85,5 @@ sources:
     license: site terms
     redistributable: no         # ladder players' accounts and in-game chat
     game_version: "SC:R"
-    downloaded: null
+    count: 5
+    downloaded: "2026-10"

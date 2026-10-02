@@ -73,3 +73,6 @@ cmake-build-*/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Local tool binaries (e.g. screp.exe); fetched per machine, never committed
+/tools/bin/
