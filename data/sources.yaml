@@ -85,5 +85,9 @@ sources:
     license: site terms
     redistributable: no         # ladder players' accounts and in-game chat
     game_version: "SC:R"
-    count: 5
+    count: 35
+    notes: >-
+      High-MMR TvZ ladder games, plus a Pluto/ subfolder with games from accounts cwal tags as
+      the Pluto bot (Pluto--AI, Pluto_ProMax, cxbdfgdfjhdfjdj). Pluto games are never used for
+      training; they are "not human" examples for the humanlikeness classifier.
     downloaded: "2026-10"

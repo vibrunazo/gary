@@ -51,12 +51,27 @@ def source_of(rel: Path) -> tuple[str, str]:
     """Source id and pack from a path relative to data/raw/ (see data/sources.yaml)."""
     parts = rel.parts
     source, pack = parts[0], ""
-    if source == "tl" and len(parts) > 2:
-        # tl/<pack>/..., except tl/progames/<subpack>/...
-        pack = parts[1]
-        if pack == "progames" and len(parts) > 3:
-            pack = f"progames/{parts[2]}"
+    if source == "stardata" or len(parts) <= 2:
+        return source, pack  # stardata subfolders are just numbered chunks
+    pack = parts[1]
+    if source == "tl" and pack == "progames" and len(parts) > 3:
+        pack = f"progames/{parts[2]}"  # tl/progames/<subpack>/...
     return source, pack
+
+
+VERSION_DIR = re.compile(r"^1(0\d|1[0-6])$")                     # "108" -> 1.08
+VERSION_TEXT = re.compile(r"(?<![\d.])1\.(0\d|1[0-6])(?:\.\d)?(?:\s*-\s*1\.(0\d|1[0-6]))?(?![\d])")  # 1.00-1.16 only
+
+
+def version_hint(rel: Path) -> str:
+    """Patch version suggested by folder or file names (e.g. "108/", "1.09-1.11/", "1.15_x.rep").
+    Replay headers don't store the exact pre-1.18 patch, so this is the only clue we have."""
+    for part in rel.parts:
+        if m := VERSION_DIR.match(part):
+            return f"1.{m.group(1)}"
+        if m := VERSION_TEXT.search(part):
+            return f"1.{m.group(1)}" + (f"-1.{m.group(2)}" if m.group(2) else "")
+    return ""
 
 
 # Files that are never replays. Anything else under raw/ is tried, because old packs often
@@ -185,19 +200,63 @@ def load_inventory(path: Path) -> dict[str, dict]:
         return {r["rel_path"]: r for r in map(json.loads, f) if r.get("rel_path")}
 
 
+# Bot detection (heuristic). APM alone isn't the signal: 400+ APM pros exist. The tell is the
+# effective-APM ratio: humans spam (EAPM/APM ~0.77 median, 0.96 at p99), bots almost never do.
+# Calibrated on STARDATA and on cwal games the site tags as Pluto (Pluto--AI plays at 320-1130 APM,
+# always with a ratio of 0.99-1.00). Very high EAPM is flagged regardless of ratio, because some
+# bots pad their APM with spam (one Pluto variant: 2083 APM, 1461 EAPM, ratio 0.70).
+BOT_RATIO_MIN = 0.98
+BOT_RATIO_EAPM_MIN = 300
+BOT_EAPM_ANY = 800
+KNOWN_BOT_NAMES = {
+    "letabot", "martin rooijackers", "martin rooijackers bot", "tscmoo", "krasi0", "krasi1",
+    "krasimir krystev", "ximp", "ualbertabot", "andrew smith", "marian devecka", "mariandevecka",
+    "icecraft", "skynet", "aiur", "steamhammer", "purplewave", "mcrave",
+    "pluto--ai", "pluto_promax", "plutopromax",  # cwal-tagged ladder accounts; not plain "pluto"
+}
+
+
+def derive(rec: dict) -> None:
+    """Fields computed from parsed data; recomputed on every run, so rules can change cheaply."""
+    rec["version_hint"] = version_hint(Path(rec["rel_path"]))
+    if not rec.get("ok"):
+        return
+    for p in rec["players"]:
+        apm, eapm = p.get("apm") or 0, p.get("eapm") or 0
+        name = p.get("name", "").strip().lower()
+        by_apm = (eapm >= BOT_RATIO_EAPM_MIN and eapm / apm >= BOT_RATIO_MIN) or eapm >= BOT_EAPM_ANY
+        by_name = name in KNOWN_BOT_NAMES
+        p["bot_suspect"] = bool(by_apm or by_name or p.get("type") == "Computer")
+    rec["has_bot_suspect"] = any(p["bot_suspect"] for p in rec["players"])
+    rec["labeled_bot_game"] = "/pluto/" in f"/{rec['rel_path'].lower()}"  # games tagged as bots by the source
+
+
+def game_key(r: dict) -> str:
+    """Identifies a game regardless of which player saved the replay (different files, same game)."""
+    if not r.get("ok") or not r.get("start_time"):
+        return ""
+    names = sorted(p["name"] for p in r["players"])
+    return f"{r['start_time']}|{r['map_hash']}|{r['frames'] // 100}|{'|'.join(names)}"
+
+
 def mark_duplicates(records: list[dict]) -> None:
-    first: dict[str, str] = {}
+    """dup_of: first file with identical bytes, or the same game saved by another player."""
+    first_file: dict[str, str] = {}
+    first_game: dict[str, str] = {}
     for r in sorted(records, key=lambda r: r["rel_path"]):
-        r["dup_of"] = first.setdefault(r["sha1"], r["rel_path"])
-        if r["dup_of"] == r["rel_path"]:
-            r["dup_of"] = ""
+        orig = first_file.setdefault(r["sha1"], r["rel_path"])
+        key = game_key(r)
+        if orig == r["rel_path"] and key:
+            orig = first_game.setdefault(key, r["rel_path"])
+        r["dup_of"] = "" if orig == r["rel_path"] else orig
 
 
 CSV_FIELDS = [
-    "sha1", "source", "pack", "rel_path", "size", "ok", "error", "dup_of", "engine", "version",
+    "sha1", "source", "pack", "rel_path", "version_hint", "size", "ok", "error", "dup_of", "engine",
+    "version",
     "frames", "duration_s", "start_time", "map", "map_w", "map_h", "map_hash", "game_type",
     "speed", "n_players", "n_humans", "is_1v1_human", "matchup", "winner_team", "spawn_dist_px",
-    "spawn_clock_diff", "chat_count",
+    "spawn_clock_diff", "chat_count", "has_bot_suspect", "labeled_bot_game",
     "p1_name", "p1_race", "p1_apm", "p1_eapm", "p1_start_clock",
     "p2_name", "p2_race", "p2_apm", "p2_eapm", "p2_start_clock",
 ]
@@ -263,6 +322,8 @@ def build(args: argparse.Namespace) -> None:
             if done % 2000 == 0 or done == len(todo):
                 print(f"  parsed {done}/{len(todo)}", flush=True)
 
+    for r in records:
+        derive(r)
     mark_duplicates(records)
     write_outputs(records, out_dir)
     print(f"wrote {out_dir / 'inventory.jsonl'} and inventory.csv ({len(records)} records)")
@@ -292,9 +353,18 @@ def report(args: argparse.Namespace) -> None:
 
     table("by source/pack (unique parsed)", Counter(f"{r['source']}/{r['pack']}".rstrip("/") for r in uniq))
     table("by version", Counter(r["version"] for r in uniq))
+    table("pre-1.16 version hints from folder/file names", Counter(r.get("version_hint") or "none" for r in uniq))
     table("by game type", Counter(r["game_type"] for r in uniq))
-    v1 = [r for r in uniq if r["is_1v1_human"]]
-    print(f"\n1v1 human games: {len(v1)}")
+    bots = [r for r in uniq if r.get("has_bot_suspect")]
+    print(f"\ngames with a suspected bot player: {len(bots)}")
+    table("suspected bot names", Counter(p["name"] for r in bots for p in r["players"] if p["bot_suspect"]), top=10)
+    labeled = [r for r in uniq if r.get("labeled_bot_game")]
+    if labeled:
+        print(f"source-labeled bot games: {len(labeled)}, caught by the heuristic: "
+              f"{sum(1 for r in labeled if r.get('has_bot_suspect'))}")
+    v1 = [r for r in uniq if r["is_1v1_human"] and not r.get("has_bot_suspect")
+          and not r.get("labeled_bot_game")]
+    print(f"\n1v1 human games (no suspected bots): {len(v1)}")
     table("1v1 matchups", Counter(r["matchup"] for r in v1))
     table("1v1 matchups by source", Counter(f"{r['source']:<9} {r['matchup']}" for r in v1), top=40)
 
