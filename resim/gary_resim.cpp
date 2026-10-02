@@ -2,7 +2,7 @@
 // snapshots as JSON lines on stdout.
 //
 // Usage:
-//   gary_resim --data <dir> --replay <file.rep> [--every <frames>]
+//   gary_resim --data <dir> --replay <file.rep | -> [--every <frames>]    ("-" = read stdin)
 //
 // --data is either a folder with the three 1.16.1/1.18 MPQs (StarDat.mpq, BrooDat.mpq,
 // Patch_rt.mpq) or a folder of loose files extracted from a newer install (e.g. SC:R's CASC
@@ -10,7 +10,8 @@
 //
 // Output, one JSON object per line:
 //   {"type":"header", ...}                      replay info
-//   {"type":"snapshot","frame":F,"players":[...]} every --every frames (default 24 = 1 s)
+//   {"type":"snapshot","frame":F,"players":[...]} every --every frames (default 24 = 1 s; 0 = off)
+//   {"type":"event","frame":F,"slot":P,"ev":"start|done|gone","unit":ID,"tag":T,...}  as they happen
 //   {"type":"end", ...}                          totals
 //
 // Each snapshot reports, per player: minerals, gas, supply (in BW's displayed units), unit counts
@@ -24,10 +25,16 @@
 #include "replay.h"
 
 #include <cstdio>
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 #include <cstring>
 #include <fstream>
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 using namespace bwgame;
 
@@ -114,6 +121,74 @@ struct counting_replay_functions : replay_functions {
 		if (st.current_frame == replay_st.end_frame) error("replay: attempt to play past end");
 		execute_actions_counted();
 		state_functions::next_frame();
+		track_units();
+	}
+
+	// --- unit events -------------------------------------------------------------------------
+	// Diffing each player's unit list frame by frame, keyed by unit ID (the same IDs replays use
+	// in their Select commands), gives the true build order:
+	//   start  a building began (placed, or a drone/building morphed into it; "from" = old type)
+	//   done   a building finished, or a unit was produced (eggs, larva, etc. are not reported)
+	//   gone   a building or unit died (or was removed when its owner left)
+	struct tracked { int type; bool completed; bool seen; };
+	std::unordered_map<uint16_t, tracked> known;
+
+	bool transient(int type) const {
+		switch ((UnitTypes)type) {
+		case UnitTypes::Zerg_Larva: case UnitTypes::Zerg_Egg: case UnitTypes::Zerg_Cocoon:
+		case UnitTypes::Zerg_Lurker_Egg: case UnitTypes::Protoss_Interceptor: case UnitTypes::Protoss_Scarab:
+		case UnitTypes::Terran_Vulture_Spider_Mine:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	void emit(const char* ev, int slot, int type, uint16_t tag, int from = -1, const unit_t* u = nullptr) {
+		char buf[200];
+		int n = snprintf(buf, sizeof buf, "{\"type\":\"event\",\"frame\":%d,\"slot\":%d,\"ev\":\"%s\",\"unit\":%d,\"tag\":%u",
+		                 st.current_frame, slot, ev, type, (unsigned)tag);
+		if (from >= 0) n += snprintf(buf + n, sizeof buf - n, ",\"from\":%d", from);
+		if (u && u->sprite) n += snprintf(buf + n, sizeof buf - n, ",\"x\":%d,\"y\":%d", u->sprite->position.x, u->sprite->position.y);
+		snprintf(buf + n, sizeof buf - n, "}\n");
+		fputs(buf, stdout);
+	}
+
+	void track_units() {
+		for (auto& kv : known) kv.second.seen = false;
+		for (int p = 0; p != 8; ++p) {
+			for (unit_t* u : ptr(st.player_units[p])) {
+				uint16_t tag = get_unit_id(u).raw_value;
+				int type = (int)u->unit_type->id;
+				bool done = u_completed(u);
+				bool building = ut_building(u->unit_type);
+				auto it = known.find(tag);
+				if (it == known.end()) {
+					if (building) emit(done ? "done" : "start", p, type, tag, -1, u);  // done: starting buildings
+					else if (done && !transient(type)) emit("done", p, type, tag, -1, u);
+					known[tag] = {type, done, true};
+					continue;
+				}
+				tracked& t = it->second;
+				t.seen = true;
+				if (t.type != type) {
+					if (building) emit("start", p, type, tag, t.type, u);           // drone -> building, hatchery -> lair
+					else if (done && transient(t.type) && !transient(type)) emit("done", p, type, tag, t.type, u);
+					t.type = type;
+					t.completed = done;
+					if (building && done) emit("done", p, type, tag, -1, u);
+					continue;
+				}
+				if (done && !t.completed && !transient(type)) emit("done", p, type, tag, -1, u);
+				t.completed = done;
+			}
+		}
+		for (auto it = known.begin(); it != known.end();) {
+			if (!it->second.seen) {
+				if (!transient(it->second.type)) emit("gone", -1, it->second.type, it->first);
+				it = known.erase(it);
+			} else ++it;
+		}
 	}
 };
 
@@ -164,7 +239,7 @@ int main(int argc, char** argv) {
 	for (int i = 1; i < argc; ++i) {
 		if (!strcmp(argv[i], "--data") && i + 1 < argc) data_dir = argv[++i];
 		else if (!strcmp(argv[i], "--replay") && i + 1 < argc) replay_file = argv[++i];
-		else if (!strcmp(argv[i], "--every") && i + 1 < argc) every = std::max(1, atoi(argv[++i]));
+		else if (!strcmp(argv[i], "--every") && i + 1 < argc) every = std::max(0, atoi(argv[++i]));
 		else {
 			fprintf(stderr, "usage: gary_resim --data <dir> --replay <file.rep> [--every <frames>]\n");
 			return 2;
@@ -180,7 +255,22 @@ int main(int argc, char** argv) {
 		action_state action_st;
 		replay_state replay_st;
 		counting_replay_functions f(player.st(), action_st, replay_st);
-		f.load_replay_file(replay_file.c_str());
+		// "--replay -" reads the replay from stdin. Callers use it for paths the Windows ANSI
+		// command line can't carry (e.g. Korean map names in file names).
+		std::vector<uint8_t> replay_bytes;
+		if (replay_file == "-") {
+#ifdef _WIN32
+			_setmode(_fileno(stdin), _O_BINARY);
+#endif
+			char chunk[65536];
+			size_t n;
+			while ((n = fread(chunk, 1, sizeof chunk, stdin)) > 0) replay_bytes.insert(replay_bytes.end(), chunk, chunk + n);
+		} else {
+			std::ifstream in(replay_file, std::ios::binary);
+			if (!in) error("can't open replay: %s", replay_file.c_str());
+			replay_bytes.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+		}
+		f.load_replay_data(replay_bytes.data(), replay_bytes.size());
 		const state& st = player.st();
 
 		std::string header = "{\"type\":\"header\",\"end_frame\":" + std::to_string(replay_st.end_frame) +
@@ -198,7 +288,7 @@ int main(int argc, char** argv) {
 
 		while (!f.is_done()) {
 			f.next_frame_counted();
-			if (st.current_frame % every == 0) print_snapshot(st, replay_st, f);
+			if (every > 0 && st.current_frame % every == 0) print_snapshot(st, replay_st, f);
 		}
 		print_snapshot(st, replay_st, f);
 
