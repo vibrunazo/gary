@@ -91,3 +91,13 @@ sources:
       the Pluto bot (Pluto--AI, Pluto_ProMax, cxbdfgdfjhdfjdj). Pluto games are never used for
       training; they are "not human" examples for the humanlikeness classifier.
     downloaded: "2026-10"
+
+  - id: vib
+    path: raw/vib
+    name: Contributor's own games
+    license: CC0 1.0
+    redistributable: yes
+    game_version: "SC:R"
+    notes: Games played by a project contributor (vs. the computer so far). Usable as fixtures.
+    count: 1
+    downloaded: "2026-10"
