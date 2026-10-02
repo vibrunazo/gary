@@ -80,3 +80,4 @@ desktop.ini
 # Third-party source checkouts used as external dependencies (not vendored; see CONTRIBUTING.md)
 /external/
 /resim/build/
+/env/build/
