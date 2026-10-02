@@ -2,7 +2,11 @@
 // snapshots as JSON lines on stdout.
 //
 // Usage:
-//   gary_resim --data <dir> --replay <file.rep | -> [--every <frames>]    ("-" = read stdin)
+//   gary_resim --data <dir> --replay <file.rep | -> [--every <frames>] [--flat]    ("-" = read stdin)
+//
+// --flat: the input is a Remastered-era replay already decoded by resim/scr_format.py.
+// --unit-limit N: the replay's unit table size (Remastered LMTS section); IDs are translated
+//                 when it's larger than 1700.
 //
 // --data is either a folder with the three 1.16.1/1.18 MPQs (StarDat.mpq, BrooDat.mpq,
 // Patch_rt.mpq) or a folder of loose files extracted from a newer install (e.g. SC:R's CASC
@@ -107,7 +111,20 @@ struct counting_replay_functions : replay_functions {
 				int player_id = r2.ptr[0];
 				auto i = std::find(action_st.player_id.begin(), action_st.player_id.end(), player_id);
 				int owner = i == action_st.player_id.end() ? -1 : (int)(i - action_st.player_id.begin());
-				bool ok = read_action(r2);
+				if (owner < 0) {
+					// Remastered observers have player ids OpenBW doesn't know (128+). Run their
+					// commands as the neutral player so the stream stays aligned; don't count them.
+					if (r2.ptr + 1 < end && r2.ptr[1] >= 0x60 && r2.ptr[1] <= 0x65) {
+						skip_action_121(r2, end);
+					} else {
+						r2.get<uint8_t>();
+						read_action(11, r2);
+					}
+					continue;
+				}
+				int action_id = r2.ptr + 1 < end ? r2.ptr[1] : -1;
+				bool ok = action_id >= 0x60 && action_id <= 0x65 ? read_action_121(r2, end) : read_action(r2);
+				if (!ok && debug_rejects) fprintf(stderr, "reject frame %d owner %d action 0x%02x\n", st.current_frame, owner, action_id);
 				if (owner >= 0 && owner < 12) {
 					if (ok) ++accepted[owner];
 					else { ++rejected[owner]; ++total_rejected[owner]; }
@@ -115,6 +132,74 @@ struct counting_replay_functions : replay_functions {
 			}
 			action_st.actions_data_position = end - begin;
 		}
+	}
+
+	// Remastered games can use a larger unit table (the replay's LMTS section; recent ladder
+	// games: 3400 instead of 1700). Their unit IDs then use a 13-bit index (and 3 generation
+	// bits), and units are allocated from the top of the larger table, so the same unit's index
+	// is (limit - 1700) higher than in OpenBW's 1700-unit table.
+	int unit_limit = 1700;
+	bool debug_rejects = getenv("GARY_DEBUG_REJECTS") != nullptr;
+
+	uint16_t translate_unit_id(uint16_t raw) {
+		if (unit_limit <= 1700) return raw;
+		int index1 = raw & 0x1fff;  // index + 1; 0 = no unit
+		int generation = raw >> 13;
+		if (!index1) return 0;
+		int sim_index1 = index1 - (unit_limit - 1700);
+		unit_t* u = sim_index1 > 0 ? get_unit((size_t)(sim_index1 - 1)) : nullptr;
+		if (!u || (int)(u->unit_id_generation % 8) != generation) {
+			if (debug_rejects)
+				fprintf(stderr, "unit id miss frame %d raw %u index1 %d gen %d sim %s type %d gen %d" "\n",
+				        st.current_frame, (unsigned)raw, index1, generation, u ? "unit" : "none",
+				        u ? (int)u->unit_type->id : -1, u ? (int)(u->unit_id_generation % 8) : -1);
+			return 0x7ff;  // no such unit
+		}
+		return get_unit_id(u).raw_value;
+	}
+
+	// Advances past a 1.21 command without executing it.
+	void skip_action_121(data_loading::data_reader_le& r, const uint8_t* end) {
+		auto need = [&](size_t n) { if (r.ptr + n > end) error("truncated 1.21 action"); };
+		need(2);
+		r.get<uint8_t>();
+		int id = r.get<uint8_t>();
+		size_t n = id == 0x60 ? 11 : id == 0x61 ? 12 : id == 0x62 ? 4 : 0;
+		if (id >= 0x63) { need(1); n = (size_t)r.get<uint8_t>() * 4; }
+		need(n);
+		r.ptr += n;
+	}
+
+	// Remastered 1.21 added variants of six commands with an extra (always zero) 16-bit field
+	// after each unit ID. Translate them to the legacy commands OpenBW implements.
+	bool read_action_121(data_loading::data_reader_le& r, const uint8_t* end) {
+		auto u8 = [&]() { if (r.ptr + 1 > end) error("truncated 1.21 action"); return r.get<uint8_t>(); };
+		auto u16 = [&]() { if (r.ptr + 2 > end) error("truncated 1.21 action"); return r.get<uint16_t>(); };
+		std::vector<uint8_t> out;
+		auto put8 = [&](int v) { out.push_back((uint8_t)v); };
+		auto put16 = [&](int v) { out.push_back((uint8_t)(v & 0xff)); out.push_back((uint8_t)((v >> 8) & 0xff)); };
+		put8(u8());  // player id
+		int id = u8();
+		switch (id) {
+		case 0x60:  // right click: x, y, target, (0), unit type, queued
+		case 0x61: {  // targeted order: x, y, target, (0), unit type, order, queued
+			put8(id == 0x60 ? 0x14 : 0x15);
+			put16(u16()); put16(u16()); put16(translate_unit_id(u16())); u16(); put16(u16());
+			if (id == 0x61) put8(u8());
+			put8(u8());
+			break;
+		}
+		case 0x62:  // unload: unit, (0)
+			put8(0x29); put16(translate_unit_id(u16())); u16();
+			break;
+		default: {  // 0x63 select, 0x64 select add, 0x65 select remove: count, (unit, (0)) * count
+			put8(id == 0x63 ? 0x09 : id == 0x64 ? 0x0a : 0x0b);
+			int n = u8();
+			put8(n);
+			for (int i = 0; i != n; ++i) { put16(translate_unit_id(u16())); u16(); }
+		}
+		}
+		return read_action(out.data(), out.size());
 	}
 
 	void next_frame_counted() {
@@ -235,11 +320,15 @@ void print_snapshot(const state& st, const replay_state& rst, counting_replay_fu
 
 int main(int argc, char** argv) {
 	std::string data_dir, replay_file;
+	bool flat = false;
+	int unit_limit = 1700;
 	int every = 24;
 	for (int i = 1; i < argc; ++i) {
 		if (!strcmp(argv[i], "--data") && i + 1 < argc) data_dir = argv[++i];
 		else if (!strcmp(argv[i], "--replay") && i + 1 < argc) replay_file = argv[++i];
 		else if (!strcmp(argv[i], "--every") && i + 1 < argc) every = std::max(0, atoi(argv[++i]));
+		else if (!strcmp(argv[i], "--flat")) flat = true;
+		else if (!strcmp(argv[i], "--unit-limit") && i + 1 < argc) unit_limit = atoi(argv[++i]);
 		else {
 			fprintf(stderr, "usage: gary_resim --data <dir> --replay <file.rep> [--every <frames>]\n");
 			return 2;
@@ -255,6 +344,7 @@ int main(int argc, char** argv) {
 		action_state action_st;
 		replay_state replay_st;
 		counting_replay_functions f(player.st(), action_st, replay_st);
+		f.unit_limit = unit_limit;
 		// "--replay -" reads the replay from stdin. Callers use it for paths the Windows ANSI
 		// command line can't carry (e.g. Korean map names in file names).
 		std::vector<uint8_t> replay_bytes;
@@ -270,7 +360,13 @@ int main(int argc, char** argv) {
 			if (!in) error("can't open replay: %s", replay_file.c_str());
 			replay_bytes.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
 		}
-		f.load_replay_data(replay_bytes.data(), replay_bytes.size());
+		if (flat) {
+			// already-decoded stream from resim/scr_format.py (Remastered-era replays)
+			data_loading::data_reader_le r(replay_bytes.data(), replay_bytes.data() + replay_bytes.size());
+			f.load_replay(r);
+		} else {
+			f.load_replay_data(replay_bytes.data(), replay_bytes.size());
+		}
 		const state& st = player.st();
 
 		std::string header = "{\"type\":\"header\",\"end_frame\":" + std::to_string(replay_st.end_frame) +

@@ -583,7 +583,17 @@ Check each site's terms before bulk use, and keep provenance (source, URL, date)
    - **If no-go, two fallbacks:**
      - (a) Use SC:R replays **only for screp-level data**: build orders and *z*, timings, APM profiles, results. That's enough for the build taxonomy (§7.3) and profile fitting.
      - (b) **Resim inside the SC:R client itself** with a memory reader (the same technique as the Pluto SC:R bridge). This is correct by construction but slower, and it's pinned to one SC:R build.
-   - **Desync detection runs on every resim,** not just in P1. Replays that desync are excluded from full-state datasets automatically.
+   - **Desync detection runs on every resim,** not just in P1. Replays that desync are excluded from full-state datasets automatically. Signal: the share of each player's replay commands the engine rejects (human spam keeps it at ~2%; after a desync it climbs past 35% and stays there).
+   - **Results (October 2026, TvZ plus all Remastered-format replays), measured with the free StarCraft client's data:**
+
+     | Replays | Desync rate | Notes |
+     |---|---|---|
+     | STARDATA (1.16-era) | 2.5% | **Go** for full-state training data |
+     | Old-patch replays (1.08–1.15) | 77–100% | Usually from minute 6–14; the opening is often still usable |
+     | Remastered, 1700-unit games (older SC:R builds) | 0% (24 games) | **Go** |
+     | Remastered, 3400-unit games (recent SC:R builds, current ladder) | 19–32% | Partial: unit IDs translate correctly at first, but slot reuse diverges in some games. Under investigation |
+
+     Remastered replays are decoded by `resim/scr_format.py`: zlib sections, the 1.21 command variants, map version 206 and `STRx` strings, and Remastered's larger unit table (1.21 games record its size in the `LMTS` section; unit IDs then use a 13-bit index). Games against the computer can't be simulated: the AI's decisions aren't in the replay.
 3. **Per-player observations**, fog-filtered.
 4. **Infer the camera.** Replays don't record screen position, so estimate it from click targets, selection boxes and hotkey jumps. Use a heuristic first, then a small model. Measure accuracy against camera-logged games (§7.4).
 5. **Map labels to the action space.** Convert human commands into the `HumanAction` format (selections, hotkeys and commands are recorded).

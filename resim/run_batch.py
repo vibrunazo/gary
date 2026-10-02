@@ -17,6 +17,7 @@ DESYNC_STAYS of the remaining minutes are bad too: a desync never recovers, earl
 Usage:
   python resim/run_batch.py --matchup TvZ --limit 300
   python resim/run_batch.py --source tl --version-hint     # only replays with an old-patch hint
+  python resim/run_batch.py --remastered                   # only Remastered-format replays
   python resim/run_batch.py --report
 """
 
@@ -36,6 +37,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "ingest"))
 from inventory import data_root, load_inventory  # noqa: E402
+
+import scr_format  # noqa: E402  (same folder)
 
 SNAPSHOT_EVERY = 240          # frames (10 s)
 FRAMES_PER_MIN = 24 * 60
@@ -90,12 +93,25 @@ def summarize(lines: list[str]) -> dict:
 def run_one(exe: Path, gamedata: Path, out_root: Path, rec: dict) -> dict:
     replay = data_root() / "raw" / rec["rel_path"]
     t0 = time.time()
-    # the replay goes through stdin: its path may not survive the Windows ANSI command line
-    proc = subprocess.run([str(exe), "--data", str(gamedata), "--replay", "-",
-                           "--every", str(SNAPSHOT_EVERY)], input=replay.read_bytes(),
-                          capture_output=True, timeout=600)
+    data = replay.read_bytes()
     row = {"sha1": rec["sha1"], "rel_path": rec["rel_path"], "matchup": rec.get("matchup"),
-           "version_hint": rec.get("version_hint", ""), "seconds": round(time.time() - t0, 2)}
+           "version_hint": rec.get("version_hint", "")}
+    # the replay goes through stdin: its path may not survive the Windows ANSI command line
+    args = [str(exe), "--data", str(gamedata), "--replay", "-", "--every", str(SNAPSHOT_EVERY)]
+    try:
+        row["format"] = scr_format.replay_format(data)
+        if row["format"] != "legacy":  # Remastered-era: decode for OpenBW (resim/scr_format.py)
+            row["unit_limit"] = scr_format.unit_limit(data)
+            bfix = scr_format.remastered_sections(data).get("BFIX")
+            if bfix:
+                row["bfix"] = bfix.hex()
+            data = scr_format.to_flat(data)
+            args += ["--flat", "--unit-limit", str(row["unit_limit"])]
+    except ValueError as e:
+        row.update(ok=False, error=f"decode: {e}"[:300], seconds=0)
+        return row
+    proc = subprocess.run(args, input=data, capture_output=True, timeout=600)
+    row["seconds"] = round(time.time() - t0, 2)
     if proc.returncode != 0:
         row.update(ok=False, error=proc.stderr.decode("utf-8", "replace").strip()[:300])
         return row
@@ -118,6 +134,8 @@ def select(args: argparse.Namespace) -> list[dict]:
         games = [r for r in games if r["source"] == args.source]
     if args.version_hint:
         games = [r for r in games if r.get("version_hint")]
+    if args.remastered:
+        games = [r for r in games if r.get("version", "").startswith("1.")]
     games.sort(key=lambda r: r["rel_path"])
     return games[: args.limit] if args.limit else games
 
@@ -165,6 +183,8 @@ def report(args: argparse.Namespace) -> None:
     groups = defaultdict(list)
     for r in ok:
         src = r["rel_path"].split("/")[0]
+        if r.get("format", "legacy") != "legacy":
+            src += f" (Remastered, {r.get('unit_limit', 1700)} units, bfix {r.get('bfix', '-')[:2]})"
         groups[f"{src} {'(old patch ' + r['version_hint'] + ')' if r['version_hint'] else ''}".strip()].append(r)
     print(f"\n{'group':<40} {'games':>6} {'desync':>8}  first desync minute (median)")
     for g, rs in sorted(groups.items(), key=lambda kv: -len(kv[1])):
@@ -187,6 +207,7 @@ def main() -> None:
     ap.add_argument("--matchup")
     ap.add_argument("--source")
     ap.add_argument("--version-hint", action="store_true", help="only replays with an old-patch hint")
+    ap.add_argument("--remastered", action="store_true", help="only Remastered-format (1.18+) replays")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--force", action="store_true", help="re-simulate replays already in the index")
     ap.add_argument("--data", help="game data folder (default: data/gamedata/scr)")

@@ -49,6 +49,23 @@ never commit local paths. `data/` is gitignored, so the extracted files stay loc
 
 Game data never goes in the repo.
 
+## Remastered replays
+
+OpenBW reads only the pre-1.18 replay layout. `scr_format.py` decodes 1.18+ replays into the
+stream `gary_resim` reads with `--flat`, and `gary_resim` translates what changed:
+
+- zlib-compressed sections (1.18+), plus 1.21's extra length field and new sections
+- the six 1.21 command variants (right click, targeted order, unload, select, select add,
+  select remove), which add a zero field after each unit ID
+- map version 206 and strings in `STRx` (Remastered maps)
+- the larger unit table of recent games (`--unit-limit`, from the replay's `LMTS` section):
+  unit IDs use a 13-bit index and units start at the top of the bigger table
+- observers' commands (player IDs 128+), which are skipped
+
+`run_batch.py` does this automatically. What can't be carried over: the Remastered-only engine
+settings (raised object limits, bug-fix flags), so some games drift; the desync detector flags
+them. Set `GARY_DEBUG_REJECTS=1` to log every rejected command and unit ID that doesn't resolve.
+
 ## Run
 
 ```
