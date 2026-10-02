@@ -1,20 +1,23 @@
-// gary_view: watch a replay in OpenBW's game window, optionally from a player's point of view.
+// gary_view: watch a replay in OpenBW's renderer, optionally from a player's point of view.
 //
 //   gary_view --data <dir> --replay <file.rep> [--pov <file.pov.jsonl>] [--size 640x400]
-//             [--record out.mp4 [--from SECONDS] [--to SECONDS] [--speed N]]
+//             [--scale N] [--record out.mp4 [--from SECONDS] [--to SECONDS] [--speed N]]
+//
+// The game is drawn at --size (with --pov: the player's screen size from the log) and
+// stretched to fit the window, keeping its shape; --scale sets the starting window size
+// (default 2x). Maximize or resize the window freely.
 //
 // --record renders the game (as fast as possible, not in real time) into a video through
 // ffmpeg, which must be on PATH. --speed N plays N game frames per video frame (default 1:
 // real time at Fastest; 4 = a 4x time-lapse).
 //
 // With --pov (written by gary.interface.HumanInterface.save_pov), the view follows that
-// player's camera frame by frame and draws their mouse: a cross for the cursor, a green ring
-// where a left click landed and a red ring for a right click. The window is the player's
-// screen size, so you see exactly the area they saw. (v1: no fog of war; the window shows
-// everything inside that area.)
+// player's camera frame by frame and draws their mouse: a cross for the cursor, and a ring
+// that opens out where a click landed, green for a left click and red for a right click.
+// (v1: no fog of war; you see everything inside the camera area.)
 //
-// Controls (OpenBW's viewer): space pauses, the slider at the bottom seeks, the minimap and
-// arrow keys move the view (in POV mode the view snaps back to the player's camera).
+// Keys: space pauses, left/right seek 10 s (with shift: 60 s), up/down change speed,
+// WASD moves the view when there's no POV log, Esc quits. The title bar shows the time.
 
 #include <stdexcept>  // OpenBW's util.h uses std::runtime_error without including it
 
@@ -23,12 +26,16 @@
 #include "bwgame.h"
 #include "replay.h"
 
+#include "SDL.h"
+
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
-#include <optional>
-#include <sstream>
+#include <map>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -82,7 +89,7 @@ struct data_loader {
 	}
 };
 
-// One line of a POV log: {"frame":F,"camera":[x,y],"cursor":[x,y],"click":"left"|"right"|null}
+// One line of a POV log: {"frame": F, "camera": [x, y], "cursor": [x, y], "click": "left"|"right"|null}
 struct pov_entry {
 	int frame;
 	int cam_x, cam_y, cur_x, cur_y;
@@ -98,70 +105,165 @@ int json_int_after(const std::string& line, const char* key, int index = 0) {
 	return atoi(line.c_str() + p);
 }
 
-std::vector<pov_entry> load_pov(const std::string& path) {
-	std::vector<pov_entry> out;
+// The string value of "key" ("" for null or missing), whatever the spacing.
+std::string json_str_after(const std::string& line, const char* key) {
+	size_t p = line.find(key);
+	if (p == std::string::npos) return "";
+	p = line.find_first_not_of(" :", p + strlen(key));
+	if (p == std::string::npos || line[p] != '"') return "";
+	size_t e = line.find('"', p + 1);
+	return e == std::string::npos ? "" : line.substr(p + 1, e - p - 1);
+}
+
+struct pov_log {
+	std::vector<pov_entry> entries;
+	int view_w = 0, view_h = 0;
+};
+
+pov_log load_pov(const std::string& path) {
+	pov_log out;
 	std::ifstream in(path);
+	if (!in) error("can't open %s", path.c_str());
 	std::string line;
 	while (std::getline(in, line)) {
+		if (line.find("\"viewport\"") != std::string::npos) {
+			out.view_w = json_int_after(line, "\"viewport\"", 0);
+			out.view_h = json_int_after(line, "\"viewport\"", 1);
+		}
 		if (line.find("\"frame\"") == std::string::npos) continue;
 		pov_entry e{};
-		e.frame = json_int_after(line, "\"frame\":");
-		e.cam_x = json_int_after(line, "\"camera\":", 0);
-		e.cam_y = json_int_after(line, "\"camera\":", 1);
-		e.cur_x = json_int_after(line, "\"cursor\":", 0);
-		e.cur_y = json_int_after(line, "\"cursor\":", 1);
-		e.click = line.find("\"click\":\"left\"") != std::string::npos ? 1
-		        : line.find("\"click\":\"right\"") != std::string::npos ? 2 : 0;
-		out.push_back(e);
+		e.frame = json_int_after(line, "\"frame\"");
+		e.cam_x = json_int_after(line, "\"camera\"", 0);
+		e.cam_y = json_int_after(line, "\"camera\"", 1);
+		e.cur_x = json_int_after(line, "\"cursor\"", 0);
+		e.cur_y = json_int_after(line, "\"cursor\"", 1);
+		std::string click = json_str_after(line, "\"click\"");
+		e.click = click == "left" ? 1 : click == "right" ? 2 : 0;
+		out.entries.push_back(e);
 	}
 	return out;
 }
 
+constexpr int click_mark_frames = 24;  // a click stays marked for a second of game time
+
 struct pov_ui : ui_functions {
 	std::vector<pov_entry> pov;
-	size_t pov_index = 0;
-	struct mark { int x, y, kind, until; };
-	std::vector<mark> marks;
+	// Cursor and recent clicks in map pixels, so they stay on the right spot whatever the view.
 	int cursor_x = -1, cursor_y = -1;
+	int cursor_click = 0;
+	struct mark { int x, y, kind, age; };
+	std::vector<mark> marks;
 
 	using ui_functions::ui_functions;
 
-	// The latest POV entry at or before the current frame.
+	// Show the latest POV entry at or before the current frame (works after seeking too).
 	void follow() {
 		if (pov.empty()) return;
-		if (pov_index >= pov.size() || pov[pov_index].frame > st.current_frame) pov_index = 0;  // seek back
-		while (pov_index + 1 < pov.size() && pov[pov_index + 1].frame <= st.current_frame) {
-			++pov_index;
-			const auto& e = pov[pov_index];
-			if (e.click) marks.push_back({e.cam_x + e.cur_x, e.cam_y + e.cur_y, e.click, st.current_frame + 12});
-		}
-		const auto& e = pov[pov_index];
+		int now = st.current_frame;
+		auto it = std::upper_bound(pov.begin(), pov.end(), now, [](int f, const pov_entry& e) { return f < e.frame; });
+		if (it == pov.begin()) return;
+		size_t i = (it - pov.begin()) - 1;
+		const auto& e = pov[i];
 		screen_pos = xy(e.cam_x, e.cam_y);
-		cursor_x = e.cur_x;
-		cursor_y = e.cur_y;
+		cursor_x = e.cam_x + e.cur_x;
+		cursor_y = e.cam_y + e.cur_y;
+		cursor_click = 0;
+		marks.clear();
+		for (size_t j = i + 1; j-- > 0 && pov[j].frame > now - click_mark_frames;) {
+			const auto& c = pov[j];
+			if (!c.click) continue;
+			marks.push_back({c.cam_x + c.cur_x, c.cam_y + c.cur_y, c.click, now - c.frame});
+			if (now - c.frame < 6 && !cursor_click) cursor_click = c.click;
+		}
+	}
+
+	uint8_t nearest_color(int r, int g, int b) {
+		const auto& wpe = tileset_img.wpe;
+		int best = 0, best_score = 1 << 30;
+		for (int i = 0; i != 256; ++i) {
+			int dr = r - wpe[4 * i], dg = g - wpe[4 * i + 1], db = b - wpe[4 * i + 2];
+			int score = dr * dr + dg * dg + db * db;
+			if (score < best_score) best = i, best_score = score;
+		}
+		return (uint8_t)best;
 	}
 
 	void draw_callback(uint8_t* data, size_t pitch) override {
-		if (pov.empty()) return;
+		if (pov.empty() || cursor_x < 0) return;
 		auto put = [&](int x, int y, uint8_t c) {
 			if (x >= 0 && y >= 0 && x < (int)screen_width && y < (int)screen_height) data[y * pitch + x] = c;
 		};
-		const uint8_t white = 255, green = 117, red = 111;
+		const uint8_t white = nearest_color(255, 255, 255), black = nearest_color(0, 0, 0);
+		const uint8_t green = nearest_color(40, 255, 40), red = nearest_color(255, 40, 40);
+		// Clicks: a ring that opens from 4 to 20 pixels over the mark's life, 2 pixels thick.
 		for (auto& m : marks) {
-			if (m.until < st.current_frame) continue;
 			int sx = m.x - screen_pos.x, sy = m.y - screen_pos.y;
-			for (int a = 0; a != 32; ++a) {
-				double t = a * 3.14159265 / 16;
-				put(sx + (int)(6 * cos(t)), sy + (int)(6 * sin(t)), m.kind == 1 ? green : red);
+			double r = 4 + 16.0 * m.age / click_mark_frames;
+			uint8_t c = m.kind == 1 ? green : red;
+			for (int a = 0; a != 96; ++a) {
+				double t = a * 3.14159265 / 48;
+				for (double rr : {r, r + 1}) put(sx + (int)lround(rr * cos(t)), sy + (int)lround(rr * sin(t)), c);
 			}
 		}
-		marks.erase(std::remove_if(marks.begin(), marks.end(), [&](const mark& m) { return m.until < st.current_frame; }), marks.end());
-		for (int d = -6; d <= 6; ++d) {
-			put(cursor_x + d, cursor_y, white);
-			put(cursor_x, cursor_y + d, white);
+		// Cursor: a cross with a dark outline, in the click color right after a click.
+		int cx = cursor_x - screen_pos.x, cy = cursor_y - screen_pos.y;
+		uint8_t c = cursor_click == 1 ? green : cursor_click == 2 ? red : white;
+		for (int d = -9; d <= 9; ++d) {
+			for (int o : {-1, 1}) {
+				put(cx + d, cy + o, black);
+				put(cx + o, cy + d, black);
+			}
+		}
+		for (int d = -8; d <= 8; ++d) {
+			put(cx + d, cy, c);
+			put(cx, cy + d, c);
 		}
 	}
 };
+
+// Seeking backwards replays from the nearest snapshot (one every 10 s of game time).
+struct snapshots {
+	struct saved {
+		state st;
+		action_state action_st;
+	};
+	std::map<int, std::unique_ptr<saved>> by_frame;
+	static constexpr int interval = 10 * 1000 / 42;
+
+	void maybe_save(pov_ui& ui) {
+		int f = ui.st.current_frame;
+		if (f % interval || by_frame.count(f)) return;
+		auto v = std::make_unique<saved>();
+		v->st = copy_state(ui.st);
+		v->action_st = copy_state(ui.action_st, ui.st, v->st);
+		by_frame[f] = std::move(v);
+	}
+
+	void advance(pov_ui& ui) {
+		maybe_save(ui);
+		ui.replay_functions::next_frame();
+	}
+
+	void seek(pov_ui& ui, int target) {
+		target = std::max(0, std::min(target, (int)ui.replay_st.end_frame));
+		auto i = by_frame.upper_bound(target);
+		if (i != by_frame.begin()) {
+			--i;
+			if (target < ui.st.current_frame || i->first > ui.st.current_frame) {
+				ui.st = copy_state(i->second->st);
+				ui.action_st = copy_state(i->second->action_st, i->second->st, ui.st);
+			}
+		}
+		while (ui.st.current_frame < target && !ui.is_done()) advance(ui);
+	}
+};
+
+std::string clock_str(int frame) {
+	int s = frame * 42 / 1000;
+	char buf[16];
+	snprintf(buf, sizeof buf, "%d:%02d", s / 60, s % 60);
+	return buf;
+}
 
 }  // namespace
 
@@ -178,7 +280,7 @@ int main(int argc, char** argv) {
 
 int run(int argc, char** argv) {
 	std::string data_dir, replay_file, pov_file, record_file;
-	int width = 640, height = 400;
+	int width = 0, height = 0, scale = 2;
 	double from_s = 0, to_s = 1e9;
 	int speed = 1;
 	for (int i = 1; i < argc; ++i) {
@@ -186,24 +288,33 @@ int run(int argc, char** argv) {
 		else if (!strcmp(argv[i], "--replay") && i + 1 < argc) replay_file = argv[++i];
 		else if (!strcmp(argv[i], "--pov") && i + 1 < argc) pov_file = argv[++i];
 		else if (!strcmp(argv[i], "--size") && i + 1 < argc) sscanf(argv[++i], "%dx%d", &width, &height);
+		else if (!strcmp(argv[i], "--scale") && i + 1 < argc) scale = std::max(1, atoi(argv[++i]));
 		else if (!strcmp(argv[i], "--record") && i + 1 < argc) record_file = argv[++i];
 		else if (!strcmp(argv[i], "--from") && i + 1 < argc) from_s = atof(argv[++i]);
 		else if (!strcmp(argv[i], "--to") && i + 1 < argc) to_s = atof(argv[++i]);
 		else if (!strcmp(argv[i], "--speed") && i + 1 < argc) speed = std::max(1, atoi(argv[++i]));
 	}
 	if (data_dir.empty() || replay_file.empty()) {
-		fprintf(stderr, "usage: gary_view --data <dir> --replay <file.rep> [--pov <file.pov.jsonl>] [--size WxH]\n");
+		fprintf(stderr, "usage: gary_view --data <dir> --replay <file.rep> [--pov <file.pov.jsonl>] [--size WxH] [--scale N]\n");
 		return 2;
 	}
+	pov_log pov;
+	if (!pov_file.empty()) pov = load_pov(pov_file);
+	if (width <= 0 || height <= 0) {
+		width = pov.view_w > 0 ? pov.view_w : 640;
+		height = pov.view_h > 0 ? pov.view_h : 400;
+	}
+
 	data_loader loader(data_dir);
 	game_player player(loader);
 	pov_ui ui(std::move(player));
+	ui.create_window = false;  // OpenBW draws off-screen; we scale it into our own window
+	ui.draw_ui_elements = false;
 	ui.load_all_image_data(loader);
 	ui.load_data_file = [&](a_vector<uint8_t>& data, a_string filename) { loader(data, std::move(filename)); };
 	ui.init();
 	ui.load_replay_file(replay_file.c_str());
-	if (!pov_file.empty()) ui.pov = load_pov(pov_file);
-	ui.wnd.create("Gary viewer", 0, 0, width, height);
+	ui.pov = std::move(pov.entries);
 	ui.resize(width, height);
 	ui.screen_pos = {0, 0};
 	ui.set_image_data();
@@ -224,7 +335,6 @@ int run(int argc, char** argv) {
 			return 1;
 		}
 		int first = (int)(from_s * 1000 / 42), last = (int)(to_s * 1000 / 42);
-		ui.draw_ui_elements = false;  // no replay slider in videos
 		while (!ui.is_done() && ui.st.current_frame < last) {
 			for (int i = 0; i != speed && !ui.is_done(); ++i) ui.replay_functions::next_frame();
 			ui.replay_frame = ui.st.current_frame;
@@ -244,25 +354,83 @@ int run(int argc, char** argv) {
 		return 0;
 	}
 
-	auto clock = std::chrono::high_resolution_clock();
-	auto last_tick = clock.now();
+	if (SDL_Init(SDL_INIT_VIDEO) != 0) error("SDL_Init failed: %s", SDL_GetError());
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");  // crisp pixels when scaled up
+	SDL_Window* window = SDL_CreateWindow("Gary viewer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+	                                      width * scale, height * scale, SDL_WINDOW_RESIZABLE);
+	if (!window) error("SDL_CreateWindow failed: %s", SDL_GetError());
+	SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
+	if (!renderer) renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+	if (!renderer) error("SDL_CreateRenderer failed: %s", SDL_GetError());
+	SDL_RenderSetLogicalSize(renderer, width, height);  // letterboxed, keeps the shape
+	SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, width, height);
+
+	snapshots snaps;
+	bool paused = false, quit = false;
+	int game_speed = 1;  // game frames per 42 ms tick
 	const auto tick = std::chrono::milliseconds(42);  // Fastest
-	while (true) {
-		auto now = clock.now();
-		if (!ui.is_paused && !ui.is_done()) {
+	auto last_tick = std::chrono::steady_clock::now();
+	std::string last_title;
+	while (!quit) {
+		SDL_Event ev;
+		while (SDL_PollEvent(&ev)) {
+			if (ev.type == SDL_QUIT) quit = true;
+			if (ev.type != SDL_KEYDOWN) continue;
+			bool shift = (ev.key.keysym.mod & KMOD_SHIFT) != 0;
+			int step = (shift ? 60 : 10) * 1000 / 42;
+			switch (ev.key.keysym.sym) {
+			case SDLK_ESCAPE: quit = true; break;
+			case SDLK_SPACE: paused = !paused; break;
+			case SDLK_LEFT: snaps.seek(ui, ui.st.current_frame - step); break;
+			case SDLK_RIGHT: snaps.seek(ui, ui.st.current_frame + step); break;
+			case SDLK_UP: game_speed = std::min(16, game_speed * 2); break;
+			case SDLK_DOWN: game_speed = std::max(1, game_speed / 2); break;
+			}
+		}
+		if (ui.pov.empty()) {
+			const Uint8* keys = SDL_GetKeyboardState(nullptr);
+			int d = 12;
+			if (keys[SDL_SCANCODE_A]) ui.screen_pos.x -= d;
+			if (keys[SDL_SCANCODE_D]) ui.screen_pos.x += d;
+			if (keys[SDL_SCANCODE_W]) ui.screen_pos.y -= d;
+			if (keys[SDL_SCANCODE_S]) ui.screen_pos.y += d;
+		}
+
+		auto now = std::chrono::steady_clock::now();
+		if (!paused && !ui.is_done()) {
 			int n = 0;
 			while (now - last_tick >= tick && n++ < 8 && !ui.is_done()) {
-				ui.replay_functions::next_frame();
+				for (int i = 0; i != game_speed && !ui.is_done(); ++i) snaps.advance(ui);
 				last_tick += tick;
 			}
 			if (n >= 8) last_tick = now;
-			ui.replay_frame = ui.st.current_frame;
 		} else {
 			last_tick = now;
 		}
+		ui.replay_frame = ui.st.current_frame;
 		ui.follow();
 		ui.update();
+
+		void* px = ui.rgba_surface->lock();
+		SDL_UpdateTexture(texture, nullptr, px, ui.rgba_surface->pitch);
+		ui.rgba_surface->unlock();
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+		SDL_RenderClear(renderer);
+		SDL_RenderCopy(renderer, texture, nullptr, nullptr);
+		SDL_RenderPresent(renderer);
+
+		std::string title = "Gary viewer  " + clock_str(ui.st.current_frame) + " / " + clock_str(ui.replay_st.end_frame) +
+		                    (game_speed > 1 ? "  x" + std::to_string(game_speed) : "") +
+		                    (paused ? "  [paused]" : ui.is_done() ? "  [end]" : "");
+		if (title != last_title) {
+			SDL_SetWindowTitle(window, title.c_str());
+			last_title = title;
+		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(5));
 	}
+	SDL_DestroyTexture(texture);
+	SDL_DestroyRenderer(renderer);
+	SDL_DestroyWindow(window);
+	SDL_Quit();
 	return 0;
 }

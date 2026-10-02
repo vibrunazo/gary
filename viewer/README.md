@@ -7,9 +7,11 @@ mouse went and where it clicked.
 **Status (v1):**
 
 - Plays any replay `gary_resim` can play, including the ones `gary_env` saves.
-- `--pov <file.pov.jsonl>` follows that player's camera frame by frame and draws a cross for
-  the cursor, a green ring for a left click and a red ring for a right click. The window is
-  the player's screen size. There's no fog of war yet: you see everything in the camera area.
+- `--pov <file.pov.jsonl>` follows that player's camera frame by frame and draws their mouse:
+  a cross for the cursor, and a ring that opens out where a click landed (green for left, red
+  for right). The view is exactly the player's screen, scaled up to fit the window (start
+  size `--scale`, default 2x; resize or maximize freely). There's no fog of war yet: you see
+  everything in the camera area.
 - `--record out.mp4` renders straight to a video through `ffmpeg` (must be on `PATH`), faster
   than real time. `--from`/`--to` (seconds) pick a stretch, `--speed N` makes an N× time-lapse.
 - Silent: sound files aren't extracted.
@@ -33,4 +35,5 @@ viewer\build\gary_view.exe --data data\gamedata\scr --replay data\interim\gary_g
 viewer\build\gary_view.exe --data data\gamedata\scr --replay data\interim\gary_games\gary_v01.rep --pov data\interim\gary_games\gary_v01.pov.jsonl --record gary_v01.mp4 --to 240
 ```
 
-In the window, space pauses and the slider at the bottom seeks.
+In the window, space pauses, left/right seek 10 s (shift: 60 s), up/down change the speed and
+Esc quits. Without `--pov`, WASD moves the view. The title bar shows the game time.

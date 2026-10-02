@@ -1,6 +1,6 @@
 @echo off
 rem Builds gary_view (the replay / POV viewer) with the Visual Studio C++ toolchain (CMake + Ninja ship with Visual Studio).
-rem Usage: env\build.bat   (from any directory)
+rem Usage: viewer\build.bat   (from any directory)
 setlocal
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" (echo vswhere.exe not found: install Visual Studio with the C++ workload & exit /b 1)
