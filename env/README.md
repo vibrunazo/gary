@@ -30,7 +30,7 @@ game data in `data/gamedata/scr`). Run `env\build.bat`; it produces `env\build\g
 ## Try it
 
 ```
-python -m gary.bots.hello --replay-map tests\fixtures\replays\stardata_tvz_standard_ozp3w.rep --minutes 4 --save gary_hello.rep
+python -m gary.bots.hello --map tests\fixtures\replays\stardata_tvz_standard_ozp3w.rep --races T Z --minutes 4 --save gary_hello.rep
 ```
 
 `gary.bots.hello` is Gary v0: every worker mines and the main building keeps making workers,
