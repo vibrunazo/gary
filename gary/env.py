@@ -7,8 +7,8 @@
     game.step(8)
     game.save_replay("out.rep")
 
-v0: no fog of war or human limits yet. Those belong to the human interface layer
-(docs/ARCHITECTURE.md §6.3), which will sit between Gary and this class.
+This is the raw game: full information, no limits. Gary goes through gary.interface.HumanInterface,
+which adds fog of war, the camera, mouse travel and the APM budget (docs/ARCHITECTURE.md §6.3).
 """
 
 from __future__ import annotations
@@ -39,6 +39,14 @@ def _load_dll() -> ctypes.CDLL:
     dll.gary_env_observe.argtypes = [ctypes.c_void_p]
     dll.gary_env_save_replay.restype = ctypes.c_bool
     dll.gary_env_save_replay.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    dll.gary_env_unit_at.restype = ctypes.c_uint
+    dll.gary_env_unit_at.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+    dll.gary_env_box_select.restype = ctypes.c_int
+    dll.gary_env_box_select.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                        ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_uint), ctypes.c_int]
+    dll.gary_env_unit_type.restype = ctypes.c_int
+    dll.gary_env_unit_type.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+    dll.gary_env_set_name.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p]
     return dll
 
 
@@ -83,6 +91,23 @@ class Game:
 
     def observe(self) -> dict:
         return json.loads(_dll.gary_env_observe(self._h).decode("utf-8", errors="replace"))
+
+    def unit_at(self, slot: int, x: int, y: int) -> int:
+        """Tag of the unit a click by this player at map pixel (x, y) would hit, or 0."""
+        return _dll.gary_env_unit_at(self._h, slot, x, y)
+
+    def box_select(self, slot: int, x0: int, y0: int, x1: int, y1: int) -> list[int]:
+        """Tags a drag box (map pixels) would select for this player (up to 12)."""
+        out = (ctypes.c_uint * 12)()
+        n = _dll.gary_env_box_select(self._h, slot, x0, y0, x1, y1, out, 12)
+        return list(out[:n])
+
+    def unit_type_of(self, tag: int) -> int:
+        return _dll.gary_env_unit_type(self._h, tag)
+
+    def set_name(self, slot: int, name: str) -> None:
+        """Rename a player (also in replays saved from this game)."""
+        _dll.gary_env_set_name(self._h, slot, name.encode()[:24])
 
     def save_replay(self, path: str | Path) -> None:
         self._check(_dll.gary_env_save_replay(self._h, str(path).encode()))

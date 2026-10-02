@@ -238,3 +238,106 @@ GARY_API bool gary_env_save_replay(void* h, const char* path) {
 		return false;
 	}
 }
+
+// --- what's under the mouse ---------------------------------------------------------------
+// The human interface resolves clicks the way the game does: by what's drawn at that pixel,
+// not by unit ID. v1 uses each sprite's clickable rectangle (the union of its clickable images'
+// frames) rather than exact pixel shapes; overlapping units resolve by draw depth (elevation,
+// then lower on screen = in front), then by smaller footprint.
+
+namespace {
+
+bool clickable_rect(const env* e, const unit_t* u, rect& out) {
+	auto& f = *e->funcs;
+	bool any = false;
+	for (const image_t* image : ptr(u->sprite->images)) {
+		if (!(image->flags & image_t::flag_clickable)) continue;
+		xy pos = f.get_image_map_position(image);
+		auto size = image->grp->frames.at(image->frame_index).size;
+		xy to = pos + xy((int)size.x, (int)size.y);
+		if (!any) { out = {pos, to}; any = true; continue; }
+		out.from.x = std::min(out.from.x, pos.x); out.from.y = std::min(out.from.y, pos.y);
+		out.to.x = std::max(out.to.x, to.x); out.to.y = std::max(out.to.y, to.y);
+	}
+	return any;
+}
+
+bool selectable(const unit_t* u) {
+	switch (u->unit_type->id) {
+	case UnitTypes::Terran_Nuclear_Missile: case UnitTypes::Protoss_Scarab: case UnitTypes::Spell_Disruption_Web:
+	case UnitTypes::Spell_Dark_Swarm:
+		return false;
+	default:
+		return true;
+	}
+}
+
+uint32_t draw_depth(const unit_t* u) {
+	const sprite_t* s = u->sprite;
+	return ((uint32_t)s->elevation_level << 14) | (uint32_t)(s->elevation_level <= 4 ? s->position.y : 0);
+}
+
+bool seen_by(const unit_t* u, int slot) {
+	return u->owner == slot || (u->sprite->visibility_flags & (1u << slot)) != 0;
+}
+
+}  // namespace
+
+// The unit a player's click at map pixel (x, y) lands on, or 0. Only units that player can see.
+GARY_API unsigned gary_env_unit_at(void* h, int slot, int x, int y) {
+	auto* e = (env*)h;
+	auto& f = *e->funcs;
+	const unit_t* best = nullptr;
+	for (const unit_t* u : ptr(e->player.st().visible_units)) {
+		if (!selectable(u) || !seen_by(u, slot) || f.us_hidden(u)) continue;
+		rect r;
+		if (!clickable_rect(e, u, r) || x < r.from.x || y < r.from.y || x >= r.to.x || y >= r.to.y) continue;
+		if (!best || draw_depth(u) > draw_depth(best) ||
+		    (draw_depth(u) == draw_depth(best) &&
+		     u->unit_type->placement_size.x * u->unit_type->placement_size.y <
+		         best->unit_type->placement_size.x * best->unit_type->placement_size.y))
+			best = u;
+	}
+	return best ? (unsigned)f.get_unit_id(best).raw_value : 0;
+}
+
+// What a drag box (map pixels) selects for a player, like the game: own units whose clickable
+// area touches the box, mobile units before buildings, at most 12. Writes tags, returns count.
+GARY_API int gary_env_box_select(void* h, int slot, int x0, int y0, int x1, int y1, unsigned* out, int max_out) {
+	auto* e = (env*)h;
+	auto& f = *e->funcs;
+	if (x0 > x1) std::swap(x0, x1);
+	if (y0 > y1) std::swap(y0, y1);
+	std::vector<const unit_t*> units, buildings;
+	for (const unit_t* u : ptr(e->player.st().visible_units)) {
+		if (u->owner != slot || !selectable(u) || f.us_hidden(u)) continue;
+		rect r;
+		if (!clickable_rect(e, u, r) || r.to.x <= x0 || r.to.y <= y0 || r.from.x > x1 || r.from.y > y1) continue;
+		(f.unit_can_be_multi_selected(u) ? units : buildings).push_back(u);
+	}
+	if (units.empty() && !buildings.empty()) units.push_back(buildings.front());
+	int n = 0;
+	for (const unit_t* u : units) {
+		if (n == max_out || n == 12) break;
+		out[n++] = f.get_unit_id(u).raw_value;
+	}
+	return n;
+}
+
+// Renames a player in this game and in replays saved from it (the name the source replay had
+// is kept otherwise). Header layout: 12 player slots of 36 bytes from offset 161, name at +11.
+GARY_API void gary_env_set_name(void* h, int slot, const char* name) {
+	auto* e = (env*)h;
+	if (slot < 0 || slot >= 12) return;
+	uint8_t* field = e->header.data() + 161 + slot * 36 + 11;
+	memset(field, 0, 25);
+	strncpy((char*)field, name, 24);
+	e->replay_st.player_name[slot] = name;
+}
+
+// Unit type of a live unit by tag, or -1.
+GARY_API int gary_env_unit_type(void* h, unsigned tag) {
+	auto* e = (env*)h;
+	const unit_t* u = e->funcs->get_unit(unit_id((uint16_t)tag));
+	return u ? (int)u->unit_type->id : -1;
+}
