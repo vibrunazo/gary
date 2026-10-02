@@ -29,8 +29,8 @@ works: `extract_gamedata` (built alongside `gary_resim` when CascLib is cloned t
 
 ```
 git clone --depth 1 https://github.com/ladislav-zezula/CascLib.git external/CascLib
-resimuild.bat
-resimuild\extract_gamedata.exe --install "%GARY_SC_INSTALL%" --out data\gamedata\scr
+resim\build.bat
+resim\build\extract_gamedata.exe --install "%GARY_SC_INSTALL%" --out data\gamedata\scr
 ```
 
 Set `GARY_SC_INSTALL` to your StarCraft folder (the one with `.build.info`) on your machine only;
@@ -52,5 +52,5 @@ Game data never goes in the repo.
 ## Run
 
 ```
-resim\build\gary_resim.exe --data <data dir> --replay tests\fixtures\replays\stardata_tvz_short_2yus7.rep --every 24
+resim\build\gary_resim.exe --data data\gamedata\scr --replay tests\fixtures\replays\stardata_tvz_short_2yus7.rep --every 24
 ```
