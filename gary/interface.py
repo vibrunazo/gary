@@ -108,6 +108,10 @@ class HumanInterface:
         self.pending: list[_Pending] = []
         self.history: deque[tuple[int, dict]] = deque([(self.frame, obs)], maxlen=256)
         self.stats = {"actions": 0, "rejected_by_interface": 0, "rejected_by_game": 0}
+        # point-of-view log (camera, cursor, clicks per frame) for the viewer: viewer/gary_view
+        self.pov: list[dict] = []
+        self._mouse_moves: list[tuple[int, int, tuple[int, int], tuple[int, int]]] = []
+        self._last_pov: tuple | None = None
 
     # --- what Gary sees ------------------------------------------------------------------
 
@@ -168,6 +172,7 @@ class HumanInterface:
         lx = round(sx + self.rng.gauss(0, sigma))
         ly = round(sy + self.rng.gauss(0, sigma))
         self.hand_free_at = land
+        self._mouse_moves.append((start, land, self.cursor, (lx, ly)))
         self.cursor = (sx, sy)
         self.pending.append(_Pending(land, kind, {"sx": lx, "sy": ly, **args}))
         return ActionResult(True, land_frame=land)
@@ -214,8 +219,10 @@ class HumanInterface:
         target = (mx + map_x * mw / map_w, my + map_y * mh / map_h)
         dist = math.dist(self.cursor, target)
         travel_ms = self.p.fitts_a_ms + self.p.fitts_b_ms * math.log2(dist / 4 + 1)
-        land = max(self.frame, self.hand_free_at) + max(1, round(travel_ms / FRAME_MS))
+        start = max(self.frame, self.hand_free_at)
+        land = start + max(1, round(travel_ms / FRAME_MS))
         self.hand_free_at = land
+        self._mouse_moves.append((start, land, self.cursor, (round(target[0]), round(target[1]))))
         self.cursor = (round(target[0]), round(target[1]))
         px = map_w / mw
         x = map_x + self.rng.uniform(-px / 2, px / 2)
@@ -331,13 +338,46 @@ class HumanInterface:
                 self.scroll = (dx, dy, left - 1) if left > 1 else None
             if advance_game:
                 self.game.step(1)
+            self._log_pov()
             self.frame += 1
             self.tokens = min(self.p.apm_capacity, self.tokens + self.p.apm_per_second * FRAME_MS / 1000)
             if self.frame % 4 == 0:
                 self.history.append((self.frame, self.game.observe()))
 
+    def _displayed_cursor(self) -> tuple[int, int]:
+        """Where the mouse is drawn this frame: moving along its path while a click travels."""
+        pos = None
+        for start, land, src, dst in self._mouse_moves:
+            if start <= self.frame <= land:
+                t = (self.frame - start) / max(1, land - start)
+                pos = (round(src[0] + (dst[0] - src[0]) * t), round(src[1] + (dst[1] - src[1]) * t))
+            elif land < self.frame:
+                pos = dst
+        self._mouse_moves = [m for m in self._mouse_moves if m[1] >= self.frame - 1] or self._mouse_moves[-1:]
+        return pos if pos is not None else self.cursor
+
+    def _log_pov(self, click: str | None = None) -> None:
+        cur = self._displayed_cursor()
+        key = (self.camera, cur)
+        if click is None and key == self._last_pov and self.frame % 24:
+            return
+        self._last_pov = key
+        self.pov.append({"frame": self.frame, "camera": list(self.camera), "cursor": list(cur), "click": click})
+
+    def save_pov(self, path) -> None:
+        """Write the point-of-view log (one JSON object per line) for viewer/gary_view --pov."""
+        import json
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"schema": "pov/v1", "slot": self.slot, "viewport": list(self.p.viewport)}) + "\n")
+            for e in self.pov:
+                f.write(json.dumps(e) + "\n")
+
     def _land(self, a: _Pending) -> None:
         g = self.game
+        click = {"click": "left", "box": "left", "build": "left", "right_click": "right",
+                 "minimap_right_click": "right", "minimap_order": "left"}.get(a.kind)
+        if click:
+            self._log_pov(click)
         if a.kind == "camera":
             self._center_camera(a.args["x"], a.args["y"])
         elif a.kind == "scroll":

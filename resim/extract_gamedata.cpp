@@ -24,9 +24,9 @@ namespace {
 
 // What OpenBW loads (bwgame.h): the data tables, the animation script, tilesets, the melee
 // triggers and the classic unit graphics and overlay offset files (read for image sizes and
-// attachment points).
+// attachment points). The viewer additionally needs the tileset graphics and palettes.
 const char* const kWantedPrefixes[] = {
-	"arr\\", "scripts\\iscript.bin", "tileset\\", "triggers\\melee.trg", "unit\\",
+	"arr\\", "scripts\\iscript.bin", "tileset\\", "triggers\\melee.trg", "unit\\", "game\\",
 };
 const char* const kWantedExtensions[] = {".dat", ".tbl", ".bin", ".cv5", ".vf4", ".trg", ".grp"};
 
@@ -47,6 +47,8 @@ bool wanted(const std::string& name) {
 	for (const char* p : kWantedPrefixes) prefix |= n.rfind(p, 0) == 0;
 	if (!prefix) return false;
 	if (n.rfind("unit\\", 0) == 0) return true;  // graphics and overlay offsets (.grp, .lo?) listed in images.tbl
+	if (n.rfind("tileset\\", 0) == 0) return true;  // terrain: also graphics and palettes for the viewer
+	if (n.rfind("game\\", 0) == 0) return true;     // viewer: unit color tables (tunit.pcx, ...)
 	for (const char* e : kWantedExtensions) if (ends_with(n, e)) return true;
 	return false;
 }
@@ -117,6 +119,20 @@ int main(int argc, char** argv) {
 		fs::create_directories(dst.parent_path());
 		std::ofstream(dst, std::ios::binary).write(buf.data(), (std::streamsize)buf.size());
 		++written;
+		// Remastered ships tileset graphics indices as .vx4ex (32-bit entries); OpenBW reads the
+		// classic .vx4 (16-bit). Same data: bit 0 = flipped, the rest = minitile index.
+		if (dst.extension() == ".vx4ex" && buf.size() % 4 == 0) {
+			std::vector<char> vx4(buf.size() / 2);
+			for (size_t i = 0; i != buf.size() / 4; ++i) {
+				uint32_t v;
+				memcpy(&v, buf.data() + 4 * i, 4);
+				uint16_t w = (uint16_t)v;
+				memcpy(vx4.data() + 2 * i, &w, 2);
+			}
+			fs::path classic = dst;
+			classic.replace_extension(".vx4");
+			std::ofstream(classic, std::ios::binary).write(vx4.data(), (std::streamsize)vx4.size());
+		}
 	} while (CascFindNextFile(find, &fd));
 	CascFindClose(find);
 	CascCloseStorage(storage);

@@ -431,7 +431,9 @@ def play(map_path: str, minutes: float, seed: int | None, save: str, opponent: s
                       f"CC {count(CC)}  rax {count(RAX)}  depots {count(DEPOT)}  "
                       f"APM {round(hi.stats['actions'] / max(1, hi.frame / 1440))}", flush=True)
         game.save_replay(save)
-        print(f"saved {save}")
+        pov = save[:-4] + ".pov.jsonl" if save.endswith(".rep") else save + ".pov.jsonl"
+        hi.save_pov(pov)
+        print(f"saved {save} and {pov}")
 
 
 def main() -> None:
