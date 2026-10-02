@@ -17,7 +17,7 @@ data/
     tl/                 # TeamLiquid community replay packs, one subfolder per pack
       progames/         #   pro players' replay folders, one subfolder per original pack
     cwal/               # cwal.gg ladder replays (SC:R)
-  interim/              # parsed outputs: screp JSON, resim states, desync reports
+  interim/              # derived outputs: inventory, command cache (cmdcache/), build orders, resim states
   processed/            # training-ready datasets, indexes, splits
 ```
 

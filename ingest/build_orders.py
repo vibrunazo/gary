@@ -28,12 +28,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
+from cmdcache import F, G, H, N, O, P, POS, T, TAGS, load_game
 from inventory import FRAME_MS, data_root, find_screp, load_inventory
 
 RETRY_FRAMES = 24 * 10        # same building re-ordered within 10 s ...
@@ -192,15 +192,6 @@ def secs(frame: int) -> int:
     return round(frame * FRAME_MS / 1000)
 
 
-def run_screp(screp: str, path: Path) -> dict:
-    # computed data is needed: screp only marks observers when it computes derived data
-    out = subprocess.run([screp, "-indent=false", "-cmds", str(path)],
-                         capture_output=True, timeout=60)
-    if out.returncode != 0:
-        raise RuntimeError(out.stderr.decode("utf-8", "replace")[:200])
-    return json.loads(out.stdout.decode("utf-8", "replace"))
-
-
 def unique12(tags: list[int]) -> list[int]:
     """BW selections and hotkey groups hold at most 12 distinct units."""
     return list(dict.fromkeys(tags))[:12]
@@ -213,7 +204,11 @@ def requirements(name: str, race: str | None) -> list[str]:
     return reqs
 
 
-def extract_player(cmds: list[dict], race: str | None) -> tuple[list[dict], dict]:
+def mmss(frame: int) -> str:
+    return f"{secs(frame) // 60}:{secs(frame) % 60:02d}"
+
+
+def extract_player(cmds: list[tuple], race: str | None) -> tuple[list[dict], dict]:
     """Build-order items for one player's commands, plus counters for the summary."""
     items: list[dict] = []
     stats = Counter()
@@ -224,61 +219,74 @@ def extract_player(cmds: list[dict], race: str | None) -> tuple[list[dict], dict
     by_name: dict[str, list[dict]] = defaultdict(list)
     structures: list[dict] = []
     producer_first_use: dict[str, dict[int, int]] = defaultdict(dict)  # type -> tag -> first frame
+    larva_source: int | None = None   # a building selected right before switching to its larva
+    last_single: tuple[int, int] | None = None
     for c in cmds:
-        t = c["Type"]["Name"]
+        t, frame, order = c[T], c[F], c[O]
         if t == "Select":
-            selection = list(c.get("UnitTags") or [])
+            tags = list(c[TAGS] or [])
+            # Zerg: selecting a hatchery and pressing S sends a one-unit Select, then a Select of its
+            # larva. If a morph follows, that one unit was a hatchery (a drone has no larva).
+            larva_source = (last_single[0] if race == "Z" and last_single and frame - last_single[1] <= 12
+                            and last_single[0] not in tags else None)
+            last_single = (tags[0], frame) if len(tags) == 1 else None
+            selection = tags
         elif t == "Select Add":
-            selection = unique12(selection + (c.get("UnitTags") or []))
+            selection = unique12(selection + list(c[TAGS] or []))
         elif t == "Select Remove":
-            selection = [u for u in selection if u not in set(c.get("UnitTags") or [])]
+            selection = [u for u in selection if u not in set(c[TAGS] or [])]
         elif t == "Hotkey":
-            group, op = c.get("Group"), (c.get("HotkeyType") or {}).get("Name")
+            group, op = c[G], c[H]
             if op == "Assign":
                 hotkeys[group] = list(selection)
             elif op == "Add":
                 hotkeys[group] = unique12(hotkeys.get(group, []) + selection)
             elif op == "Select":
                 selection = list(hotkeys.get(group, []))
-        if race == "Z" and t == "Targeted Order" and (c.get("Order") or {}).get("Name") in ZERG_RALLY_ORDERS:
+        if t == "Unit Morph" and larva_source is not None:
+            producer_first_use["Hatchery"].setdefault(larva_source, frame)
+            stats["larva_source_seen"] += 1
+        if t not in ("Select", "Unit Morph"):
+            larva_source = None
+        if race == "Z" and t == "Targeted Order" and order in ZERG_RALLY_ORDERS:
             for tag in selection:
-                producer_first_use["Hatchery"].setdefault(tag, c["Frame"])
+                producer_first_use["Hatchery"].setdefault(tag, frame)
         if race == "Z" and by_builder and (t in UNIT_ONLY_CMDS or (
-                t == "Targeted Order" and (c.get("Order") or {}).get("Name") in UNIT_ONLY_ORDERS)):
+                t == "Targeted Order" and order in UNIT_ONLY_ORDERS)):
             for tag in selection:
                 pending = by_builder.get(tag)
                 if pending and pending["conf"] == "ordered":
                     pending["conf"] = "not built"
-                    pending["evidence"] = f"drone given a unit order at {secs(c['Frame']) // 60}:{secs(c['Frame']) % 60:02d}"
+                    pending["evidence"] = f"drone given a unit order at {mmss(frame)}"
                     stats["zerg_drone_redirected"] += 1
         kind = KIND_OF_CMD.get(t)
-        if t == "Build" and (c.get("Order") or {}).get("Name") == "BuildNydusExit":
+        if t == "Build" and order == "BuildNydusExit":
             # placing the exit is done from the canal itself: proof the canal exists, not a new build
-            items.append({"frame": c["Frame"], "kind": "use", "name": "use:Nydus Canal",
+            items.append({"frame": frame, "kind": "use", "name": "use:Nydus Canal",
                           "_evidence_only": True, "_proves": "Nydus Canal"})
             continue
         if kind:
-            name = (c.get("Unit") or c.get("Tech") or c.get("Upgrade") or {}).get("Name", "?")
+            name = c[N] or "?"
             ptype = PRODUCER.get(name)
-            if ptype and (kind != "build" or (c.get("Order") or {}).get("Name") == "PlaceAddon"):
+            if ptype and (kind != "build" or order == "PlaceAddon"):
                 for tag in selection:
-                    producer_first_use[ptype].setdefault(tag, c["Frame"])
-            if kind == "unit" and secs(c["Frame"]) > UNITS_UNTIL_S:
+                    producer_first_use[ptype].setdefault(tag, frame)
+            if kind == "unit" and secs(frame) > UNITS_UNTIL_S:
                 # still counts as evidence for requirements, but isn't stored
-                items.append({"frame": c["Frame"], "kind": kind, "name": name, "_evidence_only": True})
+                items.append({"frame": frame, "kind": kind, "name": name, "_evidence_only": True})
                 continue
-            pos = c.get("Pos")
+            pos = c[POS]
             prev = last_of.get((kind, name))
             is_retry = (
-                prev is not None and kind != "unit" and c["Frame"] - prev["frame"] <= RETRY_FRAMES
+                prev is not None and kind != "unit" and frame - prev["frame"] <= RETRY_FRAMES
                 and (pos is None or prev.get("pos") is None
-                     or max(abs(pos["X"] - prev["pos"]["X"]), abs(pos["Y"] - prev["pos"]["Y"])) <= RETRY_TILES)
+                     or max(abs(pos[0] - prev["pos"][0]), abs(pos[1] - prev["pos"][1])) <= RETRY_TILES)
             )
             if is_retry:
-                prev.update(frame=c["Frame"], pos=pos, attempts=prev.get("attempts", 1) + 1)
+                prev.update(frame=frame, pos=pos, attempts=prev.get("attempts", 1) + 1)
                 stats["retries_collapsed"] += 1
                 continue
-            item = {"frame": c["Frame"], "kind": kind, "name": name, "conf": "ordered"}
+            item = {"frame": frame, "kind": kind, "name": name, "conf": "ordered"}
             if pos:
                 item["pos"] = pos
             if race == "Z" and kind == "build" and len(selection) == 1:
@@ -288,7 +296,7 @@ def extract_player(cmds: list[dict], race: str | None) -> tuple[list[dict], dict
                 earlier = by_builder.get(drone)
                 if earlier and earlier["conf"] != "confirmed":
                     earlier["conf"] = "not built"
-                    earlier["evidence"] = f"drone reused at {secs(c['Frame']) // 60}:{secs(c['Frame']) % 60:02d}"
+                    earlier["evidence"] = f"drone reused at {mmss(frame)}"
                     stats["zerg_drone_reused"] += 1
                 item["_builder"] = drone
                 by_builder[drone] = item
@@ -297,15 +305,15 @@ def extract_player(cmds: list[dict], race: str | None) -> tuple[list[dict], dict
             by_name[name].append(item)
             if kind in STRUCTURE_KINDS:
                 structures.append(item)
-        elif (used := USE_EVIDENCE.get(t) or USE_EVIDENCE.get((c.get("Order") or {}).get("Name", ""))):
+        elif (used := USE_EVIDENCE.get(t) or USE_EVIDENCE.get(order or "")):
             # a pseudo-event: proves `used` exists, never stored
-            items.append({"frame": c["Frame"], "kind": "use", "name": f"use:{used}",
+            items.append({"frame": frame, "kind": "use", "name": f"use:{used}",
                           "_evidence_only": True, "_proves": used})
         elif t in ("Cancel Build", "Cancel Morph"):
             # Attribute to the latest unconfirmed structure (or, for morphs, building morph) in the window.
             target = None
             for i in reversed(structures):
-                if c["Frame"] - i["frame"] > CANCEL_WINDOW_FRAMES:
+                if frame - i["frame"] > CANCEL_WINDOW_FRAMES:
                     break
                 if i["conf"] == "ordered":
                     target = i
@@ -337,7 +345,7 @@ def extract_player(cmds: list[dict], race: str | None) -> tuple[list[dict], dict
             if target["conf"] == "cancelled?":
                 stats["cancel_overridden_by_evidence"] += 1
             target["conf"] = "confirmed"
-            target["evidence"] = f"{ev['name']} at {secs(ev['frame']) // 60}:{secs(ev['frame']) % 60:02d}"
+            target["evidence"] = f"{ev['name']} at {mmss(ev['frame'])}"
 
     # Producer evidence: the k-th distinct building ID used to produce from proves the k-th order of
     # that building type (the first ID is the starting building for Command Center / Nexus).
@@ -356,7 +364,7 @@ def extract_player(cmds: list[dict], race: str | None) -> tuple[list[dict], dict
                 if o["conf"] in ("not built", "cancelled?"):
                     stats["negative_overridden_by_evidence"] += 1
                 o["conf"] = "confirmed"
-                o["evidence"] = f"used as {ptype} at {secs(used_at) // 60}:{secs(used_at) % 60:02d}"
+                o["evidence"] = f"used as {ptype} at {mmss(used_at)}"
         orders = [o for o in orders if o["conf"] not in ("confirmed", "not built")]
         uses = sorted(tags.values())
         if ptype in STARTING:
@@ -371,7 +379,7 @@ def extract_player(cmds: list[dict], race: str | None) -> tuple[list[dict], dict
             if target["conf"] == "cancelled?":
                 stats["cancel_overridden_by_evidence"] += 1
             target["conf"] = "confirmed"
-            target["evidence"] = f"produced from at {secs(used_at) // 60}:{secs(used_at) % 60:02d}"
+            target["evidence"] = f"produced from at {mmss(used_at)}"
 
     out = []
     for i in items:
@@ -383,28 +391,26 @@ def extract_player(cmds: list[dict], race: str | None) -> tuple[list[dict], dict
     return out, stats
 
 
-def extract_game(screp: str, raw_root: Path, rec: dict) -> tuple[list[dict], Counter]:
-    d = run_screp(screp, raw_root / rec["rel_path"])
-    header = d.get("Header") or {}
-    players = [p for p in header.get("Players") or [] if not p.get("Observer") and (p.get("Type") or {}).get("Name") == "Human"]
-    cmds = (d.get("Commands") or {}).get("Cmds") or []
+def extract_game(screp: str, raw_root: Path, cache_root: Path, rec: dict) -> tuple[list[dict], Counter]:
+    game = load_game(screp, raw_root / rec["rel_path"], rec["sha1"], cache_root)
+    players = [p for p in game["players"] if not p["observer"] and p["type"] == "Human"]
     by_player = defaultdict(list)
-    for c in cmds:
-        by_player[c["PlayerID"]].append(c)
+    for c in game["cmds"]:
+        by_player[c[P]].append(c)
     inv_players = {p["name"]: p for p in rec["players"]}
     out, total = [], Counter()
     for p in players:
-        ip = inv_players.get(p.get("Name"), {})
-        items, stats = extract_player(by_player.get(p["ID"], []), ip.get("race"))
+        ip = inv_players.get(p["name"], {})
+        items, stats = extract_player(by_player.get(p["id"], []), ip.get("race"))
         total += stats
-        opp = next((q for q in rec["players"] if q["name"] != p.get("Name")), {})
+        opp = next((q for q in rec["players"] if q["name"] != p["name"]), {})
         out.append({
             "sha1": rec["sha1"], "rel_path": rec["rel_path"], "source": rec["source"],
             "matchup": rec["matchup"], "map": rec["map"], "map_hash": rec["map_hash"],
-            "duration_s": rec["duration_s"], "player": p.get("Name"), "race": ip.get("race"),
+            "duration_s": rec["duration_s"], "player": p["name"], "race": ip.get("race"),
             "opponent_race": opp.get("race"), "start_clock": ip.get("start_clock"),
             "opponent_start_clock": opp.get("start_clock"),
-            "won": (rec["winner_team"] == p.get("Team")) if rec.get("winner_team") else None,
+            "won": (rec["winner_team"] == p["team"]) if rec.get("winner_team") else None,
             "items": items,
         })
     return out, total
@@ -425,12 +431,13 @@ def select_games(args: argparse.Namespace) -> list[dict]:
 def build(args: argparse.Namespace) -> None:
     screp = find_screp(args.screp)
     raw_root = data_root() / "raw"
+    cache_root = data_root() / "interim" / "cmdcache"
     games = select_games(args)
     print(f"{len(games)} games selected", flush=True)
     rows, totals, failed = [], Counter(), 0
     # Processes, not threads: the evidence pass is pure Python and would serialize on the GIL.
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
-        futures = {pool.submit(extract_game, screp, raw_root, g): g for g in games}
+        futures = {pool.submit(extract_game, screp, raw_root, cache_root, g): g for g in games}
         for n, fut in enumerate(as_completed(futures), 1):
             try:
                 r, s = fut.result()
