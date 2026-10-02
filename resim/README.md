@@ -5,7 +5,9 @@ and prints state snapshots as JSON lines: resources, supply, unit counts (all / 
 player, and how many replay commands the engine accepted or rejected. A sustained spike in
 rejected commands is the main desync signal (docs/ARCHITECTURE.md §7.2).
 
-**Status:** builds; not yet run, waiting for game data files.
+**Status:** works with game data extracted from the free StarCraft client (CASC storage). The four
+fixture replays (1.16.1-era) simulate in sync: buildings appear in the simulation within seconds of
+the replay's build commands. Speed: a 30-minute game takes ~3 s (~15,000 frames per second).
 
 ## Build (Windows)
 
@@ -21,7 +23,20 @@ rejected commands is the main desync signal (docs/ARCHITECTURE.md §7.2).
 
 ## Game data
 
-OpenBW needs StarCraft's original game data. `--data` accepts either:
+OpenBW needs StarCraft's original game data. The free StarCraft client from the Battle.net app
+works: `extract_gamedata` (built alongside `gary_resim` when CascLib is cloned to
+`external/CascLib`) copies the needed files out of its CASC storage:
+
+```
+git clone --depth 1 https://github.com/ladislav-zezula/CascLib.git external/CascLib
+resimuild.bat
+resimuild\extract_gamedata.exe --install "%GARY_SC_INSTALL%" --out data\gamedata\scr
+```
+
+Set `GARY_SC_INSTALL` to your StarCraft folder (the one with `.build.info`) on your machine only;
+never commit local paths. `data/` is gitignored, so the extracted files stay local.
+
+`--data` accepts either:
 
 - **A folder with the three classic MPQs** (`StarDat.mpq`, `BrooDat.mpq`, `Patch_rt.mpq`) from
   StarCraft 1.16.1 or 1.18.
@@ -29,8 +44,8 @@ OpenBW needs StarCraft's original game data. `--data` accepts either:
   store data in CASC, not MPQ), keeping their in-archive paths. Files OpenBW reads:
   `arr/{units,weapons,flingy,sprites,images,orders,techdata,upgrades}.dat`, `arr/images.tbl`,
   `scripts/iscript.bin`, `Tileset/*.cv5`, `Tileset/*.vf4`, `triggers/Melee.trg`, and the
-  classic unit graphics under `unit/` (used for image sizes). Whether a CASC install still has
-  all of these in the classic format is untested.
+  classic unit graphics and overlay files under `unit/`. The free StarCraft client's CASC storage
+  has all of them in the classic format (1,098 files, ~160 MB).
 
 Game data never goes in the repo.
 
