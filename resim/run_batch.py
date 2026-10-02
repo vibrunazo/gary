@@ -148,7 +148,8 @@ def build(args: argparse.Namespace) -> None:
     done = {}
     if index_path.exists():
         done = {r["sha1"]: r for r in map(json.loads, index_path.open(encoding="utf-8"))}
-    games = [g for g in select(args) if args.force or g["sha1"] not in done]
+    games = [g for g in select(args) if args.force or g["sha1"] not in done
+             or (args.retry_failed and not done[g["sha1"]]["ok"])]
     print(f"{len(games)} replays to simulate ({len(done)} already in the index)", flush=True)
     def save() -> None:
         tmp = index_path.with_suffix(".tmp")
@@ -210,6 +211,7 @@ def main() -> None:
     ap.add_argument("--remastered", action="store_true", help="only Remastered-format (1.18+) replays")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--force", action="store_true", help="re-simulate replays already in the index")
+    ap.add_argument("--retry-failed", action="store_true", help="re-simulate replays that failed before")
     ap.add_argument("--data", help="game data folder (default: data/gamedata/scr)")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 4)
     args = ap.parse_args()
