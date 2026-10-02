@@ -76,3 +76,7 @@ desktop.ini
 
 # Local tool binaries (e.g. screp.exe); fetched per machine, never committed
 /tools/bin/
+
+# Third-party source checkouts used as external dependencies (not vendored; see CONTRIBUTING.md)
+/external/
+/resim/build/
