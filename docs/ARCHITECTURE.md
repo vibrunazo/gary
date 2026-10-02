@@ -1,6 +1,6 @@
 # Gary — Architecture
 
-Status: **draft v0.8** (2026-10-01)
+Status: **draft v0.9** (2026-10-02)
 
 Gary is a StarCraft: Brood War AI that pro and aspiring players can use as a **sparring partner**:
 it plays with pro-level game sense, but with **human hands** (human APM, attention, reaction time
@@ -510,7 +510,7 @@ In the standard BW interface, an enemy unit's HP, shields, energy and upgrade le
 
 **Explainability:** each inspection and each tracker estimate goes into the trace (`belief` events with `head: enemy_status`). That makes questions like "why did you focus that tank?" answerable: "estimated 40±15 HP after 3 volleys; inspected at 7:42: 31 HP".
 
-**Open question:** do BW replays record selections of enemy units? Own-unit selections are recorded as network commands. If enemy inspections aren't recorded, supervised learning can't see them, and the camera logger must capture them (it hooks the local client, so it can).
+**Verified: replays do record enemy inspections.** In a sample of 150 STARDATA games (observers excluded), players single-clicked units owned by their opponent in 130 games, about 29 times per game. Supervised learning can see when pros check enemy units. (Ownership was inferred from which player gave each unit orders; confirm with resim.)
 
 
 ### 6.10 Memory of fogged units
@@ -601,10 +601,25 @@ Check each site's terms before bulk use, and keep provenance (source, URL, date)
 
 **Pipeline:**
 
-1. **Extract build sequences.** For each player, list production, tech and expansion items with supply count and game time.
-   - Replays store commands, not results. Build commands can fail, be spammed or be cancelled.
-   - screp flags ineffective commands, which removes most of the noise. This works for **all** replays, SC:R included, so the taxonomy doesn't depend on resim.
-   - Where resim is available (1.16.1 replays, or SC:R replays that pass the desync check), it gives the exact truth and is used to measure screp-extraction error.
+1. **Extract build sequences** (`ingest/build_orders.py`). For each player, list production, tech and expansion items with game time.
+   - Replays store commands, not results. A build can fail (blocked spot, no money), be spammed, retried or cancelled.
+   - Without simulating, each item gets a **confidence** from evidence in the command stream:
+
+     | Evidence | Example | Result |
+     |---|---|---|
+     | **Requirement** | Training zerglings proves a Spawning Pool; a Lair morph proves the pool too | `confirmed` |
+     | **Gas** | Gas starts at 0 and the client refuses unaffordable orders, so any gas-costing order proves a gas building | `confirmed` |
+     | **Ability use** | Using Stim, Siege, Irradiate, Storm, Scanner... proves the research or add-on finished | `confirmed` |
+     | **Producer ID** | Select commands carry unit IDs (hotkeys tracked too). The k-th distinct Command Center ID that trains SCVs proves the k-th CC order. Same for Barracks, Gateways, Creep Colonies... | `confirmed` |
+     | **Zerg drone ID** | A drone becomes the building and keeps its ID. The ID later used as a hatchery (rally, research, Lair) confirms it; the same drone later sent to build something else means it was never built | `confirmed` / `not built` |
+     | **Cancel** | Cancel commands are recorded but don't name their target; attributed to the latest unconfirmed structure | `cancelled?` (overridden by any positive evidence) |
+     | **Retry** | Same building re-ordered at the same spot within seconds | collapsed into one item (`attempts`) |
+     | None of the above | | `ordered` |
+
+   - **First measurement (all 15,402 TvZ games, first instance of each item per player):** tech-tree buildings, add-ons and used abilities are 84–100% `confirmed`; first expansion Command Center 94%; first expansion Hatchery 43% (Zerg expansions are the weakest case). Items with no possible evidence stay `ordered`: supply depots, static defense, passive upgrades (speed, range, armor). The Extractor's 13% `cancelled?` rate is mostly the real "extractor trick".
+   - This works for **all** replays, including SC:R and old-patch replays that can't be re-simulated, so the taxonomy doesn't depend on resim.
+   - Where resim is available (1.16.1 replays, or SC:R replays that pass the desync check), it gives the exact truth. It is used to **measure the extractor's error rate** (missing builds, phantom builds, timing error), which then applies approximately to replays that can't be re-simulated.
+   - **Strict drills** (§6.8 modes) use *z*'s from re-simulated replays or high-confidence items only. A phantom hatchery in a drill is worse than one in a win-rate table.
 2. **Discover patterns at several levels.**
 
    | Level | Window | Example labels |
@@ -1025,7 +1040,8 @@ Contributors with different hardware should report their throughput benchmark (P
 | Feature discovery finds spurious features | Held-out validation, multiple-comparison correction, self-play confirmation (§7.6) |
 | Guide claims are outdated, wrong, or for a different skill level | Claims are hypotheses with verdicts, never rules; record date/patch era and author (§7.7) |
 | Guide copyright / platform terms | Store claims and links, not text; check licenses; no bulk transcript scraping |
-| Enemy-unit inspections may not be recorded in replays | Verify early; if missing, capture with the camera logger (§6.9) |
+| ~~Enemy-unit inspections may not be recorded in replays~~ | Verified: they are recorded (§6.9) |
+| Command-only build orders contain phantom or missing items | Evidence-based confidence per item; error rate measured against resim; strict drills use resim-validated *z* only (§7.3) |
 | Fitts's-law parameters off for BW-specific habits (e.g. hotkeyed camera jumps) | Fit per rating band from logger mouse data; compare click-timing distributions with replays |
 | Opponent Model leaks hidden information | Inputs restricted to the fog-filtered observation; test that beliefs don't change when unseen enemy state is altered |
 | Policy's recurrent core rebuilds superhuman memory of fogged units | Small, noisy recurrent state; memory probe test (§6.10) |
