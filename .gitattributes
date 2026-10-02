@@ -1,0 +1,7 @@
+* text=auto
+
+# Binary game files
+*.rep binary
+*.tcr binary
+*.scm binary
+*.scx binary

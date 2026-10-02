@@ -1,0 +1,45 @@
+# Provenance index for local datasets in data/raw/.
+# One entry per source folder. Keep this updated when adding a source.
+#
+# redistributable: whether files from this source may be committed to the repo
+#   (e.g. as test fixtures). "unknown" means no.
+
+sources:
+  - id: stardata
+    path: raw/stardata
+    name: STARDATA
+    url: https://github.com/TorchCraft/StarData
+    license: BSD (plus patent grant), see the StarData repo
+    redistributable: yes        # with attribution
+    game_version: "1.16.1"
+    notes: ~65k human games; original replays and TorchCraft dumps.
+    downloaded: null            # YYYY-MM-DD
+
+  - id: wcg2003
+    path: raw/wcg2003
+    name: WCG 2003 pro replay pack
+    url: null                   # TODO: where it was downloaded from
+    license: unknown
+    redistributable: unknown
+    game_version: "1.16.1-era"
+    downloaded: null
+
+  - id: tl
+    path: raw/tl
+    name: TeamLiquid community replay packs
+    url: https://tl.net/forum/brood-war/
+    license: unknown (varies per pack)
+    redistributable: unknown
+    game_version: mixed
+    notes: one subfolder per pack; record each pack's thread URL below.
+    packs: []
+    downloaded: null
+
+  - id: cwal
+    path: raw/cwal
+    name: cwal.gg ladder replays
+    url: https://cwal.gg/
+    license: site terms
+    redistributable: no         # ladder players' accounts and in-game chat
+    game_version: "SC:R"
+    downloaded: null

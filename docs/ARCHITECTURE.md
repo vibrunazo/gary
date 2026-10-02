@@ -930,7 +930,7 @@ adapters/     openbw_env (vectorized), bwapi_client (C++ shim), scr_bridge
 interface/    human interface, masks, InterfaceState, observation delay, attention arbiter — ONE implementation (C++ core + pybind11)
 executors/    scripted macro executor (build queue from z, building placement), executor API
 perception/   observation encoding, fact extractors
-data/         replay ingest (screp), resim, camera inference, labeling, profile fitting
+ingest/       replay ingest (screp), resim, camera inference, labeling, profile fitting
 taxonomy/     build discovery (prefix tree, clustering), cluster cards, rule distillation, versioned taxonomy files
 tools/        camera_logger (BWAPI module), dataset utilities
 compiler/     prompt→z (LLM), replay→z
@@ -947,6 +947,8 @@ broadcast/    POV viewer, overlays, commentary director, TTS, OBS/live-client in
 eval/         harness, scenarios, metrics, dashboards
 configs/      run manifests, profiles, strategy library
 docs/         this document, ADRs
+data/         local datasets, gitignored except README and sources.yaml (provenance index)
+tests/        tests; fixtures/replays/ holds a small committed set of redistributable replays
 ```
 
 ---
@@ -1038,6 +1040,7 @@ Contributors with different hardware should report their throughput benchmark (P
 | Decision-model probabilities aren't trustworthy out of the box (Laya ships over-confident; OpenAI's are self-reported) | Fit a calibrator per provider and slot on the gold set; report ECE in every bake-off |
 | No bulk access to modern pro replays | Start with STARDATA plus Liquipedia packs; ask the RepMastered maintainer about research access |
 | OpenBW headless throughput is unmeasured (native Linux vs. WSL2) | First P0 benchmark; it decides the B0-b numbers |
+| OpenBW engine repo has no license file (default: all rights reserved) | Use it as an external dependency only; don't vendor or redistribute its source; ask the maintainers to clarify |
 | **Decided:** first matchup | **TvZ**: Terran bot vs. Zerg human |
 | **Decided:** compute | Start at B0 (1 h on a reference workstation) and scale up through the tiers (§13) |
 | **Open:** STARDATA subset strategy | Full dataset is ~365 GB compressed; decide whether to mirror it or stream a TvZ subset |

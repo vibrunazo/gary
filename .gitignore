@@ -1,0 +1,75 @@
+# ---------------------------------------------------------------------------
+# Datasets: never committed. See data/README.md.
+# Only the docs and the provenance index inside data/ are tracked.
+# ---------------------------------------------------------------------------
+/data/*
+!/data/README.md
+!/data/sources.yaml
+
+# Blizzard game data: never in the repo. Users supply their own installed game files.
+*.mpq
+*.MPQ
+
+# Replays anywhere in the repo are ignored, except the small, vetted fixture set.
+*.rep
+*.tcr
+!/tests/fixtures/replays/**/*.rep
+
+# Camera logs, traces, POV tracks and other per-game outputs
+/runs/
+/traces/
+/recordings/
+
+# ---------------------------------------------------------------------------
+# Models, checkpoints, experiment tracking
+# ---------------------------------------------------------------------------
+/checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+wandb/
+mlruns/
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------------
+# C++ / native builds
+# ---------------------------------------------------------------------------
+/build/
+/out/
+cmake-build-*/
+*.obj
+*.o
+*.pdb
+*.ilk
+
+# ---------------------------------------------------------------------------
+# Secrets and local config
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+
+# ---------------------------------------------------------------------------
+# Editors / OS
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
