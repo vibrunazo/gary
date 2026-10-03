@@ -162,6 +162,9 @@ measures and reports.)
 | `src/pipe_server.*` | named pipe, newline-delimited JSON request/response |
 | `src/tests_main.cpp` | offline unit tests: translation golden vectors, handle table, framing |
 | `tools/verify_profile.py` | offline: hash + PE sanity of `scr_profile.h` facts vs an installed exe |
+| `tools/auto_game.py` | hands-free menu walk (posted keys) + lobby race picker; `--preset lan-create`/`lan-join`; screenshot-evidenced |
+| `tools/close_mutex.py` | close SC:R's single-instance Event handle so a second client can run |
+| `tools/run_match.py`, `probe_live.py`, `end_match.py` | live probe pipeline: launch → melee → checklist → end match with replay |
 | `launch.py` | find SC:R, verify, write config, inject DLL, optional smoke test |
 | `gary/scr_env.py` | `ScrGame`: Gary's `Game` surface over the pipe |
 
@@ -187,12 +190,27 @@ hands-free: `tools/auto_game.py` types the menu hotkeys (`S,E,O,U,O`) as **poste
 keys** — no clicks, no focus steal (verified 2026-10-03: a melee match started end-to-end with
 the game unfocused; `PrintWindow` state shots land in `build/auto_game/`).
 
+Human-vs-Gary on one desktop is the same idea over LAN. `auto_game.py --preset lan-create
+--pid <bot pid>` posts `M,E,Down,O,O,G,O` (Multiplayer, Expansion, LAN — Down from the
+preselected Battle.net — Ok, Ok on the first registry account, G=Create, Ok on the preselected
+map) and lands in the lobby; `--preset lan-join --pid <human pid>` posts `M,E,Down,O,O,O` on
+the second client to join it (the create page defaults to Top vs Bottom on Bottleneck, a fine
+1v1). Then `--race T --row home` (bot) and `--race Z --row away` (human) pick races — SC:R
+widgets ignore posted mouse messages, so these two clicks use real input and briefly raise the
+bot's window (harmless: multiplayer never pauses unfocused) — and `--start` posts Alt+O for the
+5s countdown. **Note the lobby semantics:** the bridge reports `in_game=true` while sitting in
+the lobby (map size + local player are already set there), so `frames > 0` is the "match
+running" signal (`auto_game.match_started()`), not `in_game`.
+
 **Two instances on one machine** (needed for local human-vs-Gary practice): SC:R enforces a
-single instance via the named mutex `\Sessions\1\BaseNamedObjects\Starcraft` — a second client
-exits within seconds of the first. Closing that handle in the running instance (Process Explorer:
-find `StarCraft.exe` → Handles → `Starcraft` mutex → Close Handle) lets both run. A future
-`scr_inject` step can do this automatically (enumerate handles with `NtQuerySystemInformation`,
-`DuplicateHandle(DUPLICATE_CLOSE_SOURCE)`). The x86 and x64 clients share the check.
+single instance via the named kernel Event `\Sessions\1\BaseNamedObjects\Starcraft Check For
+Other Instances` — a second client exits within seconds of the first (the x86 and x64 clients
+share the check). `tools/close_mutex.py` closes that handle inside the running instance — the
+automated Process Explorer step (`NtQuerySystemInformation` + `DuplicateHandle(
+DUPLICATE_CLOSE_SOURCE)`; `--list`/`--all` for diagnosis) — and works **without elevation**
+when the client runs as the same user. Verified 2026-10-03: two clients up, a LAN game created
+in one and joined from the other, both clients running unfocused (LAN matches do not pause).
+With two instances, `auto_game.py --pid N` / `end_match.py --pid N` target one window.
 
 **x86 client only.** The pinned build facts are for `x86\StarCraft.exe`; a 32-bit DLL cannot
 load into the 64-bit client, and the address profile would differ anyway. The x86 client plays

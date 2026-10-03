@@ -43,6 +43,34 @@ STEPS: list[tuple[str, float, float]] = [
     ("create_ok", 0.730, 0.820),      # Create game (map preset, Melee, one Computer) -> Ok
 ]
 
+# Multiplayer lobby race picker, fractions of the window rect (fullscreen layout), calibrated
+# 2026-10-03 against 1.23.10.13515 from lobby shots. Each player row is [player][race][color];
+# the COLOR combo (right) shows "Random" by default and is NOT the race picker. The race list
+# pops below the combo: Zerg, Terran, Protoss, Random. The home-team row is at fy 0.113; the
+# away-team row (the joined player's own row) is LOBBY_ROW_FY_AWAY lower. SC:R polls the real
+# cursor for these widgets (posted clicks are ignored), so pick_race uses real-input clicks:
+# fine in the lobby because multiplayer never pauses and the swap takes <1s.
+LOBBY_RACE_DROPDOWN: tuple[float, float] = (0.395, 0.113)  # the "Select Race" combo, home row
+LOBBY_RACE_ITEMS: dict[str, tuple[float, float]] = {
+    "Z": (0.395, 0.142),
+    "T": (0.395, 0.160),
+    "P": (0.395, 0.178),
+    "R": (0.395, 0.196),
+}
+LOBBY_ROW_FY_AWAY = 0.066  # add for the away-team row (--row away); measured 95px at 1440p
+
+# Menu key flows for --preset (posted background keys). lan-create/lan-join end in the
+# multiplayer LOBBY (not a running game), so they skip the in_game() success check.
+# lan-create: M=Multiplayer, E=xpansion, Down=LAN (Battle.net starts selected), O=K,
+# O=K on the Gary account (first, already selected), G=Create game, O=K (Bottleneck
+# preset map is preselected). lan-join: same until the Games screen, O=Ok joins the
+# selected (only) listed game.
+PRESETS: dict[str, tuple[str, bool]] = {
+    "melee": ("S,E,O,U,O", True),
+    "lan-create": ("M,E,Down,O,O,G,O", False),
+    "lan-join": ("M,E,Down,O,O,O", False),
+}
+
 
 class _PROCESSENTRY32W(ctypes.Structure):
     _fields_ = [
@@ -78,9 +106,12 @@ def find_process(name: str) -> int:
         kernel32.CloseHandle(snap)
 
 
-def find_game_window() -> int:
-    pid = find_process("StarCraft")
-    if not pid:
+TARGET_PID = 0  # set from --pid: when nonzero, only that StarCraft.exe window is considered
+
+
+def find_game_window(pid: int = 0) -> int:
+    target = pid or TARGET_PID or find_process("StarCraft")
+    if not target:
         return 0
     best = {"hwnd": 0, "area": -1}
 
@@ -97,7 +128,7 @@ def find_game_window() -> int:
                 best["area"] = area
         return True  # visit every window and keep the largest (the game view)
 
-    user32.EnumWindows(cb, pid)
+    user32.EnumWindows(cb, target)
     return best["hwnd"]
 
 
@@ -181,11 +212,65 @@ def click(hwnd: int, fx: float, fy: float) -> tuple[int, int]:
     return x, y
 
 
+def post_click(hwnd: int, fx: float, fy: float) -> tuple[int, int]:
+    """Background click: posted mouse messages, no real cursor, no focus steal.
+
+    NOTE: SC:R's own widgets ignore these (they poll the real cursor) — lobby/menus need
+    click() (real input, raises the window first). post_click remains for plain Win32
+    windows and for diagnosing which path a widget honors. Same (fx, fy) convention.
+    """
+    l, t, r, b = window_rect(hwnd)
+    x = l + int((r - l) * fx)
+    y = t + int((b - t) * fy)
+    lp = ((y - t) << 16) | ((x - l) & 0xFFFF)
+    user32.PostMessageW(hwnd, 0x0200, 0, lp)        # WM_MOUSEMOVE
+    user32.PostMessageW(hwnd, 0x0201, 0x0001, lp)   # WM_LBUTTONDOWN (MK_LBUTTON)
+    user32.PostMessageW(hwnd, 0x0202, 0, lp)        # WM_LBUTTONUP
+    print(f"-> posted click at ({x}, {y})  fx={fx:.3f} fy={fy:.3f}")
+    return x, y
+
+
+def pick_race(hwnd: int, race: str, row: str = "home") -> None:
+    """Multiplayer lobby: open the race dropdown and pick the race.
+
+    Real-input clicks (click()) because SC:R widgets ignore posted mouse messages; each click
+    briefly raises Gary's window first (never paused: multiplayer runs unfocused). row="away"
+    targets the away-team row — the joined player's own row (the host owns the home row).
+    """
+    race = race.upper()
+    if race not in LOBBY_RACE_ITEMS or tuple(LOBBY_RACE_DROPDOWN) == (0.0, 0.0):
+        raise SystemExit(
+            "lobby race picker not calibrated yet — run --preset lan-create, read the lobby "
+            "shot, and fill LOBBY_RACE_DROPDOWN / LOBBY_RACE_ITEMS in tools/auto_game.py")
+    dy = LOBBY_ROW_FY_AWAY if row == "away" else 0.0
+    bg_shot(hwnd, "race_00_before_dropdown.png")
+    click(hwnd, LOBBY_RACE_DROPDOWN[0], LOBBY_RACE_DROPDOWN[1] + dy)
+    time.sleep(1.0)
+    bg_shot(hwnd, "race_01_dropdown_open.png")
+    fx, fy = LOBBY_RACE_ITEMS[race]
+    click(hwnd, fx, fy + dy)
+    time.sleep(1.0)
+    bg_shot(hwnd, f"race_02_after_{race}.png")
+    print(f"race '{race}' picked ({row} row) — verify race_02_after_{race}.png")
+
+
 def in_game() -> bool:
     try:
         from gary.scr_env import ScrGame
 
         return bool(ScrGame.connect().status().get("in_game"))
+    except Exception:
+        return False
+
+
+def match_started() -> bool:
+    """True only while the simulation is ticking. The bridge counts the multiplayer LOBBY as
+    in_game=true (sane map size + local player already set there), so frames > 0 is the signal
+    that distinguishes "in the lobby" from "match running"."""
+    try:
+        from gary.scr_env import ScrGame
+
+        return (ScrGame.connect().status().get("frames", 0) or 0) > 0
     except Exception:
         return False
 
@@ -240,24 +325,75 @@ def bg_shot(hwnd: int, name: str) -> Path:
     return path
 
 
+# Named keys for --keys tokens: name -> (virtual key, scan code, extended-key flag)
+NAMED_KEYS = {
+    "UP": (0x26, 0x48, True), "DOWN": (0x28, 0x50, True),
+    "LEFT": (0x25, 0x4B, True), "RIGHT": (0x27, 0x4D, True),
+    "ENTER": (0x0D, 0x1C, False), "RETURN": (0x0D, 0x1C, False),
+    "ESC": (0x1B, 0x01, False), "ESCAPE": (0x1B, 0x01, False),
+    "TAB": (0x09, 0x0F, False), "SPACE": (0x20, 0x39, False),
+    "BACKSPACE": (0x08, 0x0E, False),
+}
+
+
+def _lparam(scan: int, down: bool, extended: bool = False, alt: bool = False) -> int:
+    lp = 1 | ((scan & 0xFF) << 16)
+    if extended:
+        lp |= 1 << 24
+    if alt:
+        lp |= 1 << 29
+    if not down:
+        lp |= (1 << 30) | (1 << 31)
+    return lp
+
+
 def send_key(hwnd: int, key: str, background: bool = True) -> None:
-    """Send one key to the game window. background=True posts the messages directly (no focus
-    change at all); background=False focuses the window and uses the real input path."""
-    vk = ord(key.upper())
+    """Send one key: a letter/digit, a named key (Down/Enter/Esc/...), or Alt+X (accelerator).
+
+    background=True posts the messages directly (no focus change at all);
+    background=False focuses the window and uses the real input path.
+    """
+    key = key.strip().upper()
+    ext = False
+    if key.startswith("ALT+") and len(key) == 5:
+        ch = key[4]
+        vk = ord(ch)
+        scan = user32.MapVirtualKeyW(vk, 0) & 0xFF
+    elif key in NAMED_KEYS:
+        vk, scan, ext = NAMED_KEYS[key]
+    elif len(key) == 1:
+        vk = ord(key)
+        scan = user32.MapVirtualKeyW(vk, 0) & 0xFF
+    else:
+        raise ValueError(f"unknown key token: {key!r}")
+
     if background:
-        scan = user32.MapVirtualKeyW(vk, 0)
-        lparam_down = 1 | (scan << 16)
-        lparam_up = lparam_down | (1 << 30) | (1 << 31)
-        user32.PostMessageW(hwnd, WM_KEYDOWN, vk, lparam_down)
-        user32.PostMessageW(hwnd, WM_CHAR, vk, lparam_down)
-        user32.PostMessageW(hwnd, WM_KEYUP, vk, lparam_up)
+        if key.startswith("ALT+"):  # menu accelerator: Alt down, X down/char/up, Alt up
+            WM_SYSKEYDOWN, WM_SYSKEYUP, WM_SYSCHAR = 0x0104, 0x0105, 0x0106
+            user32.PostMessageW(hwnd, WM_SYSKEYDOWN, 0x12, _lparam(0x38, True))
+            user32.PostMessageW(hwnd, WM_SYSKEYDOWN, vk, _lparam(scan, True, alt=True))
+            user32.PostMessageW(hwnd, WM_SYSCHAR, vk, _lparam(scan, True, alt=True))
+            user32.PostMessageW(hwnd, WM_SYSKEYUP, vk, _lparam(scan, False, alt=True))
+            user32.PostMessageW(hwnd, WM_SYSKEYUP, 0x12, _lparam(0x38, False))
+        else:
+            user32.PostMessageW(hwnd, WM_KEYDOWN, vk, _lparam(scan, True, ext))
+            if len(key) == 1 and not ext:
+                user32.PostMessageW(hwnd, WM_CHAR, vk, _lparam(scan, True))
+            user32.PostMessageW(hwnd, WM_KEYUP, vk, _lparam(scan, False, ext))
     else:
         raise_window(hwnd)
-        user32.keybd_event(vk, 0, 0, 0)
-        user32.keybd_event(vk, 0, 0x0002, 0)
+        if key.startswith("ALT+"):
+            user32.keybd_event(0x12, 0x38, 0, 0)
+            user32.keybd_event(vk, scan, 0, 0)
+            user32.keybd_event(vk, scan, 0x0002, 0)
+            user32.keybd_event(0x12, 0x38, 0x0002, 0)
+        else:
+            user32.keybd_event(vk, scan, 1 if ext else 0, 0)
+            user32.keybd_event(vk, scan, 0x0002 | (1 if ext else 0), 0)
 
 
 def main() -> None:
+    global TARGET_PID
     ap = argparse.ArgumentParser()
     ap.add_argument("--calibrate", action="store_true", help="screenshot the game window, click nothing")
     ap.add_argument("--click", metavar="FX,FY", help="perform exactly one click, then screenshot")
@@ -266,13 +402,29 @@ def main() -> None:
     ap.add_argument("--mode", choices=("keys", "clicks"), default="keys",
                     help="keys: hotkey navigation, no visible interaction (default); "
                          "clicks: the calibrated screenshot+click flow")
-    ap.add_argument("--keys", default="S,E,O,U,O",
-                    help="comma-separated menu hotkeys for --mode keys: S ingle player, "
-                         "E xpansion, O=K, cU=stom game, O=K")
+    ap.add_argument("--preset", choices=sorted(PRESETS), default="",
+                    help="named key flows: melee (S,E,O,U,O) / lan-create (host) / lan-join")
+    ap.add_argument("--keys", default="",
+                    help="comma-separated key tokens (default: from --preset, else S,E,O,U,O): "
+                         "letters, Down/Up/Left/Right, Enter, Esc, Tab, Space, Alt+X")
+    ap.add_argument("--esc", type=int, default=0,
+                    help="send N ESC keys first (backs out of a restored submenu; NEVER at the "
+                         "top-level main menu, that quits the game)")
+    ap.add_argument("--pid", type=int, default=0,
+                    help="drive this StarCraft.exe pid (needed when two clients run)")
+    ap.add_argument("--bg-click", metavar="FX,FY",
+                    help="one background (posted) click at (fx, fy), then screenshot")
+    ap.add_argument("--race", metavar="T|Z|P|R",
+                    help="lobby: pick Terran/Zerg/Protoss/Random on the race dropdown")
+    ap.add_argument("--row", choices=("home", "away"), default="home",
+                    help="which lobby row --race targets: home (host) or away (joined player)")
+    ap.add_argument("--start", action="store_true",
+                    help="lobby (host): post Alt+O to start the game (5s countdown)")
     ap.add_argument("--delay", type=float, default=2.0, help="seconds to wait after each key")
     ap.add_argument("--foreground-keys", action="store_true",
                     help="focus the game and use real input instead of posted messages")
     args = ap.parse_args()
+    TARGET_PID = args.pid
 
     hwnd = find_game_window()
     if not hwnd:
@@ -291,26 +443,53 @@ def main() -> None:
         shot(hwnd, "after_click.png")
         return
 
+    if args.bg_click:
+        fx, fy = (float(v) for v in args.bg_click.split(","))
+        pos = post_click(hwnd, fx, fy)
+        print(f"posted click at {pos}")
+        bg_shot(hwnd, "after_bg_click.png")
+        return
+
     if args.mode == "keys":
-        keys = [k.strip().upper() for k in args.keys.split(",") if k.strip()]
+        preset_keys, preset_expect_game = PRESETS.get(args.preset, ("", True))
+        keys_str = args.keys or preset_keys or ("S,E,O,U,O" if not (args.race or args.start) else "")
+        keys = ["ESC"] * args.esc + [k.strip().upper() for k in keys_str.split(",") if k.strip()]
+        expect_game = preset_expect_game and not args.race and not args.start
         mode = "foreground" if args.foreground_keys else "background"
         print(f"keyboard navigation ({mode} keys, {args.delay}s apart): {' '.join(keys)}")
         for i, k in enumerate(keys):
             hwnd = find_game_window() or hwnd
             p = bg_shot(hwnd, f"key_{i:02d}_before_{k}.png")
             print(f"key {i} '{k}': state shot {p.name}")
-            if in_game():
-                print("in_game already — stopping")
+            if expect_game and match_started():
+                print("match already running — stopping")
                 break
             send_key(hwnd, k, background=not args.foreground_keys)
             time.sleep(args.delay)
         hwnd = find_game_window() or hwnd
         bg_shot(hwnd, "key_final.png")
 
+        if args.race:
+            pick_race(hwnd, args.race, args.row)
+        if args.start:
+            send_key(hwnd, "Alt+O", background=not args.foreground_keys)
+            print("Alt+O posted (host start, 5s countdown) — waiting for the simulation...")
+            deadline = time.time() + 25
+            while time.time() < deadline:
+                if match_started():
+                    print("SUCCESS: countdown over, simulation ticking (frames > 0)")
+                    return
+                time.sleep(1)
+            raise SystemExit("Alt+O sent but the game did not start — check build/auto_game/*.png")
+        if not expect_game:
+            print("lobby flow done — verify key_final.png (and race_*.png if --race); start "
+                  "later with --start once the other client has joined and picked its race")
+            return
+
         deadline = time.time() + 15
         while time.time() < deadline:
-            if in_game():
-                print("SUCCESS: game is running (in_game=true)")
+            if match_started():
+                print("SUCCESS: match running (frames > 0)")
                 return
             time.sleep(1)
         raise SystemExit(
@@ -329,8 +508,8 @@ def main() -> None:
         hwnd = find_game_window() or hwnd
         p = shot(hwnd, f"step_{i:02d}_before_{label}.png")
         print(f"step {i} {label}: shot {p.name}")
-        if in_game():
-            print("in_game already — stopping")
+        if match_started():
+            print("match already running — stopping")
             break
         pos = click(hwnd, fx, fy)
         print(f"  clicked {pos}")
@@ -338,8 +517,8 @@ def main() -> None:
 
     deadline = time.time() + 30
     while time.time() < deadline:
-        if in_game():
-            print("SUCCESS: game is running (in_game=true)")
+        if match_started():
+            print("SUCCESS: match running (frames > 0)")
             return
         time.sleep(1)
     shot(hwnd, "final_state.png")

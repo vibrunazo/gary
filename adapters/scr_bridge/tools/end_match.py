@@ -6,7 +6,7 @@ bright frames, and each click is verified against the bridge's in_game flag and 
 file — "Return to Game"/other buttons just reopen the menu and the next candidate is tried.
 ESC (safe in-game; only the top-level main menu quits on ESC) cancels any sub-dialog.
 
-    python adapters/scr_bridge/tools/end_match.py
+    python adapters/scr_bridge/tools/end_match.py [--pid N]
 """
 from __future__ import annotations
 
@@ -41,9 +41,12 @@ def find_replay() -> Path | None:
     return None
 
 
-def in_game() -> bool:
-    """Strict: a connection failure raises — a silent False here once faked a match end."""
-    return bool(ScrGame.connect().status().get("in_game"))
+def match_running() -> bool:
+    """Strict: a connection failure raises — a silent False here once faked a match end.
+    frames > 0, because the bridge counts the multiplayer LOBBY as in_game=true (sane map
+    size + local player are already set there)."""
+    st = ScrGame.connect().status()
+    return (st.get("frames", 0) or 0) > 0
 
 
 def press(keys: int) -> None:
@@ -77,14 +80,20 @@ def button_bands(menu_shot: Path, bbox: tuple[int, int, int, int]) -> list[tuple
 
 
 def done(rep: Path | None) -> bool:
-    return rep is not None or not in_game()
+    return rep is not None or not match_running()
 
 
 def main() -> None:
-    hwnd = find_game_window()
+    import argparse
+
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--pid", type=int, default=0,
+                    help="StarCraft.exe pid whose window to drive (needed when two clients run)")
+    args = ap.parse_args()
+    hwnd = find_game_window(args.pid)
     if not hwnd:
         raise SystemExit("game window not found")
-    if not in_game():
+    if not match_running():
         raise SystemExit("bridge says no match is running — start one first")
     rep = find_replay()
     if rep:
