@@ -595,6 +595,9 @@ Check each site's terms before bulk use, and keep provenance (source, URL, date)
 
      Remastered replays are decoded by `resim/scr_format.py`: zlib sections, the 1.21 command variants, map version 206 and `STRx` strings, and Remastered's larger unit table (1.21 games record its size in the `LMTS` section; unit IDs then use a 13-bit index). Games against the computer can't be simulated: the AI's decisions aren't in the replay.
 3. **Per-player observations**, fog-filtered.
+   - **v1 (macro), implemented:** `ingest/macro_dataset.py` stores, per clean game and second, each player's own state (resources, supply, units all/completed) and the opponent's units that player can see, plus every production decision.
+   - Decisions are the accepted production commands from the resim. Build orders are matched to the buildings that really started, timed at the player's first order for them, so spam clicks and failed orders drop out. Town halls away from the player's other bases are labeled expansions.
+   - Camera, positions and the action space below (steps 4–5) come later, with the army and micro models.
 4. **Infer the camera.** Replays don't record screen position, so estimate it from click targets, selection boxes and hotkey jumps. Use a heuristic first, then a small model. Measure accuracy against camera-logged games (§7.4).
 5. **Map labels to the action space.** Convert human commands into the `HumanAction` format (selections, hotkeys and commands are recorded).
 6. **Extract *z*** (deterministic) from each player's own game. This gives hindsight conditioning for supervised learning. Assign each *z* to a build-taxonomy cluster (§7.3).

@@ -2,8 +2,11 @@
 
 `gary_resim` re-simulates a replay in [OpenBW](https://github.com/OpenBW/openbw) without graphics
 and prints state snapshots as JSON lines: resources, supply, unit counts (all / completed) per
-player, and how many replay commands the engine accepted or rejected. A sustained spike in
-rejected commands is the main desync signal (docs/ARCHITECTURE.md §7.2).
+player, the other players' units each player can see (fog of war), and how many replay commands
+the engine accepted or rejected. A sustained spike in rejected commands is the main desync signal
+(docs/ARCHITECTURE.md §7.2). It also prints unit start/done/gone events and every accepted
+production command (train, morph, build, research, upgrade), which `ingest/macro_dataset.py`
+turns into training data.
 
 **Status:** works with game data extracted from the free StarCraft client (CASC storage). The four
 fixture replays (1.16.1-era) simulate in sync: buildings appear in the simulation within seconds of

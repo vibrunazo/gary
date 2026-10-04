@@ -16,11 +16,13 @@
 //   {"type":"header", ...}                      replay info
 //   {"type":"snapshot","frame":F,"players":[...]} every --every frames (default 24 = 1 s; 0 = off)
 //   {"type":"event","frame":F,"slot":P,"ev":"start|done|gone","unit":ID,"tag":T,...}  as they happen
+//   {"type":"cmd","frame":F,"slot":P,"act":"train|build|...","id":N}  accepted production commands
 //   {"type":"end", ...}                          totals
 //
 // Each snapshot reports, per player: minerals, gas, supply (in BW's displayed units), unit counts
-// by unit type ID (all / completed), and how many replay actions the engine accepted or rejected
-// since the previous snapshot. Rejected actions have a low baseline from spam; a sustained spike
+// by unit type ID (all / completed), what it can see of other players' units right now ("seen":
+// type -> count, i.e. through the fog of war), and how many replay actions the engine accepted or
+// rejected since the previous snapshot. Rejected actions have a low baseline from spam; a sustained spike
 // is the main desync signal (the replay's commands stop making sense in the simulated state).
 
 #include <stdexcept>  // OpenBW's util.h uses std::runtime_error without including it
@@ -35,6 +37,7 @@
 #endif
 #include <cstring>
 #include <fstream>
+#include <map>
 #include <optional>
 #include <string>
 #include <set>
@@ -124,7 +127,9 @@ struct counting_replay_functions : replay_functions {
 					continue;
 				}
 				int action_id = r2.ptr + 1 < end ? r2.ptr[1] : -1;
+				const uint8_t* cmd = r2.ptr;
 				bool ok = action_id >= 0x60 && action_id <= 0x65 ? read_action_121(r2, end) : read_action(r2);
+				if (ok) print_production_command(owner, action_id, cmd, end);
 				if (!ok && debug_rejects) fprintf(stderr, "reject frame %d owner %d action 0x%02x\n", st.current_frame, owner, action_id);
 				if (owner >= 0 && owner < 12) {
 					if (ok) ++accepted[owner];
@@ -133,6 +138,28 @@ struct counting_replay_functions : replay_functions {
 			}
 			action_st.actions_data_position = end - begin;
 		}
+	}
+
+	// Accepted production decisions, for training data: what the player chose to make, when.
+	//   {"type":"cmd","frame":F,"slot":P,"act":"train|morph|build|bmorph|research|upgrade","id":N[,"x":X,"y":Y]}
+	// (build: tile position, so a new town hall's location tells an expansion from a macro hatch)
+	void print_production_command(int owner, int action_id, const uint8_t* cmd, const uint8_t* end) {
+		auto u16 = [&](int at) { return cmd + at + 1 < end ? (int)(cmd[at] | cmd[at + 1] << 8) : -1; };
+		auto u8 = [&](int at) { return cmd + at < end ? (int)cmd[at] : -1; };
+		const char* act = nullptr;
+		int id = -1, x = -1, y = -1;
+		switch (action_id) {  // cmd[0] = player id, cmd[1] = action id
+		case 0x1f: act = "train"; id = u16(2); break;
+		case 0x23: act = "morph"; id = u16(2); break;
+		case 0x35: act = "bmorph"; id = u16(2); break;
+		case 0x0c: act = "build"; x = u16(3); y = u16(5); id = u16(7); break;
+		case 0x30: act = "research"; id = u8(2); break;
+		case 0x32: act = "upgrade"; id = u8(2); break;
+		default: return;
+		}
+		if (x >= 0) printf("{\"type\":\"cmd\",\"frame\":%d,\"slot\":%d,\"act\":\"%s\",\"id\":%d,\"x\":%d,\"y\":%d}\n",
+		                   st.current_frame, owner, act, id, x, y);
+		else printf("{\"type\":\"cmd\",\"frame\":%d,\"slot\":%d,\"act\":\"%s\",\"id\":%d}\n", st.current_frame, owner, act, id);
 	}
 
 	// Remastered games can use a larger unit table (the replay's LMTS section; recent ladder
@@ -313,6 +340,16 @@ bool is_player(const state& st, int i) {
 }
 
 void print_snapshot(const state& st, const replay_state& rst, counting_replay_functions& f) {
+	// What each player can see of everyone else's units right now (fog of war).
+	std::map<int, int> seen[8];
+	for (int o = 0; o != 8; ++o) {
+		for (const unit_t* u : ptr(st.player_units[o])) {
+			if (!u->sprite || f.us_hidden(u)) continue;
+			for (int p = 0; p != 8; ++p) {
+				if (p != o && (u->sprite->visibility_flags & (1 << p))) ++seen[p][(int)u->unit_type->id];
+			}
+		}
+	}
 	std::string out = "{\"type\":\"snapshot\",\"frame\":" + std::to_string(st.current_frame) + ",\"players\":[";
 	bool first_player = true;
 	for (int p = 0; p != 8; ++p) {
@@ -337,6 +374,13 @@ void print_snapshot(const state& st, const replay_state& rst, counting_replay_fu
 			if (!first_unit) out += ',';
 			first_unit = false;
 			out += "\"" + std::to_string(id) + "\":[" + std::to_string(all) + "," + std::to_string(done) + "]";
+		}
+		out += "},\"seen\":{";
+		bool first_seen = true;
+		for (auto& kv : seen[p]) {
+			if (!first_seen) out += ',';
+			first_seen = false;
+			out += "\"" + std::to_string(kv.first) + "\":" + std::to_string(kv.second);
 		}
 		out += "}}";
 		f.accepted[p] = f.rejected[p] = 0;
