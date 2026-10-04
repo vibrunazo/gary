@@ -20,7 +20,7 @@ import math
 from dataclasses import dataclass, field
 
 from gary import commands as C
-from gary.env import Game
+from gary.env import Game, GameError
 from gary.interface import PROFILES, HumanInterface, screen_of
 from gary.mapinfo import Base, MapInfo
 
@@ -411,39 +411,111 @@ class TerranGary:
         self.reserved = keep
 
 
+def _terran_slot(game) -> int:
+    """The slot that owns a Command Center: TerranGary plays Terran. (Slot order is the engine's,
+    not the order of the races list, so bind by what's actually on the map.)"""
+    obs = game.observe()
+    slots = {p["slot"] for p in obs["players"]}
+    for u in obs["units"]:
+        if u["type"] == CC and u["owner"] in slots:
+            return u["owner"]
+    raise SystemExit("no Terran (Command Center) player in this game")
+
+
+def _report(hi: HumanInterface, game) -> None:
+    obs = game.observe()
+    me = next(p for p in obs["players"] if p["slot"] == hi.slot)
+    count = lambda t: sum(1 for u in obs["units"] if u["owner"] == hi.slot and u["type"] == t)
+    print(f"{hi.frame // 1440}:00  supply {me['supply_used']:.0f}/{me['supply_max']:.0f}  "
+          f"minerals {me['minerals']}  SCVs {count(SCV)}  marines {count(MARINE)}  "
+          f"CC {count(CC)}  rax {count(RAX)}  depots {count(DEPOT)}  "
+          f"APM {round(hi.stats['actions'] / max(1, hi.frame / 1440))}", flush=True)
+
+
 def play(map_path: str, minutes: float, seed: int | None, save: str, opponent: str = "idle") -> None:
+    """Play on a headless OpenBW game (gary/env.py): fast, deterministic, saves a replay."""
     races = ["T", "Z"]
     with Game.new(map_path, races, ["Gary v0.1 (T)", "Idle (Z)"], seed=seed) as game:
         mapinfo = MapInfo.from_game(game)
-        slots = [p["slot"] for p in game.observe()["players"]]
-        hi = HumanInterface(game, slots[0], PROFILES["b_rank"], seed=1)
+        hi = HumanInterface(game, _terran_slot(game), PROFILES["b_rank"], seed=1)
         gary = TerranGary(hi, mapinfo)
         end = int(minutes * 60 * 24)
         while hi.frame < end:
             gary.act()
             hi.step(2)
             if hi.frame % (24 * 60) < 2:
-                obs = game.observe()
-                me = next(p for p in obs["players"] if p["slot"] == hi.slot)
-                count = lambda t: sum(1 for u in obs["units"] if u["owner"] == hi.slot and u["type"] == t)
-                print(f"{hi.frame // 1440}:00  supply {me['supply_used']:.0f}/{me['supply_max']:.0f}  "
-                      f"minerals {me['minerals']}  SCVs {count(SCV)}  marines {count(MARINE)}  "
-                      f"CC {count(CC)}  rax {count(RAX)}  depots {count(DEPOT)}  "
-                      f"APM {round(hi.stats['actions'] / max(1, hi.frame / 1440))}", flush=True)
+                _report(hi, game)
         game.save_replay(save)
         pov = save[:-4] + ".pov.jsonl" if save.endswith(".rep") else save + ".pov.jsonl"
         hi.save_pov(pov)
         print(f"saved {save} and {pov}")
 
 
+def play_live(pipe: str, minutes: float, profile: str, pov: str | None) -> None:
+    """Play in a live StarCraft: Remastered client through the bridge (adapters/scr_bridge).
+
+    Gary plays the client's local player (the bridge only accepts that slot), so it must be
+    Terran. act() latency is calibrated from the adapter's reported latency_frames so the
+    human interface lands actions when they really take effect. The client writes its own
+    replay on match end.
+    """
+    from gary.scr_env import ScrGame
+    game = ScrGame.connect(pipe)
+    hi: HumanInterface | None = None
+    try:
+        # wait for a game to start and for Gary's Command Center to exist
+        while True:
+            st = game.status()
+            slot = st.get("local_player", -1)
+            if st.get("in_game") and slot >= 0:
+                obs = game.observe()
+                if any(u["owner"] == slot and u["type"] == CC for u in obs["units"]):
+                    break
+            print("waiting for a live game with Gary's Command Center (start one)...")
+            game.step(24)
+        st = game.status()
+        mapinfo = MapInfo.from_game(game)
+        hi = HumanInterface(game, slot, PROFILES[profile], seed=1)
+        print(f"playing slot {slot} | act() latency calibrated to {hi.act_latency_frames} frames "
+              f"(adapter reported latency_frames={st.get('latency_frames')})", flush=True)
+        gary = TerranGary(hi, mapinfo)
+        end = hi.frame + int(minutes * 60 * 24)
+        while hi.frame < end:
+            gary.act()
+            hi.step(2)                       # waits for the live game to advance
+            if hi.frame % (24 * 60) < 2:
+                _report(hi, game)
+    except GameError as e:
+        print(f"game over / bridge lost: {e}")
+    finally:
+        if pov and hi is not None:
+            try:
+                hi.save_pov(pov)
+                print(f"saved {pov}")
+            except Exception as e:
+                print(f"could not save pov: {e}")
+        game.close()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--map", required=True)
+    ap.add_argument("--map", help="a .scm/.scx map (or a pre-1.18 replay) for headless play")
     ap.add_argument("--minutes", type=float, default=10)
     ap.add_argument("--seed", type=int)
     ap.add_argument("--save", default="gary_v01.rep")
+    ap.add_argument("--live", action="store_true",
+                    help="play in a live SC:R client via the bridge instead of headless OpenBW")
+    ap.add_argument("--pipe", default=r"\\.\pipe\gary_scr", help="bridge named pipe (with --live)")
+    ap.add_argument("--profile", default="b_rank", choices=sorted(PROFILES))
+    ap.add_argument("--pov", help="where to save the point-of-view log (default: alongside --save)")
     args = ap.parse_args()
-    play(args.map, args.minutes, args.seed, args.save)
+    if args.live:
+        play_live(args.pipe, args.minutes, args.profile,
+                  args.pov or "gary_v01_live.pov.jsonl")
+    else:
+        if not args.map:
+            ap.error("--map is required unless --live")
+        play(args.map, args.minutes, args.seed, args.save)
 
 
 if __name__ == "__main__":

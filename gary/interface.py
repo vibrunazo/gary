@@ -73,12 +73,13 @@ PROFILES = {
 class ActionResult:
     accepted: bool            # did the interface take the action (APM, camera, selection limits)
     reason: str = ""          # why not, if not
-    land_frame: int = -1      # when it reaches the game
+    send_frame: int = -1      # when the command is emitted to the game
+    land_frame: int = -1      # when its effect reaches the game (send_frame + act() latency)
 
 
 @dataclass
 class _Pending:
-    land_frame: int
+    send_at: int              # frame on which the hand/key finishes and the command is emitted
     kind: str
     args: dict = field(default_factory=dict)
 
@@ -108,10 +109,53 @@ class HumanInterface:
         self.pending: list[_Pending] = []
         self.history: deque[tuple[int, dict]] = deque([(self.frame, obs)], maxlen=256)
         self.stats = {"actions": 0, "rejected_by_interface": 0, "rejected_by_game": 0}
+        # act() latency: frames from emitting a command (game.act) to its effect in the game.
+        # OpenBW applies commands in the same step (0). A live SC:R client queues them into its
+        # turn queue and lands them latency_frames later (the bridge reports this in status()),
+        # plus the frame it takes to hand the packet to the queue. The live smoke
+        # (adapters/scr_bridge/tools/smoke_act.py) measures the real value and calibrate_act_latency
+        # stores it here so the pending/land model predicts when actions actually take effect.
+        self.act_latency_frames = 0
+        self._auto_calibrate_act_latency()
         # point-of-view log (camera, cursor, clicks per frame) for the viewer: viewer/gary_view
         self.pov: list[dict] = []
         self._mouse_moves: list[tuple[int, int, tuple[int, int], tuple[int, int]]] = []
         self._last_pov: tuple | None = None
+
+    # --- act() latency calibration ---------------------------------------------------------
+
+    def _auto_calibrate_act_latency(self) -> None:
+        """Seed act_latency_frames from a live backend's status() when one is available.
+
+        gary.scr_env.ScrGame reports the game's own turn latency as `latency_frames`
+        (e.g. 2). The bridge hands a packet to the turn queue on the next frame boundary, so
+        the send->effect delay is latency_frames + the one-frame hand-off. This is a prior;
+        the live smoke measures the true delay and calibrate_act_latency() records it.
+        """
+        status = getattr(self.game, "status", None)
+        if not callable(status):
+            return
+        try:
+            st = status()
+        except Exception:
+            return
+        latency = st.get("latency_frames")
+        if latency is not None:
+            self.act_latency_frames = int(latency) + 1   # +1 frame to hand the packet to the queue
+
+    def calibrate_act_latency(self, frames: float | None = None) -> float:
+        """Set the measured send->effect latency (in frames). With frames=None, re-read the
+        backend's reported latency_frames (the prior). Returns the value now in use.
+
+        Feed the value measured by adapters/scr_bridge/tools/smoke_act.py so the interface's
+        pending/land model (and ActionResult.land_frame) tell the truth about when an action
+        takes effect on a live client.
+        """
+        if frames is None:
+            self._auto_calibrate_act_latency()
+        else:
+            self.act_latency_frames = int(round(frames))
+        return self.act_latency_frames
 
     # --- what Gary sees ------------------------------------------------------------------
 
@@ -154,6 +198,15 @@ class HumanInterface:
         self.stats["actions"] += 1
         return None
 
+    def _game_result(self, send_frame: int) -> ActionResult:
+        """A command that reaches the game (game.act): its effect lands act_latency_frames later."""
+        return ActionResult(True, send_frame=send_frame,
+                            land_frame=send_frame + self.act_latency_frames)
+
+    def _instant_result(self, send_frame: int) -> ActionResult:
+        """A camera / key move: no game command, so it takes effect immediately."""
+        return ActionResult(True, send_frame=send_frame, land_frame=send_frame)
+
     def _on_screen(self, sx: int, sy: int) -> bool:
         return 0 <= sx < self.p.viewport[0] and 0 <= sy < self.p.viewport[1]
 
@@ -175,14 +228,14 @@ class HumanInterface:
         self._mouse_moves.append((start, land, self.cursor, (lx, ly)))
         self.cursor = (sx, sy)
         self.pending.append(_Pending(land, kind, {"sx": lx, "sy": ly, **args}))
-        return ActionResult(True, land_frame=land)
+        return self._game_result(land)
 
     def _schedule_key(self, kind: str, **args) -> ActionResult:
         if (r := self._spend()):
             return r
         land = self.frame + 1
         self.pending.append(_Pending(land, kind, args))
-        return ActionResult(True, land_frame=land)
+        return self._game_result(land)
 
     def _send(self, command: bytes) -> bool:
         ok = self.game.act(self.slot, command)
@@ -228,7 +281,7 @@ class HumanInterface:
         x = map_x + self.rng.uniform(-px / 2, px / 2)
         y = map_y + self.rng.uniform(-px / 2, px / 2)
         self.pending.append(_Pending(land, "camera", {"x": round(x), "y": round(y)}))
-        return ActionResult(True, land_frame=land)
+        return self._instant_result(land)
 
     def camera_scroll(self, dx: int, dy: int) -> ActionResult:
         """Arrow-key scrolling by (dx, dy) map pixels, at the profile's scroll speed."""
@@ -236,7 +289,7 @@ class HumanInterface:
         start = max(self.frame, self.keys_free_at)
         self.keys_free_at = start + frames
         self.pending.append(_Pending(start, "scroll", {"dx": dx / frames, "dy": dy / frames, "frames": frames}))
-        return ActionResult(True, land_frame=start + frames)
+        return self._instant_result(start + frames)
 
     def camera_location_set(self, n: int) -> ActionResult:
         """Shift+F2..F4: remember the current view."""
@@ -260,7 +313,7 @@ class HumanInterface:
         land = max(self.frame, self.keys_free_at) + max(1, round(self.p.key_ms / FRAME_MS))
         self.keys_free_at = land
         self.pending.append(_Pending(land, kind, args))
-        return ActionResult(True, land_frame=land)
+        return self._instant_result(land)
 
     def click(self, sx: int, sy: int, shift: bool = False) -> ActionResult:
         """Left click on the screen: select whatever is drawn there."""
@@ -287,7 +340,7 @@ class HumanInterface:
         self.hand_free_at = land
         self.pending.append(_Pending(land, "minimap_right_click", {
             "x": round(map_x + self.rng.gauss(0, s)), "y": round(map_y + self.rng.gauss(0, s))}))
-        return ActionResult(True, land_frame=land)
+        return self._game_result(land)
 
     def minimap_command(self, order: int, map_x: int, map_y: int) -> ActionResult:
         """A targeted order (e.g. attack-move: A, then click) on the minimap."""
@@ -298,7 +351,7 @@ class HumanInterface:
         self.hand_free_at = land
         self.pending.append(_Pending(land, "minimap_order", {
             "order": order, "x": round(map_x + self.rng.gauss(0, s)), "y": round(map_y + self.rng.gauss(0, s))}))
-        return ActionResult(True, land_frame=land)
+        return self._game_result(land)
 
     def train(self, unit_type: int) -> ActionResult:
         """Hotkey: train from the selected building."""
@@ -328,7 +381,7 @@ class HumanInterface:
         one game, every interface steps, but only one of them advances the game itself."""
         end = self.frame + frames
         while self.frame < end:
-            due = sorted((a for a in self.pending if a.land_frame <= self.frame), key=lambda a: a.land_frame)
+            due = sorted((a for a in self.pending if a.send_at <= self.frame), key=lambda a: a.send_at)
             for a in due:
                 self.pending.remove(a)
                 self._land(a)
