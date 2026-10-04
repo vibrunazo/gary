@@ -2,6 +2,10 @@
 //
 //   gary_view --data <dir> --replay <file.rep> [--pov <file.pov.jsonl>] [--size 640x400]
 //             [--scale N] [--record out.mp4 [--from SECONDS] [--to SECONDS] [--speed N]]
+//             [--flat --unit-limit N]
+//
+// Remastered replays: run it through viewer/watch.py, which decodes the replay first (--flat
+// takes the decoded stream, --unit-limit the game's unit table size).
 //
 // The game is drawn at --size (with --pov: the player's screen size from the log) and
 // stretched to fit the window, keeping its shape; --scale sets the starting window size
@@ -25,6 +29,7 @@
 #include "common.h"
 #include "bwgame.h"
 #include "replay.h"
+#include "scr_replay.h"   // resim/: Remastered commands
 
 #include "SDL.h"
 
@@ -146,7 +151,7 @@ pov_log load_pov(const std::string& path) {
 
 constexpr int click_mark_frames = 24;  // a click stays marked for a second of game time
 
-struct pov_ui : ui_functions {
+struct pov_ui : scr_replay<ui_functions> {
 	std::vector<pov_entry> pov;
 	// Cursor and recent clicks in map pixels, so they stay on the right spot whatever the view.
 	int cursor_x = -1, cursor_y = -1;
@@ -154,7 +159,7 @@ struct pov_ui : ui_functions {
 	struct mark { int x, y, kind, age; };
 	std::vector<mark> marks;
 
-	using ui_functions::ui_functions;
+	using scr_replay<ui_functions>::scr_replay;
 
 	// Show the latest POV entry at or before the current frame (works after seeking too).
 	void follow() {
@@ -241,7 +246,7 @@ struct snapshots {
 
 	void advance(pov_ui& ui) {
 		maybe_save(ui);
-		ui.replay_functions::next_frame();
+		ui.scr_next_frame();
 	}
 
 	void seek(pov_ui& ui, int target) {
@@ -283,6 +288,8 @@ int run(int argc, char** argv) {
 	int width = 0, height = 0, scale = 2;
 	double from_s = 0, to_s = 1e9;
 	int speed = 1;
+	bool flat = false;          // the replay file is already OpenBW's decoded stream (viewer/watch.py)
+	int unit_limit = 1700;
 	for (int i = 1; i < argc; ++i) {
 		if (!strcmp(argv[i], "--data") && i + 1 < argc) data_dir = argv[++i];
 		else if (!strcmp(argv[i], "--replay") && i + 1 < argc) replay_file = argv[++i];
@@ -293,6 +300,8 @@ int run(int argc, char** argv) {
 		else if (!strcmp(argv[i], "--from") && i + 1 < argc) from_s = atof(argv[++i]);
 		else if (!strcmp(argv[i], "--to") && i + 1 < argc) to_s = atof(argv[++i]);
 		else if (!strcmp(argv[i], "--speed") && i + 1 < argc) speed = std::max(1, atoi(argv[++i]));
+		else if (!strcmp(argv[i], "--flat")) flat = true;
+		else if (!strcmp(argv[i], "--unit-limit") && i + 1 < argc) unit_limit = atoi(argv[++i]);
 	}
 	if (data_dir.empty() || replay_file.empty()) {
 		fprintf(stderr, "usage: gary_view --data <dir> --replay <file.rep> [--pov <file.pov.jsonl>] [--size WxH] [--scale N]\n");
@@ -313,7 +322,15 @@ int run(int argc, char** argv) {
 	ui.load_all_image_data(loader);
 	ui.load_data_file = [&](a_vector<uint8_t>& data, a_string filename) { loader(data, std::move(filename)); };
 	ui.init();
-	ui.load_replay_file(replay_file.c_str());
+	ui.unit_limit = unit_limit;
+	if (flat) {
+		std::ifstream in(replay_file, std::ios::binary);
+		std::vector<uint8_t> stream((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+		if (stream.empty()) error("can't read %s", replay_file.c_str());
+		ui.load_replay(data_loading::data_reader_le(stream.data(), stream.data() + stream.size()));
+	} else {
+		ui.load_replay_file(replay_file.c_str());
+	}
 	ui.pov = std::move(pov.entries);
 	ui.resize(width, height);
 	ui.screen_pos = {0, 0};
@@ -336,7 +353,7 @@ int run(int argc, char** argv) {
 		}
 		int first = (int)(from_s * 1000 / 42), last = (int)(to_s * 1000 / 42);
 		while (!ui.is_done() && ui.st.current_frame < last) {
-			for (int i = 0; i != speed && !ui.is_done(); ++i) ui.replay_functions::next_frame();
+			for (int i = 0; i != speed && !ui.is_done(); ++i) ui.scr_next_frame();
 			ui.replay_frame = ui.st.current_frame;
 			if (ui.st.current_frame < first) continue;
 			ui.follow();

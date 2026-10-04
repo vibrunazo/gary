@@ -18,7 +18,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_executable(gary_view gary_view.cpp "${OPENBW_DIR}/ui/sdl2.cpp")
-target_include_directories(gary_view PRIVATE "${OPENBW_DIR}" "${OPENBW_DIR}/ui" "${SDL2_ROOT}/include")
+target_include_directories(gary_view PRIVATE "${OPENBW_DIR}" "${OPENBW_DIR}/ui" "${SDL2_ROOT}/include"
+                           "${CMAKE_CURRENT_SOURCE_DIR}/../resim")
 target_link_directories(gary_view PRIVATE "${SDL2_ROOT}/lib/x64")
 target_link_libraries(gary_view PRIVATE SDL2 SDL2main)
 target_compile_definitions(gary_view PRIVATE OPENBW_NO_SDL_IMAGE OPENBW_NO_SDL_MIXER OPENBW_ENABLE_UI

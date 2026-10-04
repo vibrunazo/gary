@@ -6,7 +6,8 @@ mouse went and where it clicked.
 
 **Status (v1):**
 
-- Plays any replay `gary_resim` can play, including the ones `gary_env` saves.
+- Plays any replay `gary_resim` can play, including the ones `gary_env` saves and Remastered
+  ones (via `viewer/watch.py`), e.g. a live game against Gary with its POV log.
 - `--pov <file.pov.jsonl>` follows that player's camera frame by frame and draws their mouse:
   a cross for the cursor, and a ring that opens out where a click landed (green for left, red
   for right). The view is exactly the player's screen, scaled up to fit the window (start
@@ -33,6 +34,12 @@ python -m gary.bots.terran_v01 --map tests\fixtures\replays\stardata_tvz_standar
 eplaysstardata_tvz_standard_ozp3w.rep --minutes 10 --save data\interim\gary_games\gary_v01.rep
 viewer\build\gary_view.exe --data data\gamedata\scr --replay data\interim\gary_games\gary_v01.rep --pov data\interim\gary_games\gary_v01.pov.jsonl
 viewer\build\gary_view.exe --data data\gamedata\scr --replay data\interim\gary_games\gary_v01.rep --pov data\interim\gary_games\gary_v01.pov.jsonl --record gary_v01.mp4 --to 240
+```
+
+Remastered replays (and any other) through the wrapper, which decodes them first:
+
+```
+python viewer/watch.py "data/raw/vib/Gary v3 got owned.rep" --pov gary_v01_live.pov.jsonl
 ```
 
 In the window, space pauses, left/right seek 10 s (shift: 60 s), up/down change the speed and
