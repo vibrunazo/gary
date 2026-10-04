@@ -11,8 +11,10 @@ says so twice in a row, and its fight estimate doesn't expect the move to cost a
 staying), Gary drag-boxes the cluster's units (12 per box, like the real game) and gives the
 order on the minimap.
 
-Still scripted: mining, gas, hotkeys and rallies, building placement. Not yet: micro (spreading,
-stutter-step, stim, sieging), scouting, drops.
+Still scripted: mining, gas, hotkeys and rallies, building placement, one early scouting worker
+(at 9 SCVs; the army model needs to know where the enemy is), and a reflex: pulling workers to
+fight when enemy units at a base outnumber the army there. Not yet: micro (spreading,
+stutter-step, stim, sieging), later scouting, drops.
 
     python -m gary.bots.terran_v03 --map path/to/map.scx --minutes 12
     python -m gary.bots.terran_v03 --live
@@ -34,7 +36,7 @@ from gary.bots.terran_v02 import TerranGaryV2, latest_model
 from gary.env import LIVE_COMMAND_DELAY
 from gary.interface import HumanInterface, screen_of
 from gary.mapinfo import MapInfo
-from gary.policy.army import GRID, ArmyModel, ArmyTracker, is_building
+from gary.policy.army import GRID, ArmyModel, ArmyTracker, is_building, supply_x2
 from gary.policy.macro import MacroModel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -44,7 +46,10 @@ MOVE_P = 0.5                        # move when the model puts more belief than 
 FIGHT_MIN = -0.02                   # don't go if the fight estimate says we'd lose 2+ points of army share
 FIGHT_MARGIN = 0.01                 # ...or if going looks worse than staying by more than 1 point
 REORDER_AFTER = 24 * 8              # don't repeat the same order to a group within 8 s
-SCOUT_AT = 24 * 75                  # send a scouting worker at 1:15 (pros: around 10-12 supply)
+SCOUT_AT = 24 * 45                  # send a scouting worker from 0:45, at 9 SCVs (like pros)
+SCOUT_WORKERS = 9
+THREAT_PX = 10 * 32                 # enemy fighters this close to a Command Center threaten its workers
+CALM_FRAMES = 24 * 5                # pulled workers go back to mining after 5 s without a threat
 SCOUT_KEY = 0
 
 
@@ -73,6 +78,9 @@ class TerranGaryV3(TerranGaryV2):
         self.scout: int | None = None                 # the scouting worker's tag
         self.scout_targets: list[tuple[int, int]] = []
         self.scout_done = False
+        self.pulled: set[int] = set()                 # workers pulled off the minerals to fight
+        self.next_pull = 0
+        self.calm_since = 0
 
     def act(self) -> None:
         if not self.hi.pending:                   # whatever Gary looks at, it remembers
@@ -95,6 +103,8 @@ class TerranGaryV3(TerranGaryV2):
 
     def _army(self, obs: dict, mine: list[dict], done: list[dict]) -> bool:
         hi = self.hi
+        if self._worker_defense(obs, mine):
+            return True
         if self._scouting(obs, mine):
             return True
         if hi.frame < self.next_ask:
@@ -147,6 +157,98 @@ class TerranGaryV3(TerranGaryV2):
                          started=hi.frame)
         return True
 
+    # --- worker defense (a reflex, scripted for now) -------------------------------------------
+
+    def _worker_defense(self, obs: dict, mine: list[dict]) -> bool:
+        """When enemy fighters at a base outnumber Gary's army there, pull a box of workers off the
+        minerals to fight them (what players do against an early zergling attack); send them back
+        to mining once the base has been calm for 5 s. True if Gary acted."""
+        hi = self.hi
+        enemy = [u for u in obs["units"] if u["owner"] not in (self.slot, 11) and supply_x2(u["type"]) > 0]
+        for cc in (u for u in mine if u["type"] == T.CC and u["completed"]):
+            near = [u for u in enemy if math.dist((u["x"], u["y"]), (cc["x"], cc["y"])) < THREAT_PX]
+            if not near:
+                continue
+            ours = sum(supply_x2(u["type"]) for u in mine if u["type"] in self.army_types and u["completed"]
+                       and math.dist((u["x"], u["y"]), (cc["x"], cc["y"])) < THREAT_PX + 4 * 32)
+            self.calm_since = hi.frame
+            theirs = sum(supply_x2(u["type"]) for u in near)
+            alive = {u["tag"] for u in mine}
+            self.pulled &= alive
+            if theirs > ours + 2 and len(self.pulled) < 8 and hi.frame >= self.next_pull:
+                self.next_pull = hi.frame + 24 * 3              # one pull at a time
+                tx = sum(u["x"] for u in near) // len(near)
+                ty = sum(u["y"] for u in near) // len(near)
+                self.task = Task("pull", data={"cc": (cc["x"], cc["y"]), "to": (tx, ty)}, started=hi.frame)
+                self._say(f"pulls workers: {len(near)} enemy units at the base, outnumbering the army there")
+                return True
+            return False
+        if self.pulled and hi.frame - self.calm_since > CALM_FRAMES:
+            self.task = Task("unpull", started=hi.frame)
+            return True
+        return False
+
+    def _task_pull(self, obs: dict, mine: list[dict], t: Task) -> None:
+        hi, d = self.hi, t.data
+        if t.stage == "selected":
+            workers = [u["tag"] for u in mine if u["tag"] in obs["selection"] and u["type"] == T.SCV]
+            if workers:
+                hi.minimap_command(C.ORDER_ATTACK_MOVE, *d["to"])
+                self.pulled.update(workers)
+            self.task = None
+            return
+        cx, cy = d["cc"]
+        if not screen_of(obs, cx, cy):
+            hi.camera_minimap(cx, cy)
+            return
+        miners = [u for u in mine if u["type"] == T.SCV and u["tag"] not in self.pulled
+                  and math.dist((u["x"], u["y"]), (cx, cy)) < 8 * 32 and screen_of(obs, u["x"], u["y"])]
+        if not miners:
+            self.task = None
+            return
+        pts = [screen_of(obs, u["x"], u["y"]) for u in miners[:10]]
+        hi.box(max(0, min(p[0] for p in pts) - 6), max(0, min(p[1] for p in pts) - 6),
+               min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + 6),
+               min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + 6))
+        t.stage = "selected"
+
+    def _task_unpull(self, obs: dict, mine: list[dict], t: Task) -> None:
+        """Pulled workers back to the minerals of the nearest base."""
+        hi = self.hi
+        back = [u for u in mine if u["tag"] in self.pulled]
+        if not back:
+            self.pulled.clear()
+            self.task = None
+            return
+        if t.stage == "selected":
+            sel = [u for u in back if u["tag"] in obs["selection"]]
+            if sel:
+                w = sel[0]
+                base = min(self.map.bases, key=lambda b: math.dist(b.center, (w["x"], w["y"])))
+                fields = [m for m in base.minerals if screen_of(obs, *m)]
+                if fields:
+                    hi.right_click(*screen_of(obs, *fields[0]))
+                else:
+                    hi.minimap_right_click(*base.minerals[0])
+                self.pulled -= {u["tag"] for u in sel}
+            t.stage = "start"
+            t.data["boxes"] = t.data.get("boxes", 0) + 1
+            if t.data["boxes"] >= 3:
+                self.pulled.clear()
+                self.task = None
+            return
+        cx = sorted(u["x"] for u in back)[len(back) // 2]
+        cy = sorted(u["y"] for u in back)[len(back) // 2]
+        here = [u for u in back if screen_of(obs, u["x"], u["y"])]
+        if not here:
+            hi.camera_minimap(cx, cy)
+            return
+        pts = [screen_of(obs, u["x"], u["y"]) for u in here]
+        hi.box(max(0, min(p[0] for p in pts) - 6), max(0, min(p[1] for p in pts) - 6),
+               min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + 6),
+               min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + 6))
+        t.stage = "selected"
+
     # --- scouting (scripted for now) -----------------------------------------------------------
 
     def _scouting(self, obs: dict, mine: list[dict]) -> bool:
@@ -158,7 +260,7 @@ class TerranGaryV3(TerranGaryV2):
         hi = self.hi
         if self.scout is None:
             workers = sum(1 for u in mine if u["type"] == T.SCV)
-            if hi.frame >= SCOUT_AT and workers >= 10:
+            if hi.frame >= SCOUT_AT and workers >= SCOUT_WORKERS:
                 self.scout_targets = sorted(self.enemy_starts, key=lambda p: math.dist(p, self.main.center))
                 self.task = Task("scout", data={"to": self.scout_targets[0]}, started=hi.frame)
                 return True
@@ -217,6 +319,11 @@ class TerranGaryV3(TerranGaryV2):
 
     def _run_task(self, obs: dict, mine: list[dict]) -> None:
         t = self.task
+        if t.kind in ("pull", "unpull"):
+            if self.hi.frame - t.started > 24 * 8:
+                self.task = None
+                return
+            return (self._task_pull if t.kind == "pull" else self._task_unpull)(obs, mine, t)
         if t.kind == "scout":
             if self.hi.frame - t.started > 24 * 10:
                 self.task = None

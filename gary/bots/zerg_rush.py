@@ -213,6 +213,7 @@ def main() -> None:
     ap.add_argument("--seed", type=int)
     ap.add_argument("--save", default="gary_vs_rush.rep")
     ap.add_argument("--attack-after", type=float, default=0, help="no attack before this many seconds")
+    ap.add_argument("--style", type=int, help="build style (taxonomy cluster) to steer Gary's macro toward")
     args = ap.parse_args()
     if args.vs == "v01":
         from gary.bots.terran_v01 import TerranGary as make
@@ -220,14 +221,14 @@ def main() -> None:
         from gary.bots.terran_v02 import TerranGaryV2, latest_model
         from gary.policy.macro import MacroModel
         macro = MacroModel.load(latest_model())
-        make = lambda hi, m: TerranGaryV2(hi, m, macro)
+        make = lambda hi, m: TerranGaryV2(hi, m, macro, args.style)
     else:
         from gary.bots.terran_v02 import latest_model
         from gary.bots.terran_v03 import TerranGaryV3, latest_army_model
         from gary.policy.army import ArmyModel
         from gary.policy.macro import MacroModel
         macro, army = MacroModel.load(latest_model()), ArmyModel.load(latest_army_model())
-        make = lambda hi, m: TerranGaryV3(hi, m, macro, army)
+        make = lambda hi, m: TerranGaryV3(hi, m, macro, army, args.style)
     play_match(args.map, args.minutes, args.seed, args.save, make, f"Gary {args.vs}", args.attack_after)
 
 
