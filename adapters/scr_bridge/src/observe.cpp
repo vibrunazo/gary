@@ -340,16 +340,39 @@ std::vector<uint16_t> box_select(const World& w, int slot, int x0, int y0, int x
 
 // --- placement and map knowledge ----------------------------------------------------------------
 
-// "Buildable" test on the game's per-tile flags array. The bit value is UNVERIFIED: the live
-// probe checks it against the game's own green/red grid (README verification step 3).
-constexpr uint16_t kTileUnbuildable = 0x0001;
+// "Buildable" test on the game's per-tile flags array. Measured 2026-10-03 by scanning rows/columns
+// of the live array: each tile entry is 4 bytes [0xff,0xff,flags_lo,flags_hi] (a u16 read every 2
+// bytes alternates 0xffff/real), and the flag values match OpenBW's mirror of BW's tile flags
+// (external/openbw/game_types.h tile_t): 0x0201 = walkable|middle on open ground, 0x0084 =
+// unwalkable|unbuildable on cliffs, 0x0081 = walkable|unbuildable on mineral tiles. So the flags
+// are the high u16 of a u32 entry and "can't build" is unbuildable|partially_walkable, exactly
+// what gary_env_depot_spot_ok tests. (Also fixed here: the base pointer is game_ptr's value --
+// wrapping it in read_ptr double-dereferences -- and the entry stride is map_tile_width, not 256.)
+constexpr uint16_t kTileUnbuildable = 0x0080;
+constexpr uint16_t kTilePartiallyWalkable = 0x2000;
 
-bool tile_unbuildable(int tile_x, int tile_y) {
-    uint32_t flags = read_ptr(
-        game_ptr((uintptr_t)GetModuleHandleW(nullptr), profile::kMapTileFlags));
-    if (!flags) return true;  // no flags resolved: refuse rather than allow blind placement
-    uint16_t v = read_at<uint16_t>(flags + (uint32_t)(tile_y * 256 + tile_x) * 2);
-    return (v & kTileUnbuildable) != 0;
+static uint16_t tile_flags_at(const World& w, int tile_x, int tile_y) {
+    uint32_t flags = game_ptr((uintptr_t)GetModuleHandleW(nullptr), profile::kMapTileFlags);
+    if (!flags) return 0xffff;
+    int mw = read_at<uint16_t>(w.game + profile::kGameMapWidthTiles);
+    return read_at<uint16_t>(flags + (uint32_t)(tile_y * mw + tile_x) * 4 + 2);
+}
+
+bool tile_unbuildable(const World& w, int tile_x, int tile_y) {
+    uint32_t base = game_ptr((uintptr_t)GetModuleHandleW(nullptr), profile::kMapTileFlags);
+    if (!base) return true;  // no flags resolved: refuse rather than allow blind placement
+    return (tile_flags_at(w, tile_x, tile_y) & (kTileUnbuildable | kTilePartiallyWalkable)) != 0;
+}
+
+// Raw per-tile flags word, for pinning the flag bits by measurement (probe a tile a building
+// stands on vs a map-edge tile). -1 if unresolved or out of range.
+int tile_flags_raw(const World& w, int tile_x, int tile_y) {
+    uint32_t base = game_ptr((uintptr_t)GetModuleHandleW(nullptr), profile::kMapTileFlags);
+    if (!base) return -1;
+    int mw = read_at<uint16_t>(w.game + profile::kGameMapWidthTiles);
+    int mh = read_at<uint16_t>(w.game + profile::kGameMapHeightTiles);
+    if (tile_x < 0 || tile_y < 0 || tile_x >= mw || tile_y >= mh) return -1;
+    return tile_flags_at(w, tile_x, tile_y);
 }
 
 bool is_resource_unit(const UnitView& u) {
@@ -369,7 +392,7 @@ bool depot_spot_tiles(const World& w, int tile_x, int tile_y, int tw, int th,
     if (tile_x < 0 || tile_y < 0 || tile_x + tw > mw || tile_y + th > mh) return false;
     for (int y = tile_y; y != tile_y + th; ++y)
         for (int x = tile_x; x != tile_x + tw; ++x)
-            if (tile_unbuildable(x, y)) return false;
+            if (tile_unbuildable(w, x, y)) return false;
     for (const UnitView& u : units) {
         if (!is_resource_unit(u)) continue;
         if (u.x >= 32 * (tile_x - 3) && u.x < 32 * (tile_x + tw + 3) &&
@@ -401,7 +424,7 @@ bool can_place(const World& w, int slot, uint16_t builder_tag, int unit_type, in
     if (tile_x < 0 || tile_y < 0 || tile_x + tw > mw || tile_y + th > mh) return false;
     for (int y = tile_y; y != tile_y + th; ++y)
         for (int x = tile_x; x != tile_x + tw; ++x)
-            if (tile_unbuildable(x, y)) return false;
+            if (tile_unbuildable(w, x, y)) return false;
     // units in the way (v1: sprite bounding boxes; the builder itself does not block)
     int px0 = 32 * tile_x, py0 = 32 * tile_y, px1 = px0 + 32 * tw, py1 = py0 + 32 * th;
     for (const UnitView& u : units) {

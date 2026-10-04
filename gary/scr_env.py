@@ -98,6 +98,10 @@ class ScrGame:
     def depot_spot_ok(self, tile_x: int, tile_y: int) -> bool:
         return self._call("depot_spot_ok", tile_x=tile_x, tile_y=tile_y) == 1
 
+    def tile_flags(self, tile_x: int, tile_y: int) -> int:
+        """Raw per-tile flags word (-1 if unresolved/out of range): for pinning flag bits."""
+        return self._call("tile_flags", tile_x=tile_x, tile_y=tile_y)
+
     def start_locations(self) -> list[dict]:
         return self._call("start_locations")
 

@@ -469,8 +469,15 @@ def play_live(pipe: str, minutes: float, profile: str, pov: str | None) -> None:
             slot = st.get("local_player", -1)
             if st.get("in_game") and slot >= 0:
                 obs = game.observe()
-                if any(u["owner"] == slot and u["type"] == CC for u in obs["units"]):
+                mains = [u["type"] for u in obs["units"] if u["owner"] == slot
+                         and u["type"] in (CC, C.NEXUS, C.HATCHERY)]
+                if CC in mains:
                     break
+                if mains:   # a game is running, but Gary isn't Terran in it
+                    raise SystemExit(
+                        f"the local player is {'Protoss' if mains[0] == C.NEXUS else 'Zerg'}: "
+                        f"Gary v0.1 plays Terran. Start a Terran game (melee assigns a random race: "
+                        f"end this one and try again, or use auto_game.py --preset lan-create --race T)")
             print("waiting for a live game with Gary's Command Center (start one)...")
             game.step(24)
         st = game.status()
