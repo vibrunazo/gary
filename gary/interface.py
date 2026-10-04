@@ -117,6 +117,9 @@ class HumanInterface:
         # stores it here so the pending/land model predicts when actions actually take effect.
         self.act_latency_frames = 0
         self._auto_calibrate_act_latency()
+        results = getattr(self.game, "on_result", None)   # delayed commands report back when they run
+        if results is not None:
+            results[self.slot] = self._record_result
         # point-of-view log (camera, cursor, clicks per frame) for the viewer: viewer/gary_view
         self.pov: list[dict] = []
         self._mouse_moves: list[tuple[int, int, tuple[int, int], tuple[int, int]]] = []
@@ -132,6 +135,9 @@ class HumanInterface:
         the send->effect delay is latency_frames + the one-frame hand-off. This is a prior;
         the live smoke measures the true delay and calibrate_act_latency() records it.
         """
+        delay = getattr(self.game, "command_delay", None)   # gary.env.Game's simulated network delay
+        if delay is not None:
+            self.act_latency_frames = int(delay)
         status = getattr(self.game, "status", None)
         if not callable(status):
             return
@@ -238,12 +244,19 @@ class HumanInterface:
         return self._game_result(land)
 
     def _send(self, command: bytes) -> bool:
+        """Send a command. False only if the game rejected it on the spot; a delayed command
+        counts as sent (like a player, the interface assumes its click worked) and its result
+        arrives later through _record_result."""
         ok = self.game.act(self.slot, command)
+        if ok is False:
+            self._record_result(command, False)
+        return ok is not False
+
+    def _record_result(self, command: bytes, ok: bool) -> None:
         if not ok:
             self.stats["rejected_by_game"] += 1
             key = f"rejected_by_game_{command[0]:#04x}"
             self.stats[key] = self.stats.get(key, 0) + 1
-        return ok
 
     def _move_camera(self, x: float, y: float) -> None:
         vw, vh = self.p.viewport

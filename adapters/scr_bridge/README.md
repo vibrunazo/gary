@@ -266,6 +266,15 @@ the same game against the same opponents (including x64 clients over Battle.net)
   moves state capture onto the frame watcher tick like Shieldbattery does.
 - `act()` timing is "next frame boundary"; observed effect latency is logged and must be
   calibrated into `gary/interface.py` before human-likeness evaluation.
+- Control-group commands (replay command 0x13: assign / recall / add, groups 0-9) must pass
+  through `act()`. Today the human interface fakes hotkeys by re-selecting the group's units, so a
+  live replay shows no hotkey use at all ("Gary got owned", 2026-10-04) and looks unlike a
+  human's; real players' replays, which Gary learns from, are full of them. The interface will
+  switch to real 0x13 commands (OpenBW runs them), so verify the bridge sends them and the game
+  applies them (the live replay should show `Hotkey` commands).
+- The headless env now delays every command by `gary.env.LIVE_COMMAND_DELAY` (3 frames: the
+  reported turn latency 2 + 1 hand-off). Re-measure it once a live game sends real hotkeys, and
+  keep the two in step if the latency setting changes.
 - x86 client only; single local player only. Starting custom games hands-free is automated
   (`tools/auto_game.py --mode keys` types the menu hotkeys as posted background keys; the
   calibrated screenshot+click flow remains as `--mode clicks`); joining arbitrary lobbies is not.

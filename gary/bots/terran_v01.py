@@ -20,7 +20,7 @@ import math
 from dataclasses import dataclass, field
 
 from gary import commands as C
-from gary.env import Game, GameError
+from gary.env import LIVE_COMMAND_DELAY, Game, GameError
 from gary.interface import PROFILES, HumanInterface, screen_of
 from gary.mapinfo import Base, MapInfo
 
@@ -65,6 +65,7 @@ class TerranGary:
         self.retry_after = 0                      # ...redone from this frame (a failure waits 5 s)
         self.task: Task | None = None
         self.hotkeyed: dict[int, int] = {}        # building tag -> hotkey
+        self.ordered_at: dict[int, int] = {}      # building tag -> frame of its last train order
         self.rallied: set[int] = set()
         self.reserved: list[tuple[int, int, int]] = []   # (unit type, tile x, tile y) being built
         self.reserved_at: dict[tuple[int, int, int], int] = {}
@@ -196,9 +197,12 @@ class TerranGary:
         scvs = sum(1 for u in obs["units"] if u["owner"] == self.slot and u["type"] == SCV)
         if me["supply_used"] >= me["supply_max"]:
             return
-        # keep one unit queued in each building (a human keeps queues short to save money)
+        # keep one unit queued in each building (a human keeps queues short to save money). Like a
+        # human, remember the order just given: it shows only after the reaction delay plus the
+        # network delay, and reordering before then queues extra units.
+        blind = round(self.hi.p.reaction_ms / 42) + self.hi.act_latency_frames + 4
         idle = [u for u in done if u["type"] in (CC, RAX) and self.hotkeyed.get(u["tag"], -1) >= 0
-                and u.get("queue", 0) == 0]
+                and u.get("queue", 0) == 0 and obs["now"] - self.ordered_at.get(u["tag"], -10**9) > blind]
         for b in idle:
             want = SCV if b["type"] == CC else MARINE
             if want == SCV and scvs >= MAX_SCVS:
@@ -208,8 +212,8 @@ class TerranGary:
             hk = self.hotkeyed[b["tag"]]
             if obs["selection"] != [b["tag"]]:
                 self.hi.hotkey_recall(hk)
-            else:
-                self.hi.train(want)
+            elif self.hi.train(want).accepted:
+                self.ordered_at[b["tag"]] = obs["now"]
             return
 
     # --- tasks --------------------------------------------------------------------------------
@@ -473,10 +477,13 @@ def _report(hi: HumanInterface, game) -> None:
           f"APM {round(hi.stats['actions'] / max(1, hi.frame / 1440))}", flush=True)
 
 
-def play(map_path: str, minutes: float, seed: int | None, save: str, opponent: str = "idle") -> None:
-    """Play on a headless OpenBW game (gary/env.py): fast, deterministic, saves a replay."""
+def play(map_path: str, minutes: float, seed: int | None, save: str, opponent: str = "idle",
+         command_delay: int = LIVE_COMMAND_DELAY) -> None:
+    """Play on a headless OpenBW game (gary/env.py): fast, deterministic, saves a replay.
+    command_delay: frames from sending a command to it running, as in a networked game."""
     races = ["T", "Z"]
-    with Game.new(map_path, races, ["Gary v0.1 (T)", "Idle (Z)"], seed=seed) as game:
+    with Game.new(map_path, races, ["Gary v0.1 (T)", "Idle (Z)"], seed=seed,
+                  command_delay=command_delay) as game:
         mapinfo = MapInfo.from_game(game)
         hi = HumanInterface(game, _terran_slot(game), PROFILES["b_rank"], seed=1)
         gary = TerranGary(hi, mapinfo)
@@ -551,6 +558,8 @@ def main() -> None:
     ap.add_argument("--minutes", type=float, default=10)
     ap.add_argument("--seed", type=int)
     ap.add_argument("--save", default="gary_v01.rep")
+    ap.add_argument("--command-delay", type=int, default=LIVE_COMMAND_DELAY,
+                    help=f"headless: frames before a command runs (default {LIVE_COMMAND_DELAY}, as measured live)")
     ap.add_argument("--live", action="store_true",
                     help="play in a live SC:R client via the bridge instead of headless OpenBW")
     ap.add_argument("--pipe", default=r"\\.\pipe\gary_scr", help="bridge named pipe (with --live)")
@@ -563,7 +572,7 @@ def main() -> None:
     else:
         if not args.map:
             ap.error("--map is required unless --live")
-        play(args.map, args.minutes, args.seed, args.save)
+        play(args.map, args.minutes, args.seed, args.save, command_delay=args.command_delay)
 
 
 if __name__ == "__main__":

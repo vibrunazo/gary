@@ -9,6 +9,11 @@
 
 This is the raw game: full information, no limits. Gary goes through gary.interface.HumanInterface,
 which adds fog of war, the camera, mouse travel and the APM budget (docs/ARCHITECTURE.md §6.3).
+
+command_delay (frames) makes commands run that many frames after they're sent, like a networked
+game, where every command waits for the next network turn. LIVE_COMMAND_DELAY is what Gary saw in
+a LAN game against a human on Remastered; train and test with it so Gary doesn't learn to expect
+its orders to land instantly.
 """
 
 from __future__ import annotations
@@ -20,6 +25,12 @@ import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# From a LAN game on Remastered (2026-10-04): the live client reports a turn latency of 2 frames,
+# plus 1 frame to hand the command over, and with 3 here Gary v0.1 behaves as it did live (it
+# resent each train order in bursts of 6-7 there, 7-8 here; 5 with no delay, from its own reaction
+# time alone).
+LIVE_COMMAND_DELAY = 3
 
 
 def _load_dll() -> ctypes.CDLL:
@@ -74,12 +85,17 @@ class GameError(RuntimeError):
 
 
 class Game:
-    def __init__(self, handle: int):
+    def __init__(self, handle: int, command_delay: int = 0):
         self._h = handle
+        self.frame = 0
+        self.command_delay = command_delay
+        self._in_flight: list[tuple[int, int, bytes]] = []  # (run at frame, slot, command)
+        # slot -> fn(command, accepted): told the result of each delayed command when it runs
+        self.on_result: dict = {}
 
     @classmethod
     def new(cls, map_path: str | Path, races: list[str], names: list[str] | None = None,
-            seed: int | None = None, gamedata: str | Path | None = None) -> "Game":
+            seed: int | None = None, gamedata: str | Path | None = None, command_delay: int = 0) -> "Game":
         """A new melee game. map_path: a .scm/.scx map, or a pre-1.18 replay (its embedded map).
         races: e.g. ["T", "Z"]. Players get random start locations (from seed). The seed is also
         the replay's start time, as in the real game; it defaults to the current time."""
@@ -95,10 +111,11 @@ class Game:
                                       n, race_arr, name_arr, seed)
         if not h:
             raise GameError(_dll.gary_env_error(None).decode(errors="replace"))
-        return cls(h)
+        return cls(h, command_delay)
 
     @classmethod
-    def from_replay_map(cls, replay: str | Path, gamedata: str | Path | None = None) -> "Game":
+    def from_replay_map(cls, replay: str | Path, gamedata: str | Path | None = None,
+                        command_delay: int = 0) -> "Game":
         """A new game on a (pre-1.18 format) replay's map, with its players and races.
         The replay's own commands are not played."""
         global _dll
@@ -106,17 +123,37 @@ class Game:
         h = _dll.gary_env_create(str(gamedata or _gamedata_dir()).encode(), str(replay).encode())
         if not h:
             raise GameError(_dll.gary_env_error(None).decode(errors="replace"))
-        return cls(h)
+        return cls(h, command_delay)
 
     def _check(self, ok: bool) -> None:
         if not ok:
             raise GameError(_dll.gary_env_error(self._h).decode(errors="replace"))
 
     def step(self, frames: int = 1) -> None:
-        self._check(_dll.gary_env_step(self._h, frames))
+        end = self.frame + frames
+        while self.frame < end:
+            due = [c for c in self._in_flight if c[0] <= self.frame]
+            if due:
+                self._in_flight = [c for c in self._in_flight if c[0] > self.frame]
+                for _, slot, command in due:
+                    ok = self._run(slot, command)
+                    if (report := self.on_result.get(slot)):
+                        report(command, ok)
+            nxt = min((c[0] for c in self._in_flight), default=end)
+            n = max(1, min(end, nxt) - self.frame)
+            self._check(_dll.gary_env_step(self._h, n))
+            self.frame += n
 
-    def act(self, slot: int, command: bytes) -> bool:
-        """Run one command for a player slot. True if the engine accepted it."""
+    def act(self, slot: int, command: bytes) -> bool | None:
+        """Send one command for a player slot. Without a command delay it runs now and returns
+        whether the engine accepted it. With one, it returns None and runs command_delay frames
+        later; on_result[slot] then hears whether it was accepted."""
+        if self.command_delay <= 0:
+            return self._run(slot, command)
+        self._in_flight.append((self.frame + self.command_delay, slot, bytes(command)))
+        return None
+
+    def _run(self, slot: int, command: bytes) -> bool:
         r = _dll.gary_env_act(self._h, slot, command, len(command))
         self._check(r >= 0)
         return r == 1
