@@ -89,6 +89,28 @@ def build_spec(race: str, jobs: list, workers: int) -> FeatureSpec:
                        decisions=decisions, styles=styles)
 
 
+def max_counts(job: tuple) -> np.ndarray:
+    """(31, 228): the most of each own unit type this player had in each game minute."""
+    d = np.load(job[0])
+    units, frames = d["units"][:, job[1], :, 0], d["frames"]
+    out = np.zeros((31, 228), dtype=np.float32)
+    minute = np.minimum(frames // (24 * 60), 30)
+    np.maximum.at(out, minute, units)
+    out[minute.max() + 1:] = np.nan            # minutes after the game ended don't count
+    return out
+
+
+def count_caps(jobs: list, workers: int, q: float = 90) -> dict[int, list[int]]:
+    """Plausibility caps: for each unit type and game minute, how many the pros had (q-th
+    percentile over players). Gary won't make more of something than that: the model has never
+    seen states beyond it and keeps asking for more (e.g. a 30th missile turret)."""
+    with ProcessPoolExecutor(workers) as pool:
+        per_player = np.stack(list(pool.map(max_counts, [j for j in jobs if not j[3]], chunksize=32)))
+    caps = np.nanpercentile(per_player, q, axis=0)         # (31, 228)
+    caps = np.fmax.accumulate(np.nan_to_num(caps, nan=0.0), axis=0)   # never lower later on
+    return {t: [int(round(c)) for c in caps[:, t]] for t in range(228) if caps[:, t].max() > 0}
+
+
 def samples(args: tuple) -> tuple[np.ndarray, ...]:
     """Features and targets for one player-game."""
     (path, i, style, _), spec_d = args
@@ -171,7 +193,13 @@ def main() -> None:
     ap.add_argument("--hidden", type=int, default=512)
     ap.add_argument("--layers", type=int, default=3)
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--caps-only", metavar="RUN_DIR", help="only (re)compute caps.json for a trained run")
     args = ap.parse_args()
+    if args.caps_only:
+        caps = count_caps(player_games(args.matchup, args.race), args.workers)
+        (Path(args.caps_only) / "caps.json").write_text(json.dumps(caps), encoding="utf-8")
+        print(f"wrote {Path(args.caps_only) / 'caps.json'} ({len(caps)} unit types)")
+        return
     device = "cuda" if torch.cuda.is_available() else "cpu"
     t0 = time.time()
 
@@ -220,6 +248,7 @@ def main() -> None:
     out = REPO_ROOT / "runs" / "macro" / f"{args.matchup}_{args.race}_{time.strftime('%Y%m%d-%H%M%S')}"
     out.mkdir(parents=True, exist_ok=True)
     MacroModel(spec, net.cpu(), config).save(out / "model.pt")
+    (out / "caps.json").write_text(json.dumps(count_caps(jobs, args.workers)), encoding="utf-8")
     report = {"matchup": args.matchup, "race": args.race, "player_games": len(jobs),
               "train_samples": int(len(ytr)), "features": spec.size, "classes": len(spec.decisions),
               "epochs": args.epochs, "minutes": round((time.time() - t0) / 60, 1), "test": res}

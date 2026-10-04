@@ -43,6 +43,16 @@ def build(unit_type: int, tile_x: int, tile_y: int, order: int = ORDER_PLACE_BUI
     return struct.pack("<BBHHH", 0x0C, order, tile_x, tile_y, unit_type)
 
 
+def research(tech: int) -> bytes:
+    """The selected building researches a tech (stim packs, siege mode...)."""
+    return struct.pack("<BB", 0x30, tech)
+
+
+def upgrade(upgrade_id: int) -> bytes:
+    """The selected building starts an upgrade (weapons, armor, U-238 shells...)."""
+    return struct.pack("<BB", 0x32, upgrade_id)
+
+
 def morph(unit_type: int) -> bytes:
     """Zerg: morph the selected larva (or units) into unit_type."""
     return struct.pack("<BH", 0x23, unit_type)

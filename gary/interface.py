@@ -370,6 +370,14 @@ class HumanInterface:
         """Hotkey: train from the selected building."""
         return self._schedule_key("train", unit_type=unit_type)
 
+    def research(self, tech: int) -> ActionResult:
+        """Hotkey: research a tech in the selected building."""
+        return self._schedule_key("research", tech=tech)
+
+    def upgrade(self, upgrade_id: int) -> ActionResult:
+        """Hotkey: start an upgrade in the selected building."""
+        return self._schedule_key("upgrade", upgrade_id=upgrade_id)
+
     def morph(self, unit_type: int) -> ActionResult:
         """Hotkey: morph the selected larva."""
         return self._schedule_key("morph", unit_type=unit_type)
@@ -483,6 +491,10 @@ class HumanInterface:
             self._send(C.train(a.args["unit_type"]))
         elif a.kind == "morph":
             self._send(C.morph(a.args["unit_type"]))
+        elif a.kind == "research":
+            self._send(C.research(a.args["tech"]))
+        elif a.kind == "upgrade":
+            self._send(C.upgrade(a.args["upgrade_id"]))
         elif a.kind == "build":
             x, y = self._to_map(a.args["sx"], a.args["sy"])
             self._send(C.build(a.args["unit_type"], x // 32, y // 32, a.args["order"]))

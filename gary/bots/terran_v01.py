@@ -20,13 +20,14 @@ import math
 from dataclasses import dataclass, field
 
 from gary import commands as C
+from gary import terran as T
 from gary.env import LIVE_COMMAND_DELAY, Game, GameError
 from gary.interface import PROFILES, HumanInterface, screen_of
 from gary.mapinfo import Base, MapInfo
 
 DEPOT, RAX, CC, SCV, MARINE = C.SUPPLY_DEPOT, C.BARRACKS, C.COMMAND_CENTER, C.SCV, C.MARINE
-COST = {DEPOT: 100, RAX: 150, CC: 400, SCV: 50, MARINE: 50}
-SIZE = {DEPOT: (3, 2), RAX: (4, 3), CC: (4, 3)}          # tiles
+COST = {unit: minerals for unit, (minerals, _gas) in T.COST.items()}
+SIZE = T.SIZE                                              # tiles
 BUILD_ORDER = [(9, DEPOT, "main"), (11, RAX, "main"), (15, CC, "natural"),
                (16, DEPOT, "main"), (18, RAX, "main"), (20, RAX, "main")]
 MAX_SCVS = 36
@@ -43,13 +44,15 @@ IDLE = 3                              # order "PlayerGuard": standing around
 class Task:
     kind: str                          # "build", "hotkey_building", "attack"
     unit_type: int = -1
-    where: str = "main"
+    where: str | Base = "main"            # "main", "natural" or any Base
     stage: str = "start"
     data: dict = field(default_factory=dict)
     started: int = 0
 
 
 class TerranGary:
+    army_types = {MARINE}                 # what joins the attack waves
+
     def __init__(self, hi: HumanInterface, mapinfo: MapInfo):
         self.hi = hi
         self.map = mapinfo
@@ -105,12 +108,16 @@ class TerranGary:
 
     # --- camera ---------------------------------------------------------------------------
 
-    def _look_at(self, obs: dict, where: str) -> bool:
-        """Make sure the base is on screen. True if it already is (no action taken)."""
-        base = self.main if where == "main" else self.natural
+    def _base(self, where: str | Base) -> Base:
+        return self.main if where == "main" else self.natural if where == "natural" else where
+
+    def _look_at(self, obs: dict, where: str | Base) -> bool:
+        """Make sure the base ("main", "natural" or any Base) is on screen. True if it already is
+        (no action taken)."""
+        base = self._base(where)
         if screen_of(obs, *base.center):
             return True
-        loc = LOC_MAIN if where == "main" else LOC_NATURAL
+        loc = {"main": LOC_MAIN, "natural": LOC_NATURAL}.get(where) if isinstance(where, str) else None
         if loc in self.hi.camera_locations:
             self.hi.camera_location(loc)
         else:
@@ -177,7 +184,7 @@ class TerranGary:
             self.task = Task("build", RAX, "main", started=hi.frame)
             return
         # attack with every full wave
-        marines = [u for u in done if u["type"] == MARINE and u["tag"] not in self.army_sent]
+        marines = [u for u in done if u["type"] in self.army_types and u["tag"] not in self.army_sent]
         if len(marines) >= WAVE:
             self.task = Task("attack", started=hi.frame)
             return
@@ -301,7 +308,7 @@ class TerranGary:
                 return
             w = t.data.get("worker")
             if w and obs["selection"] == [w]:
-                t.stage = "travel" if t.where == "natural" else "place"
+                t.stage = "place" if t.where == "main" else "travel"
                 return
             # the click landed on a neighbor in a stack (the one drawn on top wins): a human just
             # uses whichever free SCV got selected instead of clicking again
@@ -309,7 +316,7 @@ class TerranGary:
                 got = next((u for u in mine if u["tag"] == obs["selection"][0]), None)
                 if got and self._free_worker(obs, got):
                     t.data["worker"] = got["tag"]
-                    t.stage = "travel" if t.where == "natural" else "place"
+                    t.stage = "place" if t.where == "main" else "travel"
                     return
             w = self._pick_worker(obs, mine)
             if not w:
@@ -319,8 +326,8 @@ class TerranGary:
             p = screen_of(obs, w["x"], w["y"])
             hi.click(*p)
             return
-        if t.stage == "travel":                      # walk the worker to the natural
-            hi.minimap_right_click(*self.natural.center)
+        if t.stage == "travel":                      # walk the worker to the base
+            hi.minimap_right_click(*self._base(t.where).center)
             t.stage = "wait_arrival"
             return
         if t.stage == "wait_arrival":
@@ -328,11 +335,11 @@ class TerranGary:
             if not w:
                 self._fail_build(t)
                 return
-            if math.dist((w["x"], w["y"]), self.natural.center) > 6 * 32:
+            if math.dist((w["x"], w["y"]), self._base(t.where).center) > 6 * 32:
                 return
-            if not self._look_at(obs, "natural"):
+            if not self._look_at(obs, t.where):
                 return
-            if LOC_NATURAL not in hi.camera_locations:
+            if t.where == "natural" and LOC_NATURAL not in hi.camera_locations:
                 hi.camera_location_set(LOC_NATURAL)
                 return
             t.stage = "place"
@@ -341,7 +348,7 @@ class TerranGary:
             budget = obs["me"]["minerals"] - sum(COST[ut] for ut, *_ in self.reserved)
             if budget < COST[t.unit_type]:
                 return                                  # wait for money with the worker selected
-            base = self.main if t.where == "main" else self.natural
+            base = self._base(t.where)
             if "spot" not in t.data:
                 if not self._look_at(obs, t.where):
                     return
@@ -403,7 +410,8 @@ class TerranGary:
     def _task_attack(self, obs: dict, mine: list[dict], t: Task) -> None:
         """Gather marines at the rally point with drag boxes, hotkey them, attack-move."""
         hi = self.hi
-        waiting = [u for u in mine if u["type"] == MARINE and u["completed"] and u["tag"] not in self.army_sent]
+        waiting = [u for u in mine if u["type"] in self.army_types and u["completed"]
+                   and u["tag"] not in self.army_sent]
         if not waiting:
             self.attacks_sent += 1
             self.task = None
@@ -478,15 +486,17 @@ def _report(hi: HumanInterface, game) -> None:
 
 
 def play(map_path: str, minutes: float, seed: int | None, save: str, opponent: str = "idle",
-         command_delay: int = LIVE_COMMAND_DELAY) -> None:
+         command_delay: int = LIVE_COMMAND_DELAY, make_bot=None, name: str = "Gary v0.1 (T)") -> None:
     """Play on a headless OpenBW game (gary/env.py): fast, deterministic, saves a replay.
-    command_delay: frames from sending a command to it running, as in a networked game."""
+    command_delay: frames from sending a command to it running, as in a networked game.
+    make_bot(hi, mapinfo) builds the bot (default: this one)."""
     races = ["T", "Z"]
-    with Game.new(map_path, races, ["Gary v0.1 (T)", "Idle (Z)"], seed=seed,
+    make_bot = make_bot or TerranGary
+    with Game.new(map_path, races, [name, "Idle (Z)"], seed=seed,
                   command_delay=command_delay) as game:
         mapinfo = MapInfo.from_game(game)
         hi = HumanInterface(game, _terran_slot(game), PROFILES["b_rank"], seed=1)
-        gary = TerranGary(hi, mapinfo)
+        gary = make_bot(hi, mapinfo)
         end = int(minutes * 60 * 24)
         while hi.frame < end:
             gary.act()
@@ -499,7 +509,7 @@ def play(map_path: str, minutes: float, seed: int | None, save: str, opponent: s
         print(f"saved {save} and {pov}")
 
 
-def play_live(pipe: str, minutes: float, profile: str, pov: str | None) -> None:
+def play_live(pipe: str, minutes: float, profile: str, pov: str | None, make_bot=None) -> None:
     """Play in a live StarCraft: Remastered client through the bridge (adapters/scr_bridge).
 
     Gary plays the client's local player (the bridge only accepts that slot), so it must be
@@ -533,7 +543,7 @@ def play_live(pipe: str, minutes: float, profile: str, pov: str | None) -> None:
         hi = HumanInterface(game, slot, PROFILES[profile], seed=1)
         print(f"playing slot {slot} | act() latency calibrated to {hi.act_latency_frames} frames "
               f"(adapter reported latency_frames={st.get('latency_frames')})", flush=True)
-        gary = TerranGary(hi, mapinfo)
+        gary = (make_bot or TerranGary)(hi, mapinfo)
         end = hi.frame + int(minutes * 60 * 24)
         while hi.frame < end:
             gary.act()

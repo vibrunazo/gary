@@ -16,6 +16,7 @@ encodes states the same way in training and in play.
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -98,8 +99,15 @@ class MacroNet(nn.Module):
 class MacroModel:
     """A trained macro model for one race: encode a state, predict the next decision."""
 
-    def __init__(self, spec: FeatureSpec, net: MacroNet, config: dict):
+    def __init__(self, spec: FeatureSpec, net: MacroNet, config: dict, caps: dict | None = None):
         self.spec, self.net, self.config = spec, net.eval(), config
+        self.caps = caps or {}      # unit type -> most pros had, per game minute (caps.json)
+
+    def cap(self, unit_type: int, frame: int) -> int | None:
+        """How many of this unit type pros had by this point of the game (90th percentile), or
+        None if unknown."""
+        c = self.caps.get(unit_type)
+        return None if c is None else c[min(frame // (24 * 60), len(c) - 1)]
 
     @classmethod
     def load(cls, path: str | Path, device: str = "cpu") -> "MacroModel":
@@ -107,10 +115,19 @@ class MacroModel:
         spec = FeatureSpec(**ck["spec"])
         net = MacroNet(spec.size, len(spec.decisions), **ck["config"]["net"])
         net.load_state_dict(ck["state"])
-        return cls(spec, net.to(device), ck["config"])
+        caps_path = Path(path).with_name("caps.json")
+        caps = {int(k): v for k, v in json.loads(caps_path.read_text()).items()} if caps_path.exists() else None
+        return cls(spec, net.to(device), ck["config"], caps)
 
     def save(self, path: str | Path) -> None:
         torch.save({"spec": self.spec.to_dict(), "state": self.net.state_dict(), "config": self.config}, path)
+
+    @torch.no_grad()
+    def probs(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Probability of each decision class (spec.decisions order) and seconds until, per row."""
+        dev = next(self.net.parameters()).device
+        logits, when = self.net(torch.as_tensor(x, dtype=torch.float32, device=dev))
+        return torch.softmax(logits, -1).cpu().numpy(), torch.expm1(when).clamp(min=0).cpu().numpy()
 
     @torch.no_grad()
     def predict(self, x: np.ndarray, top: int = 3) -> list[dict]:
@@ -125,3 +142,49 @@ class MacroModel:
             out.append({"next": [(*self.spec.decisions[int(i)], float(q)) for q, i in zip(p[row], idx[row])],
                         "seconds": float(secs[row])})
         return out
+
+
+class MacroTracker:
+    """Builds the model's features during play, from what the player sees (gary.interface
+    observations), the way ingest/macro_dataset.py built them from replays.
+
+    Units still in production count as "all" but not "completed" (the game counts a unit once its
+    production starts); observations don't list them, so the bot reports them (in_production).
+    Enemy units count only while visible; the most of each type ever seen at once is kept, which
+    is what the replay data's seen_max holds."""
+
+    def __init__(self, spec: FeatureSpec, slot: int, style: int | None = None):
+        self.spec, self.slot, self.style = spec, slot, style
+        self.seen_max = np.zeros(228, dtype=np.float32)
+        self.decided = np.zeros(len(spec.decisions), dtype=np.float32)
+        self.last_decision_frame = 0
+
+    def note_decision(self, act: int, uid: int, frame: int) -> None:
+        self.decided[self.spec.decision_index(act, uid)] += 1
+        self.last_decision_frame = frame
+
+    def unnote_decision(self, act: int, uid: int) -> None:
+        """A decision that didn't happen after all (e.g. no room to place the building)."""
+        i = self.spec.decision_index(act, uid)
+        self.decided[i] = max(0, self.decided[i] - 1)
+
+    def features(self, obs: dict, in_production: dict[int, int]) -> np.ndarray:
+        units = np.zeros((1, 228, 2), dtype=np.float32)
+        seen = np.zeros(228, dtype=np.float32)
+        for u in obs["units"]:
+            t = u["type"]
+            if not 0 <= t < 228:
+                continue
+            if u["owner"] == self.slot:
+                units[0, t, 0] += 1
+                units[0, t, 1] += 1 if u["completed"] else 0
+            elif u["owner"] != 11:
+                seen[t] += 1
+        for t, n in in_production.items():
+            units[0, t, 0] += n
+        self.seen_max = np.maximum(self.seen_max, seen)
+        me = obs["me"]
+        eco = np.array([[me["minerals"], me["gas"], me["supply_used"] * 2, me["supply_max"] * 2]], dtype=np.float32)
+        frame = np.array([obs["frame"]], dtype=np.float32)
+        return encode(self.spec, frame, eco, units, seen[None], self.seen_max[None], self.decided[None],
+                      np.array([(obs["frame"] - self.last_decision_frame) / 24.0], dtype=np.float32), self.style)
