@@ -16,6 +16,8 @@ call "%VCVARS%" >nul || exit /b 1
 set "SRC=%~dp0"
 rem Placement sizes come from the game's own units.dat (see tools/gen_unit_dat.py).
 python "%SRC%tools\gen_unit_dat.py" || exit /b 1
+rem Click-model frame geometry comes from images.dat / the GRP files (tools/gen_image_dat.py).
+python "%SRC%tools\gen_image_dat.py" || exit /b 1
 cmake -S "%SRC%." -B "%SRC%build" -G Ninja -DCMAKE_BUILD_TYPE=Release || exit /b 1
 cmake --build "%SRC%build" || exit /b 1
 echo Built %SRC%build\gary_scr.dll, %SRC%build\gary_scr_tests.exe, %SRC%build\scr_inject.exe

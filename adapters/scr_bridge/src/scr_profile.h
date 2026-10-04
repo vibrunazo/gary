@@ -97,8 +97,10 @@ constexpr uint32_t kUnitPosition = 40;             // VERIFIED u16 x, u16 y [BWD
 constexpr uint32_t kUnitShields = 0x60;            // 96 VERIFIED (probe_live auto-hunt: the unique
                                                    // offset where u32>>8 == type max shields across
                                                    // 21 protoss units; matches [BWD] 0x60)
-constexpr uint32_t kUnitBuildQueue = 154;          // UNVERIFIED u16[5], empty slot = 228 (probe: training)
-constexpr uint32_t kUnitBuildSlot = 166;           // UNVERIFIED u8 (queue ring start)
+constexpr uint32_t kUnitBuildQueue = 152;          // VERIFIED u16[5] (hunt_queue.py: a train turns
+                                                   // the empty marker 228 into the unit type id)
+constexpr uint32_t kUnitBuildSlot = 166;           // UNVERIFIED u8 (raw display only: observe()'s
+                                                   // queue count does not depend on it)
 constexpr uint32_t kUnitEnergy = 168;              // UNVERIFIED u16 24.8 fixed (not in the Gary contract)
 constexpr uint32_t kUnitResources = 0xd0;          // 208 VERIFIED u16: window dump of a 1500-mineral shows
                                                    // 0x05dc at 208 (iscript=20 at 210, OpenBW's
@@ -112,6 +114,7 @@ constexpr uint32_t kProbeWindowLen = 192;
 // status-flag bits: values from OpenBW's enum, which mirrors BW's bit values [GARY/openbw]
 constexpr uint32_t kStatusCompleted = 0x1;
 constexpr uint32_t kStatusGroundedBuilding = 0x2;
+constexpr uint32_t kStatusDisabled = 0x400;
 
 // --- Sprite struct (layout) -------------------------------------------------------
 constexpr uint32_t kSpriteSize = 40;               // VERIFIED [PL][BWD] (0x28)
@@ -119,6 +122,21 @@ constexpr uint32_t kSpriteVisibility = 12;         // VERIFIED u8 mask (bit p = 
 constexpr uint32_t kSpriteElevation = 13;          // VERIFIED u8 (draw depth) [PL]
 constexpr uint32_t kSpriteWidth = 18;              // VERIFIED u8 (bbox approx, README gaps) [PL]
 constexpr uint32_t kSpriteHeight = 19;             // VERIFIED u8 [PL]
+
+// --- Image struct (layout; PINNED by measurement 2026-10-04) ----------------------
+// tools/hunt_click.py --dump walked live sprite/image records and validated them against the
+// GRP files' frame tables (gen_image_dat.py): the chain head is the sprite's first word, each
+// image's type/frame pair parsed consistently, and the body/shadow records' raw bytes pinned
+// x, y and the flags byte (bit values follow OpenBW image_t::flags, like the tile flags did).
+constexpr uint32_t kSpriteImageHead = 0;           // VERIFIED ptr: first CImage (0 = none)
+constexpr uint32_t kImageNext = 0;                 // VERIFIED ptr: next image in the sprite
+constexpr uint32_t kImageType = 8;                 // VERIFIED u16 (images.dat row)
+constexpr uint32_t kImageFrameIndex = 10;          // VERIFIED u16 (frame in the type's GRP)
+constexpr uint32_t kImageX = 12;                   // VERIFIED s8 (offset from sprite position)
+constexpr uint32_t kImageY = 13;                   // VERIFIED s8
+constexpr uint32_t kImageFlags = 18;               // VERIFIED u8
+constexpr uint8_t kImageFlagFlipped = 0x02;
+constexpr uint8_t kImageFlagClickable = 0x20;
 
 // --- command / unit-id facts (not addresses) ---------------------------------------
 // SC:R extended unit id = index1 | (generation << shift); shift 13 when the unit vector is

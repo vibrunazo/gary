@@ -370,7 +370,7 @@ std::string dispatch(const std::string& line) {
     }
     if (method == "unit_at" || method == "box_select" || method == "unit_type" ||
         method == "can_place" || method == "depot_spot_ok" || method == "start_locations" ||
-        method == "probe_unit" || method == "tile_flags") {
+        method == "probe_unit" || method == "tile_flags" || method == "peek") {
         if (!world_read(&w, &err)) return reply_err(id, err);
         if (!w.in_game) return reply_err(id, "not in a game");
         int64_t a = 0, b = 0, c = 0, d = 0, e2 = 0;
@@ -418,6 +418,13 @@ std::string dispatch(const std::string& line) {
             json_get_int(line, "tile_x", &a);
             json_get_int(line, "tile_y", &b);
             return reply_ok(id, std::to_string(tile_flags_raw(w, (int)a, (int)b)));
+        }
+        if (method == "peek") {
+            json_get_int(line, "addr", &a);
+            json_get_int(line, "length", &b);
+            std::string hex;
+            if (!peek_hex((uint32_t)a, (int)b, &hex)) return reply_err(id, "length must be 1..512");
+            return reply_ok(id, "\"" + hex + "\"");
         }
         if (method == "start_locations") {
             std::string json;

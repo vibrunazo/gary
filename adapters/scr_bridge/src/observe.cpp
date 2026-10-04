@@ -8,6 +8,7 @@
 #include <string>
 
 #include "scr_profile.h"
+#include "image_dat.h"
 #include "unit_dat.h"
 
 namespace garyscr {
@@ -83,16 +84,15 @@ bool unit_view(uint32_t ptr, UnitView* u) {
     u->visible_to = read_at<uint8_t>(sprite + profile::kSpriteVisibility);
     u->elevation = read_at<uint8_t>(sprite + profile::kSpriteElevation);
     u->resources = read_at<uint16_t>(ptr + profile::kUnitResources);
-    // queue: entries from the ring start; an empty slot holds 228 ("no unit" type id), the same
-    // test snapshot.cpp uses when it rebuilds BWAPI training queues.
+    // queue: u16[5] entries from kUnitBuildQueue (PINNED 2026-10-04 by tools/hunt_queue.py: a
+    // train turns the empty marker 228 into the unit type id). Counted over all five slots so
+    // the ring's start index (kUnitBuildSlot) cannot skew the Gary contract field.
     u->raw_build_slot = read_at<uint8_t>(ptr + profile::kUnitBuildSlot) % 5;
     u->queue = 0;
     for (unsigned n = 0; n < 5; ++n) {
-        uint16_t q =
-            read_at<uint16_t>(ptr + profile::kUnitBuildQueue + ((u->raw_build_slot + n) % 5) * 2);
+        uint16_t q = read_at<uint16_t>(ptr + profile::kUnitBuildQueue + n * 2);
         u->raw_queue[n] = q;
         if (q < 228) ++u->queue;
-        else break;
     }
     u->raw_shields = read_at<uint32_t>(ptr + profile::kUnitShields);
     u->raw_energy = read_at<uint16_t>(ptr + profile::kUnitEnergy);
@@ -128,9 +128,10 @@ bool units_collect(const World& w, std::vector<UnitView>* out, std::string* erro
     std::set<uint32_t> seen;
     // List heads are profile VAs: relocate them against the loaded module (the fact convention
     // addr = module + va - analyzed_base), same as world_read does for the globals.
+    // Active list only: the hidden list holds units inside bunkers, transports and refineries,
+    // which gary_env never exposes (its observe/unit_at/box_select walk visible_units and skip
+    // us_hidden). Walking it here let Gary see what was inside enemy bunkers (ARCHITECTURE §6.3).
     if (!walk_list(game_ptr(w.module_base, profile::kFirstActiveUnit), &seen, out, error))
-        return false;
-    if (!walk_list(game_ptr(w.module_base, profile::kFirstHiddenUnit), &seen, out, error))
         return false;
     for (auto& u : *out) {  // index1 now known relative to the unit vector base
         u.ref.index1 = (u.ref.ptr - w.units_base) / profile::kUnitSize + 1;
@@ -240,13 +241,13 @@ bool probe_unit_json(const World& w, uint16_t tag, std::string* out, std::string
              "{\"tag\":%u,\"type\":%u,\"type_at_36\":%u,\"owner\":%u,\"hp\":%d,"
              "\"raw_shields\":%u,\"raw_energy\":%u,\"raw_resources\":%u,"
              "\"raw_build_slot\":%u,\"raw_queue\":[%u,%u,%u,%u,%u],"
-             "\"raw_flags\":%u,\"gen\":%u,\"x\":%d,\"y\":%d,"
+             "\"raw_flags\":%u,\"gen\":%u,\"x\":%d,\"y\":%d,\"sprite\":%u,"
              "\"window_start\":%u,\"window_hex\":\"%s\"}",
              (unsigned)tag, (unsigned)u.type, (unsigned)u.raw_type_at_36, (unsigned)u.owner, u.hp,
              (unsigned)u.raw_shields, (unsigned)u.raw_energy, (unsigned)u.raw_resources,
              (unsigned)u.raw_build_slot, (unsigned)u.raw_queue[0], (unsigned)u.raw_queue[1],
              (unsigned)u.raw_queue[2], (unsigned)u.raw_queue[3], (unsigned)u.raw_queue[4],
-             (unsigned)u.flags, (unsigned)u.ref.generation, u.x, u.y,
+             (unsigned)u.flags, (unsigned)u.ref.generation, u.x, u.y, (unsigned)u.sprite,
              (unsigned)profile::kProbeWindowStart, window);
     *out = buf;
     return true;
@@ -270,13 +271,62 @@ bool seen_by(const UnitView& u, int slot) {
     return u.owner == slot || (u.visible_to & (1u << slot)) != 0;
 }
 
-bool is_building(const UnitView& u) { return (u.flags & profile::kStatusGroundedBuilding) != 0; }
+// gary_env box_select buckets by unit_can_be_multi_selected (OpenBW actions.h): the type rules
+// are precomputed in unit_dat.h; the runtime half is status_flag_disabled (which lockdown,
+// stasis and maelstrom all raise via set_unit_disabled). Lifted buildings are still buildings.
+bool multi_selectable(const UnitView& u) {
+    return u.type < 228 && kMultiSelectable[u.type] && !(u.flags & profile::kStatusDisabled);
+}
 
+// gary_env's clickable rectangle: the union of the sprite's clickable images' GRP frames, each at
+// its map position (sprite position + image offset + frame/canvas centring, per OpenBW
+// get_image_map_position). Frame geometry comes from the game's GRP files (image_dat.h): live
+// memory holds only the image type + frame index (offsets pinned in scr_profile.h, measured by
+// tools/hunt_click.py).
 bool clickable_rect(const World& w, const UnitView& u, int* x0, int* y0, int* x1, int* y1) {
     (void)w;
     uint32_t sprite = (uint32_t)u.sprite;
-    int bw = read_at<uint8_t>(sprite + profile::kSpriteWidth);
-    int bh = read_at<uint8_t>(sprite + profile::kSpriteHeight);
+    uint32_t img = read_at<uint32_t>(sprite + profile::kSpriteImageHead);
+    bool any = false;
+    // intrusive circular list: the last image's next points back at the sprite (sentinel).
+    for (int n = 0; n < 8 && img && img != sprite; ++n) {
+        uint32_t next = read_at<uint32_t>(img + profile::kImageNext);
+        uint8_t flags = read_at<uint8_t>(img + profile::kImageFlags);
+        uint16_t type = read_at<uint16_t>(img + profile::kImageType);
+        // clickability: the runtime flag_clickable bit, exactly gary_env's gate (images.dat
+        // is_clickable is copied in at image creation; overlays can differ at runtime).
+        if ((flags & profile::kImageFlagClickable) && type < 999) {
+            uint16_t frame = read_at<uint16_t>(img + profile::kImageFrameIndex);
+            uint16_t nframes = kImageFramesOff[type + 1] - kImageFramesOff[type];
+            if (frame < nframes) {
+                const uint8_t* fr = kImageFrames[kImageFramesOff[type] + frame];
+                int gw = kImageGrpSize[type][0], gh = kImageGrpSize[type][1];
+                int px = u.x + (int)(int8_t)read_at<uint8_t>(img + profile::kImageX);
+                int py = u.y + (int)(int8_t)read_at<uint8_t>(img + profile::kImageY);
+                if (flags & profile::kImageFlagFlipped) px += gw / 2 - (fr[0] + fr[2]);
+                else                                 px += fr[0] - gw / 2;
+                py += fr[1] - gh / 2;
+                int rx1 = px + fr[2], ry1 = py + fr[3];
+                if (!any) {
+                    *x0 = px; *y0 = py; *x1 = rx1; *y1 = ry1;
+                    any = true;
+                } else {
+                    if (px < *x0) *x0 = px;
+                    if (py < *y0) *y0 = py;
+                    if (rx1 > *x1) *x1 = rx1;
+                    if (ry1 > *y1) *y1 = ry1;
+                }
+            }
+        }
+        img = next;
+    }
+    if (any) return true;
+    // Fallback for sprites whose body image link is not yet resolved (some images hang off
+    // differently-encoded links): the sprite bounding box keeps the hit test conservative and
+    // the unit's own centre inside its rect (gary_env's own model is a rect approximation v1).
+    uint32_t sprite_addr = sprite;
+    int bw = read_at<uint8_t>(sprite_addr + profile::kSpriteWidth);
+    int bh = read_at<uint8_t>(sprite_addr + profile::kSpriteHeight);
     if (bw <= 0 || bh <= 0) return false;
     *x0 = u.x - bw / 2;
     *y0 = u.y - bh / 2;
@@ -289,11 +339,11 @@ uint32_t draw_depth(const UnitView& u) {
     return ((uint32_t)u.elevation << 14) | (uint32_t)(u.elevation <= 4 ? u.y : 0);
 }
 
-int footprint(const World& w, const UnitView& u) {
-    (void)w;
-    uint32_t sprite = (uint32_t)u.sprite;
-    return (int)read_at<uint8_t>(sprite + profile::kSpriteWidth) *
-           (int)read_at<uint8_t>(sprite + profile::kSpriteHeight);
+// gary_env's tie-break: the units.dat placement box area (a smaller footprint wins a draw-depth
+// tie). was: the sprite bbox area (README "Known gaps" — now the game's own DAT).
+int placement_area(uint16_t type) {
+    if (type >= 228) return 1;
+    return (int)kPlacementSize[type][0] * (int)kPlacementSize[type][1];
 }
 
 uint16_t unit_at(const World& w, int slot, int x, int y) {
@@ -307,7 +357,7 @@ uint16_t unit_at(const World& w, int slot, int x, int y) {
         if (!clickable_rect(w, u, &x0, &y0, &x1, &y1)) continue;
         if (x < x0 || y < y0 || x >= x1 || y >= y1) continue;
         if (!best || draw_depth(u) > draw_depth(*best) ||
-            (draw_depth(u) == draw_depth(*best) && footprint(w, u) < footprint(w, *best)))
+            (draw_depth(u) == draw_depth(*best) && placement_area(u.type) < placement_area(best->type)))
             best = &u;
     }
     return best ? tag_of(best->ref, w.unit_count) : 0;
@@ -326,7 +376,7 @@ std::vector<uint16_t> box_select(const World& w, int slot, int x0, int y0, int x
         int rx0, ry0, rx1, ry1;
         if (!clickable_rect(w, u, &rx0, &ry0, &rx1, &ry1)) continue;
         if (rx1 <= x0 || ry1 <= y0 || rx0 > x1 || ry0 > y1) continue;
-        (is_building(u) ? buildings : mobile).push_back(&u);
+        (multi_selectable(u) ? mobile : buildings).push_back(&u);
     }
     // mobile units before buildings; a lone building may be selected alone (gary_env_box_select)
     std::vector<const UnitView*> chosen = mobile;
@@ -373,6 +423,21 @@ int tile_flags_raw(const World& w, int tile_x, int tile_y) {
     int mh = read_at<uint16_t>(w.game + profile::kGameMapHeightTiles);
     if (tile_x < 0 || tile_y < 0 || tile_x >= mw || tile_y >= mh) return -1;
     return tile_flags_at(w, tile_x, tile_y);
+}
+
+// Bounded raw-memory hex read, for pinning struct offsets by measurement (the role probe_unit's
+// window plays for unit fields; tools/hunt_queue.py and tools/hunt_click.py use it).
+bool peek_hex(uint32_t addr, int len, std::string* out) {
+    if (len < 1 || len > 512) return false;
+    out->clear();
+    out->reserve((size_t)len * 2);
+    const uint8_t* p = (const uint8_t*)(uintptr_t)addr;
+    for (int i = 0; i < len; ++i) {
+        char b[4];
+        snprintf(b, sizeof b, "%02x", p[i]);
+        *out += b;
+    }
+    return true;
 }
 
 bool is_resource_unit(const UnitView& u) {

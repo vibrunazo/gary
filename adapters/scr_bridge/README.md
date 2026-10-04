@@ -94,7 +94,7 @@ backend-agnostic:
 | `observe()` | full state as JSON (schema below) | Game/Player/Unit/Sprite structs per `scr_profile.h` |
 | `act(slot, bytes)` | one command, replay-format bytes (no player-id byte) | translate to 1.21 command, inject at the next frame boundary via `send_command` |
 | `step(frames)` | advance N frames | wait until `Game.frame_count` advances by N (the game steps itself) |
-| `unit_at(slot, x, y)` | tag a click would hit | sprite bbox + draw depth (v1 approx of `gary_env`'s GRP-rect hit test) |
+| `unit_at(slot, x, y)` | tag a click would hit | clickable image-union + draw depth (gary_env's model; bbox fallback, see gaps) |
 | `box_select(slot, ...)` | tags a drag box would select (≤12) | same rules as `gary_env_box_select`: own units, mobile before buildings |
 | `unit_type_of(tag)` | unit type id | unit struct `unit_id` field |
 | `can_place(...)` | green/red placement grid | buildable tiles + collision + depot distance (v1 approx, see gaps) |
@@ -164,6 +164,7 @@ measures and reports.)
 | `tools/verify_profile.py` | offline: hash + PE sanity of `scr_profile.h` facts vs an installed exe |
 | `tools/auto_game.py` | hands-free menu walk (posted keys) + lobby race picker; `--preset lan-create`/`lan-join`; screenshot-evidenced |
 | `tools/close_mutex.py` | close SC:R's single-instance Event handle so a second client can run |
+| `tools/lan_park.py` | start + inject Gary, park two clients keyboard-only: host at Create Game, guest at the LAN list |
 | `tools/run_match.py`, `probe_live.py`, `end_match.py` | live probe pipeline: launch → melee → checklist → end match with replay |
 | `launch.py` | find SC:R, verify, write config, inject DLL, optional smoke test |
 | `gary/scr_env.py` | `ScrGame`: Gary's `Game` surface over the pipe |
@@ -246,9 +247,14 @@ the same game against the same opponents (including x64 clients over Battle.net)
 - `can_place` is an approximation (buildable tiles + collision + depot distance): the fog rule
   ("unexplored tiles not allowed") and creep/pylon-power rules need the game's own placement
   function (resolve via `samase_scarf` later) to match `gary_env_can_place` exactly.
-- `unit_at`/`box_select` use the sprite bounding box + draw depth, not the exact clickable GRP
-  rectangles `gary_env` uses. Click-model fidelity between training (OpenBW) and live (SC:R)
-  must be measured before G2 numbers are trusted.
+- `unit_at`/`box_select` resolve clicks through the sprite's image chain: the union of the
+  clickable images' GRP frames (gary_env's model; frame geometry from the game's own GRP files via
+  tools/gen_image_dat.py, struct offsets pinned by tools/hunt_click.py against live memory).
+  Residual gaps: sprites whose body image hangs off differently-encoded links fall back to the
+  sprite bounding box (`hunt_click.py --check` measures the split), and the flip bit uses OpenBW's
+  flag value pending a facing-left sample. Click-model fidelity between training (OpenBW) and live
+  (SC:R) must be measured before G2 numbers are trusted (`hunt_click.py --gold` prints gary_env's
+  reference boxes per unit type).
 - `set_name`/`save_replay` are not implemented (the client writes its own replay on match end;
   `tools/end_match.py` ends a match through the F10 menu and locates it — here
   `D:\docs\StarCraft\Maps\Replays\LastReplay.rep`, since Documents is redirected on this machine).

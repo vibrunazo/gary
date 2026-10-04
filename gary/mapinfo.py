@@ -51,8 +51,16 @@ class MapInfo:
         return min(self.bases, key=lambda b: math.dist(b.center, xy))
 
     def natural_of(self, main: Base) -> Base:
-        """The closest other base (straight line; good enough for standard maps)."""
+        """The closest other base (straight line; good enough for standard maps).
+
+        Prefers a non-start base (the natural). On maps whose only bases are start
+        locations (small four-corner maps), fall back to the closest other base.
+        """
         others = [b for b in self.bases if b is not main and not b.start]
+        if not others:
+            others = [b for b in self.bases if b is not main]
+        if not others:
+            raise ValueError("map has no second base to expand to")
         return min(others, key=lambda b: math.dist(b.center, main.center))
 
     def enemy_starts(self, main: Base) -> list[tuple[int, int]]:

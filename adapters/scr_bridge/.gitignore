@@ -1,2 +1,4 @@
 build/
 __pycache__/
+# generated at build time from the game's own images.dat/GRP files (Blizzard data stays out of the repo)
+src/image_dat.h

@@ -75,6 +75,8 @@ bool can_place(const World& w, int slot, uint16_t builder_tag, int unit_type, in
                int tile_y);
 bool depot_spot_ok(const World& w, int tile_x, int tile_y);
 int tile_flags_raw(const World& w, int tile_x, int tile_y);
+// Bounded raw-memory hex read for pinning struct offsets by measurement (hunt tools).
+bool peek_hex(uint32_t addr, int len, std::string* out);
 bool start_locations_json(const World& w, std::string* out, std::string* error);
 
 // Raw values at the probe offsets for one unit (README verification step 3).
