@@ -22,8 +22,12 @@
 // Each snapshot reports, per player: minerals, gas, supply (in BW's displayed units), unit counts
 // by unit type ID (all / completed), what it can see of other players' units right now ("seen":
 // type -> count, i.e. through the fog of war), and how many replay actions the engine accepted or
-// rejected since the previous snapshot. Rejected actions have a low baseline from spam; a sustained spike
-// is the main desync signal (the replay's commands stop making sense in the simulated state).
+// rejected since the previous snapshot. "g" places units on a 16x16 grid over the map, as flat
+// pairs (channel * 256 + cell, value): channels 0-2 own army supply x2 / workers / buildings,
+// 3-5 the same for other players' units this player can see; cell = row * 16 + column.
+// {"type":"army",...} lines are accepted orders given to army units (print_army_command).
+// Rejected actions have a low baseline from spam; a sustained spike is the main desync signal
+// (the replay's commands stop making sense in the simulated state).
 
 #include <stdexcept>  // OpenBW's util.h uses std::runtime_error without including it
 
@@ -130,6 +134,7 @@ struct counting_replay_functions : replay_functions {
 				const uint8_t* cmd = r2.ptr;
 				bool ok = action_id >= 0x60 && action_id <= 0x65 ? read_action_121(r2, end) : read_action(r2);
 				if (ok) print_production_command(owner, action_id, cmd, end);
+				if (ok) print_army_command(owner, action_id, cmd, end);
 				if (!ok && debug_rejects) fprintf(stderr, "reject frame %d owner %d action 0x%02x\n", st.current_frame, owner, action_id);
 				if (owner >= 0 && owner < 12) {
 					if (ok) ++accepted[owner];
@@ -160,6 +165,44 @@ struct counting_replay_functions : replay_functions {
 		if (x >= 0) printf("{\"type\":\"cmd\",\"frame\":%d,\"slot\":%d,\"act\":\"%s\",\"id\":%d,\"x\":%d,\"y\":%d}\n",
 		                   st.current_frame, owner, act, id, x, y);
 		else printf("{\"type\":\"cmd\",\"frame\":%d,\"slot\":%d,\"act\":\"%s\",\"id\":%d}\n", st.current_frame, owner, act, id);
+	}
+
+	// Accepted orders given to army units (the selection holds fighting units: not workers,
+	// buildings, overlords or larvae), for training data: where the player sent the army, how.
+	//   {"type":"army","frame":F,"slot":P,"kind":"move|amove|attack|patrol|other","x":X,"y":Y,
+	//    "n":units,"sup":supply x2,"cx":CX,"cy":CY}   (x, y: target; cx, cy: the selection's center)
+	void print_army_command(int owner, int action_id, const uint8_t* cmd, const uint8_t* end) {
+		auto u16 = [&](int at) { return cmd + at + 1 < end ? (int)(cmd[at] | cmd[at + 1] << 8) : -1; };
+		auto u8 = [&](int at) { return cmd + at < end ? (int)cmd[at] : -1; };
+		int x, y, target, order = -1;
+		switch (action_id) {  // cmd[0] = player id, cmd[1] = action id
+		case 0x14: x = u16(2); y = u16(4); target = u16(6); break;                      // right click
+		case 0x15: x = u16(2); y = u16(4); target = u16(6); order = u8(10); break;      // targeted order
+		case 0x60: x = u16(2); y = u16(4); target = translate_unit_id((uint16_t)u16(6)); break;
+		case 0x61: x = u16(2); y = u16(4); target = translate_unit_id((uint16_t)u16(6)); order = u8(12); break;
+		default: return;
+		}
+		int n = 0, sup = 0;
+		long sx = 0, sy = 0;
+		for (unit_t* u : action_st.selection.at(owner)) {
+			if (!u || u->owner != owner || ut_building(u->unit_type) || ut_worker(u->unit_type)) continue;
+			if (u->unit_type->supply_required.raw_value <= 0) continue;
+			++n;
+			sup += u->unit_type->supply_required.raw_value;
+			sx += u->sprite->position.x;
+			sy += u->sprite->position.y;
+		}
+		if (!n) return;
+		const char* kind = "other";
+		if (order < 0) {
+			unit_t* t = target > 0 ? get_unit(unit_id((uint16_t)target)) : nullptr;
+			kind = t && t->owner != owner && t->owner < 8 ? "attack" : "move";
+		} else if (order == 14) kind = "amove";
+		else if (order == 10 || order == 11) kind = "attack";
+		else if (order == 6) kind = "move";
+		else if (order == 152) kind = "patrol";
+		printf("{\"type\":\"army\",\"frame\":%d,\"slot\":%d,\"kind\":\"%s\",\"x\":%d,\"y\":%d,\"n\":%d,\"sup\":%d,\"cx\":%ld,\"cy\":%ld}\n",
+		       st.current_frame, owner, kind, x, y, n, sup, sx / n, sy / n);
 	}
 
 	// Remastered games can use a larger unit table (the replay's LMTS section; recent ladder
@@ -339,6 +382,8 @@ bool is_player(const state& st, int i) {
 	       st.players[i].controller == player_t::controller_computer_game;
 }
 
+constexpr int GRID = 16, GRID_CELLS = GRID * GRID, GRID_CHANNELS = 6;
+
 void print_snapshot(const state& st, const replay_state& rst, counting_replay_functions& f) {
 	// What each player can see of everyone else's units right now (fog of war).
 	std::map<int, int> seen[8];
@@ -347,6 +392,28 @@ void print_snapshot(const state& st, const replay_state& rst, counting_replay_fu
 			if (!u->sprite || f.us_hidden(u)) continue;
 			for (int p = 0; p != 8; ++p) {
 				if (p != o && (u->sprite->visibility_flags & (1 << p))) ++seen[p][(int)u->unit_type->id];
+			}
+		}
+	}
+	// Where things are, per player, on a 16x16 grid over the map: own army supply (x2), workers,
+	// buildings; then the same for other players' units this player can see.
+	std::vector<int> grid(8 * GRID_CHANNELS * GRID_CELLS, 0);
+	int mw = std::max(1, (int)f.game_st.map_width), mh = std::max(1, (int)f.game_st.map_height);
+	for (int o = 0; o != 8; ++o) {
+		for (const unit_t* u : ptr(st.player_units[o])) {
+			if (!u->sprite || f.us_hidden(u)) continue;
+			int cat, val = 1;
+			if (f.ut_building(u->unit_type)) cat = 2;
+			else if (f.ut_worker(u->unit_type)) cat = 1;
+			else if (u->unit_type->supply_required.raw_value > 0) { cat = 0; val = u->unit_type->supply_required.raw_value; }
+			else continue;  // overlords, larvae, eggs, ...
+			int gx = std::min(GRID - 1, std::max(0, u->sprite->position.x * GRID / mw));
+			int gy = std::min(GRID - 1, std::max(0, u->sprite->position.y * GRID / mh));
+			int cell = gy * GRID + gx;
+			grid[(o * GRID_CHANNELS + cat) * GRID_CELLS + cell] += val;
+			for (int p = 0; p != 8; ++p) {
+				if (p != o && (u->sprite->visibility_flags & (1 << p)))
+					grid[(p * GRID_CHANNELS + 3 + cat) * GRID_CELLS + cell] += val;
 			}
 		}
 	}
@@ -375,7 +442,16 @@ void print_snapshot(const state& st, const replay_state& rst, counting_replay_fu
 			first_unit = false;
 			out += "\"" + std::to_string(id) + "\":[" + std::to_string(all) + "," + std::to_string(done) + "]";
 		}
-		out += "},\"seen\":{";
+		out += "},\"g\":[";
+		bool first_cell = true;
+		for (int i = 0; i != GRID_CHANNELS * GRID_CELLS; ++i) {
+			int v = grid[p * GRID_CHANNELS * GRID_CELLS + i];
+			if (!v) continue;
+			if (!first_cell) out += ',';
+			first_cell = false;
+			out += std::to_string(i) + "," + std::to_string(v);
+		}
+		out += "],\"seen\":{";
 		bool first_seen = true;
 		for (auto& kv : seen[p]) {
 			if (!first_seen) out += ',';
@@ -504,7 +580,9 @@ int main(int argc, char** argv) {
 		const state& st = player.st();
 
 		std::string header = "{\"type\":\"header\",\"end_frame\":" + std::to_string(replay_st.end_frame) +
-		                     ",\"map\":\"" + json_escape(replay_st.map_name) + "\",\"players\":[";
+		                     ",\"map\":\"" + json_escape(replay_st.map_name) + "\"" +
+		                     ",\"map_w\":" + std::to_string(f.game_st.map_width) +
+		                     ",\"map_h\":" + std::to_string(f.game_st.map_height) + ",\"players\":[";
 		bool first = true;
 		for (int p = 0; p != 8; ++p) {
 			if (!is_player(st, p)) continue;

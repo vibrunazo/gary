@@ -109,11 +109,17 @@ class TerranGaryV2(TerranGary):
             if r["type"] == T.REFINERY and self._on_gas(obs, r["tag"]) < 3 and                     self.ignore_idle_until.get(r["tag"], 0) <= hi.frame:
                 self.task = Task("gas", data={"tag": r["tag"], "x": r["x"], "y": r["y"]}, started=hi.frame)
                 return
-        army = [u for u in done if u["type"] in self.army_types and u["tag"] not in self.army_sent]
-        if len(army) >= v01.WAVE:
-            self.task = Task("attack", started=hi.frame)
+        if self._army(obs, mine, done):
             return
         self._macro(obs, mine, done, me)
+
+    def _army(self, obs: dict, mine: list[dict], done: list[dict]) -> bool:
+        """Army control (v0.1's): attack-move with every 16 army units. True if Gary acted."""
+        army = [u for u in done if u["type"] in self.army_types and u["tag"] not in self.army_sent]
+        if len(army) >= v01.WAVE:
+            self.task = Task("attack", started=self.hi.frame)
+            return True
+        return False
 
     def _run_task(self, obs: dict, mine: list[dict]) -> None:
         t = self.task
