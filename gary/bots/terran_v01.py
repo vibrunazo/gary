@@ -270,9 +270,12 @@ class TerranGary:
             self.ignore_idle_until[tag] = hi.frame + 24 * 20
         self.task = None
 
+    def _free_worker(self, obs: dict, u: dict) -> bool:
+        """A finished SCV on screen that isn't busy placing or constructing a building."""
+        return u["type"] == SCV and u["completed"] and u["order"] not in BUSY_ORDERS             and bool(screen_of(obs, u["x"], u["y"]))
+
     def _pick_worker(self, obs: dict, mine: list[dict]) -> dict | None:
-        cands = [u for u in mine if u["type"] == SCV and u["completed"] and u["order"] not in BUSY_ORDERS
-                 and screen_of(obs, u["x"], u["y"])]
+        cands = [u for u in mine if self._free_worker(obs, u)]
         return min(cands, key=lambda u: math.dist((u["x"], u["y"]), self.main.center)) if cands else None
 
     def _fail_build(self, t: Task) -> None:
@@ -296,6 +299,14 @@ class TerranGary:
             if w and obs["selection"] == [w]:
                 t.stage = "travel" if t.where == "natural" else "place"
                 return
+            # the click landed on a neighbor in a stack (the one drawn on top wins): a human just
+            # uses whichever free SCV got selected instead of clicking again
+            if w and len(obs["selection"]) == 1:
+                got = next((u for u in mine if u["tag"] == obs["selection"][0]), None)
+                if got and self._free_worker(obs, got):
+                    t.data["worker"] = got["tag"]
+                    t.stage = "travel" if t.where == "natural" else "place"
+                    return
             w = self._pick_worker(obs, mine)
             if not w:
                 self._fail_build(t)
