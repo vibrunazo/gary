@@ -9,7 +9,13 @@ of the mirrored 16x16 map grid) and whether it was a move or an attack. Games ar
   far orders            the same, only for orders sending the group 3+ cells away (attacks,
                         retreats, defending another base), the decisions that matter most
   kind                  move vs attack accuracy
+  fight                 the fight estimate: correlation with what happened (the change in the
+                        player's share of all army supply over the next 45 s), and for attacks that
+                        clearly went well or badly (|change| >= 5 points), how often it called it
 Baselines: "stay" (the group's own cell) and "most common destination cell".
+
+Memory and fight labels come from the macro training set (ingest/macro_dataset.py) of the same
+game: what the player had seen each second, and both players' real armies.
 
 Usage:
   python -m train.army --race T
@@ -33,7 +39,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "ingest"))
 from inventory import data_root  # noqa: E402
 
-from gary.policy.army import CELLS, CHANNELS, GRID, ArmyModel, ArmyNet, ArmySpec, encode_global  # noqa: E402
+from gary.policy.army import (ARMY_SUPPLY, CELLS, CHANNELS, GRID, MEMORY_S, VALUE_HORIZON_S,  # noqa: E402
+                              VALUE_SCALE, ArmyModel, ArmyNet, ArmySpec, encode_global)
 from train.macro import is_test  # noqa: E402  (same held-out games as the macro model)
 
 MAX_PER_PLAYER = 160          # samples per player-game (keeps memory in check, spreads over games)
@@ -43,17 +50,23 @@ def army_dir() -> Path:
     return data_root() / "interim" / "army" / "v1"
 
 
-def player_games(matchup: str, race: str) -> list[tuple[str, int, bool]]:
+def player_games(matchup: str, race: str) -> list[tuple[str, int, bool, str, int]]:
+    """(army npz, player index, held out, macro npz, the same player's index there)."""
+    macro_dir = data_root() / "interim" / "macro" / "v1"
+    with open(macro_dir / "index.jsonl", encoding="utf-8") as f:
+        macro = {r["sha1"]: r for r in map(json.loads, f) if r.get("ok")}
     out = []
     with open(army_dir() / "index.jsonl", encoding="utf-8") as f:
         rows = {r["sha1"]: r for r in map(json.loads, f)}
     for r in rows.values():
-        if not r.get("ok") or r["matchup"] != matchup:
+        if not r.get("ok") or r["matchup"] != matchup or r["sha1"] not in macro:
             continue
         path = str(army_dir() / r["sha1"][:2] / f"{r['sha1']}.npz")
+        mpath = str(macro_dir / r["sha1"][:2] / f"{r['sha1']}.npz")
+        mslots = [p["slot"] for p in macro[r["sha1"]]["players"]]
         for i, p in enumerate(r["players"]):
-            if p["race"] == race and p["samples"] > 0:
-                out.append((path, i, is_test(r["sha1"])))
+            if p["race"] == race and p["samples"] > 0 and p["slot"] in mslots:
+                out.append((path, i, is_test(r["sha1"]), mpath, mslots.index(p["slot"])))
     return out
 
 
@@ -65,18 +78,29 @@ def scan(job: tuple) -> tuple[set, set]:
 
 
 def load_player(args: tuple) -> tuple[np.ndarray, ...]:
-    (path, i, held), spec_d = args
+    (path, i, held, mpath, mi), spec_d = args
     spec = ArmySpec(**spec_d)
     d = np.load(path)
     n = len(d[f"p{i}_target"])
     rng = np.random.default_rng(hash(path) % 2**32 + i)
     idx = np.sort(rng.choice(n, MAX_PER_PLAYER, replace=False)) if n > MAX_PER_PLAYER and not held else np.arange(n)
+    frames = d[f"p{i}_frame"][idx]
+    # from the macro data, each second: what this player had seen, and both real armies
+    m = np.load(mpath)
+    mf, seen_all = m["frames"], m["seen"][:, mi].astype(np.float32)
+    own_sup = m["units"][:, mi, :, 0].astype(np.float32) @ ARMY_SUPPLY
+    enemy_sup = m["units"][:, 1 - mi, :, 0].astype(np.float32) @ ARMY_SUPPLY
+    share = own_sup / (own_sup + enemy_sup + 1.0)
+    t = np.clip(np.searchsorted(mf, frames, side="right") - 1, 0, len(mf) - 1)
+    seen_mem = np.stack([seen_all[max(0, k - MEMORY_S):k + 1].max(0) for k in t])
+    later = np.minimum(t + VALUE_HORIZON_S, len(mf) - 1)
+    value = (share[later] - share[t]).astype(np.float32)
     grid = d[f"p{i}_grid"][idx]
-    glob = encode_global(spec, d[f"p{i}_frame"][idx].astype(np.float32), d[f"p{i}_eco"][idx].astype(np.float32),
+    glob = encode_global(spec, frames.astype(np.float32), d[f"p{i}_eco"][idx].astype(np.float32),
                          d[f"p{i}_sup"][idx].astype(np.float32), d[f"p{i}_units"][idx].astype(np.float32),
-                         d[f"p{i}_seen"][idx].astype(np.float32))
+                         d[f"p{i}_seen"][idx].astype(np.float32), seen_mem, own_sup[t], seen_mem @ ARMY_SUPPLY)
     group_cell = grid[:, 8].argmax(1).astype(np.int16)
-    return grid, glob.astype(np.float16), d[f"p{i}_target"][idx], d[f"p{i}_kind"][idx], group_cell
+    return grid, glob.astype(np.float16), d[f"p{i}_target"][idx], d[f"p{i}_kind"][idx], group_cell, value
 
 
 def load(jobs: list, spec: ArmySpec, workers: int) -> dict:
@@ -84,7 +108,7 @@ def load(jobs: list, spec: ArmySpec, workers: int) -> dict:
     with ProcessPoolExecutor(workers) as pool:
         for job, res in zip(jobs, pool.map(load_player, [(j, spec.to_dict()) for j in jobs], chunksize=16)):
             parts[job[2]].append(res)
-    return {("test" if held else "train"): tuple(np.concatenate([r[k] for r in rs]) for k in range(5))
+    return {("test" if held else "train"): tuple(np.concatenate([r[k] for r in rs]) for k in range(6))
             for held, rs in parts.items()}
 
 
@@ -94,16 +118,20 @@ def cell_dist(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 def evaluate(net: ArmyNet, data: tuple, common: int, device: str) -> dict:
-    grid, glob, target, kind, group = data
+    grid, glob, target, kind, group, value = data
     net.eval()
-    top5, kinds = [], []
+    top5, kinds, vals = [], [], []
     with torch.no_grad():
         for s in range(0, len(target), 8192):
             g = torch.from_numpy(grid[s:s + 8192]).to(device).float().view(-1, CHANNELS, GRID, GRID)
-            where, k = net(g, torch.from_numpy(glob[s:s + 8192]).to(device).float())
+            where, k, v = net(g, torch.from_numpy(glob[s:s + 8192]).to(device).float(),
+                              torch.from_numpy(target[s:s + 8192].astype(np.int64)).to(device),
+                              torch.from_numpy(kind[s:s + 8192].astype(np.int64)).to(device))
             top5.append(where.topk(5, -1).indices.cpu().numpy())
             kinds.append(k.argmax(-1).cpu().numpy())
-    top5, kinds = np.concatenate(top5), np.concatenate(kinds)
+            vals.append(v.cpu().numpy() / VALUE_SCALE)
+    top5, kinds, vals = np.concatenate(top5), np.concatenate(kinds), np.concatenate(vals)
+    clear = (kind == 1) & (np.abs(value) >= 0.05)
     t = target.astype(np.int64)
     first = top5[:, 0]
     far = cell_dist(t, group.astype(np.int64)) >= 3
@@ -119,6 +147,10 @@ def evaluate(net: ArmyNet, data: tuple, common: int, device: str) -> dict:
         "baseline_stay_far_within1": r((cell_dist(group.astype(np.int64), t) <= 1)[far].mean()),
         "baseline_common_within1": r((cell_dist(np.full_like(t, common), t) <= 1).mean()),
         "baseline_kind_acc": r(max((kind == 0).mean(), (kind == 1).mean())),
+        "fight_corr": r(np.corrcoef(vals, value)[0, 1]),
+        "fight_sign_clear_attacks": r((np.sign(vals) == np.sign(value))[clear].mean()),
+        "clear_attacks": int(clear.sum()),
+        "fight_mae": r(np.abs(vals - value).mean()), "baseline_fight_mae": r(np.abs(value).mean()),
     }
 
 
@@ -144,7 +176,7 @@ def main() -> None:
             seen |= s
     spec = ArmySpec(race=args.race, own_types=sorted(own), seen_types=sorted(seen))
     data = load(jobs, spec, args.workers)
-    grid, glob, target, kind, group = data["train"]
+    grid, glob, target, kind, group, value = data["train"]
     print(f"{len(jobs)} player-games; orders: train {len(target):,}, test {len(data['test'][2]):,} "
           f"({time.time() - t0:.0f} s)", flush=True)
     common = int(np.bincount(target.astype(np.int64), minlength=CELLS).argmax())
@@ -158,6 +190,7 @@ def main() -> None:
     xt = torch.from_numpy(glob)
     yt = torch.from_numpy(target.astype(np.int64))
     kt = torch.from_numpy(kind.astype(np.int64))
+    vt = torch.from_numpy(value * VALUE_SCALE)
     for epoch in range(args.epochs):
         net.train()
         perm = torch.randperm(len(yt))
@@ -165,8 +198,10 @@ def main() -> None:
         for s in range(0, len(perm), args.batch):
             idx = perm[s:s + args.batch]
             g = gt[idx].to(device, non_blocking=True).float().view(-1, CHANNELS, GRID, GRID)
-            where, k = net(g, xt[idx].to(device).float())
-            loss = F.cross_entropy(where, yt[idx].to(device)) + 0.5 * F.cross_entropy(k, kt[idx].to(device))
+            y, kk = yt[idx].to(device), kt[idx].to(device)
+            where, k, v = net(g, xt[idx].to(device).float(), y, kk)
+            loss = F.cross_entropy(where, y) + 0.5 * F.cross_entropy(k, kk) + \
+                0.5 * F.smooth_l1_loss(v, vt[idx].to(device))
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
@@ -174,7 +209,8 @@ def main() -> None:
             total += loss.item() * len(idx)
         res = evaluate(net, data["test"], common, device)
         print(f"epoch {epoch + 1}: loss {total / len(yt):.3f}  within1 {res['within1']}  "
-              f"far within1 {res['far_within1']}  top5 {res['cell_top5']}  kind {res['kind_acc']}", flush=True)
+              f"far within1 {res['far_within1']}  top5 {res['cell_top5']}  kind {res['kind_acc']}  "
+              f"fight corr {res['fight_corr']}  clear-attack calls {res['fight_sign_clear_attacks']}", flush=True)
 
     out = REPO_ROOT / "runs" / "army" / f"{args.matchup}_{args.race}_{time.strftime('%Y%m%d-%H%M%S')}"
     out.mkdir(parents=True, exist_ok=True)

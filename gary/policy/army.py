@@ -4,8 +4,11 @@ Learned from pro replays (ingest/army_dataset.py, trained by train/army.py). Inp
 player knows it, on a 16x16 grid mirrored so the player's main is top-left (own army, workers and
 buildings; enemy ones visible now; enemy buildings ever seen; enemy army seen in the last 30 s;
 the group being ordered), plus numbers (game time, resources, supply, the group's size, own army
-composition, enemy units in view). Output: a probability for each of the 256 cells as the
-group's destination, and move vs attack.
+composition, enemy units in view, and memory: the most of each enemy unit type seen at once in
+the last 3 minutes, and the enemy army supply that adds up to). Output: a probability for each of
+the 256 cells as the group's destination, move vs attack, and a fight estimate: for a given
+destination and order, how the player's share of all army supply on the map changes over the next
+45 s (positive: the order goes well). Gary uses it to hold back from attacks it expects to lose.
 
 Pros keep fighting armies where they are about as often as they send them somewhere new, so the
 model also says "stay": its best cell is then the one the group is already in.
@@ -24,6 +27,9 @@ import torch.nn.functional as F
 
 GRID, CELLS, CHANNELS = 16, 256, 9
 RECENT_S = 30
+MEMORY_S = 180                # how long enemy units count as "seen" in the numbers
+VALUE_HORIZON_S = 45          # the fight estimate looks this far ahead
+VALUE_SCALE = 10.0            # the value head predicts 10x the change in army share
 
 
 @dataclass
@@ -34,20 +40,24 @@ class ArmySpec:
 
     @property
     def n_global(self) -> int:
-        return 6 + len(self.own_types) + len(self.seen_types)
+        return 8 + len(self.own_types) + 2 * len(self.seen_types)
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
 def encode_global(spec: ArmySpec, frame: np.ndarray, eco: np.ndarray, group_sup: np.ndarray,
-                  units: np.ndarray, seen: np.ndarray) -> np.ndarray:
+                  units: np.ndarray, seen: np.ndarray, seen_mem: np.ndarray, own_army: np.ndarray,
+                  enemy_army_mem: np.ndarray) -> np.ndarray:
     """(n, n_global) numbers. eco: minerals, gas, supply used x2, supply max x2; group_sup x2;
-    units / seen: (n, 228) counts."""
+    units / seen / seen_mem: (n, 228) counts (seen_mem: the most seen at once in MEMORY_S);
+    own_army, enemy_army_mem: army supply x2 (enemy: of seen_mem)."""
     parts = [(frame / (24 * 60 * 20.0))[:, None], np.minimum(eco[:, 0] / 1000.0, 5)[:, None],
              np.minimum(eco[:, 1] / 1000.0, 5)[:, None], (eco[:, 2] / 400.0)[:, None],
              (eco[:, 3] / 400.0)[:, None], (group_sup / 400.0)[:, None],
-             np.log1p(units[:, spec.own_types]), np.log1p(seen[:, spec.seen_types])]
+             (own_army / 400.0)[:, None], (enemy_army_mem / 400.0)[:, None],
+             np.log1p(units[:, spec.own_types]), np.log1p(seen[:, spec.seen_types]),
+             np.log1p(seen_mem[:, spec.seen_types])]
     return np.concatenate([p.astype(np.float32) for p in parts], axis=1)
 
 
@@ -61,14 +71,25 @@ class ArmyNet(nn.Module):
         self.mix = nn.Linear(2 * ch, ch)            # whole-map summary, fed back to every cell
         self.where = nn.Conv2d(ch, 1, 1)
         self.kind = nn.Linear(2 * ch, 2)
+        # fight estimate for a given destination and order: the whole map + the destination cell
+        self.value = nn.Sequential(nn.Linear(3 * ch + 2, ch), nn.GELU(), nn.Linear(ch, 1))
 
-    def forward(self, grid: torch.Tensor, glob: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, grid: torch.Tensor, glob: torch.Tensor, target: torch.Tensor | None = None,
+                attack: torch.Tensor | None = None):
+        """Destination logits (n, 256), move/attack logits (n, 2) and, given a target cell and
+        attack (0/1) per row, the fight estimate (n,) (in VALUE_SCALE units)."""
         h = F.gelu(self.inp(torch.log1p(grid)) + self.glob(glob)[:, :, None, None])
         for conv in self.convs:
             h = h + F.gelu(conv(h))
         pooled = torch.cat([h.mean((2, 3)), h.amax((2, 3))], 1)
         h = h + self.mix(pooled)[:, :, None, None]
-        return self.where(h).flatten(1), self.kind(torch.cat([h.mean((2, 3)), h.amax((2, 3))], 1))
+        pooled = torch.cat([h.mean((2, 3)), h.amax((2, 3))], 1)
+        where, kind = self.where(h).flatten(1), self.kind(pooled)
+        if target is None:
+            return where, kind, None
+        at = h.flatten(2)[torch.arange(len(target), device=h.device), :, target]
+        order = F.one_hot(attack.long(), 2).float()
+        return where, kind, self.value(torch.cat([pooled, at, order], 1)).squeeze(-1)
 
 
 class ArmyModel:
@@ -90,9 +111,19 @@ class ArmyModel:
     def predict(self, grid: np.ndarray, glob: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """(n, 256) destination probabilities and (n, 2) move/attack probabilities."""
         dev = next(self.net.parameters()).device
-        where, kind = self.net(torch.as_tensor(grid, dtype=torch.float32, device=dev).view(-1, CHANNELS, GRID, GRID),
-                               torch.as_tensor(glob, dtype=torch.float32, device=dev))
+        where, kind, _ = self.net(torch.as_tensor(grid, dtype=torch.float32, device=dev).view(-1, CHANNELS, GRID, GRID),
+                                  torch.as_tensor(glob, dtype=torch.float32, device=dev))
         return torch.softmax(where, -1).cpu().numpy(), torch.softmax(kind, -1).cpu().numpy()
+
+    @torch.no_grad()
+    def fight(self, grid: np.ndarray, glob: np.ndarray, target: int, attack: bool) -> float:
+        """Expected change in the player's share of all army supply over the next 45 s if the
+        group is sent to `target` (moving, or attack-moving)."""
+        dev = next(self.net.parameters()).device
+        _, _, v = self.net(torch.as_tensor(grid, dtype=torch.float32, device=dev).view(-1, CHANNELS, GRID, GRID),
+                           torch.as_tensor(glob, dtype=torch.float32, device=dev),
+                           torch.tensor([target], device=dev), torch.tensor([int(attack)], device=dev))
+        return float(v[0]) / VALUE_SCALE
 
 
 class ArmyTracker:
@@ -105,6 +136,7 @@ class ArmyTracker:
         self.fx, self.fy = main[0] > self.mw / 2, main[1] > self.mh / 2
         self.seen_buildings = np.zeros(CELLS, np.float32)
         self.recent: list[tuple[int, np.ndarray]] = []      # (frame, enemy army grid)
+        self.seen_hist: list[tuple[int, np.ndarray]] = []   # (frame, enemy unit counts by type)
 
     def cell(self, x: float, y: float) -> int:
         gx = min(GRID - 1, max(0, int(x * GRID // self.mw)))
@@ -152,9 +184,11 @@ class ArmyTracker:
         time the player looks, not only when asking the model: a scout's glimpse counts."""
         if self.recent and self.recent[-1][0] == obs["frame"]:
             return
-        g, _, _ = self._now(obs)
+        g, _, seen = self._now(obs)
+        f0 = obs["frame"]
         self.seen_buildings = np.maximum(self.seen_buildings, g[5])
-        self.recent = [(f, a) for f, a in self.recent if obs["frame"] - f <= RECENT_S * 24] + [(obs["frame"], g[3])]
+        self.recent = [(f, a) for f, a in self.recent if f0 - f <= RECENT_S * 24] + [(f0, g[3])]
+        self.seen_hist = [(f, a) for f, a in self.seen_hist if f0 - f <= MEMORY_S * 24] + [(f0, seen)]
 
     def inputs(self, obs: dict, group: list[dict]) -> tuple[np.ndarray, np.ndarray]:
         """grid (9, 256) and numbers for ordering `group` (own units) now."""
@@ -170,8 +204,11 @@ class ArmyTracker:
         g = np.minimum(g, 255)
         me = obs["me"]
         eco = np.array([[me["minerals"], me["gas"], me["supply_used"] * 2, me["supply_max"] * 2]], np.float32)
+        seen_mem = np.max([a for _, a in self.seen_hist], axis=0)
         glob = encode_global(self.spec, np.array([obs["frame"]], np.float32), eco,
-                             np.array([group_sup], np.float32), units[None], seen[None])
+                             np.array([group_sup], np.float32), units[None], seen[None], seen_mem[None],
+                             np.array([units @ ARMY_SUPPLY], np.float32),
+                             np.array([seen_mem @ ARMY_SUPPLY], np.float32))
         return g[None], glob
 
 
@@ -195,3 +232,8 @@ def is_worker(unit_type: int) -> bool:
 
 def is_building(unit_type: int) -> bool:
     return 106 <= unit_type <= 175
+
+
+ARMY_SUPPLY = np.zeros(228, np.float32)      # supply x2 of fighting units by type (workers: 0)
+for _t, _s in SUPPLY_X2.items():
+    ARMY_SUPPLY[_t] = _s

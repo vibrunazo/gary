@@ -7,8 +7,9 @@ from a bigger army, or nowhere (a pro's army stands still about as often as it m
 With human hands: Gary sees its army as up to 3 clusters by where they stand (the main army,
 reinforcements on their way). Every 2 s it asks the model about one cluster; when the model puts
 most of its belief on the cluster going somewhere at least 2 grid cells (1/8 of the map) away, and
-says so twice in a row, Gary drag-boxes the cluster's units (12 per box, like the real game) and
-gives the order on the minimap.
+says so twice in a row, and its fight estimate doesn't expect the move to cost army share (vs
+staying), Gary drag-boxes the cluster's units (12 per box, like the real game) and gives the
+order on the minimap.
 
 Still scripted: mining, gas, hotkeys and rallies, building placement. Not yet: micro (spreading,
 stutter-step, stim, sieging), scouting, drops.
@@ -40,6 +41,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 ASK_EVERY = 24 * 2                  # how often Gary asks the model about its army
 MOVE_CELLS = 2                      # destinations closer than this are "stay"
 MOVE_P = 0.5                        # move when the model puts more belief than this away from here
+FIGHT_MIN = -0.02                   # don't go if the fight estimate says we'd lose 2+ points of army share
+FIGHT_MARGIN = 0.01                 # ...or if going looks worse than staying by more than 1 point
 REORDER_AFTER = 24 * 8              # don't repeat the same order to a group within 8 s
 SCOUT_AT = 24 * 75                  # send a scouting worker at 1:15 (pros: around 10-12 supply)
 SCOUT_KEY = 0
@@ -66,6 +69,7 @@ class TerranGaryV3(TerranGaryV2):
         self.ask_turn = 0
         self.proposed: dict[int, int] = {}            # cluster cell -> destination the model proposed
         self.ordered: dict[int, tuple[int, bool, int]] = {}   # cluster cell -> (cell, attack, frame)
+        self.held: dict[int, int] = {}                # cluster cell -> destination Gary decided against
         self.scout: int | None = None                 # the scouting worker's tag
         self.scout_targets: list[tuple[int, int]] = []
         self.scout_done = False
@@ -126,10 +130,20 @@ class TerranGaryV3(TerranGaryV2):
         near_enemy = self.army_tracker.seen_buildings.reshape(GRID, GRID)[
             max(0, best // GRID - 2):best // GRID + 3, max(0, best % GRID - 2):best % GRID + 3].any()
         attack = attack or bool(near_enemy)
+        # will it go well? the model's fight estimate for going there vs staying put
+        go = self.army_model.fight(grid, glob, best, attack)
+        stay = self.army_model.fight(grid, glob, here, False)
+        if go < max(FIGHT_MIN, stay - FIGHT_MARGIN):
+            if self.held.get(here, -1) != best:
+                self._say(f"army ({len(group)} units) holds: going to {self.army_tracker.center(best)} "
+                          f"looks like {go:+.0%} army share, staying {stay:+.0%}")
+            self.held[here] = best
+            return False
+        self.held.pop(here, None)
         x, y = self.army_tracker.center(best)
         self.ordered[here] = (best, attack, hi.frame)
         self.task = Task("army_order", data={"tags": [u["tag"] for u in group], "x": x, "y": y,
-                                             "attack": attack, "p": p_away, "done": [], "boxes": 0},
+                                             "attack": attack, "p": p_away, "fight": go, "done": [], "boxes": 0},
                          started=hi.frame)
         return True
 
@@ -233,7 +247,7 @@ class TerranGaryV3(TerranGaryV2):
         if not left or d["boxes"] >= 4:
             if d["done"]:
                 self._say(f"army ({len(d['done'])} units): {'attack' if d['attack'] else 'move'} "
-                          f"to ({d['x']}, {d['y']}) ({d['p']:.0%} sure it should move)")
+                          f"to ({d['x']}, {d['y']}) ({d['p']:.0%} sure it should move; fight estimate {d['fight']:+.0%})")
             self.task = None
             return
         cx = sorted(u["x"] for u in left)[len(left) // 2]
