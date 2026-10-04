@@ -1,0 +1,127 @@
+"""Gary's macro model: what to produce next, and how soon.
+
+Learned from pro replays (ingest/macro_dataset.py, trained by train/macro.py). Given a player's
+state at a moment, as that player knew it, it predicts their next production decision (train,
+morph, build, expand, research, upgrade, with the unit/tech/upgrade id) and the seconds until it.
+
+Inputs (all from the player's own point of view):
+  game time; minerals, gas, supply used and max; own units by type (all / completed);
+  enemy units visible now, and the most of each type seen so far (what was scouted);
+  every production decision made so far (counts per decision type), seconds since the last one;
+  the player's build style (taxonomy cluster), when known, for steering.
+
+One model per race. The feature layout (FeatureSpec) is saved with the weights, so a checkpoint
+encodes states the same way in training and in play.
+"""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+
+import numpy as np
+import torch
+from torch import nn
+
+ACT_NAMES = ["train", "morph", "bmorph", "build", "research", "upgrade", "expand"]
+OTHER = (-1, -1)                 # decisions too rare to have their own class
+
+
+@dataclass
+class FeatureSpec:
+    race: str
+    own_types: list[int]                     # unit type ids this race uses
+    seen_types: list[int]                    # enemy unit type ids that get seen
+    decisions: list[tuple[int, int]]         # class vocabulary: (act, id); the last is OTHER
+    styles: list[int] = field(default_factory=list)   # build-style clusters (unknown = extra slot)
+
+    def __post_init__(self):
+        self.decisions = [tuple(d) for d in self.decisions]
+        self._index = {d: i for i, d in enumerate(self.decisions)}
+
+    @property
+    def size(self) -> int:
+        return (7 + 2 * len(self.own_types) + 2 * len(self.seen_types) + len(self.decisions)
+                + len(self.styles) + 1)
+
+    def decision_index(self, act: int, uid: int) -> int:
+        return self._index.get((act, uid), self._index[OTHER])
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["decisions"] = [list(x) for x in self.decisions]
+        return d
+
+
+def encode(spec: FeatureSpec, frame: np.ndarray, eco: np.ndarray, units: np.ndarray,
+           seen_now: np.ndarray, seen_max: np.ndarray, decided: np.ndarray,
+           since_last_s: np.ndarray, style: int | None) -> np.ndarray:
+    """Features for n moments of one player. Shapes: frame (n,), eco (n, 4) [minerals, gas,
+    supply used x2, supply max x2], units (n, 228, 2), seen_now / seen_max (n, 228),
+    decided (n, len(spec.decisions)) counts so far, since_last_s (n,)."""
+    n = len(frame)
+    used, cap = eco[:, 2] / 400.0, eco[:, 3] / 400.0
+    style_onehot = np.zeros((n, len(spec.styles) + 1), dtype=np.float32)
+    style_onehot[:, spec.styles.index(style) if style in spec.styles else len(spec.styles)] = 1
+    parts = [
+        (frame / (24 * 60 * 20.0))[:, None],
+        np.minimum(eco[:, 0] / 1000.0, 5)[:, None],
+        np.minimum(eco[:, 1] / 1000.0, 5)[:, None],
+        used[:, None], cap[:, None], (cap - used)[:, None],
+        np.minimum(since_last_s / 60.0, 3)[:, None],
+        np.log1p(units[:, spec.own_types, 0]), np.log1p(units[:, spec.own_types, 1]),
+        np.log1p(seen_now[:, spec.seen_types]), np.log1p(seen_max[:, spec.seen_types]),
+        np.log1p(decided),
+        style_onehot,
+    ]
+    x = np.concatenate([p.astype(np.float32) for p in parts], axis=1)
+    assert x.shape[1] == spec.size, (x.shape, spec.size)
+    return x
+
+
+class MacroNet(nn.Module):
+    def __init__(self, n_in: int, n_classes: int, hidden: int = 512, layers: int = 3, dropout: float = 0.1):
+        super().__init__()
+        blocks, d = [], n_in
+        for _ in range(layers):
+            blocks += [nn.Linear(d, hidden), nn.GELU(), nn.Dropout(dropout)]
+            d = hidden
+        self.body = nn.Sequential(*blocks)
+        self.what = nn.Linear(hidden, n_classes)     # which decision comes next
+        self.when = nn.Linear(hidden, 1)             # log(1 + seconds until it)
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        h = self.body(x)
+        return self.what(h), self.when(h).squeeze(-1)
+
+
+class MacroModel:
+    """A trained macro model for one race: encode a state, predict the next decision."""
+
+    def __init__(self, spec: FeatureSpec, net: MacroNet, config: dict):
+        self.spec, self.net, self.config = spec, net.eval(), config
+
+    @classmethod
+    def load(cls, path: str | Path, device: str = "cpu") -> "MacroModel":
+        ck = torch.load(path, map_location=device, weights_only=True)
+        spec = FeatureSpec(**ck["spec"])
+        net = MacroNet(spec.size, len(spec.decisions), **ck["config"]["net"])
+        net.load_state_dict(ck["state"])
+        return cls(spec, net.to(device), ck["config"])
+
+    def save(self, path: str | Path) -> None:
+        torch.save({"spec": self.spec.to_dict(), "state": self.net.state_dict(), "config": self.config}, path)
+
+    @torch.no_grad()
+    def predict(self, x: np.ndarray, top: int = 3) -> list[dict]:
+        """For each row of features: the top decisions with probabilities, and seconds until."""
+        dev = next(self.net.parameters()).device
+        logits, when = self.net(torch.as_tensor(x, dtype=torch.float32, device=dev))
+        probs = torch.softmax(logits, -1)
+        p, idx = probs.topk(top, -1)
+        secs = torch.expm1(when).clamp(min=0)
+        out = []
+        for row in range(len(x)):
+            out.append({"next": [(*self.spec.decisions[int(i)], float(q)) for q, i in zip(p[row], idx[row])],
+                        "seconds": float(secs[row])})
+        return out
