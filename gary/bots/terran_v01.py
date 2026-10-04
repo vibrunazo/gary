@@ -61,11 +61,14 @@ class TerranGary:
         self.enemy_starts = mapinfo.enemy_starts(self.main) or mapinfo.starts
         self.rally = self._toward_center(self.natural.center, 6 * 32)
         self.order_step = 0
+        self.order_retry: list[int] = []          # build-order steps whose building never got placed
+        self.retry_after = 0                      # ...redone from this frame (a failure waits 5 s)
         self.task: Task | None = None
         self.hotkeyed: dict[int, int] = {}        # building tag -> hotkey
         self.rallied: set[int] = set()
         self.reserved: list[tuple[int, int, int]] = []   # (unit type, tile x, tile y) being built
         self.reserved_at: dict[tuple[int, int, int], int] = {}
+        self.reserved_step: dict[tuple[int, int, int], int] = {}   # reservation -> its build-order step
         self.attacks_sent = 0
         self.army_sent: set[int] = set()
         self.setup_done = False
@@ -146,12 +149,17 @@ class TerranGary:
         supply = me["supply_used"]
         # minerals already promised to buildings ordered but not started yet
         budget = me["minerals"] - sum(COST[ut] for ut, *_ in self.reserved)
-        due = self.order_step < len(BUILD_ORDER) and supply >= BUILD_ORDER[self.order_step][0]
+        # (a failed step is redone before moving on, like a human who sees the depot never went down)
+        step = self.order_retry[0] if self.order_retry else self.order_step
+        due = step < len(BUILD_ORDER) and supply >= BUILD_ORDER[step][0] and             (not self.order_retry or hi.frame >= self.retry_after)
         if due:
-            _, ut, where = BUILD_ORDER[self.order_step]
+            _, ut, where = BUILD_ORDER[step]
             if budget >= COST[ut] - 30:
-                self.order_step += 1
-                self.task = Task("build", ut, where, started=hi.frame)
+                if self.order_retry:
+                    self.order_retry.pop(0)
+                else:
+                    self.order_step += 1
+                self.task = Task("build", ut, where, data={"step": step}, started=hi.frame)
                 return
         # supply coming: unfinished depots (8) and Command Centers (10) count already
         coming = sum(8 for u in mine if u["type"] == DEPOT and not u["completed"])
@@ -211,6 +219,8 @@ class TerranGary:
         if self.hi.frame - t.started > 24 * 40:     # give up on anything stuck for 40 s
             if t.kind == "hotkey_building":
                 self.hotkeyed[t.data["tag"]] = -1    # live without a hotkey for this one
+            if t.kind == "build":
+                return self._fail_build(t)
             self.task = None
             return
         if t.kind == "build":
@@ -265,6 +275,18 @@ class TerranGary:
                  and screen_of(obs, u["x"], u["y"])]
         return min(cands, key=lambda u: math.dist((u["x"], u["y"]), self.main.center)) if cands else None
 
+    def _fail_build(self, t: Task) -> None:
+        """Give up on this building. A build-order step is queued to be redone (otherwise a lost
+        first depot leaves the bot supply-blocked: the supply logic only starts after step 2);
+        supply depots and extra barracks are simply re-decided by the main loop."""
+        if "step" in t.data:
+            self._retry_step(t.data["step"])
+        self.task = None
+
+    def _retry_step(self, step: int) -> None:
+        self.order_retry.append(step)
+        self.retry_after = self.hi.frame + 24 * 5
+
     def _task_build(self, obs: dict, mine: list[dict], t: Task) -> None:
         hi = self.hi
         if t.stage == "start":                      # get a worker from the main
@@ -276,7 +298,7 @@ class TerranGary:
                 return
             w = self._pick_worker(obs, mine)
             if not w:
-                self.task = None
+                self._fail_build(t)
                 return
             t.data["worker"] = w["tag"]
             p = screen_of(obs, w["x"], w["y"])
@@ -289,7 +311,7 @@ class TerranGary:
         if t.stage == "wait_arrival":
             w = next((u for u in mine if u["tag"] == t.data["worker"]), None)
             if not w:
-                self.task = None
+                self._fail_build(t)
                 return
             if math.dist((w["x"], w["y"]), self.natural.center) > 6 * 32:
                 return
@@ -310,7 +332,7 @@ class TerranGary:
                     return
                 spot = base.tile if t.unit_type == CC else self._spot(t.unit_type, base, t.data["worker"])
                 if not spot:
-                    self.task = None
+                    self._fail_build(t)
                     return
                 t.data["spot"] = spot
             spot = t.data["spot"]
@@ -318,7 +340,7 @@ class TerranGary:
             p = screen_of(obs, spot[0] * 32 + 16, spot[1] * 32 + 16)
             if not p:                                   # the spot is off screen: look there first
                 if t.data.get("looked"):
-                    self.task = None
+                    self._fail_build(t)
                     return
                 t.data["looked"] = True
                 hi.camera_minimap(spot[0] * 32 + w * 16, spot[1] * 32 + h * 16)
@@ -326,6 +348,8 @@ class TerranGary:
             if hi.build(t.unit_type, *p).accepted:
                 self.reserved.append((t.unit_type, *spot))
                 self.reserved_at[(t.unit_type, *spot)] = hi.frame
+                if "step" in t.data:
+                    self.reserved_step[(t.unit_type, *spot)] = t.data["step"]
                 self.task = None
 
     def _task_hotkey(self, obs: dict, t: Task) -> None:
@@ -408,6 +432,12 @@ class TerranGary:
             built = any(u["type"] == ut and math.dist((u["x"], u["y"]), (cx, cy)) < 48 for u in mine)
             if not built and self.hi.frame - self.reserved_at.get(r, 0) < 24 * 40:
                 keep.append(r)
+                continue
+            # the placement never happened (rejected: a unit walked onto the spot): redo its step
+            step = self.reserved_step.pop(r, None)
+            if not built and step is not None:
+                self._retry_step(step)
+            self.reserved_at.pop(r, None)
         self.reserved = keep
 
 
