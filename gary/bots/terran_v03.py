@@ -4,10 +4,11 @@ The army model (gary/policy/army.py, trained on pro TvZ army orders) decides whe
 group goes and whether to move or attack-move there: out to attack, back to defend a base, away
 from a bigger army, or nowhere (a pro's army stands still about as often as it moves).
 
-With human hands: new army units gather at the rally point, Gary drag-boxes them and adds them to
-control groups 1-3 (12 units each, like the real game). Every 2 s it asks the model about each
-group; when the model's best destination is at least 2 grid cells (1/8 of the map) from the group
-and it says so twice in a row, Gary recalls the group and gives the order on the minimap.
+With human hands: Gary sees its army as up to 3 clusters by where they stand (the main army,
+reinforcements on their way). Every 2 s it asks the model about one cluster; when the model puts
+most of its belief on the cluster going somewhere at least 2 grid cells (1/8 of the map) away, and
+says so twice in a row, Gary drag-boxes the cluster's units (12 per box, like the real game) and
+gives the order on the minimap.
 
 Still scripted: mining, gas, hotkeys and rallies, building placement. Not yet: micro (spreading,
 stutter-step, stim, sieging), scouting, drops.
@@ -32,15 +33,13 @@ from gary.bots.terran_v02 import TerranGaryV2, latest_model
 from gary.env import LIVE_COMMAND_DELAY
 from gary.interface import HumanInterface, screen_of
 from gary.mapinfo import MapInfo
-from gary.policy.army import GRID, ArmyModel, ArmyTracker, is_building, is_worker, supply_x2
+from gary.policy.army import GRID, ArmyModel, ArmyTracker, is_building
 from gary.policy.macro import MacroModel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-GROUPS = [1, 2, 3]                  # army control groups
-GROUP_SIZE = 12                     # the game's selection limit
-MIN_GATHER = 4                      # new units join a group in batches of at least this many
 ASK_EVERY = 24 * 2                  # how often Gary asks the model about its army
 MOVE_CELLS = 2                      # destinations closer than this are "stay"
+MOVE_P = 0.5                        # move when the model puts more belief than this away from here
 REORDER_AFTER = 24 * 8              # don't repeat the same order to a group within 8 s
 SCOUT_AT = 24 * 75                  # send a scouting worker at 1:15 (pros: around 10-12 supply)
 SCOUT_KEY = 0
@@ -65,63 +64,73 @@ class TerranGaryV3(TerranGaryV2):
         self.army_tracker = ArmyTracker(army_model.spec, self.slot, mapinfo.size, self.main.center)
         self.next_ask = 0
         self.ask_turn = 0
-        self.member: dict[int, int] = {}              # army unit tag -> its control group
-        self.proposed: dict[int, int] = {}            # group -> cell the model proposed last time
-        self.ordered: dict[int, tuple[int, int, int]] = {}   # group -> (cell, kind, frame) of last order
+        self.proposed: dict[int, int] = {}            # cluster cell -> destination the model proposed
+        self.ordered: dict[int, tuple[int, bool, int]] = {}   # cluster cell -> (cell, attack, frame)
         self.scout: int | None = None                 # the scouting worker's tag
         self.scout_targets: list[tuple[int, int]] = []
         self.scout_done = False
 
+    def act(self) -> None:
+        if not self.hi.pending:                   # whatever Gary looks at, it remembers
+            self.army_tracker.remember(self.hi.observe())
+        super().act()
+
     # --- army ------------------------------------------------------------------------------
 
-    def _groups(self, mine: list[dict]) -> dict[int, list[dict]]:
-        """Each army unit belongs to one group (the last it was put in); alive units only."""
-        out = {k: [] for k in GROUPS}
-        for u in mine:
-            k = self.member.get(u["tag"])
-            if k is not None:
-                out[k].append(u)
+    def _clusters(self, army: list[dict]) -> list[list[dict]]:
+        """The army split by where it stands: up to 3 clusters (the main army, reinforcements on
+        their way, ...), biggest first. Units within 2 grid cells of a cluster's center join it."""
+        left, out = list(army), []
+        while left and len(out) < 3:
+            cells = [self.army_tracker.cell(u["x"], u["y"]) for u in left]
+            center = max(set(cells), key=cells.count)
+            near = [u for u, c in zip(left, cells) if cell_dist(c, center) <= 2]
+            out.append(near)
+            left = [u for u in left if u not in near]
         return out
 
     def _army(self, obs: dict, mine: list[dict], done: list[dict]) -> bool:
         hi = self.hi
         if self._scouting(obs, mine):
             return True
-        groups = self._groups(mine)
-        grouped = {u["tag"] for us in groups.values() for u in us}
-        new = [u for u in done if u["type"] in self.army_types and u["tag"] not in grouped]
-        room = [k for k in GROUPS if len(groups[k]) + MIN_GATHER <= GROUP_SIZE]
-        if room and (len(new) >= MIN_GATHER or (new and not grouped)):
-            self.task = Task("gather", data={"tags": [u["tag"] for u in new[:GROUP_SIZE]], "group": room[0]},
-                             started=hi.frame)
-            return True
         if hi.frame < self.next_ask:
             return False
-        live = [k for k in GROUPS if groups[k]]
-        if not live:
+        army = [u for u in done if u["type"] in self.army_types]
+        clusters = self._clusters(army)
+        if not clusters:
             return False
-        self.next_ask = hi.frame + ASK_EVERY // len(live)        # one group per question, in turn
-        k = live[self.ask_turn % len(live)]
+        self.next_ask = hi.frame + ASK_EVERY // len(clusters)       # one cluster per question
+        group = clusters[self.ask_turn % len(clusters)]
         self.ask_turn += 1
-        group = groups[k]
-        grid, glob = self.army_tracker.inputs(obs, group, supply_x2, is_worker, is_building)
+        grid, glob = self.army_tracker.inputs(obs, group)
         where, kind = self.army_model.predict(grid, glob)
-        best = int(where[0].argmax())
         attack = int(kind[0].argmax()) == 1
         cx = sum(u["x"] for u in group) / len(group)
         cy = sum(u["y"] for u in group) / len(group)
         here = self.army_tracker.cell(cx, cy)
-        proposed, self.proposed[k] = self.proposed.get(k), best
-        if cell_dist(best, here) < MOVE_CELLS:
+        # move or stay: by how much of the model's belief lies away from here (spread over many
+        # cells, "elsewhere" can be likelier than "here" even when "here" is the likeliest cell)
+        away = np.array([cell_dist(c, here) >= MOVE_CELLS for c in range(GRID * GRID)])
+        p_away = float(where[0, away].sum())
+        if p_away < MOVE_P:
+            self.proposed.pop(here, None)
             return False                                          # stay
+        best = int(np.where(away, where[0], -1).argmax())          # where, if moving
+        proposed, self.proposed[here] = self.proposed.get(here), best
         if proposed is None or cell_dist(proposed, best) > 1:
             return False                                          # wait until it says so twice
-        last = self.ordered.get(k)
+        last = self.ordered.get(here)
         if last and cell_dist(last[0], best) <= 1 and last[1] == attack and hi.frame - last[2] < REORDER_AFTER:
             return False
+        # never walk (rather than fight) into where enemy buildings were seen
+        near_enemy = self.army_tracker.seen_buildings.reshape(GRID, GRID)[
+            max(0, best // GRID - 2):best // GRID + 3, max(0, best % GRID - 2):best % GRID + 3].any()
+        attack = attack or bool(near_enemy)
         x, y = self.army_tracker.center(best)
-        self.task = Task("army_order", data={"group": k, "x": x, "y": y, "attack": attack, "cell": best,
-                                             "p": float(where[0, best])}, started=hi.frame)
+        self.ordered[here] = (best, attack, hi.frame)
+        self.task = Task("army_order", data={"tags": [u["tag"] for u in group], "x": x, "y": y,
+                                             "attack": attack, "p": p_away, "done": [], "boxes": 0},
+                         started=hi.frame)
         return True
 
     # --- scouting (scripted for now) -----------------------------------------------------------
@@ -199,64 +208,46 @@ class TerranGaryV3(TerranGaryV2):
                 self.task = None
                 return
             return self._task_scout(obs, mine, t)
-        if t.kind in ("gather", "army_order"):
+        if t.kind == "army_order":
             if self.hi.frame - t.started > 24 * 10:
                 self.task = None
                 return
-            return self._task_gather(obs, mine, t) if t.kind == "gather" else self._task_army_order(obs, t)
+            return self._task_army_order(obs, mine, t)
         return super()._run_task(obs, mine)
 
-    def _task_gather(self, obs: dict, mine: list[dict], t: Task) -> None:
-        """Drag-box the new units (where they stand, normally the rally point) into a group."""
-        hi = self.hi
-        tags = set(t.data["tags"])
-        units = [u for u in mine if u["tag"] in tags]
-        if not units:
+    def _task_army_order(self, obs: dict, mine: list[dict], t: Task) -> None:
+        """Drag-box the cluster's units (12 at most per box, like the real game) and give each box
+        the order on the minimap, until all of them have it."""
+        hi, d = self.hi, t.data
+        if t.stage == "selected":
+            sel = [s for s in obs["selection"] if s in set(d["tags"])]
+            if sel:
+                if d["attack"]:
+                    hi.minimap_command(C.ORDER_ATTACK_MOVE, d["x"], d["y"])
+                else:
+                    hi.minimap_right_click(d["x"], d["y"])
+                d["done"] += sel
+            t.stage = "start"
+            return
+        left = [u for u in mine if u["tag"] in set(d["tags"]) - set(d["done"])]
+        if not left or d["boxes"] >= 4:
+            if d["done"]:
+                self._say(f"army ({len(d['done'])} units): {'attack' if d['attack'] else 'move'} "
+                          f"to ({d['x']}, {d['y']}) ({d['p']:.0%} sure it should move)")
             self.task = None
             return
-        if t.stage == "start":
-            cx = sorted(u["x"] for u in units)[len(units) // 2]
-            cy = sorted(u["y"] for u in units)[len(units) // 2]
-            here = [u for u in units if screen_of(obs, u["x"], u["y"])]
-            if len(here) < max(1, len(units) // 2):
-                hi.camera_minimap(cx, cy)
-                return
-            pts = [screen_of(obs, u["x"], u["y"]) for u in here]
-            hi.box(max(0, min(p[0] for p in pts) - 10), max(0, min(p[1] for p in pts) - 10),
-                   min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + 10),
-                   min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + 10))
-            t.stage = "add"
+        cx = sorted(u["x"] for u in left)[len(left) // 2]
+        cy = sorted(u["y"] for u in left)[len(left) // 2]
+        here = [u for u in left if screen_of(obs, u["x"], u["y"])]
+        if not here:
+            hi.camera_minimap(cx, cy)
             return
-        # only fighting units go into the group (the box may have caught a worker passing by); the
-        # box can also catch units already in a group: then the box becomes that group
-        sel = obs["selection"]
-        if sel and len(sel) <= GROUP_SIZE and all(u["type"] in self.army_types for u in mine if u["tag"] in sel):
-            old = [self.member[s] for s in sel if s in self.member]
-            k = max(set(old), key=old.count) if old else t.data["group"]
-            hi.hotkey_set(k)
-            for s in sel:
-                self.member[s] = k
-        self.task = None
-
-    def _task_army_order(self, obs: dict, t: Task) -> None:
-        hi, d = self.hi, t.data
-        k = d["group"]
-        if sorted(obs["selection"]) != sorted(hi.hotkeys.get(k, [])) or not obs["selection"]:
-            if t.stage == "recalled":                 # the group is gone (all dead)
-                self.task = None
-                return
-            hi.hotkey_recall(k)
-            t.stage = "recalled"
-            return
-        if d["attack"]:
-            hi.minimap_command(C.ORDER_ATTACK_MOVE, d["x"], d["y"])
-        else:
-            hi.minimap_right_click(d["x"], d["y"])
-        self.ordered[k] = (d["cell"], d["attack"], hi.frame)
-        self._say(f"group {k} ({len(obs['selection'])} units): {'attack' if d['attack'] else 'move'} "
-                  f"to ({d['x']}, {d['y']}) ({d['p']:.0%})")
-        self.task = None
-
+        pts = [screen_of(obs, u["x"], u["y"]) for u in here]
+        hi.box(max(0, min(p[0] for p in pts) - 10), max(0, min(p[1] for p in pts) - 10),
+               min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + 10),
+               min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + 10))
+        d["boxes"] += 1
+        t.stage = "selected"
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)

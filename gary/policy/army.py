@@ -120,8 +120,9 @@ class ArmyTracker:
         gy = GRID - 1 - gy if self.fy else gy
         return int((gx + 0.5) * self.mw / GRID), int((gy + 0.5) * self.mh / GRID)
 
-    def inputs(self, obs: dict, group: list[dict], supply_of, is_worker, is_building) -> tuple[np.ndarray, np.ndarray]:
-        """grid (9, 256) and numbers for ordering `group` (own units) now."""
+    def _now(self, obs: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Channels 0-5 (own / visible enemy army, workers, buildings), own and visible enemy
+        unit counts by type."""
         g = np.zeros((CHANNELS, CELLS), np.float32)
         units = np.zeros(228, np.float32)
         seen = np.zeros(228, np.float32)
@@ -133,8 +134,8 @@ class ArmyTracker:
                 cat, val = 2, 1
             elif is_worker(t):
                 cat, val = 1, 1
-            elif supply_of(t) > 0:
-                cat, val = 0, supply_of(t)
+            elif supply_x2(t) > 0:
+                cat, val = 0, supply_x2(t)
             else:
                 cat = None
             mine = u["owner"] == self.slot
@@ -144,21 +145,33 @@ class ArmyTracker:
                 seen[t] += 1
             if cat is not None:
                 g[cat + (0 if mine else 3), self.cell(u["x"], u["y"])] += val
+        return g, units, seen
+
+    def remember(self, obs: dict) -> None:
+        """Update the memory (enemy buildings ever seen, enemy army seen lately). Call it every
+        time the player looks, not only when asking the model: a scout's glimpse counts."""
+        if self.recent and self.recent[-1][0] == obs["frame"]:
+            return
+        g, _, _ = self._now(obs)
         self.seen_buildings = np.maximum(self.seen_buildings, g[5])
-        frame = obs["frame"]
-        self.recent = [(f, a) for f, a in self.recent if frame - f <= RECENT_S * 24] + [(frame, g[3].copy())]
+        self.recent = [(f, a) for f, a in self.recent if obs["frame"] - f <= RECENT_S * 24] + [(obs["frame"], g[3])]
+
+    def inputs(self, obs: dict, group: list[dict]) -> tuple[np.ndarray, np.ndarray]:
+        """grid (9, 256) and numbers for ordering `group` (own units) now."""
+        self.remember(obs)
+        g, units, seen = self._now(obs)
         g[6] = self.seen_buildings
         g[7] = np.max([a for _, a in self.recent], axis=0)
         group_sup = 0
         for u in group:
-            s = supply_of(u["type"])
+            s = supply_x2(u["type"])
             g[8, self.cell(u["x"], u["y"])] += s
             group_sup += s
         g = np.minimum(g, 255)
         me = obs["me"]
         eco = np.array([[me["minerals"], me["gas"], me["supply_used"] * 2, me["supply_max"] * 2]], np.float32)
-        glob = encode_global(self.spec, np.array([frame], np.float32), eco, np.array([group_sup], np.float32),
-                             units[None], seen[None])
+        glob = encode_global(self.spec, np.array([obs["frame"]], np.float32), eco,
+                             np.array([group_sup], np.float32), units[None], seen[None])
         return g[None], glob
 
 

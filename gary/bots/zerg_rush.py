@@ -38,6 +38,7 @@ class ZergRush:
         self.waves = 0
         self.stage = ""
         self.overlord_at = -10**9
+        self.attack_after = 0                 # frame of the first allowed attack
 
     def act(self) -> None:
         hi = self.hi
@@ -106,7 +107,7 @@ class ZergRush:
 
         # waves of zerglings to the enemy start
         lings = [u for u in mine if u["type"] == LING and u["completed"] and u["tag"] not in self.sent]
-        if len(lings) >= WAVE:
+        if len(lings) >= WAVE and hi.frame >= self.attack_after:
             here = [u for u in lings if screen_of(obs, u["x"], u["y"])]
             if self.stage == "attack":
                 hi.minimap_command(C.ORDER_ATTACK_MOVE, *self.target)
@@ -157,7 +158,8 @@ class ZergRush:
         return None
 
 
-def play_match(map_path: str, minutes: float, seed: int | None, save: str, make_terran, name: str) -> None:
+def play_match(map_path: str, minutes: float, seed: int | None, save: str, make_terran, name: str,
+               attack_after_s: float = 0) -> None:
     """Gary (Terran, made by make_terran(hi, mapinfo)) against ZergRush on a headless game."""
     with Game.new(map_path, ["T", "Z"], [name, "Zerg rush"], seed=seed, command_delay=LIVE_COMMAND_DELAY) as game:
         mapinfo = MapInfo.from_game(game)
@@ -172,6 +174,7 @@ def play_match(map_path: str, minutes: float, seed: int | None, save: str, make_
         gary = make_terran(his["T"], mapinfo)
         zerg = ZergRush(his["Z"], mapinfo)
         # the dummy knows where Gary is (no scouting): its waves go straight to Gary's main
+        zerg.attack_after = int(attack_after_s * 24)
         zerg.target = next((u["x"], u["y"]) for u in obs["units"] if u["type"] == C.COMMAND_CENTER)
         end = int(minutes * 60 * 24)
         result = "time"
@@ -209,6 +212,7 @@ def main() -> None:
     ap.add_argument("--minutes", type=float, default=10)
     ap.add_argument("--seed", type=int)
     ap.add_argument("--save", default="gary_vs_rush.rep")
+    ap.add_argument("--attack-after", type=float, default=0, help="no attack before this many seconds")
     args = ap.parse_args()
     if args.vs == "v01":
         from gary.bots.terran_v01 import TerranGary as make
@@ -224,7 +228,7 @@ def main() -> None:
         from gary.policy.macro import MacroModel
         macro, army = MacroModel.load(latest_model()), ArmyModel.load(latest_army_model())
         make = lambda hi, m: TerranGaryV3(hi, m, macro, army)
-    play_match(args.map, args.minutes, args.seed, args.save, make, f"Gary {args.vs}")
+    play_match(args.map, args.minutes, args.seed, args.save, make, f"Gary {args.vs}", args.attack_after)
 
 
 if __name__ == "__main__":
