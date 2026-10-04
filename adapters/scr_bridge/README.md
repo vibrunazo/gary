@@ -244,6 +244,10 @@ the same game against the same opponents (including x64 clients over Battle.net)
 
 ## Known gaps (v0)
 
+- Unit energy and the build-queue ring start (`kUnitEnergy` 168, `kUnitBuildSlot` 166 in
+  `scr_profile.h`) are unverified and probably sit at 162 / 164 (BW 1.16's layout, which every
+  pinned unit field so far has matched). Not used yet: pin both before energy enters the
+  contract (spellcasters). The TODO next to them says how.
 - `can_place` is an approximation (buildable tiles + collision + depot distance): the fog rule
   ("unexplored tiles not allowed") and creep/pylon-power rules need the game's own placement
   function (resolve via `samase_scarf` later) to match `gary_env_can_place` exactly.
