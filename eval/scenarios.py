@@ -190,11 +190,11 @@ def _model(kind: str, path: str):
         import torch
         torch.set_num_threads(1)             # many scenarios run side by side
         from gary.policy.army import ArmyModel
-        from gary.policy.fight import FightModel
+        from gary.policy.fight_cmd import load_fight_policy
         from gary.policy.macro import MacroModel
         for k in [k for k in _models if k[0] == kind == "fight"]:
             del _models[k]                   # reinforcement learning: a new fight model each round
-        _models[(kind, path)] = {"macro": MacroModel, "army": ArmyModel, "fight": FightModel}[kind].load(path)
+        _models[(kind, path)] = {"macro": MacroModel.load, "army": ArmyModel.load, "fight": load_fight_policy}[kind](path)
     return _models[(kind, path)]
 
 
@@ -211,6 +211,10 @@ def make_gary(game, slot: int, version: str, style: int | None, verbose: bool = 
         from gary.bots.terran_v04 import TerranGaryV4, latest_fight_model
         bot = TerranGaryV4(hi, MapInfo.from_game(game), macro, army,
                            _model("fight", str(fight_path or latest_fight_model())), style, verbose=verbose)
+    elif version == "v05":
+        from gary.bots.terran_v05 import TerranGaryV5, latest_command_model
+        bot = TerranGaryV5(hi, MapInfo.from_game(game), macro, army,
+                           _model("fight", str(fight_path or latest_command_model())), style, verbose=verbose)
     else:
         bot = TerranGaryV3(hi, MapInfo.from_game(game), macro, army, style, verbose=verbose)
     bot.announce = []                # mid-game: no hello in the chat
@@ -229,7 +233,7 @@ def main() -> None:
     ap.add_argument("--run", type=int, help="score the first N saved scenarios")
     ap.add_argument("--controllers", nargs="+", default=CONTROLLERS, choices=CONTROLLERS)
     ap.add_argument("--seconds", type=float, default=45)
-    ap.add_argument("--version", default="v04", choices=["v03", "v04"], help="which Gary takes over")
+    ap.add_argument("--version", default="v04", choices=["v03", "v04", "v05"], help="which Gary takes over")
     ap.add_argument("--style", type=int, default=1)
     ap.add_argument("--parallel", type=int, default=4)
     ap.add_argument("--save", help="folder: save each scenario's replay (as played) there")

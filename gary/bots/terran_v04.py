@@ -106,10 +106,12 @@ class TerranGaryV4(TerranGaryV3):
     def _worker_defense(self, obs: dict, mine: list[dict]) -> bool:
         return False                             # the fight model decides what workers do (_army)
 
-    def _fight(self, obs: dict, mine: list[dict]) -> bool:
+    def _snapshot(self, obs: dict):
+        """The fight around Gary's units as the fight model sees it (rows, tags, center, units by
+        tag), or None when there's no fight; asked at most every ASK_EVERY frames."""
         hi = self.hi
         if hi.frame < self.next_fight:
-            return False
+            return None
         self.next_fight = hi.frame + ASK_EVERY
         units = [dict(u) for u in obs["units"]]
         for u in units:                          # hidden enemy HP: assume full
@@ -118,11 +120,18 @@ class TerranGaryV4(TerranGaryV3):
         snap = snapshot({**obs, "units": units}, self.slot, self.flip, supply_x2, is_worker, is_building)
         if snap is None:
             self.fight_center = None
-            return False
+            return None
         rows, tags, center = snap
         self.fight_center = center
+        return rows, tags, center, {u["tag"]: u for u in units}
+
+    def _fight(self, obs: dict, mine: list[dict]) -> bool:
+        hi = self.hi
+        snap = self._snapshot(obs)
+        if snap is None:
+            return False
+        rows, tags, center, by_tag = snap
         acts, targets, dests = self.fight_model.predict(rows, obs["frame"] * 42 / 1000)
-        by_tag = {u["tag"]: u for u in units}
         groups: dict[tuple, list[int]] = {}
         points: dict[str, list[tuple[int, int]]] = {"move": [], "attack_move": []}
         picked: dict[int, tuple[int, int, int, tuple[float, float]]] = {}   # tag -> (row, action, target, dest)
