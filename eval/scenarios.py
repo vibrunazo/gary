@@ -117,6 +117,14 @@ def pick(n: int, split: str = "test") -> list[dict]:
 
 # --- running -----------------------------------------------------------------------------------
 
+def stalled_buildings(obs: dict, slot: int) -> int:
+    """The player's unfinished buildings that no SCV is building (e.g. its builder was killed)."""
+    from gary.policy.army import is_building
+    building = {u["order_target"] for u in obs["units"] if u["owner"] == slot and u["type"] == T.SCV}
+    return sum(1 for u in obs["units"] if u["owner"] == slot and is_building(u["type"]) and not u["completed"]
+               and u["tag"] not in building and u["type"] not in T.ADDON_PARENT)   # (add-ons build themselves)
+
+
 def at_home(obs: dict, slot: int, center: tuple[int, int]) -> bool:
     """Whether a fight (its center) is at the Terran's (slot) home: nearer a Terran town hall than
     a Zerg one, and no Terran bunker at a Zerg base (a bunker rush)."""
@@ -215,7 +223,8 @@ def run_one(sc: dict, controller: str, seconds: float, version: str, style: int 
             if game.frame % 12 < 2:            # (the interface's own snapshot when it took one)
                 losses.note((hi and hi.latest_observation()) or game.observe(), game)
         row.update(losses.result(game))
-        if bot and bot.rl_log is not None:
+        row["stalled"] = stalled_buildings(game.observe(), slot)
+        if bot and getattr(bot, "rl_log", None) is not None:   # (v0.4+ bots)
             row["log"] = bot.rl_log
         if hi:
             acts = [e["act"] for e in hi.pov if "act" in e]
