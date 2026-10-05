@@ -5,7 +5,8 @@ model, which pulled SCVs more often and fought with them badly. v0.7 keeps v0.6'
 for everything else but gives the workers to v0.3's rule: when enemy fighters at a base outnumber
 Gary's army there, about two SCVs per attacker attack-move to them, and go back to mining after
 5 s of calm. The rule runs first in a fight, before the command model, and the model no longer
-gives SCVs orders.
+gives SCVs orders. Nor does Gary carry out the model's plain moves and stops (they took marines
+out of fights); attacks, focus fire, stim and hold stay.
 
     python -m gary.bots.terran_v07 --map path/to/map.scx --minutes 12 --style 1
     python -m gary.bots.terran_v07 --live --style 1
@@ -35,6 +36,12 @@ class TerranGaryV7(TerranGaryV6):
 
     def _may_command(self, unit: dict) -> bool:
         return unit["type"] != T.SCV
+
+    def _may_issue(self, action: str) -> bool:
+        # A guard rail until reinforcement learning teaches when a move helps: the imitation
+        # model's plain moves and stops took marines out of fights (home defenses: -129 with
+        # them, -117 without, the same as no model in fights)
+        return action not in ("move", "stop")
 
 
 def main() -> None:

@@ -21,7 +21,7 @@ quicker way to a playable Gary.
 | P1 Data | ◐ | ~70k replays indexed, resim with Remastered support (go decided: it works), fog-of-war views | Camera logger, camera inference, fitting human profiles from data (the interface's numbers are still placeholders) |
 | P1b Taxonomy | ◐ | TvZ build clusters with readable rules (`taxonomy/discover.py`) | A reviewed `taxonomy/tvz/v1.yaml`, stability and gold-set reports |
 | P1c Strategy stats | — | | Win-rate table, feature library, guide claims |
-| **P2 Micro** | **◐ (current)** | Fight and command models learned from pro skirmishes; scenario suite from pro replays (`eval/scenarios.py`); first reinforcement learning on scenarios (`train/fight_rl.py`) | Responses within the human band: on home-defense scenarios v0.7 (rules for the basics, the command model for the rest) is the first Gary better than v0.3's scripted pull (pro +29, v0.7 −129, v0.3 −157, nothing −260) |
+| **P2 Micro** | **◐ (current)** | Fight and command models learned from pro skirmishes; scenario suite from pro replays (`eval/scenarios.py`); first reinforcement learning on scenarios (`train/fight_rl.py`) | Responses within the human band: on home-defense scenarios v0.7 (rules for the basics, the command model for the rest) is the first Gary better than v0.3's scripted pull (pro +29, v0.7 −117, v0.3 −157, nothing −260) |
 | P2b First playable | ◐ | Full games against people, offline, via the bridge; learned macro steered by build style | Build timings within tolerance (≥18/20 unharassed runs); supply blocks and idle production under harass within the human band |
 | P2c Debug viewer | ● | POV viewer with cursor, clicks and every action in words; videos | Trace overlays beyond actions |
 | P3 BC full game | ◐ (early) | Separate imitation models for macro, army movement and fights | One policy with intent and belief heads, Opponent Model, value network |
@@ -68,8 +68,13 @@ quicker way to a playable Gary.
   - **load the bunker** when zerglings come at it (pro ~1 load per scenario)
   - **workers pulled by v0.3's rule**, first in a fight, faster; the command model no longer
     commands SCVs
-- **Results** (114 home defenses, 4 draws): **−129**, 2.2 SCVs lost: the first Gary better than
-  v0.3's −157 (v0.6 with the first three fixes −195; pro +29; nothing −260).
+  - **no plain moves or stops from the model** for fighting units (a guard rail: they took
+    marines out of fights, as watching Gary vs the pro showed; −129 with them, −117 without, the
+    same as no model in fights at all), until reinforcement learning teaches when a move helps
+- **Results** (114 home defenses, 4 draws): **−117**, 2.1 SCVs lost: the first Gary better than
+  v0.3's −157 (v0.6 with the first three fixes −195; pro +29; nothing −260). Against the
+  immediate 9-pool it holds 2 of 8 seeds, like v0.3: that's decided by placement and macro
+  (bunker, marines, walls in time), not by fight micro.
 - **Most urgently missing:** the pulled SCVs fight as a blob; the pros put them between the lings
   and the marines (a scripted "screen" next, then the ways for a model to learn it: unit features
   for the relation, synthetic micro drills with RL); macro against the immediate 9-pool.

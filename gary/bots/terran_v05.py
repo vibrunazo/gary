@@ -46,6 +46,10 @@ class TerranGaryV5(TerranGaryV4):
     temperature = 1.0                    # < 1: draw commands closer to the model's likeliest
     own_radius, max_units = OWN_RADIUS, MAX_UNITS
 
+    def _may_issue(self, action: str) -> bool:
+        """Whether Gary carries out this kind of command from the model (later versions veto some)."""
+        return True
+
     def _may_command(self, unit: dict) -> bool:
         """Whether the command model may give this unit orders (later versions keep some for rules)."""
         return True
@@ -62,7 +66,7 @@ class TerranGaryV5(TerranGaryV4):
         if cmd is None:
             return False
         a = ACTIONS[cmd["type"]]
-        if a == "other":
+        if a == "other" or not self._may_issue(a):
             return False
         if a in POINTER and cmd["target"] < 0:
             return False
