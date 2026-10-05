@@ -9,29 +9,29 @@ Legend: **—** not started · **○** scripted stand-in · **◐** partial · *
 
 ## Components by version
 
-| Component | What it is | v0 | v0.1 | v0.2 | v0.3 | Now (v0.3) |
+| Component | What it is | Now (v0.3) | v0.3 | v0.2 | v0.1 | v0 |
 |---|---|---|---|---|---|---|
-| Game: headless | OpenBW game Gary plays in for development and tests (`env/`, `gary/env.py`) | ● | ● | ● | ● | Melee games on any map, network-style command delay, replays saved |
-| Game: live Remastered | Gary in a real StarCraft: Remastered client over LAN (`adapters/scr_bridge`) | — | ◐ | ◐ | ◐ | Plays; known gaps in the bridge's map checks and hotkeys (its README) |
-| Human interface | The only path to the game: screen clicks, camera, fog, reaction delay, APM (§6.3) | ● | ● | ● | ● | Clicks, drag boxes, camera hotkeys, fog, 0.3 s delay, APM budget; profiles not fitted from data yet |
-| Perception and memory | What Gary knows: visible units, remembered enemy units (§6.9, §6.10) | ◐ | ◐ | ◐ | ◐ | Fog and hidden enemy HP; remembers enemy buildings and the enemy army seen in the last 3 min |
-| Macro decisions | What to build, train, research, and when | — | ○ | ● | ● | Learned from ~14k pro TvZ games; steerable by build style |
-| Macro executor | Carries out macro decisions: placement, production, gas, mining (§5) | ○ | ○ | ○ | ○ | Scripted: any Terran building, unit, add-on, research, upgrade, expansion |
-| Army decisions | Where armies go, move vs attack, whether a fight is worth taking | — | ○ | ○ | ● | Learned destinations and a learned fight estimate; holds attacks it expects to lose |
-| Micro | Unit control in fights: stim, spread, siege, focus fire, spells | — | — | — | — | Nothing yet: armies only move or attack-move |
-| Scouting | Finding out what the opponent does | — | — | — | ○ | One worker at 9 SCVs to the enemy start locations |
-| Reflexes | Quick reactions outside the plan (worker defense, repair, retreat) | — | — | — | ○ | Pulls about two SCVs per attacker when a base is outnumbered |
-| Attention arbiter | One camera and one APM budget shared by all tasks (§6.7) | ○ | ○ | ○ | ○ | One task at a time in a fixed priority order |
-| Strategy layer | Picks the build and switches plans from what it sees (§6.8) | — | — | ○ | ○ | You pick the build style by hand (`--style`) |
-| Opponent model | Beliefs about the opponent's build and army | — | — | — | — | Not started |
-| Replay pipeline | Inventory, build orders, resim, desync checks (§7.1–7.2) | ● | ● | ● | ● | ~70k replays indexed; TvZ re-simulated with fog-of-war views |
-| Build taxonomy | Build styles discovered from replays (§7.3) | ● | ● | ● | ● | TvZ clusters with readable rules; style labels for ~45% of players |
-| Training sets | Data for the learned models | — | — | ◐ | ◐ | Macro and army sets for TvZ |
-| Learning beyond imitation | Outcome-weighted learning, reinforcement learning | — | — | — | ◐ | Fight estimate learned from outcomes; no reinforcement learning |
-| POV viewer | Watch any game from Gary's screen (`viewer/`) | — | ● | ● | ● | Cursor, clicks, every action in words; Remastered replays; videos |
-| Trace | Gary's decisions and reasons, recorded (§6.5) | — | ◐ | ◐ | ◐ | Decision log with model probabilities and fight estimates; POV action log |
-| Evaluation | Matches against opponents, many seeds, a scoreboard (§9) | — | ○ | ○ | ◐ | `eval/vs_rush.py`: several seeds against one scripted Zerg rush |
-| Matchups and races | | T | T | T | T | Terran in TvZ only |
+| Game: headless | OpenBW game Gary plays in for development and tests (`env/`, `gary/env.py`) | Melee games on any map, network-style command delay, replays saved | ● | ● | ● | ● |
+| Game: live Remastered | Gary in a real StarCraft: Remastered client over LAN (`adapters/scr_bridge`) | Plays; known gaps in the bridge's map checks and hotkeys (its README) | ◐ | ◐ | ◐ | — |
+| Human interface | The only path to the game: screen clicks, camera, fog, reaction delay, APM (§6.3) | Clicks, drag boxes, camera hotkeys, fog, 0.3 s delay, APM budget; profiles not fitted from data yet | ● | ● | ● | ● |
+| Perception and memory | What Gary knows: visible units, remembered enemy units (§6.9, §6.10) | Fog and hidden enemy HP; remembers enemy buildings and the enemy army seen in the last 3 min | ◐ | ◐ | ◐ | ◐ |
+| Macro decisions | What to build, train, research, and when | Learned from ~14k pro TvZ games; steerable by build style | ● | ● | ○ | — |
+| Macro executor | Carries out macro decisions: placement, production, gas, mining (§5) | Scripted: any Terran building, unit, add-on, research, upgrade, expansion | ○ | ○ | ○ | ○ |
+| Army decisions | Where armies go, move vs attack, whether a fight is worth taking | Learned destinations and a learned fight estimate; holds attacks it expects to lose | ● | ○ | ○ | — |
+| Micro | Unit control in fights: stim, spread, siege, focus fire, spells | Nothing yet: armies only move or attack-move | — | — | — | — |
+| Scouting | Finding out what the opponent does | One worker at 9 SCVs to the enemy start locations | ○ | — | — | — |
+| Reflexes | Quick reactions outside the plan (worker defense, repair, retreat) | Pulls about two SCVs per attacker when a base is outnumbered | ○ | — | — | — |
+| Attention arbiter | One camera and one APM budget shared by all tasks (§6.7) | One task at a time in a fixed priority order | ○ | ○ | ○ | ○ |
+| Strategy layer | Picks the build and switches plans from what it sees (§6.8) | You pick the build style by hand (`--style`) | ○ | ○ | — | — |
+| Opponent model | Beliefs about the opponent's build and army | Not started | — | — | — | — |
+| Replay pipeline | Inventory, build orders, resim, desync checks (§7.1–7.2) | ~70k replays indexed; TvZ re-simulated with fog-of-war views | ● | ● | ● | ● |
+| Build taxonomy | Build styles discovered from replays (§7.3) | TvZ clusters with readable rules; style labels for ~45% of players | ● | ● | ● | ● |
+| Training sets | Data for the learned models | Macro and army sets for TvZ | ◐ | ◐ | — | — |
+| Learning beyond imitation | Outcome-weighted learning, reinforcement learning | Fight estimate learned from outcomes; no reinforcement learning | ◐ | — | — | — |
+| POV viewer | Watch any game from Gary's screen (`viewer/`) | Cursor, clicks, every action in words; Remastered replays; videos | ● | ● | ● | — |
+| Trace | Gary's decisions and reasons, recorded (§6.5) | Decision log with model probabilities and fight estimates; POV action log | ◐ | ◐ | ◐ | — |
+| Evaluation | Matches against opponents, many seeds, a scoreboard (§9) | `eval/vs_rush.py`: several seeds against one scripted Zerg rush | ◐ | ○ | ○ | — |
+| Matchups and races | | Terran in TvZ only | T | T | T | T |
 
 ## Versions
 
@@ -72,8 +72,9 @@ Legend: **—** not started · **○** scripted stand-in · **◐** partial · *
 
 ## Keeping this file
 
-- **A new version:** add a column, update "Now", add a section on top.
-- **When the table gets too wide:** keep the last four versions as columns; older versions keep
-  their sections below, and git history has the old tables.
+- **A new version:** add its column right after "Now" (newest first; older versions are a
+  horizontal scroll away), update "Now", and add a section on top.
+- **When the table gets too wide:** keep the latest versions as columns; older versions keep their
+  sections below, and git history has the old tables.
 - **Day-to-day tasks** (bugs, next steps, ideas) belong in GitHub Issues, not here: this file is
   the snapshot per version.
