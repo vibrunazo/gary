@@ -680,6 +680,31 @@ GARY_API int gary_env_map_chk(const char* map_path, uint8_t* out, int capacity) 
 
 // --- building placement and map knowledge ------------------------------------------------------
 
+// The map's terrain in bulk (map knowledge: gary/terrain.py): per 8x8-pixel minitile (row by row,
+// map tile width * 4 per row), whether ground units can stand there and its ground height (0 low,
+// 1 middle, 2 high); per 32x32 tile, whether it's buildable. Returns the minitile count, or -1.
+GARY_API int gary_env_terrain(void* h, uint8_t* walk, uint8_t* height, uint8_t* build) {
+	auto* e = (env*)h;
+	try {
+		auto& f = *e->funcs;
+		const state& st = e->player.st();
+		int tw = (int)st.game->map_tile_width, th = (int)st.game->map_tile_height;
+		int mw = tw * 4, mh = th * 4;
+		for (int my = 0; my != mh; ++my) {
+			for (int mx = 0; mx != mw; ++mx) {
+				xy p(mx * 8 + 4, my * 8 + 4);
+				walk[my * mw + mx] = f.is_walkable(p) ? 1 : 0;
+				height[my * mw + mx] = (uint8_t)f.get_ground_height_at(p);
+			}
+		}
+		for (int i = 0; i != tw * th; ++i) build[i] = (st.tiles[i].flags & tile_t::flag_unbuildable) ? 0 : 1;
+		return mw * mh;
+	} catch (const std::exception& ex) {
+		e->last_error = ex.what();
+		return -1;
+	}
+}
+
 // Whether ground units can stand at map pixel (x, y) (the terrain's walkable minitiles; units and
 // buildings aside). For placing drill units (gary/drills.py).
 GARY_API bool gary_env_walkable(void* h, int x, int y) {

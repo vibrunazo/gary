@@ -44,6 +44,8 @@ def _load_dll() -> ctypes.CDLL:
     dll.gary_env_create_custom.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
                                            ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int),
                                            ctypes.POINTER(ctypes.c_char_p), ctypes.c_uint32]
+    dll.gary_env_terrain.restype = ctypes.c_int
+    dll.gary_env_terrain.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]
     dll.gary_env_walkable.restype = ctypes.c_bool
     dll.gary_env_walkable.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
     dll.gary_env_map_chk.restype = ctypes.c_int
@@ -277,6 +279,19 @@ class Game:
     def depot_spot_ok(self, tile_x: int, tile_y: int) -> bool:
         """Map knowledge: a resource depot fits here by terrain and resource distance."""
         return _dll.gary_env_depot_spot_ok(self._h, tile_x, tile_y)
+
+    def terrain(self):
+        """The map's terrain (numpy arrays): walkable and ground height (0 low, 1 middle, 2 high)
+        per 8x8-pixel minitile, shape (map tiles high * 4, wide * 4); buildable per 32x32 tile."""
+        import numpy as np
+        obs = self.observe()
+        tw, th = obs["map"]["w"] // 32, obs["map"]["h"] // 32
+        walk, height, build = (ctypes.create_string_buffer(tw * th * 16), ctypes.create_string_buffer(tw * th * 16),
+                               ctypes.create_string_buffer(tw * th))
+        if _dll.gary_env_terrain(self._h, walk, height, build) < 0:
+            raise GameError(_dll.gary_env_error(self._h).decode(errors="replace"))
+        grid = lambda b, h_, w_: np.frombuffer(b.raw, np.uint8).reshape(h_, w_).copy()
+        return grid(walk, th * 4, tw * 4).astype(bool), grid(height, th * 4, tw * 4), grid(build, th, tw).astype(bool)
 
     def walkable(self, x: int, y: int) -> bool:
         """Whether ground units can stand at map pixel (x, y) (terrain only)."""

@@ -36,8 +36,11 @@ class MapInfo:
         obs = game.observe()
         size = (obs["map"]["w"], obs["map"]["h"])
         resources = [u for u in obs["units"] if u["type"] in C.MINERAL_FIELDS or u["type"] == GEYSER]
-        starts = [(s["x"], s["y"]) for s in game.start_locations()]
         bases = [b for b in (_base_for(game, cl) for cl in _clusters(resources)) if b]
+        # player start locations have a full base (maps may add observer slots, e.g. by small
+        # mineral clusters in the middle): a mineral line and a geyser within 10 tiles
+        starts = [(s["x"], s["y"]) for s in game.start_locations()
+                  if any(len(b.minerals) >= 6 and b.geysers and math.dist(b.center, (s["x"], s["y"])) < 320 for b in bases)]
         for b in bases:
             b.start = any(math.dist(b.center, s) < 64 for s in starts)
         # start locations are exact: use them as the depot spot of their base
