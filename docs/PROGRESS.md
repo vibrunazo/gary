@@ -47,10 +47,10 @@ Legend: **—** not started · **○** scripted stand-in · **◐** partial · *
   `eval/vs_rush.py`): against a zergling rush that attacks at 7:00, 1 win and 4 games far ahead at
   14:00, 3 nearly lost; against an immediate rush, 5 lost, 2 nearly lost, 1 holding.
 - **Most urgently missing:**
-  1. Holding early all-ins (bunker and marines timed to an early pool).
-  2. Closing out won games (armies advance one or two grid cells per order).
-  3. Micro.
-  4. Live play: the bridge's town-hall placement check is a tile off.
+  1. Holding early all-ins (bunker and marines timed to an early pool): [#2](https://github.com/vibrunazo/gary/issues/2).
+  2. Closing out won games (armies advance one or two grid cells per order): [#3](https://github.com/vibrunazo/gary/issues/3).
+  3. Micro: [#4](https://github.com/vibrunazo/gary/issues/4).
+  4. Live play: the bridge's town-hall placement check is a tile off: [#5](https://github.com/vibrunazo/gary/issues/5).
 
 ### v0.2 (October 2026): learned macro
 
@@ -76,5 +76,5 @@ Legend: **—** not started · **○** scripted stand-in · **◐** partial · *
   horizontal scroll away), update "Now", and add a section on top.
 - **When the table gets too wide:** keep the latest versions as columns; older versions keep their
   sections below, and git history has the old tables.
-- **Day-to-day tasks** (bugs, next steps, ideas) belong in GitHub Issues, not here: this file is
-  the snapshot per version.
+- **Day-to-day tasks** (bugs, next steps, ideas) belong in [GitHub Issues](https://github.com/vibrunazo/gary/issues),
+  not here: this file is the snapshot per version.
