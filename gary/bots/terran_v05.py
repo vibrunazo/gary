@@ -25,16 +25,20 @@ from gary.env import LIVE_COMMAND_DELAY
 from gary.policy.army import ArmyModel
 from gary.policy.fight import ACTIONS
 from gary.policy.fight_cmd import MAX_UNITS, MOVES, OWN_RADIUS, POINTER, CommandModel
+from gary.policy.fight_memory import history_inputs
 from gary.policy.macro import MacroModel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
-def latest_command_model(matchup: str = "TvZ", race: str = "T") -> Path:
-    found = sorted((REPO_ROOT / "runs" / "fight_cmd").glob(f"{matchup}_{race}_*/model.pt"))
-    if not found:
-        raise SystemExit(f"no trained command model in runs/fight_cmd (python -m train.fight_cmd --race {race})")
-    return found[-1]
+def latest_command_model(matchup: str = "TvZ", race: str = "T", memory: bool = False) -> Path:
+    """The newest command model, with or without memory of its own recent commands."""
+    import torch
+    for path in sorted((REPO_ROOT / "runs" / "fight_cmd").glob(f"{matchup}_{race}_*/model.pt"), reverse=True):
+        if torch.load(path, map_location="cpu", weights_only=True)["config"]["net"].get("memory", False) == memory:
+            return path
+    raise SystemExit(f"no trained command model{' with memory' if memory else ''} in runs/fight_cmd "
+                     f"(python -m train.fight_cmd --race {race}{' --memory --data v3' if memory else ''})")
 
 
 class TerranGaryV5(TerranGaryV4):
@@ -47,7 +51,10 @@ class TerranGaryV5(TerranGaryV4):
         if snap is None:
             return False
         rows, tags, center, by_tag = snap
-        cmd = self.fight_model.decide(rows, obs["frame"] * 42 / 1000, self.rng, self.temperature)
+        hist = None
+        if self.fight_model.memory:              # what Gary's hands did in the last seconds
+            hist = history_inputs(tags, rows, center, self.flip, obs["frame"], self.hi.commands)
+        cmd = self.fight_model.decide(rows, obs["frame"] * 42 / 1000, self.rng, self.temperature, hist)
         if cmd is None:
             return False
         a = ACTIONS[cmd["type"]]

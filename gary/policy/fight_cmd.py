@@ -26,6 +26,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from gary.policy.fight import ACTIONS, FIGHT_OWN, N_ORDERS, N_TYPES, tensors
+from gary.policy.fight_memory import HIST_KINDS, TOKEN_FEATURES, UNIT_FEATURES
 
 MAX_UNITS = 64                  # units per snapshot: own units within FIGHT_OWN (fight set v2)
 OWN_RADIUS = FIGHT_OWN
@@ -54,13 +55,19 @@ def mlp(i: int, h: int, o: int) -> nn.Module:
 
 
 class CommandNet(nn.Module):
-    def __init__(self, d: int = 128, layers: int = 3, heads: int = 4):
+    def __init__(self, d: int = 128, layers: int = 3, heads: int = 4, memory: bool = False):
         super().__init__()
+        self.memory = memory
         # the unit encoder: same layout as FightNet, so it can start from its weights
         self.type_emb = nn.Embedding(N_TYPES, 48)
         self.side_emb = nn.Embedding(3, 8)
         self.order_emb = nn.Embedding(N_ORDERS, 16)
-        self.inp = nn.Linear(48 + 8 + 16 + 9, d)
+        self.inp = nn.Linear(48 + 8 + 16 + 9 + ((16 + UNIT_FEATURES) if memory else 0), d)
+        if memory:                                        # recent own commands (fight_memory.py)
+            self.hist_kind_emb = nn.Embedding(len(HIST_KINDS), 16)       # per unit: its last command
+            self.tok_kind_emb = nn.Embedding(len(HIST_KINDS), 16)        # history tokens
+            self.tok = nn.Linear(TOKEN_FEATURES + 16, d)
+            self.tok_type = nn.Parameter(torch.zeros(d))
         layer = nn.TransformerEncoderLayer(d, heads, 4 * d, dropout=0.1, batch_first=True, norm_first=True)
         self.body = nn.TransformerEncoder(layer, layers, enable_nested_tensor=False)
         self.cmd = mlp(2 * d, d, len(ACTIONS))           # 1. command type, from the whole fight
@@ -70,9 +77,20 @@ class CommandNet(nn.Module):
         self.key = nn.Linear(d, d)
         self.dest = nn.Linear(d, GRID * GRID)
 
-    def encode(self, kind, side, order, num, pad):
-        h = self.inp(torch.cat([self.type_emb(kind), self.side_emb(side), self.order_emb(order), num], -1))
-        h = self.body(h, src_key_padding_mask=pad)
+    def encode(self, kind, side, order, num, pad, hist=None):
+        """hist (memory models): (unit kind (B, N), unit features (B, N, F), token features
+        (B, K, F), token kind (B, K), token absent (B, K))."""
+        x = [self.type_emb(kind), self.side_emb(side), self.order_emb(order), num]
+        if self.memory:
+            u_kind, u_num, tok, t_kind, t_absent = hist
+            x += [self.hist_kind_emb(u_kind), u_num]
+        h = self.inp(torch.cat(x, -1))
+        if self.memory:                                   # history tokens join the units...
+            n = h.shape[1]
+            t = self.tok(torch.cat([tok, self.tok_kind_emb(t_kind)], -1)) + self.tok_type
+            h = self.body(torch.cat([h, t], 1), src_key_padding_mask=torch.cat([pad, t_absent], 1))[:, :n]
+        else:                                             # ...and only the units go on
+            h = self.body(h, src_key_padding_mask=pad)
         own = (side == 1) & ~pad
         mean = lambda m: (h * m[..., None]).sum(1) / m.sum(1, keepdim=True).clamp(min=1)
         glob = torch.cat([mean(own.float()), mean((~pad).float())], -1)
@@ -93,9 +111,9 @@ class CommandNet(nn.Module):
         tgt_l = tgt_l.masked_fill(pad | sel, -1e9)       # not a unit of the selection itself
         return sel_l, tgt_l, self.dest(q)
 
-    def forward(self, kind, side, order, num, pad, cmd, sel):
+    def forward(self, kind, side, order, num, pad, cmd, sel, hist=None):
         """Teacher-forced: all logits given the true command type and selection."""
-        h, glob, own = self.encode(kind, side, order, num, pad)
+        h, glob, own = self.encode(kind, side, order, num, pad, hist)
         return (self.command_logits(glob),) + self.rest(h, glob, own, pad, cmd, sel)
 
 
@@ -117,18 +135,27 @@ class CommandModel:
     def save(self, path: str | Path) -> None:
         torch.save({"state": self.net.state_dict(), "config": {**self.config, "kind": self.kind}}, path)
 
+    @property
+    def memory(self) -> bool:
+        return self.net.memory
+
     @torch.no_grad()
     def decide(self, units: np.ndarray, time_s: float, rng: np.random.Generator,
-               temperature: float = 1.0) -> dict | None:
+               temperature: float = 1.0, hist: tuple | None = None) -> dict | None:
         """One command for a snapshot (units (n, 11)), drawn from the model, or None for
         "nothing": {"type", "select" (row indices), "target" (row or -1), "dest" ((x, y) relative
         to the fight center in the mirrored frame, or None), "p_type"}. temperature < 1 draws
-        closer to the model's likeliest choices."""
+        closer to the model's likeliest choices. hist: for memory models, fight_memory's
+        history_inputs for this snapshot."""
         dev = next(self.net.parameters()).device
         n = min(len(units), MAX_UNITS)
         pad = np.zeros((1, n), bool)
         inputs = tensors(units[None, :n], pad, np.array([time_s], np.float32), dev)
-        h, glob, own = self.net.encode(*inputs)
+        hist_t = None
+        if self.net.memory:
+            u_kind, u_num, tok, t_kind, t_absent = hist
+            hist_t = tuple(torch.as_tensor(a[None], device=dev) for a in (u_kind[:n], u_num[:n], tok, t_kind, t_absent))
+        h, glob, own = self.net.encode(*inputs, hist_t)
         tau = temperature
         p = torch.softmax(self.net.command_logits(glob)[0] / tau, -1).double().cpu().numpy()
         cmd = int(rng.choice(len(p), p=p / p.sum()))

@@ -38,6 +38,7 @@ from dataclasses import dataclass, field, replace
 from gary import commands as C
 from gary import terran as T
 from gary.env import Game, decode_observation
+from gary.policy.fight_memory import command_kind
 
 FRAME_MS = 42  # one frame at Fastest speed
 NO_UNIT = 0
@@ -106,6 +107,9 @@ class HumanInterface:
         self.scroll: tuple[float, float, int] | None = None           # (dx, dy per frame, frames left)
         self.tokens = self.p.apm_capacity
         self.selection: list[int] = []
+        # every unit command Gary's hands issued, as a replay records it: (frame, kind, unit tags, x, y,
+        # target tag), kinds as in gary/policy/fight_memory.py (the command model's memory)
+        self.commands: list[tuple] = []
         self.hotkeys: dict[int, list[int]] = {}
         self.pending: list[_Pending] = []
         # snapshots every 4 frames, [frame, observation]; kept undecoded (bytes) until read, since
@@ -260,6 +264,11 @@ class HumanInterface:
         land = self.frame + 1
         self.pending.append(_Pending(land, kind, args))
         return self._game_result(land)
+
+    def _remember(self, cmd: str, order: int, x: int, y: int, target: int) -> None:
+        """Log a unit command given to the current selection (see self.commands)."""
+        self.commands.append((self.frame, command_kind(cmd, order, target), tuple(self.selection), x, y, target or 0))
+        del self.commands[:-64]
 
     def _send(self, command: bytes) -> bool:
         """Send a command. False only if the game rejected it on the spot; a delayed command
@@ -544,12 +553,15 @@ class HumanInterface:
             else:
                 act = f"right-click {unit_name(kind)}"
             self._send(C.right_click(x, y, tag, C.NO_UNIT if not tag else kind, a.args["queued"]))
+            self._remember("rclick", -1, x, y, tag)
         elif a.kind == "minimap_right_click":
             act = "minimap right-click (move)"
             self._send(C.right_click(a.args["x"], a.args["y"]))
+            self._remember("rclick", -1, a.args["x"], a.args["y"], 0)
         elif a.kind == "minimap_order":
             act = "minimap attack-move" if a.args["order"] == C.ORDER_ATTACK_MOVE else f"minimap order {a.args['order']}"
             self._send(C.targeted_order(a.args["order"], a.args["x"], a.args["y"]))
+            self._remember("order", a.args["order"], a.args["x"], a.args["y"], 0)
         elif a.kind == "train":
             act = f"train {unit_name(a.args['unit_type'])}"
             self._send(C.train(a.args["unit_type"]))
@@ -573,10 +585,12 @@ class HumanInterface:
             what = "attack-move" if a.args["order"] == C.ORDER_ATTACK_MOVE else f"order {a.args['order']}"
             act = f"A-click {unit_name(kind)} ({what})" if kind is not None else f"A-click ground ({what})"
             self._send(C.targeted_order(a.args["order"], x, y, tag, kind if kind is not None else C.NO_UNIT))
+            self._remember("order", a.args["order"], x, y, tag)
         elif a.kind in ("stop", "hold", "stim", "return_cargo"):
             act = {"stop": "S (stop)", "hold": "H (hold position)", "stim": "T (stim packs)",
                    "return_cargo": "C (return cargo)"}[a.kind]
             self._send({"stop": C.stop, "hold": C.hold_position, "stim": C.stim, "return_cargo": C.return_cargo}[a.kind]())
+            self._remember({"return_cargo": "return"}.get(a.kind, a.kind), -1, 0, 0, 0)
         elif a.kind == "chat":
             act = f"chat: {a.args['text']}"
             self._send(C.chat(self.slot, a.args["text"]))

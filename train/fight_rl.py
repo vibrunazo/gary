@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -155,7 +156,8 @@ def main() -> None:
     ap.add_argument("--clip", type=float, default=0.2)
     ap.add_argument("--epochs", type=int, default=2)
     ap.add_argument("--minibatch", type=int, default=512)
-    ap.add_argument("--parallel", type=int, default=16)
+    ap.add_argument("--parallel", type=int, default=max(1, (os.cpu_count() or 6) * 2 // 3),
+                    help="worker processes playing scenarios (default: 2/3 of the logical cores; more add nothing measurable)")
     ap.add_argument("--overfit", type=int, help="diagnostic: train and test on only this many training scenarios")
     args = ap.parse_args()
 

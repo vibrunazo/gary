@@ -4,8 +4,9 @@ Behavior cloning, one command at a time: for each fight snapshot, the commands t
 the next half second. They're rebuilt from the fight set's per-unit labels: the player's units
 told the same thing in that window (the same action and target unit, or for moves the same
 point) were one command, and they were its selection (as far as it's in the snapshot).
-Snapshots without a command teach "nothing". Terran's units, the same 10% of games held out as
-the other models. Scored on held-out games:
+Snapshots without a command teach "nothing". With --memory (fight set v3), the model also sees
+the pro's own commands of the last seconds (gary/policy/fight_memory.py). Terran's units, the
+same 10% of games held out as the other models. Scored on held-out games:
 
   command      the command type: accuracy, and when the pro commanded, how often the model's
                likeliest real command is the pro's (baseline: "nothing" / the most common command)
@@ -15,13 +16,16 @@ the other models. Scored on held-out games:
   destination  for moves, the pro's cell or a neighbor (baseline: the selection's own cell)
 
 Usage:
-  python -m train.fight_cmd
+  python -m train.fight_cmd                      # fight set v2, no memory
+  python -m train.fight_cmd --memory --data v3   # with memory, from the latest command model
 Output: runs/fight_cmd/<matchup>_<race>_<time>/model.pt and report.json
 """
 
 from __future__ import annotations
 
 import argparse
+import bisect
+import functools
 import json
 import sys
 import time
@@ -38,15 +42,17 @@ sys.path.insert(0, str(REPO_ROOT / "ingest"))
 from gary.bots.terran_v04 import latest_fight_model  # noqa: E402
 from gary.policy.fight import ACTIONS, OTARGET, SIDE, X, Y, tensors  # noqa: E402
 from gary.policy.fight_cmd import GRID, MAX_UNITS, MOVES, POINTER, CommandModel, CommandNet, cell_of  # noqa: E402
+from gary.policy.fight_memory import HIST_K, history_inputs  # noqa: E402
 from train.fight import KEEP_IDLE, PER_GAME, jobs_for  # noqa: E402
 
 A = {a: i for i, a in enumerate(ACTIONS)}
 TARGET_SIDE = {A["attack_unit"]: 0, A["gather"]: 2, A["own_unit"]: 1}
+HIST_KEYS = ("UK", "UN", "TOK", "TK", "TA")
 
 
-def load_game(job: tuple):
-    """Command examples of one player in one game: (units, padding, command, selection, target
-    row, destination cell, time, held out)."""
+def load_game(job: tuple, memory: bool = False):
+    """Command examples of one player in one game, as a dict of arrays: units, padding, command,
+    selection, target row, destination cell, time, held out, and with memory the history inputs."""
     path, player, held = job
     d = np.load(path)
     starts, units = d["snap_start"], d["units"]
@@ -55,13 +61,27 @@ def load_game(job: tuple):
     snaps = list(np.nonzero(d["snap_player"] == player)[0])
     if len(snaps) > PER_GAME and not held:
         snaps = sorted(rng.choice(snaps, PER_GAME, replace=False))
-    out = {k: [] for k in ("U", "PAD", "CMD", "SEL", "TGT", "CELL", "T")}
+    keys = ("U", "PAD", "CMD", "SEL", "TGT", "CELL", "T") + (HIST_KEYS if memory else ())
+    out = {k: [] for k in keys}
+    if memory:                                   # the player's commands, oldest first
+        cs, cu = d["cmd_start"], d["cmd_units"]
+        idx = np.nonzero(d["cmd_player"] == player)[0]
+        cmds = [(int(d["cmd_frame"][i]), int(d["cmd_kind"][i]), tuple(cu[cs[i]:cs[i + 1]].tolist()),
+                 int(d["cmd_x"][i]), int(d["cmd_y"][i]), int(d["cmd_target"][i])) for i in idx]
+        cmd_frames = [c[0] for c in cmds]
+        flip = tuple(bool(v) for v in d["flip"][player])
 
-    def add(rows, n, cmd, sel, tgt, cell, t):
+    def add(rows, n, cmd, sel, tgt, cell, t, hist):
         u = np.zeros((MAX_UNITS, 11), np.int16)
         u[:n] = rows
         out["U"].append(u); out["PAD"].append(np.arange(MAX_UNITS) >= n); out["CMD"].append(cmd)
         out["SEL"].append(sel); out["TGT"].append(tgt); out["CELL"].append(cell); out["T"].append(t)
+        if memory:
+            u_kind, u_num, tok, t_kind, t_absent = hist
+            uk = np.zeros(MAX_UNITS, np.int8); uk[:n] = u_kind
+            un = np.zeros((MAX_UNITS, u_num.shape[1]), np.float16); un[:n] = u_num
+            out["UK"].append(uk); out["UN"].append(un); out["TOK"].append(tok)
+            out["TK"].append(t_kind.astype(np.int8)); out["TA"].append(t_absent)
 
     for k in snaps:
         s, e = starts[k], starts[k + 1]
@@ -77,7 +97,13 @@ def load_game(job: tuple):
         t = np.where(t >= 0, remap[np.maximum(t, 0)], -1)
         ax = r[:, X].astype(np.int32) + dx[s:e][order]
         ay = r[:, Y].astype(np.int32) + dy[s:e][order]
-        time_s = d["snap_frame"][k] * 42 / 1000.0
+        frame = int(d["snap_frame"][k])
+        time_s = frame * 42 / 1000.0
+        hist = None
+        if memory:                               # commands up to the snapshot (later ones are the labels)
+            j = bisect.bisect_right(cmd_frames, frame)
+            hist = history_inputs(d["unit_tag"][s:e][order].tolist(), r, (int(d["snap_cx"][k]), int(d["snap_cy"][k])),
+                                  flip, frame, cmds[max(0, j - HIST_K):j])
         groups: dict[tuple, list[int]] = {}
         for i in np.nonzero(a > 0)[0]:
             ai = int(a[i])
@@ -86,48 +112,54 @@ def load_game(job: tuple):
             groups.setdefault(key, []).append(int(i))
         if not groups:
             if rng.random() < KEEP_IDLE:
-                add(r, n, 0, np.zeros(MAX_UNITS, bool), -1, -1, time_s)
+                add(r, n, 0, np.zeros(MAX_UNITS, bool), -1, -1, time_s, hist)
             continue
         for key, members in groups.items():
             sel = np.zeros(MAX_UNITS, bool)
             sel[members] = True
             tgt = key[1] if key[0] in POINTER and key[1] not in members else -1
             cell = int(cell_of(ax[members[0]], ay[members[0]])) if key[0] in MOVES else -1
-            add(r, n, key[0], sel, tgt, cell, time_s)
+            add(r, n, key[0], sel, tgt, cell, time_s, hist)
     if not out["U"]:
         return None
-    m = len(out["U"])
-    return (np.stack(out["U"]), np.stack(out["PAD"]), np.array(out["CMD"], np.int64), np.stack(out["SEL"]),
-            np.array(out["TGT"], np.int64), np.array(out["CELL"], np.int64), np.array(out["T"], np.float32),
-            np.full(m, held))
+    res = {k: np.stack(v) if k not in ("CMD", "TGT", "CELL", "T") else np.array(v) for k, v in out.items()}
+    for k in ("CMD", "TGT", "CELL"):
+        res[k] = res[k].astype(np.int64)
+    res["T"] = res["T"].astype(np.float32)
+    res["HELD"] = np.full(len(res["U"]), held)
+    return res
 
 
-def load_all(jobs: list, workers: int) -> dict:
+def load_all(jobs: list, workers: int, memory: bool) -> dict:
     parts = []
     with ProcessPoolExecutor(workers) as pool:
-        for r in pool.map(load_game, jobs, chunksize=16):
+        for r in pool.map(functools.partial(load_game, memory=memory), jobs, chunksize=16):
             if r is not None:
                 parts.append(r)
-    allp = [np.concatenate([p[k] for p in parts]) for k in range(8)]
-    held = allp[7]
-    return {"train": tuple(a[~held] for a in allp[:7]), "test": tuple(a[held] for a in allp[:7])}
+    allp = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
+    held = allp.pop("HELD")
+    return {"train": {k: v[~held] for k, v in allp.items()}, "test": {k: v[held] for k, v in allp.items()}}
 
 
-def batch(data: tuple, idx: np.ndarray, device: str):
-    U, PAD, CMD, SEL, TGT, CELL, T = (a[idx] for a in data)
-    inputs = tensors(U, PAD, T, device)
+def batch(data: dict, idx: np.ndarray, device: str):
+    g = lambda k: data[k][idx]
+    inputs = tensors(g("U"), g("PAD"), g("T"), device)
     lab = lambda x: torch.as_tensor(x, device=device)
-    return inputs, (lab(CMD), lab(SEL), lab(TGT), lab(CELL))
+    hist = None
+    if "UK" in data:
+        hist = (lab(g("UK").astype(np.int64)), lab(g("UN").astype(np.float32)), lab(g("TOK")),
+                lab(g("TK").astype(np.int64)), lab(g("TA")))
+    return inputs, hist, (lab(g("CMD")), lab(g("SEL")), lab(g("TGT")), lab(g("CELL")))
 
 
-def forward(net: CommandNet, inputs, labels):
+def forward(net: CommandNet, inputs, hist, labels):
     cmd, sel, tgt, cell = labels
-    return net(*inputs, cmd, sel)
+    return net(*inputs, cmd, sel, hist)
 
 
-def losses(net: CommandNet, inputs, labels, weights: torch.Tensor | None = None) -> torch.Tensor:
+def losses(net: CommandNet, inputs, hist, labels, weights: torch.Tensor | None = None) -> torch.Tensor:
     cmd, sel, tgt, cell = labels
-    cmd_l, sel_l, tgt_l, dst_l = forward(net, inputs, labels)
+    cmd_l, sel_l, tgt_l, dst_l = forward(net, inputs, hist, labels)
     loss = F.cross_entropy(cmd_l, cmd, weight=weights)
     side, pad = inputs[1], inputs[4]
     own = (side == 1) & ~pad & (cmd > 0)[:, None]
@@ -143,16 +175,16 @@ def losses(net: CommandNet, inputs, labels, weights: torch.Tensor | None = None)
 
 
 @torch.no_grad()
-def evaluate(net: CommandNet, data: tuple, device: str) -> dict:
+def evaluate(net: CommandNet, data: dict, device: str) -> dict:
     net.eval()
     cmds, preds, preds_real, ious, ious_base, hits, hits_base, near, near_base = ([] for _ in range(9))
-    U = data[0]
-    common = int(np.bincount(data[2][data[2] > 0], minlength=len(ACTIONS)).argmax())
+    U = data["U"]
+    common = int(np.bincount(data["CMD"][data["CMD"] > 0], minlength=len(ACTIONS)).argmax())
     for s in range(0, len(U), 2048):
         idx = np.arange(s, min(s + 2048, len(U)))
-        inputs, labels = batch(data, idx, device)
+        inputs, hist, labels = batch(data, idx, device)
         cmd, sel, tgt, cell = labels
-        cmd_l, sel_l, tgt_l, dst_l = forward(net, inputs, labels)
+        cmd_l, sel_l, tgt_l, dst_l = forward(net, inputs, hist, labels)
         cmds.append(cmd.cpu().numpy())
         preds.append(cmd_l.argmax(-1).cpu().numpy())
         preds_real.append((cmd_l[:, 1:].argmax(-1) + 1).cpu().numpy())
@@ -194,6 +226,28 @@ def evaluate(net: CommandNet, data: tuple, device: str) -> dict:
             "dest_near": r(cat(near)), "baseline_dest_near": r(cat(near_base))}
 
 
+def warm_start(net: CommandNet, args, device: str, config: dict) -> None:
+    """Memory models start from the latest command model (the new inputs' weights at zero: the
+    same model, until it learns to use them); others from the per-unit fight model's encoder."""
+    if args.memory:
+        from gary.bots.terran_v05 import latest_command_model
+        init = latest_command_model(args.matchup, args.race)
+        state = torch.load(init, map_location=device, weights_only=True)["state"]
+        own = net.state_dict()
+        w = state.pop("inp.weight")
+        new_w = torch.zeros_like(own["inp.weight"])
+        new_w[:, :w.shape[1]] = w
+        state["inp.weight"] = new_w
+        net.load_state_dict(state, strict=False)
+    else:
+        init = latest_fight_model(args.matchup, args.race)
+        state = torch.load(init, map_location=device, weights_only=True)["state"]
+        enc = {k: v for k, v in state.items() if k.split(".")[0] in ("type_emb", "side_emb", "order_emb", "inp", "body")}
+        net.load_state_dict(enc, strict=False)
+    config["init_from"] = str(init.relative_to(REPO_ROOT))
+    print(f"starting from {init}", flush=True)
+
+
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -206,39 +260,39 @@ def main() -> None:
     ap.add_argument("--limit", type=int, help="only this many player-games (quick tests)")
     ap.add_argument("--class-weight", type=float, default=0.5,
                     help="weigh each command type by frequency^-this in the loss; 0 = off")
-    ap.add_argument("--no-init", action="store_true", help="don't start the encoder from the fight model")
+    ap.add_argument("--no-init", action="store_true", help="start from scratch")
     ap.add_argument("--data", default="v2", help="fight set version (ingest/fight_dataset.py)")
+    ap.add_argument("--memory", action="store_true", help="the pro's recent commands as input (needs --data v3)")
     args = ap.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     t0 = time.time()
     jobs = jobs_for(args.matchup, args.race, args.data)[:args.limit]
-    data = load_all(jobs, args.workers)
-    n_train, n_test = len(data["train"][0]), len(data["test"][0])
+    data = load_all(jobs, args.workers, args.memory)
+    n_train, n_test = len(data["train"]["U"]), len(data["test"]["U"])
     print(f"{len(jobs)} player-games; examples: train {n_train:,}, test {n_test:,} ({time.time() - t0:.0f} s)", flush=True)
-    config = {"net": {"d": 128, "layers": 3, "heads": 4}, "matchup": args.matchup, "race": args.race,
-              "class_weight": args.class_weight, "data": args.data}
+    config = {"net": {"d": 128, "layers": 3, "heads": 4, "memory": args.memory}, "matchup": args.matchup,
+              "race": args.race, "class_weight": args.class_weight, "data": args.data}
     net = CommandNet(**config["net"]).to(device)
-    if not args.no_init:                     # the unit encoder from the per-unit fight model
-        init = latest_fight_model(args.matchup, args.race)
-        state = torch.load(init, map_location=device, weights_only=True)["state"]
-        enc = {k: v for k, v in state.items() if k.split(".")[0] in ("type_emb", "side_emb", "order_emb", "inp", "body")}
-        net.load_state_dict(enc, strict=False)
-        config["encoder_from"] = str(init.relative_to(REPO_ROOT))
-        print(f"encoder from {init}", flush=True)
+    if not args.no_init:
+        warm_start(net, args, device, config)
     opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=1e-4)
     steps = args.epochs * (n_train // args.batch + 1)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=args.lr, total_steps=steps)
-    counts = np.bincount(data["train"][2], minlength=len(ACTIONS)).astype(np.float64)
+    counts = np.bincount(data["train"]["CMD"], minlength=len(ACTIONS)).astype(np.float64)
     w = np.where(counts > 0, (counts / counts.sum()) ** -args.class_weight, 0.0)
     weights = torch.tensor(w / (w * counts).sum() * counts.sum(), dtype=torch.float32, device=device)
     print("command counts:", {a: int(c) for a, c in zip(ACTIONS, counts)}, flush=True)
+    if not args.no_init:
+        res = evaluate(net, data["test"], device)
+        print(f"start: command {res['command_acc']}  commanded {res['commanded_acc']}  selection IoU "
+              f"{res['selection_iou']}  target {res['target_acc']}  dest near {res['dest_near']}", flush=True)
     for epoch in range(args.epochs):
         net.train()
         perm = np.random.permutation(n_train)
         total, nb = 0.0, 0
         for s in range(0, n_train, args.batch):
-            inputs, labels = batch(data["train"], perm[s:s + args.batch], device)
-            loss = losses(net, inputs, labels, weights)
+            inputs, hist, labels = batch(data["train"], perm[s:s + args.batch], device)
+            loss = losses(net, inputs, hist, labels, weights)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)

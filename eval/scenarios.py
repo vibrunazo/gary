@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections import OrderedDict
 from concurrent.futures import ProcessPoolExecutor
@@ -230,10 +231,12 @@ def make_gary(game, slot: int, version: str, style: int | None, verbose: bool = 
         from gary.bots.terran_v04 import TerranGaryV4, latest_fight_model
         bot = TerranGaryV4(hi, MapInfo.from_game(game), macro, army,
                            _model("fight", str(fight_path or latest_fight_model())), style, verbose=verbose)
-    elif version == "v05":
+    elif version in ("v05", "v06"):
         from gary.bots.terran_v05 import TerranGaryV5, latest_command_model
-        bot = TerranGaryV5(hi, MapInfo.from_game(game), macro, army,
-                           _model("fight", str(fight_path or latest_command_model())), style, verbose=verbose)
+        from gary.bots.terran_v06 import TerranGaryV6
+        cls = TerranGaryV6 if version == "v06" else TerranGaryV5
+        bot = cls(hi, MapInfo.from_game(game), macro, army,
+                  _model("fight", str(fight_path or latest_command_model(memory=version == "v06"))), style, verbose=verbose)
     else:
         bot = TerranGaryV3(hi, MapInfo.from_game(game), macro, army, style, verbose=verbose)
     bot.announce = []                # mid-game: no hello in the chat
@@ -253,9 +256,10 @@ def main() -> None:
     ap.add_argument("--run", type=int, help="score the first N saved scenarios")
     ap.add_argument("--controllers", nargs="+", default=CONTROLLERS, choices=CONTROLLERS)
     ap.add_argument("--seconds", type=float, default=45)
-    ap.add_argument("--version", default="v04", choices=["v03", "v04", "v05"], help="which Gary takes over")
+    ap.add_argument("--version", default="v04", choices=["v03", "v04", "v05", "v06"], help="which Gary takes over")
     ap.add_argument("--style", type=int, default=1)
-    ap.add_argument("--parallel", type=int, default=4)
+    ap.add_argument("--parallel", type=int, default=max(1, (os.cpu_count() or 6) * 2 // 3),
+                    help="worker processes (default: 2/3 of the logical cores; more add nothing measurable)")
     ap.add_argument("--save", help="folder: save each scenario's replay (as played) there")
     ap.add_argument("--only", help="run just this scenario (sha1 prefix), Gary narrating what it does")
     ap.add_argument("--split", default="test", choices=["test", "train"],

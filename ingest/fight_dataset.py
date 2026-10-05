@@ -2,9 +2,10 @@
 
 From every clean, re-simulated game, the first 10 minutes (early harass and fights): every half
 second in which a player's units have visible enemy fighters within 8 tiles, a snapshot of the
-units within 12 tiles of the fight (the player's own, the enemy units they can see, and mineral
-fields and geysers), and, for each of the player's units, what the player ordered it to do in
-the next half second.
+units around the fight (the player's own within 24 tiles; the enemy units they can see and
+mineral fields and geysers within 12), and, for each of the player's units, what the player
+ordered it to do in the next half second. Also every unit command each player gave (the command
+model's memory of its own recent commands: gary/policy/fight_memory.py).
 
 Per game (one .npz), snapshots are stored flat, with offsets:
   snap_frame (S,), snap_player (S,) 0/1, snap_start (S+1,) into the unit rows
@@ -14,8 +15,13 @@ Per game (one .npz), snapshots are stored flat, with offsets:
   act (U,) int8: -1 not the player's unit, else one of ACTIONS
   act_target (U,) int16: the row within the snapshot the action targets (-1 none)
   act_dx, act_dy (U,) int16: for moves, where to, relative to the unit (mirrored like x, y)
+  unit_tag (U,) uint32: the unit's ID (as in replay commands)
+  snap_cx, snap_cy (S,) int32: the fight's center (map pixels); flip (2, 2) bool: per player,
+         whether x and y are mirrored
+  cmd_frame, cmd_player, cmd_kind (C,), cmd_x, cmd_y, cmd_target (C,), cmd_start (C+1,) into
+         cmd_units: every unit command of both players (kind: fight_memory.HIST_KINDS)
 
-Output: data/interim/fight/v1/<sha1[:2]>/<sha1>.npz and data/interim/fight/v1/index.jsonl.
+Output: data/interim/fight/<VERSION>/<sha1[:2]>/<sha1>.npz and .../index.jsonl.
 
 Usage:
   python ingest/fight_dataset.py --matchup TvZ --limit 100
@@ -44,7 +50,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "resim"))
 import scr_format  # noqa: E402
 
-VERSION = "v2"                  # v2: own units within 768 px of the fight (v1: 384, like everyone)
+sys.path.insert(0, str(REPO_ROOT))
+from gary.policy.fight_memory import command_kind  # noqa: E402
+
+VERSION = "v3"                  # v3: + unit tags, centers, commands; v2: own units within 768 px of the
+                                # fight (v1: 384, like everyone)
 FIGHTS_UNTIL_S = 600            # the first 10 minutes: early harass and skirmishes
 LABEL_FRAMES = 12               # an order counts for a snapshot if it comes within half a second
 ACTIONS = ["none", "move", "attack_move", "attack_unit", "gather", "own_unit", "stop", "hold",
@@ -124,6 +134,7 @@ def build_game(rec: dict) -> dict:
             cmds[r["slot"]].append(r)
 
     snap_frame, snap_player, snap_start = [], [], [0]
+    snap_cx, snap_cy, unit_tag = [], [], []
     units, act, act_target, act_dx, act_dy = [], [], [], [], []
     counts = [0, 0]
     for r in lines:
@@ -134,8 +145,11 @@ def build_game(rec: dict) -> dict:
         snap = r["u"]
         rows = {u[0]: k for k, u in enumerate(snap)}
         upcoming = [c for c in cmds[s] if f < c["frame"] <= f + LABEL_FRAMES]
+        snap_cx.append(r["cx"])
+        snap_cy.append(r["cy"])
         for u in snap:
             tag, kind, side, x, y, hp, sh, cd, order, otarget, carry, done = u
+            unit_tag.append(tag)
             rx, ry = x - r["cx"], y - r["cy"]
             units.append((kind, side, -rx if fx else rx, -ry if fy else ry, hp, sh, cd, order,
                           rows.get(otarget, -1) if otarget else -1, carry, done))
@@ -153,13 +167,26 @@ def build_game(rec: dict) -> dict:
         snap_start.append(len(units))
         counts[pidx[s]] += 1
 
+    cmd_frame, cmd_player, cmd_kind, cmd_x, cmd_y, cmd_target, cmd_start, cmd_units = [], [], [], [], [], [], [0], []
+    for r in lines:
+        if r["type"] == "ucmd" and r["slot"] in pidx and r["frame"] <= FIGHTS_UNTIL_S * 1000 / 42 + 24:
+            cmd_frame.append(r["frame"]); cmd_player.append(pidx[r["slot"]])
+            cmd_kind.append(command_kind(r["cmd"], r.get("order", -1), r.get("target", 0)))
+            cmd_x.append(max(0, r["x"])); cmd_y.append(max(0, r["y"])); cmd_target.append(r.get("target", 0))
+            cmd_units.extend(r["units"]); cmd_start.append(len(cmd_units))
     path = out_dir() / rec["sha1"][:2] / f"{rec['sha1']}.npz"
     path.parent.mkdir(parents=True, exist_ok=True)
     buf = io.BytesIO()
     np.savez_compressed(buf, snap_frame=np.array(snap_frame, np.int32), snap_player=np.array(snap_player, np.int8),
                         snap_start=np.array(snap_start, np.int32), units=np.clip(np.array(units, np.int32).reshape(-1, 11), -32768, 32767).astype(np.int16),
                         act=np.array(act, np.int8), act_target=np.array(act_target, np.int16),
-                        act_dx=np.array(act_dx, np.int16), act_dy=np.array(act_dy, np.int16))
+                        act_dx=np.array(act_dx, np.int16), act_dy=np.array(act_dy, np.int16),
+                        unit_tag=np.array(unit_tag, np.uint32), snap_cx=np.array(snap_cx, np.int32),
+                        snap_cy=np.array(snap_cy, np.int32), flip=np.array([flip[s] for s in slots], bool),
+                        cmd_frame=np.array(cmd_frame, np.int32), cmd_player=np.array(cmd_player, np.int8),
+                        cmd_kind=np.array(cmd_kind, np.int8), cmd_x=np.array(cmd_x, np.int32),
+                        cmd_y=np.array(cmd_y, np.int32), cmd_target=np.array(cmd_target, np.uint32),
+                        cmd_start=np.array(cmd_start, np.int32), cmd_units=np.array(cmd_units, np.uint32))
     path.write_bytes(buf.getvalue())
     names = {p["slot"]: p for p in header["players"]}
     labeled = np.array(act, np.int8)
