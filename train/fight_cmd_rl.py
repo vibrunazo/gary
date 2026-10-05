@@ -152,6 +152,8 @@ def test(pool, family: str, n: int, path: str) -> tuple[float, dict]:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--init", help="command model to start from (default: the latest with memory)")
+    ap.add_argument("--ref", help="model the KL penalty keeps close to (default: the latest imitation model with "
+                                  "memory, so continued runs stay human-like)")
     ap.add_argument("--family", nargs="+", default=["home_defense", "mm_vs_lings"],
                     help="drill families, trained on in turn and tested each on its own")
     ap.add_argument("--rounds", type=int, default=200)
@@ -171,17 +173,18 @@ def main() -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     init = Path(args.init or latest_command_model(memory=True))
     model = CommandModel.load(init, device)
-    ref = CommandModel.load(init, device).net.eval()
+    ref_path = Path(args.ref or latest_command_model(memory=True))
+    ref = CommandModel.load(ref_path, device).net.eval()
     for p in ref.parameters():
         p.requires_grad_(False)
     net = model.net
     opt = torch.optim.Adam(net.parameters(), lr=args.lr)
     out = REPO_ROOT / "runs" / "fight_cmd_rl" / time.strftime(f"{'+'.join(args.family)}_%Y%m%d_%H%M%S")
     out.mkdir(parents=True)
-    model.config = {**model.config, "rl": {"init": str(init), **vars(args)}}
+    model.config = {**model.config, "rl": {"init": str(init), "ref": str(ref_path), **vars(args)}}
     history, best = [], None
     rng = random.Random(0)
-    print(f"from {init}; {args.drills} drills x {args.draws} plays per round", flush=True)
+    print(f"from {init} (KL to {ref_path}); {args.drills} drills x {args.draws} plays per round", flush=True)
     with ProcessPoolExecutor(args.parallel) as pool:
         for rnd in range(args.rounds + 1):
             path = str(out / f"round{rnd}.pt")
