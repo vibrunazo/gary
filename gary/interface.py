@@ -116,6 +116,7 @@ class HumanInterface:
         # every unit command Gary's hands issued, as a replay records it: (frame, kind, unit tags, x, y,
         # target tag), kinds as in gary/policy/fight_memory.py (the command model's memory)
         self.commands: list[tuple] = []
+        self.last_macro_frame = -10 ** 6      # last train / morph / research / upgrade / build sent
         self.hotkeys: dict[int, list[int]] = {}
         self.pending: list[_Pending] = []
         # snapshots every 4 frames, [frame, observation]; kept undecoded (bytes) until read, since
@@ -571,19 +572,24 @@ class HumanInterface:
         elif a.kind == "train":
             act = f"train {unit_name(a.args['unit_type'])}"
             self._send(C.train(a.args["unit_type"]))
+            self.last_macro_frame = self.frame
         elif a.kind == "morph":
             act = f"morph {unit_name(a.args['unit_type'])}"
             self._send(C.morph(a.args["unit_type"]))
+            self.last_macro_frame = self.frame
         elif a.kind == "research":
             act = f"research {T.TECH_NAMES.get(a.args['tech'], a.args['tech'])}"
             self._send(C.research(a.args["tech"]))
+            self.last_macro_frame = self.frame
         elif a.kind == "upgrade":
             act = f"upgrade {T.UPGRADE_NAMES.get(a.args['upgrade_id'], a.args['upgrade_id'])}"
             self._send(C.upgrade(a.args["upgrade_id"]))
+            self.last_macro_frame = self.frame
         elif a.kind == "build":
             x, y = self._to_map(a.args["sx"], a.args["sy"])
             act = f"place {unit_name(a.args['unit_type'])}"
             self._send(C.build(a.args["unit_type"], x // 32, y // 32, a.args["order"]))
+            self.last_macro_frame = self.frame
         elif a.kind == "order_click":
             x, y = self._to_map(a.args["sx"], a.args["sy"])
             tag = g.unit_at(self.slot, x, y)

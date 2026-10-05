@@ -34,6 +34,10 @@ GRID = 32                       # destination cells per side
 CELL = 64                       # pixels per cell: the grid covers +-1024 px around the fight
 HALF = GRID * CELL // 2
 MAX_SELECT = 12
+# Gary's hand state, an input of models trained with it (train/fight_cmd_rl.py): APM tokens left
+# (share of capacity), production waiting (idle production buildings while minerals allow, of 4),
+# time since the last macro action (of 10 s), and whether the camera is on the fight
+HANDS_FEATURES = 4
 POINTER = [ACTIONS.index(a) for a in ("attack_unit", "gather", "own_unit")]
 MOVES = [ACTIONS.index(a) for a in ("move", "attack_move")]
 
@@ -55,9 +59,14 @@ def mlp(i: int, h: int, o: int) -> nn.Module:
 
 
 class CommandNet(nn.Module):
-    def __init__(self, d: int = 128, layers: int = 3, heads: int = 4, memory: bool = False):
+    def __init__(self, d: int = 128, layers: int = 3, heads: int = 4, memory: bool = False, hands: int = 0):
         super().__init__()
         self.memory = memory
+        self.hands_dim = hands
+        if hands:                                         # Gary's hand state (HANDS_FEATURES): starts at
+            self.hands = nn.Linear(hands, 2 * d)          # zero, so a model gains it without changing
+            nn.init.zeros_(self.hands.weight)
+            nn.init.zeros_(self.hands.bias)
         # the unit encoder: same layout as FightNet, so it can start from its weights
         self.type_emb = nn.Embedding(N_TYPES, 48)
         self.side_emb = nn.Embedding(3, 8)
@@ -77,7 +86,7 @@ class CommandNet(nn.Module):
         self.key = nn.Linear(d, d)
         self.dest = nn.Linear(d, GRID * GRID)
 
-    def encode(self, kind, side, order, num, pad, hist=None):
+    def encode(self, kind, side, order, num, pad, hist=None, hands=None):
         """hist (memory models): (unit kind (B, N), unit features (B, N, F), token features
         (B, K, F), token kind (B, K), token absent (B, K))."""
         x = [self.type_emb(kind), self.side_emb(side), self.order_emb(order), num]
@@ -94,6 +103,8 @@ class CommandNet(nn.Module):
         own = (side == 1) & ~pad
         mean = lambda m: (h * m[..., None]).sum(1) / m.sum(1, keepdim=True).clamp(min=1)
         glob = torch.cat([mean(own.float()), mean((~pad).float())], -1)
+        if self.hands_dim and hands is not None:
+            glob = glob + self.hands(hands)
         return h, glob, own
 
     def command_logits(self, glob):
@@ -111,9 +122,9 @@ class CommandNet(nn.Module):
         tgt_l = tgt_l.masked_fill(pad | sel, -1e9)       # not a unit of the selection itself
         return sel_l, tgt_l, self.dest(q)
 
-    def forward(self, kind, side, order, num, pad, cmd, sel, hist=None):
+    def forward(self, kind, side, order, num, pad, cmd, sel, hist=None, hands=None):
         """Teacher-forced: all logits given the true command type and selection."""
-        h, glob, own = self.encode(kind, side, order, num, pad, hist)
+        h, glob, own = self.encode(kind, side, order, num, pad, hist, hands)
         return (self.command_logits(glob),) + self.rest(h, glob, own, pad, cmd, sel)
 
 
@@ -139,14 +150,19 @@ class CommandModel:
     def memory(self) -> bool:
         return self.net.memory
 
+    @property
+    def hands(self) -> bool:
+        return bool(getattr(self.net, "hands_dim", 0))
+
     @torch.no_grad()
     def decide(self, units: np.ndarray, time_s: float, rng: np.random.Generator,
-               temperature: float = 1.0, hist: tuple | None = None) -> dict | None:
+               temperature: float = 1.0, hist: tuple | None = None, hands: np.ndarray | None = None) -> dict | None:
         """One command for a snapshot (units (n, 11)), drawn from the model, or None for
         "nothing": {"type", "select" (row indices), "target" (row or -1), "dest" ((x, y) relative
         to the fight center in the mirrored frame, or None), "p_type"}. temperature < 1 draws
         closer to the model's likeliest choices. hist: for memory models, fight_memory's
-        history_inputs for this snapshot."""
+        history_inputs for this snapshot. hands: for models with a hand-state input, Gary's hand
+        state (HANDS_FEATURES)."""
         dev = next(self.net.parameters()).device
         n = min(len(units), MAX_UNITS)
         pad = np.zeros((1, n), bool)
@@ -155,7 +171,9 @@ class CommandModel:
         if self.net.memory:
             u_kind, u_num, tok, t_kind, t_absent = hist
             hist_t = tuple(torch.as_tensor(a[None], device=dev) for a in (u_kind[:n], u_num[:n], tok, t_kind, t_absent))
-        h, glob, own = self.net.encode(*inputs, hist_t)
+        hands_t = torch.as_tensor(hands[None], dtype=torch.float32, device=dev) \
+            if self.net.hands_dim and hands is not None else None
+        h, glob, own = self.net.encode(*inputs, hist_t, hands_t)
         tau = temperature
         p = torch.softmax(self.net.command_logits(glob)[0] / tau, -1).double().cpu().numpy()
         cmd = int(rng.choice(len(p), p=p / p.sum()))

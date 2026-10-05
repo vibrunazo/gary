@@ -196,11 +196,16 @@ def start_mining(game: Game, obs: dict, drill: Drill) -> None:
 
 
 def drill_gary(game: Game, drill: Drill, fight_model, seed: int, verbose: bool = False):
-    """Gary's fight layer alone, with human hands and the camera on its units."""
+    """Gary's fight layer alone, with human hands and the camera on its units. The hands' APM
+    budget varies from play to play (4-7 actions a second, bursts of 10-20), so a model can't
+    learn to count on one."""
+    import dataclasses
     from gary.bots.drill_gary import DrillGary
     from gary.bots.terran_v01 import PROFILES
     from gary.interface import HumanInterface
-    hi = HumanInterface(game, TERRAN_SLOT, PROFILES["pro"], seed=1)
+    r = random.Random(drill.seed * 1_000_003 + seed)
+    profile = dataclasses.replace(PROFILES["pro"], apm_per_second=r.uniform(4.0, 7.0), apm_capacity=r.uniform(10.0, 20.0))
+    hi = HumanInterface(game, TERRAN_SLOT, profile, seed=1)
     army = [u for u in drill.terran if u[0] not in (T.SCV, T.CC)] or drill.terran
     x = sum(u[1] for u in army) / len(army)
     y = sum(u[2] for u in army) / len(army)

@@ -38,7 +38,7 @@ import torch.nn.functional as F
 from gary.bots.terran_v05 import latest_command_model
 from gary.drills import behavior, make_drill, run_drill
 from gary.policy.fight import tensors
-from gary.policy.fight_cmd import MOVES, POINTER, CommandModel
+from gary.policy.fight_cmd import HANDS_FEATURES, MOVES, POINTER, CommandModel, CommandNet
 from gary.policy.fight_memory import HIST_K, TOKEN_FEATURES, UNIT_FEATURES
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -76,7 +76,13 @@ def to_go(deaths: list, t: float, horizon: float) -> float:
     return sum(v for f, v in deaths if t < f * 42 / 1000 <= t + horizon)
 
 
-def decisions(rows: list[dict], horizon: float) -> list[tuple]:
+def events(r: dict, cost: float) -> list:
+    """A play's rewards in time: units dying (+ zerg, - terran), and each command given costing
+    a little, so actions go where they matter (as a player's attention does)."""
+    return r["deaths"] + [(int(d["time"] * 1000 / 42) + 1, -cost) for d in r.get("log", []) if d["type"] > 0]
+
+
+def decisions(rows: list[dict], horizon: float, cost: float = 0.0) -> list[tuple]:
     """(decision, advantage) for every logged decision, grouped by drill."""
     by: dict[str, list[dict]] = {}
     for r in rows:
@@ -86,11 +92,12 @@ def decisions(rows: list[dict], horizon: float) -> list[tuple]:
     for rs in by.values():
         if len(rs) < 2:
             continue
+        ev = [events(o, cost) for o in rs]
         for k, r in enumerate(rs):
             for d in r.get("log", []):
                 if len(d["rows"]) == 0:
                     continue
-                g = np.array([to_go(o["deaths"], d["time"], horizon) for o in rs], np.float32)
+                g = np.array([to_go(e, d["time"], horizon) for e in ev], np.float32)
                 a = (g[k] - g.mean()) / max(float(g.std()), ADV_FLOOR)
                 if a != 0:
                     out.append((d, float(a)))
@@ -108,6 +115,7 @@ def batch(decs: list, device: str):
     tok = np.zeros((B, HIST_K, TOKEN_FEATURES), np.float32)
     tk = np.zeros((B, HIST_K), np.int64)
     ta = np.ones((B, HIST_K), bool)
+    hands = np.zeros((B, HANDS_FEATURES), np.float32)
     sel = np.zeros((B, n), bool)
     typ, tgt, cell = np.zeros(B, np.int64), np.zeros(B, np.int64), np.zeros(B, np.int64)
     times, adv = np.zeros(B, np.float32), np.zeros(B, np.float32)
@@ -118,17 +126,19 @@ def batch(decs: list, device: str):
             u_kind, u_num, t_f, t_kind, t_abs = d["hist"]
             uk[b, :m], un[b, :m], tok[b], tk[b], ta[b] = u_kind[:m], u_num[:m], t_f, t_kind, t_abs
         sel[b, d["select"]] = True
+        if d.get("hands") is not None:
+            hands[b] = d["hands"]
         typ[b], tgt[b], cell[b], times[b], adv[b] = d["type"], d["target"], d["cell"], d["time"], a
     t = lambda x: torch.as_tensor(x, device=device)
     inputs = tensors(units, pad, times, device)
-    return inputs, (t(uk), t(un), t(tok), t(tk), t(ta)), t(sel), t(typ), t(tgt), t(cell), t(adv)
+    return inputs, (t(uk), t(un), t(tok), t(tk), t(ta)), t(hands), t(sel), t(typ), t(tgt), t(cell), t(adv)
 
 
-def log_probs(net, inputs, hist, sel, typ, tgt, cell):
+def log_probs(net, inputs, hist, hands, sel, typ, tgt, cell):
     """Log-probability of each decision (type, then selection, then target or cell), and the
     type distribution's log-probabilities (for the KL penalty)."""
     kind, side, order, num, pad = inputs
-    h, glob, own = net.encode(kind, side, order, num, pad, hist)
+    h, glob, own = net.encode(kind, side, order, num, pad, hist, hands if getattr(net, "hands_dim", 0) else None)
     type_lp = F.log_softmax(net.command_logits(glob), -1)
     b = torch.arange(len(typ), device=typ.device)
     lp = type_lp[b, typ]
@@ -151,8 +161,8 @@ def update(net, ref, opt, decs: list, args, device: str) -> dict:
     random.shuffle(decs)
     parts = [batch(decs[i:i + args.minibatch], device) for i in range(0, len(decs), args.minibatch)]
     with torch.no_grad():
-        old = [log_probs(net, *p[:6])[0] for p in parts]
-        ref_lp = [log_probs(ref, *p[:6])[1] for p in parts]
+        old = [log_probs(net, *p[:7])[0] for p in parts]
+        ref_lp = [log_probs(ref, *p[:7])[1] for p in parts]
     bad = sum(int((~torch.isfinite(o)).sum()) for o in old)
     if bad:                                      # left out of the update (and shown once, to fix)
         k = next(i for i, o in enumerate(old) if not torch.isfinite(o).all())
@@ -212,6 +222,9 @@ def main() -> None:
     ap.add_argument("--test-every", type=int, default=10)
     ap.add_argument("--test-drills", type=int, default=300, help="held-out drills (seeds 0..n-1)")
     ap.add_argument("--horizon", type=float, default=HORIZON_S)
+    ap.add_argument("--command-cost", type=float, default=5.0,
+                    help="value each command costs in the reward (a marine is 50): actions where they matter")
+    ap.add_argument("--no-hands", action="store_true", help="don't give the model Gary's hand state as input")
     ap.add_argument("--lr", type=float, default=3e-5)
     ap.add_argument("--kl", type=float, default=0.02, help="weight of the KL penalty to the imitation model")
     ap.add_argument("--clip", type=float, default=0.2)
@@ -223,6 +236,10 @@ def main() -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     init = Path(args.init or latest_command_model(memory=True))
     model = CommandModel.load(init, device)
+    if not args.no_hands and not model.hands:     # a hand-state input, at zero: the same model to start
+        net = CommandNet(**{**model.config["net"], "hands": HANDS_FEATURES}).to(device)
+        net.load_state_dict(model.net.state_dict(), strict=False)
+        model.net, model.config = net.eval(), {**model.config, "net": {**model.config["net"], "hands": HANDS_FEATURES}}
     ref_path = Path(args.ref or latest_command_model(memory=True))
     ref = CommandModel.load(ref_path, device).net.eval()
     for p in ref.parameters():
@@ -269,7 +286,7 @@ def main() -> None:
                 scs = rng.sample(train_real, min(args.real, len(train_real)))
                 rows += list(pool.map(play_real, [(sc, path, k) for sc in scs for k in range(args.draws)],
                                       chunksize=args.draws))
-            decs = decisions(rows, args.horizon)
+            decs = decisions(rows, args.horizon, args.command_cost)
             nets = [r["net"] for r in rows if "error" not in r]
             stats = update(net, ref, opt, decs, args, device) if decs else {}
             errors = sum(1 for r in rows if "error" in r)

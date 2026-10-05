@@ -16,12 +16,16 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import numpy as np
+
+from gary import terran as T
 from gary.bots import terran_v01 as v01
 from gary.bots.terran_v01 import Task
 from gary.bots.terran_v02 import latest_model
 from gary.bots.terran_v03 import latest_army_model
 from gary.bots.terran_v04 import RESOURCES, TerranGaryV4
 from gary.env import LIVE_COMMAND_DELAY
+from gary.interface import screen_of
 from gary.policy.army import ArmyModel
 from gary.policy.fight import ACTIONS
 from gary.policy.fight_cmd import MAX_UNITS, MOVES, OWN_RADIUS, POINTER, CommandModel
@@ -46,6 +50,19 @@ class TerranGaryV5(TerranGaryV4):
     temperature = 1.0                    # < 1: draw commands closer to the model's likeliest
     own_radius, max_units = OWN_RADIUS, MAX_UNITS
 
+    def _hand_state(self, obs: dict, center) -> np.ndarray:
+        """What Gary's hands have to give (HANDS_FEATURES): APM tokens left, production waiting,
+        time since the last macro action, camera on the fight."""
+        hi = self.hi
+        me = obs.get("me") or {}
+        production = getattr(self, "production_types", (T.CC,))
+        idle = sum(1 for u in obs["units"] if u["owner"] == self.slot and u["type"] in production
+                   and u["completed"] and not u.get("queue"))
+        waiting = min(idle, 4) / 4 if me.get("minerals", 0) >= 50 else 0.0
+        since = min(1.0, (hi.frame - hi.last_macro_frame) * 42 / 1000 / 10)
+        on_fight = 1.0 if screen_of(obs, *center) else 0.0
+        return np.array([hi.tokens / hi.p.apm_capacity, waiting, since, on_fight], np.float32)
+
     def _may_issue(self, action: str) -> bool:
         """Whether Gary carries out this kind of command from the model (later versions veto some)."""
         return True
@@ -62,9 +79,10 @@ class TerranGaryV5(TerranGaryV4):
         hist = None
         if self.fight_model.memory:              # what Gary's hands did in the last seconds
             hist = history_inputs(tags, rows, center, self.flip, obs["frame"], self.hi.commands)
-        cmd = self.fight_model.decide(rows, obs["frame"] * 42 / 1000, self.rng, self.temperature, hist)
+        hands = self._hand_state(obs, center) if getattr(self.fight_model, "hands", False) else None
+        cmd = self.fight_model.decide(rows, obs["frame"] * 42 / 1000, self.rng, self.temperature, hist, hands)
         if self.rl_log is not None:              # every decision, "nothing" too (train/fight_cmd_rl.py)
-            self.rl_log.append({"rows": rows, "time": obs["frame"] * 42 / 1000, "hist": hist,
+            self.rl_log.append({"rows": rows, "time": obs["frame"] * 42 / 1000, "hist": hist, "hands": hands,
                                 **getattr(self.fight_model, "last", {"type": 0, "select": [], "target": -1, "cell": -1})})
         if cmd is None:
             return False
