@@ -11,6 +11,9 @@ Python code can play through a small C API. The Python side is [`gary/env.py`](.
   ([`gary/commands.py`](../gary/commands.py)), and returns the full game state as JSON.
 - Saves the game as a replay that StarCraft (including Remastered) and `gary_resim` can play
   back. Re-simulating a saved game reproduces it exactly.
+- Scenarios: plays a pro replay (any format, Remastered included) with its own commands up to
+  a chosen moment, then hands one side over (`Game.scenario(replay)`, `game.take_over(slot)`)
+  while the other keeps replaying what it did in the real game. `eval/scenarios.py` uses this.
 - Answers "what's under this pixel" and "what does this drag box select" the way the game
   does (v1: each sprite's clickable rectangle, draw depth, then smaller footprint), so the human
   interface can turn screen clicks into commands.

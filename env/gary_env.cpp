@@ -1,7 +1,7 @@
 // gary_env: a headless Brood War game (OpenBW) that Python code can play, through a small C API.
 //
-// v0 scope: start a game on a replay's map with that replay's players and races (the replay's
-// own commands are ignored), step it frame by frame, send each player's commands in the
+// Start a game on a map, or on a replay's map with that replay's players and races, or from a
+// replay that keeps playing until someone takes over a side (a scenario); step it frame by frame, send each player's commands in the
 // replay command format, read the full game state as JSON, and save the game as a replay.
 //
 // Players' commands use the same bytes as replay commands (select = 0x09, right click = 0x14,
@@ -15,6 +15,8 @@
 #include "bwgame.h"
 #include "replay.h"
 #include "replay_saver.h"
+#include "replay_stream.h"
+#include "scr_replay.h"
 
 #include <cstdio>
 #include <cstring>
@@ -67,7 +69,7 @@ struct env {
 	game_player player;
 	action_state action_st;
 	replay_state replay_st;
-	std::optional<replay_functions> funcs;
+	std::optional<scr_replay<replay_functions>> funcs;  // (Remastered-era commands: scr_replay.h)
 	std::vector<uint8_t> map_data;
 	std::array<uint8_t, 633> header{};  // the source replay's game info, reused when saving
 	replay_saver_state saver_st;
@@ -89,56 +91,72 @@ std::string json_escape(const a_string& s) {
 
 }  // namespace
 
-// Creates a game on the map of the given replay file. Returns null on error (see gary_env_error
-// with a null handle for the message).
 static std::string g_create_error;
 
-GARY_API void* gary_env_create(const char* data_dir, const char* replay_path) {
-	try {
-		auto e = std::make_unique<env>(data_dir);
-		std::ifstream in(replay_path, std::ios::binary);
-		if (!in) error("can't open replay: %s", replay_path);
-		std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-		e->funcs.emplace(e->player.st(), e->action_st, e->replay_st);
-		std::vector<uint8_t> map;
-		data_loading::data_reader_le raw(bytes.data(), bytes.data() + bytes.size());
-		e->funcs->load_replay(data_loading::make_replay_file_reader(raw), true, &map);
-		e->map_data = map;
-		{
-			data_loading::data_reader_le raw2(bytes.data(), bytes.data() + bytes.size());
-			auto rr = data_loading::make_replay_file_reader(raw2);
-			rr.template get<uint32_t>();
-			rr.get_bytes(e->header.data(), e->header.size());
-		}
-		// keep the game, drop the replay's own commands
+namespace {
+
+// Loads a replay's decoded stream (replay_stream.h). keep_commands: the replay's commands play
+// as the game steps (a scenario); otherwise only its map, players and races are used.
+std::unique_ptr<env> load_stream(const char* data_dir, std::vector<uint8_t> stream, bool keep_commands, int unit_limit) {
+	auto e = std::make_unique<env>(data_dir);
+	disable_cosmetic_trigger_actions(stream);
+	e->funcs.emplace(e->player.st(), e->action_st, e->replay_st);
+	e->funcs->unit_limit = unit_limit;
+	e->funcs->load_replay(data_loading::data_reader_le(stream.data(), stream.data() + stream.size()));
+	e->map_data = stream_map_data(stream);
+	memcpy(e->header.data(), stream.data() + 4, e->header.size());
+	if (!keep_commands) {
 		e->replay_st.actions_data_buffer.clear();
 		e->action_st.actions_data_position = 0;
 		e->action_st.next_action_frame = -1;
-		e->replay_st.end_frame = 0x7fffffff;
+	}
+	e->replay_st.end_frame = 0x7fffffff;
+	return e;
+}
 
-		auto& sv = e->saver_st;
-		sv.map_data = e->map_data.data();
-		sv.map_data_size = e->map_data.size();
-		sv.map_name = e->replay_st.map_name;
-		sv.game_name = "Gary";
-		sv.player_name = "Gary";
-		const state& st = e->player.st();
-		sv.map_tile_width = st.game->map_tile_width;
-		sv.map_tile_height = st.game->map_tile_height;
-		sv.tileset = (int)st.game->tileset_index;
-		sv.random_seed = st.lcg_rand_state;
-		sv.players = st.players;
-		for (size_t i = 0; i != 12; ++i) sv.player_names[i] = e->replay_st.player_name[i];
-		int active = 0;
-		for (int i = 0; i != 8; ++i) active += st.players[i].controller == player_t::controller_occupied;
-		sv.active_player_count = active;
-		sv.slot_count = active;
-		sv.game_type = e->replay_st.game_type;
-		return e.release();
+}  // namespace
+
+// Creates a game on the map of the given (pre-1.18 format) replay file, with its players and
+// races; the replay's own commands are not played. Returns null on error (see gary_env_error
+// with a null handle for the message).
+GARY_API void* gary_env_create(const char* data_dir, const char* replay_path) {
+	try {
+		std::ifstream in(replay_path, std::ios::binary);
+		if (!in) error("can't open replay: %s", replay_path);
+		std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+		return load_stream(data_dir, decode_legacy_replay(bytes), false, 1700).release();
 	} catch (const std::exception& ex) {
 		g_create_error = ex.what();
 		return nullptr;
 	}
+}
+
+// A scenario: the replay with its commands, which play as the game steps. Call
+// gary_env_drop_commands for a player to take over that side from the current frame.
+// data: the replay file (flat = 0), or a Remastered-era replay decoded by resim/scr_format.py's
+// to_flat (flat = 1, with its unit_limit). Returns null on error.
+GARY_API void* gary_env_create_scenario(const char* data_dir, const uint8_t* data, int size, int flat, int unit_limit) {
+	try {
+		std::vector<uint8_t> bytes(data, data + size);
+		return load_stream(data_dir, flat ? std::move(bytes) : decode_legacy_replay(bytes), true, unit_limit).release();
+	} catch (const std::exception& ex) {
+		g_create_error = ex.what();
+		return nullptr;
+	}
+}
+
+// From now on, the replay's commands for this player are dropped (someone else plays that side).
+GARY_API void gary_env_drop_commands(void* h, int slot) {
+	auto* e = (env*)h;
+	e->funcs->dropped_owners |= 1u << slot;
+	const state& st = e->player.st();
+	for (int i = 7; i >= 0; --i) {
+		if (st.players[i].controller != player_t::controller_occupied) {
+			e->funcs->dropped_as = i;
+			return;
+		}
+	}
+	// (no empty slot: impossible in 1v1; the default stays)
 }
 
 GARY_API const char* gary_env_error(void* h) {
@@ -151,7 +169,15 @@ GARY_API void gary_env_destroy(void* h) { delete (env*)h; }
 GARY_API bool gary_env_step(void* h, int n) {
 	auto* e = (env*)h;
 	try {
-		for (int i = 0; i != n; ++i) e->funcs->state_functions::next_frame();
+		auto& f = *e->funcs;
+		for (int i = 0; i != n; ++i) {
+			// a scenario's recorded commands (none otherwise), saved with the game's own
+			f.execute_actions_scr([&](int owner, int, const uint8_t*, const uint8_t*, bool) {
+				replay_saver_functions(e->saver_st).add_action(e->player.st().current_frame, e->action_st.player_id[owner],
+				                                               f.last_action.data() + 1, f.last_action.size() - 1);
+			});
+			f.state_functions::next_frame();
+		}
 		return true;
 	} catch (const std::exception& ex) {
 		e->last_error = ex.what();

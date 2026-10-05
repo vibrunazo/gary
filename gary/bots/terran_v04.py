@@ -40,7 +40,11 @@ INTERRUPTIBLE = {"mine", "gas", "hotkey_building"}   # chores a fight may interr
 RESOURCES = {176, 177, 178, 188, 110}
 ACT_IF_NONE_BELOW = 0.2              # act on a unit when the model gives "nothing" less than this
                                      # (with 0.2 Gary acts on about as many units as pros do: 22% vs 27%)
-SAME_POINT = 96                      # a move this close to a unit's current target is "already doing it"
+SAME_POINT = 96                      # moves to points this close count as the same order
+REPEAT_FRAMES = 48                   # a unit isn't given the same order again within two seconds
+IDLE_ORDERS = {2, 3}                 # Guard, PlayerGuard
+HOLD_ORDERS = {107, 177}             # HoldPosition, MedicHoldPosition
+HARVEST_ORDERS = set(range(79, 91))  # Harvest1 .. ReturnMinerals: already mining or on gas
 PRIORITY = {"attack_unit": 0, "gather": 1, "own_unit": 1, "stim": 1, "hold": 2, "return_cargo": 2,
             "attack_move": 3, "stop": 3, "move": 4}
 # Enemy HP is hidden unless the unit is selected (the game's UI); the model learned with true HP,
@@ -69,6 +73,7 @@ class TerranGaryV4(TerranGaryV3):
         self.flip = (self.main.center[0] > mapinfo.size[0] / 2, self.main.center[1] > mapinfo.size[1] / 2)
         self.next_fight = 0
         self.fight_center: tuple[float, float] | None = None
+        self.told: dict[int, tuple[tuple, int]] = {}    # unit tag -> (order key, frame given)
 
     # --- fights ----------------------------------------------------------------------------
 
@@ -109,6 +114,7 @@ class TerranGaryV4(TerranGaryV3):
         acts, targets, dests = self.fight_model.predict(rows, obs["frame"] * 42 / 1000)
         by_tag = {u["tag"]: u for u in units}
         groups: dict[tuple, list[int]] = {}
+        points: dict[str, list[tuple[int, int]]] = {"move": [], "attack_move": []}
         for i, tag in enumerate(tags):
             if rows[i][1] != 1:
                 continue
@@ -119,6 +125,8 @@ class TerranGaryV4(TerranGaryV3):
             if a == "other":
                 continue
             u = by_tag[tag]
+            if self._already(a, u):
+                continue
             if a in ("attack_unit", "gather", "own_unit"):
                 j = int(targets[i].argmax())
                 t = tags[j]
@@ -128,19 +136,44 @@ class TerranGaryV4(TerranGaryV3):
                     continue                     # gathering means minerals, a geyser or a refinery
                 key = (a, t)
             elif a in ("move", "attack_move"):
+                # like a player: the whole group goes to one point (the median of where the
+                # model sends each unit), not every unit to its own
                 dx, dy = dests[i]
                 dx, dy = (-dx if self.flip[0] else dx), (-dy if self.flip[1] else dy)
-                x, y = int(u["x"] + dx), int(u["y"] + dy)
-                key = (a, (x // SAME_POINT) * SAME_POINT + SAME_POINT // 2, (y // SAME_POINT) * SAME_POINT + SAME_POINT // 2)
+                points[a].append((int(u["x"] + dx), int(u["y"] + dy)))
+                key = (a,)
             else:
                 key = (a,)
             groups.setdefault(key, []).append(tag)
+        for a, pts in points.items():
+            if (a,) in groups:
+                groups[(a, int(np.median([p[0] for p in pts])), int(np.median([p[1] for p in pts])))] = groups.pop((a,))
+        for key in list(groups):                 # drop units just given the same order
+            groups[key] = [t for t in groups[key] if not self._just_told(t, key)]
+            if not groups[key]:
+                del groups[key]
         if not groups:
             return False
         key = min(groups, key=lambda k: (PRIORITY.get(k[0], 5), -len(groups[k])))
+        for tag in groups[key][:12]:
+            self.told[tag] = (key, hi.frame)
         self.task = Task("fight_cmd", data={"key": key, "tags": groups[key][:12], "center": center},
                          started=hi.frame)
         return True
+
+    def _just_told(self, tag: int, key: tuple) -> bool:
+        last = self.told.get(tag)
+        if not last or self.hi.frame - last[1] >= REPEAT_FRAMES or last[0][0] != key[0]:
+            return False
+        if len(key) == 3:                        # moves: the same if to about the same point
+            return math.dist(last[0][1:], key[1:]) < SAME_POINT
+        return last[0] == key
+
+    @staticmethod
+    def _already(a: str, u: dict) -> bool:
+        """Whether the unit is already doing what the model says (the order would change nothing)."""
+        order = u.get("order")
+        return (a == "gather" and order in HARVEST_ORDERS) or (a == "hold" and order in HOLD_ORDERS) or             (a == "stop" and order in IDLE_ORDERS) or (a == "return_cargo" and not u.get("carrying"))
 
     def _army(self, obs: dict, mine: list[dict], done: list[dict]) -> bool:
         if self._fight(obs, mine):
@@ -201,12 +234,15 @@ class TerranGaryV4(TerranGaryV3):
                           f"{unit_name(target['type'])}")
         elif a in ("move", "attack_move"):
             p = screen_of(obs, key[1], key[2])
-            if p:
-                if a == "move":
-                    hi.right_click(*p)
-                else:
-                    hi.order_click(C.ORDER_ATTACK_MOVE, *p)
-                self._say(f"fight: {len(sel & want)} {self._names(units)} -> {a.replace('_', ' ')}")
+            if p and a == "move":
+                hi.right_click(*p)
+            elif p:
+                hi.order_click(C.ORDER_ATTACK_MOVE, *p)
+            elif a == "move":                    # off screen: on the minimap, like a player would
+                hi.minimap_right_click(key[1], key[2])
+            else:
+                hi.minimap_command(C.ORDER_ATTACK_MOVE, key[1], key[2])
+            self._say(f"fight: {len(sel & want)} {self._names(units)} -> {a.replace('_', ' ')}")
         else:
             {"stop": hi.stop, "hold": hi.hold, "stim": hi.stim, "return_cargo": hi.return_cargo}[a]()
             self._say(f"fight: {len(sel & want)} {self._names(units)} -> {a.replace('_', ' ')}")

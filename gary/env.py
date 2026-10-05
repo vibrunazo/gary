@@ -40,6 +40,9 @@ def _load_dll() -> ctypes.CDLL:
     dll = ctypes.CDLL(str(path))
     dll.gary_env_create.restype = ctypes.c_void_p
     dll.gary_env_create.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    dll.gary_env_create_scenario.restype = ctypes.c_void_p
+    dll.gary_env_create_scenario.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+    dll.gary_env_drop_commands.argtypes = [ctypes.c_void_p, ctypes.c_int]
     dll.gary_env_error.restype = ctypes.c_char_p
     dll.gary_env_error.argtypes = [ctypes.c_void_p]
     dll.gary_env_destroy.argtypes = [ctypes.c_void_p]
@@ -124,6 +127,30 @@ class Game:
         if not h:
             raise GameError(_dll.gary_env_error(None).decode(errors="replace"))
         return cls(h, command_delay)
+
+    @classmethod
+    def scenario(cls, replay: str | Path, gamedata: str | Path | None = None, command_delay: int = 0) -> "Game":
+        """A replay (any format) that plays its own commands as the game steps: step to the moment
+        of interest, then take_over(slot) to play that side from there. The other players keep
+        replaying what they did in the real game."""
+        global _dll
+        _dll = _dll or _load_dll()
+        import sys
+        sys.path.insert(0, str(REPO_ROOT / "resim"))
+        import scr_format
+        data = Path(replay).read_bytes()
+        flat, limit = 0, 1700
+        if scr_format.replay_format(data) != "legacy":
+            flat, limit = 1, scr_format.unit_limit(data)
+            data = scr_format.to_flat(data)
+        h = _dll.gary_env_create_scenario(str(gamedata or _gamedata_dir()).encode(), data, len(data), flat, limit)
+        if not h:
+            raise GameError(_dll.gary_env_error(None).decode(errors="replace"))
+        return cls(h, command_delay)
+
+    def take_over(self, slot: int) -> None:
+        """From now on the replay's commands for this player are dropped: act() plays that side."""
+        _dll.gary_env_drop_commands(self._h, slot)
 
     def _check(self, ok: bool) -> None:
         if not ok:

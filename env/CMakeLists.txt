@@ -14,7 +14,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_library(gary_env SHARED gary_env.cpp)
-target_include_directories(gary_env PRIVATE "${OPENBW_DIR}")
+target_include_directories(gary_env PRIVATE "${OPENBW_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../resim")
 if(MSVC)
   target_compile_options(gary_env PRIVATE /bigobj /EHsc /W1)
   target_compile_definitions(gary_env PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)

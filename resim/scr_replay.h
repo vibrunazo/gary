@@ -25,6 +25,13 @@ struct scr_replay : Base {
 
 	int unit_limit = 1700;
 	bool debug_rejects = getenv("GARY_DEBUG_REJECTS") != nullptr;
+	// Players (bit per slot) whose recorded commands are dropped, e.g. because someone else took
+	// over their side mid-replay. To keep the stream aligned they still run, as dropped_as: an
+	// empty slot, which owns no units, so selecting and ordering do nothing.
+	uint32_t dropped_owners = 0;
+	int dropped_as = 7;
+	// The last executed command in legacy form (player id byte first), e.g. to save it again.
+	std::vector<uint8_t> last_action;
 
 	uint16_t translate_unit_id(uint16_t raw) {
 		if (unit_limit <= 1700) return raw;
@@ -82,11 +89,13 @@ struct scr_replay : Base {
 			for (int i = 0; i != n; ++i) { put16(translate_unit_id(u16())); u16(); }
 		}
 		}
+		last_action = out;
 		return this->read_action(out.data(), out.size());
 	}
 
 	// Runs this frame's replay commands. on_action(owner, action_id, command bytes, end, accepted)
-	// is called for every player's command (not observers').
+	// is called for every player's command (not observers' or dropped players'), after it ran;
+	// last_action then holds it in legacy form.
 	template<typename F>
 	void execute_actions_scr(F&& on_action) {
 		auto& st = this->st;
@@ -109,18 +118,25 @@ struct scr_replay : Base {
 				int player_id = r2.ptr[0];
 				auto i = std::find(action_st.player_id.begin(), action_st.player_id.end(), player_id);
 				int owner = i == action_st.player_id.end() ? -1 : (int)(i - action_st.player_id.begin());
-				if (owner < 0) {
+				bool dropped = owner >= 0 && (dropped_owners >> owner) & 1;
+				if (owner < 0 || dropped) {
 					if (r2.ptr + 1 < end && r2.ptr[1] >= 0x60 && r2.ptr[1] <= 0x65) {
 						skip_action_121(r2, end);
 					} else {
 						r2.get<uint8_t>();
-						this->read_action(11, r2);
+						this->read_action(dropped ? dropped_as : 11, r2);
 					}
 					continue;
 				}
 				int action_id = r2.ptr + 1 < end ? r2.ptr[1] : -1;
 				const uint8_t* cmd = r2.ptr;
-				bool ok = action_id >= 0x60 && action_id <= 0x65 ? read_action_121(r2, end) : this->read_action(r2);
+				bool ok;
+				if (action_id >= 0x60 && action_id <= 0x65) {
+					ok = read_action_121(r2, end);
+				} else {
+					ok = this->read_action(r2);
+					last_action.assign(cmd, r2.ptr);
+				}
 				on_action(owner, action_id, cmd, end, ok);
 			}
 			action_st.actions_data_position = end - begin;

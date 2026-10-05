@@ -30,7 +30,7 @@ Legend: **—** not started · **○** scripted stand-in · **◐** partial · *
 | Learning beyond imitation | Outcome-weighted learning, reinforcement learning | Fight estimate learned from outcomes; no reinforcement learning | ◐ | ◐ | — | — | — |
 | POV viewer | Watch any game from Gary's screen (`viewer/`) | Cursor, clicks, every action in words; Remastered replays; videos | ● | ● | ● | ● | — |
 | Trace | Gary's decisions and reasons, recorded (§6.5) | Decision log with model probabilities and fight estimates; POV action log | ◐ | ◐ | ◐ | ◐ | — |
-| Evaluation | Matches against opponents, many seeds, a scoreboard (§9) | `eval/vs_rush.py`: several seeds against one scripted Zerg rush | ◐ | ◐ | ○ | ○ | — |
+| Evaluation | Matches against opponents, many seeds, a scoreboard (§9) | `eval/vs_rush.py`: several seeds against one scripted Zerg rush; `eval/scenarios.py`: 45 pro skirmishes where Gary takes over the Terran | ◐ | ◐ | ○ | ○ | — |
 | Matchups and races | | Terran in TvZ only | T | T | T | T | T |
 
 ## Versions
@@ -46,10 +46,14 @@ Legend: **—** not started · **○** scripted stand-in · **◐** partial · *
   overlay in POV videos.
 - **Results:** offline, the right action 55% of the time when the pro acted, the right target 35%
   (21% for "nearest unit"). In games, no better than v0.3 yet (8 seeds: immediate rush 5 lost; 7:00
-  rush 1 won, 6 ahead): the model's thresholds don't transfer to Gary's own, unusual positions,
-  and against the immediate rush Gary has almost no army when the zerglings arrive.
-- **Most urgently missing:** scenario tests from real pro positions (#2 step 4) to measure the fight
-  model fairly; holding the immediate rush through the macro (bunker and marines in time).
+  rush 1 won, 6 ahead). In pro scenarios (`eval/scenarios.py`: 45 early skirmishes from held-out
+  games where the pro's control mattered; net value over 45 s, zerg lost minus terran lost): the
+  pro +74, v0.3 −194, v0.4 −253, doing nothing −255. The fight model gives about 14 orders where
+  the pro gives about 40, and rarely commits to what decided these fights: pulling a dozen SCVs
+  with attack-move while marines kite.
+- **Most urgently missing:** a fight model that acts like the pros in those scenarios (the
+  scenarios are now the test); holding the immediate rush through the macro (bunker and marines
+  in time).
 
 ### v0.3 (October 2026): learned macro and learned army
 
