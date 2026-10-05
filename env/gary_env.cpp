@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -65,8 +66,21 @@ struct data_loader {
 	}
 };
 
+// A saved moment of a game (gary_env_save / gary_env_restore): OpenBW's own exact state copy, as
+// the viewer uses for seeking, plus where the replay's commands and the saved replay stand.
+struct saved_game {
+	state st;
+	action_state action_st;
+	size_t actions_data_position = 0;
+	int next_action_frame = -1;
+	replay_saver_state saver_st;
+	uint32_t dropped_owners = 0;
+	int dropped_as = 7;
+};
+
 struct env {
 	game_player player;
+	std::unique_ptr<saved_game> saved;
 	action_state action_st;
 	replay_state replay_st;
 	std::optional<scr_replay<replay_functions>> funcs;  // (Remastered-era commands: scr_replay.h)
@@ -142,6 +156,47 @@ GARY_API void* gary_env_create_scenario(const char* data_dir, const uint8_t* dat
 	} catch (const std::exception& ex) {
 		g_create_error = ex.what();
 		return nullptr;
+	}
+}
+
+// Remembers this moment of the game; gary_env_restore returns to it exactly (e.g. to play one
+// scenario many times without reloading and replaying up to it). Returns false on error.
+GARY_API bool gary_env_save(void* h) {
+	auto* e = (env*)h;
+	try {
+		auto s = std::make_unique<saved_game>();
+		s->st = copy_state(e->player.st());
+		s->action_st = copy_state(e->action_st, e->player.st(), s->st);
+		s->actions_data_position = e->action_st.actions_data_position;
+		s->next_action_frame = e->action_st.next_action_frame;
+		s->saver_st = e->saver_st;
+		s->dropped_owners = e->funcs->dropped_owners;
+		s->dropped_as = e->funcs->dropped_as;
+		e->saved = std::move(s);
+		return true;
+	} catch (const std::exception& ex) {
+		e->last_error = ex.what();
+		return false;
+	}
+}
+
+// Back to the moment gary_env_save remembered (it stays remembered). Returns false on error.
+GARY_API bool gary_env_restore(void* h) {
+	auto* e = (env*)h;
+	try {
+		if (!e->saved) error("gary_env_restore: nothing saved");
+		const saved_game& s = *e->saved;
+		e->player.st() = copy_state(s.st);
+		e->action_st = copy_state(s.action_st, s.st, e->player.st());
+		e->action_st.actions_data_position = s.actions_data_position;
+		e->action_st.next_action_frame = s.next_action_frame;
+		e->saver_st = s.saver_st;
+		e->funcs->dropped_owners = s.dropped_owners;
+		e->funcs->dropped_as = s.dropped_as;
+		return true;
+	} catch (const std::exception& ex) {
+		e->last_error = ex.what();
+		return false;
 	}
 }
 

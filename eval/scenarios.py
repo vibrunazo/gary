@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import OrderedDict
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -133,50 +134,68 @@ class Losses:
         return out
 
 
+_games: OrderedDict = OrderedDict()      # per process: scenario sha1 -> its game, saved at the takeover
+CACHED_GAMES = 4
+
+
+def scenario_game(sc: dict):
+    """The scenario's game at the takeover frame: loaded and replayed up to it the first time,
+    then restored from an exact copy (OpenBW's state copy) for every further play."""
+    from gary.env import LIVE_COMMAND_DELAY, Game
+    game = _games.pop(sc["sha1"], None)
+    if game is None:
+        game = Game.scenario(data_root() / "raw" / sc["rel_path"], command_delay=LIVE_COMMAND_DELAY)
+        game.step(sc["frame"])
+        game.save()
+    else:
+        game.restore()
+    _games[sc["sha1"]] = game
+    while len(_games) > CACHED_GAMES:
+        _games.popitem(last=False)[1].close()
+    return game
+
+
 def run_one(sc: dict, controller: str, seconds: float, version: str, style: int | None,
             save: str | None = None, verbose: bool = False, fight_path: str | None = None,
             sample_seed: int | None = None) -> dict:
     """One scenario under one controller. Gary: fight_path picks the fight model (default the
     latest trained); sample_seed seeds its sampled fight decisions and the row gets them
     ("log")."""
-    from gary.env import LIVE_COMMAND_DELAY, Game
-    replay = data_root() / "raw" / sc["rel_path"]
     row = {"sha1": sc["sha1"][:8], "controller": controller}
     try:
-        with Game.scenario(replay, command_delay=LIVE_COMMAND_DELAY) as game:
-            game.step(sc["frame"])
-            obs = game.observe()
-            slot = sc["terran_slot"]
-            zerg = next(p["slot"] for p in obs["players"] if p["slot"] != slot and p["race"] == 0)
-            losses = Losses({slot: "T", zerg: "Z"})
-            losses.note(obs, game)
-            end = game.frame + int(seconds * 1000 / 42)
-            bot, hi = None, None
-            if controller != "pro":
-                game.take_over(slot)
-            if controller == "gary":
-                bot, hi = make_gary(game, slot, version, style, verbose, fight_path)
-                if sample_seed is not None:
-                    bot.rng, bot.rl_log = np.random.default_rng(sample_seed), []
-            while game.frame < end:
-                if bot:
-                    bot.act()
-                    hi.step(2)
-                else:
-                    game.step(2)
-                if game.frame % 12 < 2:
-                    losses.note(game.observe(), game)
-            row.update(losses.result(game))
-            if bot and bot.rl_log is not None:
-                row["log"] = bot.rl_log
+        game = scenario_game(sc)
+        obs = game.observe()
+        slot = sc["terran_slot"]
+        zerg = next(p["slot"] for p in obs["players"] if p["slot"] != slot and p["race"] == 0)
+        losses = Losses({slot: "T", zerg: "Z"})
+        losses.note(obs, game)
+        end = game.frame + int(seconds * 1000 / 42)
+        bot, hi = None, None
+        if controller != "pro":
+            game.take_over(slot)
+        if controller == "gary":
+            bot, hi = make_gary(game, slot, version, style, verbose, fight_path)
+            if sample_seed is not None:
+                bot.rng, bot.rl_log = np.random.default_rng(sample_seed), []
+        while game.frame < end:
+            if bot:
+                bot.act()
+                hi.step(2)
+            else:
+                game.step(2)
+            if game.frame % 12 < 2:            # (the interface's own snapshot when it took one)
+                losses.note((hi and hi.latest_observation()) or game.observe(), game)
+        row.update(losses.result(game))
+        if bot and bot.rl_log is not None:
+            row["log"] = bot.rl_log
+        if hi:
+            acts = [e["act"] for e in hi.pov if "act" in e]
+            row["acts"] = len(acts)
+            row["fight_orders"] = sum(1 for a in acts if a.startswith(("right-click", "A-click", "minimap right-click", "minimap attack", "S ", "H ", "T ", "C ")))
+        if save:
+            game.save_replay(save)
             if hi:
-                acts = [e["act"] for e in hi.pov if "act" in e]
-                row["acts"] = len(acts)
-                row["fight_orders"] = sum(1 for a in acts if a.startswith(("right-click", "A-click", "minimap right-click", "minimap attack", "S ", "H ", "T ", "C ")))
-            if save:
-                game.save_replay(save)
-                if hi:
-                    hi.save_pov(save[:-4] + ".pov.jsonl")
+                hi.save_pov(save[:-4] + ".pov.jsonl")
     except Exception as e:  # noqa: BLE001 - one broken scenario must not stop the table
         row["error"] = f"{type(e).__name__}: {e}"[:200]
     return row
@@ -250,7 +269,7 @@ def main() -> None:
         if args.screen:
             jobs = [(sc, c, args.seconds, args.version, args.style) for sc in found for c in ("pro", "nothing")]
             with ProcessPoolExecutor(args.parallel) as pool:
-                res = list(pool.map(_job, jobs))
+                res = list(pool.map(_job, jobs, chunksize=2))   # a scenario's plays on one worker
             net = lambda r: r["Z_lost"] - r["T_lost"] if "error" not in r else None
             kept = []
             for sc, pro, nothing in zip(found, res[0::2], res[1::2]):
@@ -284,7 +303,8 @@ def main() -> None:
                     jobs.append((sc, c, args.seconds, args.version, args.style, save, False, args.fight_model,
                                  k if draws else None))
         with ProcessPoolExecutor(args.parallel) as pool:
-            rows = mean_rows(list(pool.map(_job, jobs)))
+            per_scenario = len(jobs) // max(1, len(scs))       # a scenario's plays on one worker:
+            rows = mean_rows(list(pool.map(_job, jobs, chunksize=per_scenario)))   # its game is reused
         report(scs, rows, args)
 
 

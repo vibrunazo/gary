@@ -17,7 +17,7 @@ quicker way to a playable Gary.
 
 | Phase | Status | What exists | What's missing for its exit criteria |
 |---|---|---|---|
-| P0 Infra | ◐ | OpenBW env, human interface v1, POV and decision logs, eval against a scripted rush and pro scenarios | Vectorized env and its games/hour benchmark; the formal trace schema; classic bots to play against; the interface parity test |
+| P0 Infra | ◐ | OpenBW env, human interface v1, POV and decision logs, eval against a scripted rush and pro scenarios; ~150k 45-second scenario plays per hour on 16 parallel workers (3x faster than before profiling, same results bit for bit) | Full-game games/hour benchmark; the formal trace schema; classic bots to play against; the interface parity test |
 | P1 Data | ◐ | ~70k replays indexed, resim with Remastered support (go decided: it works), fog-of-war views | Camera logger, camera inference, fitting human profiles from data (the interface's numbers are still placeholders) |
 | P1b Taxonomy | ◐ | TvZ build clusters with readable rules (`taxonomy/discover.py`) | A reviewed `taxonomy/tvz/v1.yaml`, stability and gold-set reports |
 | P1c Strategy stats | — | | Win-rate table, feature library, guide claims |

@@ -14,6 +14,8 @@ Python code can play through a small C API. The Python side is [`gary/env.py`](.
 - Scenarios: plays a pro replay (any format, Remastered included) with its own commands up to
   a chosen moment, then hands one side over (`Game.scenario(replay)`, `game.take_over(slot)`)
   while the other keeps replaying what it did in the real game. `eval/scenarios.py` uses this.
+- Saves and restores a moment exactly (`game.save()`, `game.restore()`, OpenBW's own state copy),
+  so a scenario is loaded and replayed up to the takeover once, then restored for every play.
 - Answers "what's under this pixel" and "what does this drag box select" the way the game
   does (v1: each sprite's clickable rectangle, draw depth, then smaller footprint), so the human
   interface can turn screen clicks into commands.

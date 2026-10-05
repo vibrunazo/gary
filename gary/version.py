@@ -3,14 +3,17 @@ replay alone says which version, code revision and models played it."""
 
 from __future__ import annotations
 
+import functools
 import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+@functools.lru_cache(maxsize=1)
 def git_revision() -> str:
-    """Short commit hash, with '+' if tracked files have uncommitted changes; 'unknown' outside git."""
+    """Short commit hash, with '+' if tracked files have uncommitted changes; 'unknown' outside git.
+    Asked once per process (each ask runs git twice)."""
     try:
         rev = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, capture_output=True,
                              text=True, timeout=10).stdout.strip()

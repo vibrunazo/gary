@@ -43,6 +43,10 @@ def _load_dll() -> ctypes.CDLL:
     dll.gary_env_create_scenario.restype = ctypes.c_void_p
     dll.gary_env_create_scenario.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
     dll.gary_env_drop_commands.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    dll.gary_env_save.restype = ctypes.c_bool
+    dll.gary_env_save.argtypes = [ctypes.c_void_p]
+    dll.gary_env_restore.restype = ctypes.c_bool
+    dll.gary_env_restore.argtypes = [ctypes.c_void_p]
     dll.gary_env_error.restype = ctypes.c_char_p
     dll.gary_env_error.argtypes = [ctypes.c_void_p]
     dll.gary_env_destroy.argtypes = [ctypes.c_void_p]
@@ -81,6 +85,10 @@ _dll: ctypes.CDLL | None = None
 
 def _gamedata_dir() -> Path:
     return Path(os.environ.get("GARY_DATA", REPO_ROOT / "data")) / "gamedata" / "scr"
+
+
+def decode_observation(raw: bytes) -> dict:
+    return json.loads(raw.decode("utf-8", errors="replace"))
 
 
 class GameError(RuntimeError):
@@ -148,6 +156,21 @@ class Game:
             raise GameError(_dll.gary_env_error(None).decode(errors="replace"))
         return cls(h, command_delay)
 
+    def save(self) -> None:
+        """Remember this moment exactly (no command may be in flight); restore() returns to it."""
+        if self._in_flight:
+            raise GameError("save with commands in flight")
+        self._check(_dll.gary_env_save(self._h))
+        self._saved_frame = self.frame
+
+    def restore(self) -> None:
+        """Back to the moment save() remembered: the game, its replay commands, the replay being
+        recorded, who was taken over. Callbacks (on_result) are cleared."""
+        self._check(_dll.gary_env_restore(self._h))
+        self.frame = self._saved_frame
+        self._in_flight = []
+        self.on_result = {}
+
     def take_over(self, slot: int) -> None:
         """From now on the replay's commands for this player are dropped: act() plays that side."""
         _dll.gary_env_drop_commands(self._h, slot)
@@ -186,7 +209,12 @@ class Game:
         return r == 1
 
     def observe(self) -> dict:
-        return json.loads(_dll.gary_env_observe(self._h).decode("utf-8", errors="replace"))
+        return decode_observation(self.observe_raw())
+
+    def observe_raw(self) -> bytes:
+        """The observation undecoded (decode_observation turns it into observe()'s dict): for
+        keeping many snapshots of which only a few are ever read."""
+        return _dll.gary_env_observe(self._h)
 
     def unit_at(self, slot: int, x: int, y: int) -> int:
         """Tag of the unit a click by this player at map pixel (x, y) would hit, or 0."""

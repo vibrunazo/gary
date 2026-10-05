@@ -43,7 +43,7 @@ HORIZON_S = 20                  # a decision is credited with what happens in th
 def rollouts(pool, scs: list[dict], draws: int, model_path: str, args, seed0: int) -> list[dict]:
     jobs = [(sc, "gary", args.seconds, "v04", args.style, None, False, model_path, seed0 + k)
             for sc in scs for k in range(draws)]
-    return list(pool.map(S._job, jobs))
+    return list(pool.map(S._job, jobs, chunksize=draws))   # a scenario's plays on one worker (reuses its game)
 
 
 def net_value(r: dict) -> float | None:

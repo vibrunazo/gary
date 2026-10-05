@@ -37,7 +37,7 @@ from dataclasses import dataclass, field, replace
 
 from gary import commands as C
 from gary import terran as T
-from gary.env import Game
+from gary.env import Game, decode_observation
 
 FRAME_MS = 42  # one frame at Fastest speed
 NO_UNIT = 0
@@ -108,7 +108,10 @@ class HumanInterface:
         self.selection: list[int] = []
         self.hotkeys: dict[int, list[int]] = {}
         self.pending: list[_Pending] = []
-        self.history: deque[tuple[int, dict]] = deque([(self.frame, obs)], maxlen=256)
+        # snapshots every 4 frames, [frame, observation]; kept undecoded (bytes) until read, since
+        # Gary only ever looks at the one from its reaction time ago
+        self.history: deque[list] = deque([[self.frame, obs]], maxlen=256)
+        self._observe_raw = getattr(game, "observe_raw", None)   # the live bridge has no raw form
         self.stats = {"actions": 0, "rejected_by_interface": 0, "rejected_by_game": 0}
         # act() latency: frames from emitting a command (game.act) to its effect in the game.
         # OpenBW applies commands in the same step (0). A live SC:R client queues them into its
@@ -169,10 +172,11 @@ class HumanInterface:
     def observe(self) -> dict:
         """The game as this player saw it reaction_ms ago, fogged, plus the interface state."""
         delay = round(self.p.reaction_ms / FRAME_MS)
-        seen = self.history[0][1]
-        for frame, obs in self.history:
-            if frame <= self.frame - delay:
-                seen = obs
+        seen = self.history[0]
+        for entry in self.history:
+            if entry[0] <= self.frame - delay:
+                seen = entry
+        seen = self._snapshot(seen)
         me = next(p for p in seen["players"] if p["slot"] == self.slot)
         bit = 1 << self.slot
         inspected = set(self.selection) if len(self.selection) == 1 else set()
@@ -194,6 +198,19 @@ class HumanInterface:
             "hotkeys": {k: list(v) for k, v in self.hotkeys.items()},
             "apm_tokens": round(self.tokens, 2),
         }
+
+    @staticmethod
+    def _snapshot(entry: list) -> dict:
+        """A history entry's observation, decoded on first use."""
+        if isinstance(entry[1], bytes):
+            entry[1] = decode_observation(entry[1])
+        return entry[1]
+
+    def latest_observation(self) -> dict | None:
+        """The full (unfogged) game state at the current frame if the interface took one this frame,
+        else None. For tools around Gary (scoring), never for Gary itself."""
+        last = self.history[-1]
+        return self._snapshot(last) if last[0] == self.frame else None
 
     # --- helpers -------------------------------------------------------------------------
 
@@ -439,7 +456,7 @@ class HumanInterface:
             self.frame += 1
             self.tokens = min(self.p.apm_capacity, self.tokens + self.p.apm_per_second * FRAME_MS / 1000)
             if self.frame % 4 == 0:
-                self.history.append((self.frame, self.game.observe()))
+                self.history.append([self.frame, self._observe_raw() if self._observe_raw else self.game.observe()])
 
     def _displayed_cursor(self) -> tuple[int, int]:
         """Where the mouse is drawn this frame: moving along its path while a click travels."""
@@ -492,7 +509,7 @@ class HumanInterface:
             act = f"F{a.args['n']} (jump to screen)"
         elif a.kind == "camera_to_group":
             tags = set(self.hotkeys.get(a.args["n"], []))
-            units = [u for u in self.history[-1][1]["units"] if u["tag"] in tags]
+            units = [u for u in self._snapshot(self.history[-1])["units"] if u["tag"] in tags]
             if units:
                 self._center_camera(sum(u["x"] for u in units) // len(units), sum(u["y"] for u in units) // len(units))
             act = f"{a.args['n']} {a.args['n']} (center on group)"
