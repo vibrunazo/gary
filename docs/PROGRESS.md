@@ -9,31 +9,47 @@ Legend: **—** not started · **○** scripted stand-in · **◐** partial · *
 
 ## Components by version
 
-| Component | What it is | Now (v0.3) | v0.3 | v0.2 | v0.1 | v0 |
-|---|---|---|---|---|---|---|
-| Game: headless | OpenBW game Gary plays in for development and tests (`env/`, `gary/env.py`) | Melee games on any map, network-style command delay, replays saved | ● | ● | ● | ● |
-| Game: live Remastered | Gary in a real StarCraft: Remastered client over LAN (`adapters/scr_bridge`) | Plays; known gaps in the bridge's map checks and hotkeys (its README) | ◐ | ◐ | ◐ | — |
-| Human interface | The only path to the game: screen clicks, camera, fog, reaction delay, APM (§6.3) | Clicks, drag boxes, camera hotkeys, fog, 0.3 s delay, APM budget; profiles not fitted from data yet | ● | ● | ● | ● |
-| Perception and memory | What Gary knows: visible units, remembered enemy units (§6.9, §6.10) | Fog and hidden enemy HP; remembers enemy buildings and the enemy army seen in the last 3 min | ◐ | ◐ | ◐ | ◐ |
-| Macro decisions | What to build, train, research, and when | Learned from ~14k pro TvZ games; steerable by build style | ● | ● | ○ | — |
-| Macro executor | Carries out macro decisions: placement, production, gas, mining (§5) | Scripted: any Terran building, unit, add-on, research, upgrade, expansion | ○ | ○ | ○ | ○ |
-| Army decisions | Where armies go, move vs attack, whether a fight is worth taking | Learned destinations and a learned fight estimate; holds attacks it expects to lose | ● | ○ | ○ | — |
-| Micro | Unit control in fights: stim, spread, siege, focus fire, spells | Nothing yet: armies only move or attack-move | — | — | — | — |
-| Scouting | Finding out what the opponent does | One worker at 9 SCVs to the enemy start locations | ○ | — | — | — |
-| Reflexes | Quick reactions outside the plan (worker defense, repair, retreat) | Pulls about two SCVs per attacker when a base is outnumbered | ○ | — | — | — |
-| Attention arbiter | One camera and one APM budget shared by all tasks (§6.7) | One task at a time in a fixed priority order | ○ | ○ | ○ | ○ |
-| Strategy layer | Picks the build and switches plans from what it sees (§6.8) | You pick the build style by hand (`--style`) | ○ | ○ | — | — |
-| Opponent model | Beliefs about the opponent's build and army | Not started | — | — | — | — |
-| Replay pipeline | Inventory, build orders, resim, desync checks (§7.1–7.2) | ~70k replays indexed; TvZ re-simulated with fog-of-war views | ● | ● | ● | ● |
-| Build taxonomy | Build styles discovered from replays (§7.3) | TvZ clusters with readable rules; style labels for ~45% of players | ● | ● | ● | ● |
-| Training sets | Data for the learned models | Macro and army sets for TvZ | ◐ | ◐ | — | — |
-| Learning beyond imitation | Outcome-weighted learning, reinforcement learning | Fight estimate learned from outcomes; no reinforcement learning | ◐ | — | — | — |
-| POV viewer | Watch any game from Gary's screen (`viewer/`) | Cursor, clicks, every action in words; Remastered replays; videos | ● | ● | ● | — |
-| Trace | Gary's decisions and reasons, recorded (§6.5) | Decision log with model probabilities and fight estimates; POV action log | ◐ | ◐ | ◐ | — |
-| Evaluation | Matches against opponents, many seeds, a scoreboard (§9) | `eval/vs_rush.py`: several seeds against one scripted Zerg rush | ◐ | ○ | ○ | — |
-| Matchups and races | | Terran in TvZ only | T | T | T | T |
+| Component | What it is | Now (v0.4) | v0.4 | v0.3 | v0.2 | v0.1 | v0 |
+|---|---|---|---|---|---|---|---|
+| Game: headless | OpenBW game Gary plays in for development and tests (`env/`, `gary/env.py`) | Melee games on any map, network-style command delay, replays saved | ● | ● | ● | ● | ● |
+| Game: live Remastered | Gary in a real StarCraft: Remastered client over LAN (`adapters/scr_bridge`) | Plays; known gaps in the bridge's map checks and hotkeys (its README) | ◐ | ◐ | ◐ | ◐ | — |
+| Human interface | The only path to the game: screen clicks, camera, fog, reaction delay, APM (§6.3) | Clicks, drag boxes, camera hotkeys, fog, 0.3 s delay, APM budget; profiles not fitted from data yet | ● | ● | ● | ● | ● |
+| Perception and memory | What Gary knows: visible units, remembered enemy units (§6.9, §6.10) | Fog and hidden enemy HP; remembers enemy buildings and the enemy army seen in the last 3 min | ◐ | ◐ | ◐ | ◐ | ◐ |
+| Macro decisions | What to build, train, research, and when | Learned from ~14k pro TvZ games; steerable by build style | ● | ● | ● | ○ | — |
+| Macro executor | Carries out macro decisions: placement, production, gas, mining (§5) | Scripted: any Terran building, unit, add-on, research, upgrade, expansion | ○ | ○ | ○ | ○ | ○ |
+| Army decisions | Where armies go, move vs attack, whether a fight is worth taking | Learned destinations and a learned fight estimate; holds attacks it expects to lose | ● | ● | ○ | ○ | — |
+| Micro | Unit control in fights: stim, spread, siege, focus fire, spells | Learned fight model (#2) gives each unit near a fight an order (attack, move, gather, repair, stim, hold...); weak so far | ◐ | — | — | — | — |
+| Scouting | Finding out what the opponent does | One worker at 9 SCVs to the enemy start locations | ○ | ○ | — | — | — |
+| Reflexes | Quick reactions outside the plan (worker defense, repair, retreat) | Replaced by the fight model in v0.4 (v0.3: scripted worker pull) | ○ | ○ | — | — | — |
+| Attention arbiter | One camera and one APM budget shared by all tasks (§6.7) | One task at a time in a fixed priority order | ○ | ○ | ○ | ○ | ○ |
+| Strategy layer | Picks the build and switches plans from what it sees (§6.8) | You pick the build style by hand (`--style`) | ○ | ○ | ○ | — | — |
+| Opponent model | Beliefs about the opponent's build and army | Not started | — | — | — | — | — |
+| Replay pipeline | Inventory, build orders, resim, desync checks (§7.1–7.2) | ~70k replays indexed; TvZ re-simulated with fog-of-war views | ● | ● | ● | ● | ● |
+| Build taxonomy | Build styles discovered from replays (§7.3) | TvZ clusters with readable rules; style labels for ~45% of players | ● | ● | ● | ● | ● |
+| Training sets | Data for the learned models | Macro, army and fight sets for TvZ (fight: 7.2M snapshots) | ◐ | ◐ | ◐ | — | — |
+| Learning beyond imitation | Outcome-weighted learning, reinforcement learning | Fight estimate learned from outcomes; no reinforcement learning | ◐ | ◐ | — | — | — |
+| POV viewer | Watch any game from Gary's screen (`viewer/`) | Cursor, clicks, every action in words; Remastered replays; videos | ● | ● | ● | ● | — |
+| Trace | Gary's decisions and reasons, recorded (§6.5) | Decision log with model probabilities and fight estimates; POV action log | ◐ | ◐ | ◐ | ◐ | — |
+| Evaluation | Matches against opponents, many seeds, a scoreboard (§9) | `eval/vs_rush.py`: several seeds against one scripted Zerg rush | ◐ | ◐ | ○ | ○ | — |
+| Matchups and races | | Terran in TvZ only | T | T | T | T | T |
 
 ## Versions
+
+### v0.4 (October 2026): learned fight model (in progress, #2)
+
+- **What it is:** v0.3 plus the fight model: whenever enemy fighters are near Gary's units, a
+  transformer trained on 7.2M pro TvZ skirmish snapshots gives each unit near the fight an order
+  (attack which unit, move where, attack-move, gather, repair, stop, hold, stim), carried out with
+  human hands, one group per half second. Fights come first and may interrupt chores.
+- **New:** fight data (resim `--fights`), fight model and training, env observes weapon cooldown,
+  order target and carrying, chat announcement of the version and models, screencast-style action
+  overlay in POV videos.
+- **Results:** offline, the right action 55% of the time when the pro acted, the right target 35%
+  (21% for "nearest unit"). In games, no better than v0.3 yet (8 seeds: immediate rush 5 lost; 7:00
+  rush 1 won, 6 ahead): the model's thresholds don't transfer to Gary's own, unusual positions,
+  and against the immediate rush Gary has almost no army when the zerglings arrive.
+- **Most urgently missing:** scenario tests from real pro positions (#2 step 4) to measure the fight
+  model fairly; holding the immediate rush through the macro (bunker and marines in time).
 
 ### v0.3 (October 2026): learned macro and learned army
 

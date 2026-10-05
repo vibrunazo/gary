@@ -36,6 +36,8 @@ from gary.version import announcement
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 ASK_EVERY = 12                       # frames between fight decisions (half a second)
+INTERRUPTIBLE = {"mine", "gas", "hotkey_building"}   # chores a fight may interrupt
+RESOURCES = {176, 177, 178, 188, 110}
 ACT_IF_NONE_BELOW = 0.2              # act on a unit when the model gives "nothing" less than this
                                      # (with 0.2 Gary acts on about as many units as pros do: 22% vs 27%)
 SAME_POINT = 96                      # a move this close to a unit's current target is "already doing it"
@@ -70,6 +72,22 @@ class TerranGaryV4(TerranGaryV3):
 
     # --- fights ----------------------------------------------------------------------------
 
+    def act(self) -> None:
+        """Fights come first: when enemy fighters are near, the fight model is asked before
+        anything else, and may interrupt chores (sending workers to mine or gas, hotkeys) that
+        are cheap to pick up again."""
+        hi = self.hi
+        if not hi.pending and self.setup_done and hi.frame >= self.next_fight and                 (self.task is None or self.task.kind in INTERRUPTIBLE):
+            obs = hi.observe()
+            self.army_tracker.remember(obs)
+            mine = [u for u in obs["units"] if u["owner"] == self.slot]
+            task = self.task
+            self.task = None
+            if self._fight(obs, mine):
+                return
+            self.task = task
+        super().act()
+
     def _worker_defense(self, obs: dict, mine: list[dict]) -> bool:
         return False                             # the fight model decides what workers do (_army)
 
@@ -95,16 +113,19 @@ class TerranGaryV4(TerranGaryV3):
             if rows[i][1] != 1:
                 continue
             # act when the model doesn't expect "nothing", with its best real action
-            if acts[i][0] >= ACT_IF_NONE_BELOW:
-                continue
+            if acts[i][0] >= ACT_IF_NONE_BELOW and acts[i][0] >= acts[i][1:].max():
+                continue                         # "nothing" is likely and the model's first choice
             a = ACTIONS[int(acts[i][1:].argmax()) + 1]
             if a == "other":
                 continue
             u = by_tag[tag]
             if a in ("attack_unit", "gather", "own_unit"):
-                t = tags[int(targets[i].argmax())]
+                j = int(targets[i].argmax())
+                t = tags[j]
                 if t == tag or u.get("order_target") == t:
                     continue                     # already on it
+                if a == "gather" and rows[j][0] not in RESOURCES:
+                    continue                     # gathering means minerals, a geyser or a refinery
                 key = (a, t)
             elif a in ("move", "attack_move"):
                 dx, dy = dests[i]
