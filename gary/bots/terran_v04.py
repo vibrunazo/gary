@@ -43,6 +43,10 @@ ACT_IF_NONE_BELOW = 0.2              # act on a unit when the model gives "nothi
                                      # (with 0.2 Gary acts on about as many units as pros do: 22% vs 27%)
 SAME_POINT = 96                      # moves to points this close count as the same order
 BOX_MARGIN = 20                      # screen pixels around the group's units when drag-selecting
+BUNKER, MARINE = 125, 0
+BUNKER_THREAT = 9 * 32               # enemy fighters this close to a bunker: load it
+BUNKER_FROM = 10 * 32                # with marines from this far
+BUNKER_SLOTS = 4
 REPEAT_FRAMES = 48                   # a unit isn't given the same order again within two seconds
 IDLE_ORDERS = {2, 3}                 # Guard, PlayerGuard
 HOLD_ORDERS = {107, 177}             # HoldPosition, MedicHoldPosition
@@ -78,6 +82,9 @@ class TerranGaryV4(TerranGaryV3):
         self.next_fight = 0
         self.fight_center: tuple[float, float] | None = None
         self.told: dict[int, tuple[tuple, int]] = {}    # unit tag -> (order key, frame given)
+        self.macro_turn = False      # after each fight command, production gets a turn
+        self.loaded: dict[int, set[int]] = {}           # bunker tag -> marines Gary sent into it
+        self.next_load = 0
         # sample (the default): draw each unit's action, target and destination from the model's
         # distributions; it plays better in pro scenarios than acting on fixed thresholds
         # (eval/scenarios.py: -207 vs -253). False: the most likely action when "nothing" is
@@ -92,21 +99,96 @@ class TerranGaryV4(TerranGaryV3):
     def act(self) -> None:
         """Fights come first: when enemy fighters are near, the fight model is asked before
         anything else, and may interrupt chores (sending workers to mine or gas, hotkeys) that
-        are cheap to pick up again."""
+        are cheap to pick up again. After each fight command production gets one turn, so it goes
+        on during fights."""
         hi = self.hi
+        if self.macro_turn and self.task is None and not hi.pending:
+            self.macro_turn = False              # fights don't starve production: this turn goes
+            obs = hi.observe()                   # to buildings and production, not to chores
+            mine = [u for u in obs["units"] if u["owner"] == self.slot]   # (refilling gas, mining)
+            self._release_reservations(mine)
+            if not self._resume_construction(mine):
+                self._macro(obs, mine, [u for u in mine if u["completed"]], obs["me"])
+            return
         if not hi.pending and self.setup_done and hi.frame >= self.next_fight and                 (self.task is None or self.task.kind in INTERRUPTIBLE):
             obs = hi.observe()
             self.army_tracker.remember(obs)
             mine = [u for u in obs["units"] if u["owner"] == self.slot]
             task = self.task
             self.task = None
-            if self._fight(obs, mine):
+            if self._pull_workers(obs, mine) or self._bunker_load(obs, mine) or self._fight(obs, mine):
                 return
             self.task = task
         super().act()
 
     def _worker_defense(self, obs: dict, mine: list[dict]) -> bool:
         return False                             # the fight model decides what workers do (_army)
+
+    def _pull_workers(self, obs: dict, mine: list[dict]) -> bool:
+        """Later versions: a worker pull decided before the fight model (v0.7). True if Gary acted."""
+        return False
+
+    # --- bunkers ---------------------------------------------------------------------------
+
+    def _bunker_load(self, obs: dict, mine: list[dict]) -> bool:
+        """Zerg fighters coming at a finished bunker that isn't full: put the nearest marines in it
+        (right-click the bunker), as players do. Marines inside are hidden, so Gary counts as loaded
+        the marines it sent that are inside (not seen) or still on their way. True if Gary acted."""
+        hi = self.hi
+        if hi.frame < self.next_load:
+            return False
+        seen = {u["tag"]: u for u in mine}
+        enemy = [u for u in obs["units"] if u["owner"] not in (self.slot, 11) and supply_x2(u["type"]) > 0
+                 and not is_worker(u["type"]) and not is_building(u["type"])]
+        for b in mine:
+            if b["type"] != BUNKER or not b["completed"]:
+                continue
+            if not any(math.dist((e["x"], e["y"]), (b["x"], b["y"])) < BUNKER_THREAT for e in enemy):
+                continue
+            sent = self.loaded.setdefault(b["tag"], set())
+            sent &= {t for t in sent if t not in seen or seen[t].get("order_target") == b["tag"]}
+            free = BUNKER_SLOTS - len(sent)
+            marines = sorted((u for u in mine if u["type"] == MARINE and u["completed"] and u["tag"] not in sent
+                              and math.dist((u["x"], u["y"]), (b["x"], b["y"])) < BUNKER_FROM),
+                             key=lambda u: math.dist((u["x"], u["y"]), (b["x"], b["y"])))[:free]
+            if free <= 0 or not marines:
+                continue
+            self.next_load = hi.frame + 24 * 2
+            self.task = Task("load", data={"bunker": b["tag"], "x": b["x"], "y": b["y"],
+                                           "marines": [u["tag"] for u in marines]}, started=hi.frame)
+            return True
+        return False
+
+    def _task_load(self, obs: dict, mine: list[dict], t: Task) -> None:
+        """Camera on the bunker, drag-select the marines, right-click the bunker."""
+        hi, d = self.hi, t.data
+        units = [u for u in mine if u["tag"] in set(d["marines"])]
+        if not units:
+            self.task = None
+            return
+        if t.stage == "start":
+            on_screen = [u for u in units if screen_of(obs, u["x"], u["y"])]
+            if not on_screen or not screen_of(obs, d["x"], d["y"]):
+                if d.get("camera_moved"):
+                    self.task = None
+                    return
+                d["camera_moved"] = True
+                self._camera_to(int(d["x"]), int(d["y"]))
+                return
+            pts = [screen_of(obs, u["x"], u["y"]) for u in on_screen]
+            m = BOX_MARGIN
+            hi.box(max(0, min(p[0] for p in pts) - m), max(0, min(p[1] for p in pts) - m),
+                   min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + m),
+                   min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + m))
+            t.stage = "order"
+            return
+        chosen = set(obs["selection"]) & {u["tag"] for u in units}
+        p = screen_of(obs, d["x"], d["y"])
+        if chosen and p:
+            hi.right_click(*p)
+            self.loaded.setdefault(d["bunker"], set()).update(chosen)
+            self._say(f"loads {len(chosen)} marine{'s' * (len(chosen) != 1)} into the bunker")
+        self.task = None
 
     def _snapshot(self, obs: dict):
         """The fight around Gary's units as the fight model sees it (rows, tags, center, units by
@@ -226,11 +308,18 @@ class TerranGaryV4(TerranGaryV3):
 
     def _run_task(self, obs: dict, mine: list[dict]) -> None:
         t = self.task
-        if t.kind == "fight_cmd":
+        if t.kind == "load":
             if self.hi.frame - t.started > 24 * 3:
                 self.task = None
                 return
-            return self._task_fight(obs, mine, t)
+            return self._task_load(obs, mine, t)
+        if t.kind == "fight_cmd":
+            if self.hi.frame - t.started > 24 * 3:
+                self.task = None
+            else:
+                self._task_fight(obs, mine, t)
+            self.macro_turn = self.task is None
+            return
         return super()._run_task(obs, mine)
 
     def _task_fight(self, obs: dict, mine: list[dict], t: Task) -> None:

@@ -99,6 +99,8 @@ class TerranGaryV2(TerranGary):
         self._release_reservations(mine)
         if self.task:
             return self._run_task(obs, mine)
+        if self._resume_construction(mine):
+            return
         idle = [u for u in done if u["type"] == T.SCV and u["order"] == IDLE and screen_of(obs, u["x"], u["y"])
                 and self.ignore_idle_until.get(u["tag"], 0) <= hi.frame]
         if idle:

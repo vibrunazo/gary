@@ -207,7 +207,7 @@ def play_match(map_path: str, minutes: float, seed: int | None, save: str, make_
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--vs", default="v03", choices=["v01", "v02", "v03", "v04", "v05", "v06"], help="which Gary plays Terran")
+    ap.add_argument("--vs", default="v03", choices=["v01", "v02", "v03", "v04", "v05", "v06", "v07"], help="which Gary plays Terran")
     ap.add_argument("--map", required=True)
     ap.add_argument("--minutes", type=float, default=10)
     ap.add_argument("--seed", type=int)
@@ -232,17 +232,18 @@ def main() -> None:
         macro, army = MacroModel.load(latest_model()), ArmyModel.load(latest_army_model())
         fight = FightModel.load(latest_fight_model())
         make = lambda hi, m: TerranGaryV4(hi, m, macro, army, fight, args.style)
-    elif args.vs in ("v05", "v06"):
+    elif args.vs in ("v05", "v06", "v07"):
         from gary.bots.terran_v02 import latest_model
         from gary.bots.terran_v03 import latest_army_model
         from gary.bots.terran_v05 import TerranGaryV5, latest_command_model
         from gary.bots.terran_v06 import TerranGaryV6
+        from gary.bots.terran_v07 import TerranGaryV7
         from gary.policy.army import ArmyModel
         from gary.policy.fight_cmd import CommandModel
         from gary.policy.macro import MacroModel
         macro, army = MacroModel.load(latest_model()), ArmyModel.load(latest_army_model())
-        command = CommandModel.load(latest_command_model(memory=args.vs == "v06"))
-        cls = TerranGaryV6 if args.vs == "v06" else TerranGaryV5
+        command = CommandModel.load(latest_command_model(memory=args.vs != "v05"))
+        cls = {"v05": TerranGaryV5, "v06": TerranGaryV6, "v07": TerranGaryV7}[args.vs]
         make = lambda hi, m: cls(hi, m, macro, army, command, args.style)
     else:
         from gary.bots.terran_v02 import latest_model

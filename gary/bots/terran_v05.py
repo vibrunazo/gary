@@ -46,6 +46,10 @@ class TerranGaryV5(TerranGaryV4):
     temperature = 1.0                    # < 1: draw commands closer to the model's likeliest
     own_radius, max_units = OWN_RADIUS, MAX_UNITS
 
+    def _may_command(self, unit: dict) -> bool:
+        """Whether the command model may give this unit orders (later versions keep some for rules)."""
+        return True
+
     def _fight(self, obs: dict, mine: list[dict]) -> bool:
         snap = self._snapshot(obs)
         if snap is None:
@@ -73,7 +77,7 @@ class TerranGaryV5(TerranGaryV4):
             key = (a, int(center[0] + dx), int(center[1] + dy))
         else:
             key = (a,)
-        chosen = [tags[i] for i in cmd["select"]]
+        chosen = [tags[i] for i in cmd["select"] if self._may_command(by_tag[tags[i]])]
         chosen = [t for t in chosen if not self._already(a, by_tag[t]) and not self._just_told(t, key)
                   and not (len(key) == 2 and by_tag[t].get("order_target") == key[1])]
         if not chosen:

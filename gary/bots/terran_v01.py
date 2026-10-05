@@ -38,6 +38,8 @@ HK_CC = [4, 5]                        # one hotkey per Command Center (buildings
 HK_RAX = [6, 7, 8, 9]
 HK_ARMY = [1, 2]
 BUSY_ORDERS = {30, 31, 33}            # placing / constructing a building
+RESUME_AFTER = 24                     # an unfinished building nobody has built for a second gets an SCV
+RESUME_RETRY = 24 * 4                 # ...and if that one doesn't arrive either, another after 4 s
 IDLE = 3                              # order "PlayerGuard": standing around
 
 
@@ -82,6 +84,7 @@ class TerranGary:
         self.announce = announcement(self.version)   # said in the chat at the start of the game
         self.ignore_idle_until: dict[int, int] = {}   # workers we failed to send: retry later
         self.next_sweep = 0                           # next look for idle workers off screen
+        self.stalled_since: dict[int, int] = {}       # unfinished building -> since when nobody builds it
 
     # --- geometry ------------------------------------------------------------------------
 
@@ -145,6 +148,8 @@ class TerranGary:
 
         if self.task:
             return self._run_task(obs, mine)
+        if self._resume_construction(mine):
+            return
 
         # idle workers go back to mining (game start, after building something)
         idle = [u for u in done if u["type"] == SCV and u["order"] == IDLE and screen_of(obs, u["x"], u["y"])
@@ -234,6 +239,55 @@ class TerranGary:
                 self.ordered_at[b["tag"]] = obs["now"]
             return
 
+    def _resume_construction(self, mine: list[dict]) -> bool:
+        """An unfinished building nobody builds (its SCV was killed or sent away) gets another SCV
+        to finish it, as players do. True if Gary acted."""
+        now = self.hi.frame
+        building = {u.get("order_target") for u in mine if u["type"] == SCV}
+        stalled = None
+        for b in mine:
+            if not (106 <= b["type"] <= 175) or b["completed"] or b["type"] in T.ADDON_PARENT or b["tag"] in building:
+                self.stalled_since.pop(b["tag"], None)
+                continue
+            since = self.stalled_since.setdefault(b["tag"], now)
+            if stalled is None and now - since >= RESUME_AFTER:
+                stalled = b
+        if stalled is None:
+            return False
+        self.stalled_since[stalled["tag"]] = now + RESUME_RETRY - RESUME_AFTER
+        self.task = Task("resume", stalled["type"], data={"tag": stalled["tag"], "x": stalled["x"], "y": stalled["y"]},
+                         started=now)
+        return True
+
+    def _task_resume(self, obs: dict, mine: list[dict], t: Task) -> None:
+        """Camera on the building, select the nearest free SCV, right-click the building."""
+        hi, d = self.hi, t.data
+        b = next((u for u in mine if u["tag"] == d["tag"]), None)
+        if b is None or b["completed"] or hi.frame - t.started > 24 * 8:
+            self.task = None
+            return
+        if t.stage == "start":
+            if not screen_of(obs, b["x"], b["y"]):
+                hi.camera_minimap(b["x"], b["y"])
+                return
+            busy = getattr(self, "pulled", set())
+            scvs = [u for u in mine if u["type"] == SCV and u["completed"] and u["tag"] not in busy
+                    and u["order"] not in BUSY_ORDERS and screen_of(obs, u["x"], u["y"])]
+            if not scvs:
+                self.task = None
+                return
+            s = min(scvs, key=lambda u: math.dist((u["x"], u["y"]), (b["x"], b["y"])))
+            x, y = screen_of(obs, s["x"], s["y"])
+            hi.box(max(0, x - 4), max(0, y - 4), x + 4, y + 4)
+            d["scv"] = s["tag"]
+            t.stage = "order"
+            return
+        p = screen_of(obs, b["x"], b["y"])
+        if d.get("scv") in obs["selection"] and p:
+            hi.right_click(*p)
+            self._say(f"sends an SCV to finish the {T.NAMES.get(b['type'], 'building')}")
+        self.task = None
+
     def adopt_hotkeys(self) -> None:
         """For a game Gary takes over midway (eval/scenarios.py): its production buildings get
         hotkeys as if it had set them itself, earlier in its own game."""
@@ -268,6 +322,8 @@ class TerranGary:
             return self._task_attack(obs, mine, t)
         if t.kind == "mine":
             return self._task_mine(obs, mine, t)
+        if t.kind == "resume":
+            return self._task_resume(obs, mine, t)
 
     def _task_mine(self, obs: dict, mine: list[dict], t: Task) -> None:
         """Select idle workers (drag box around them, or a click) and right-click a mineral field."""
