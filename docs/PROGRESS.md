@@ -72,6 +72,14 @@ quicker way to a playable Gary.
 - **How we got here:** drills alone taught it to run away (nothing to defend) or overfit them;
   drills with something to defend helped some; training on real positions with real validation is
   what transferred. Replays of each stage: `eval/record.py`, and the trainer records at every test.
+- **Fights share Gary's hands** (`gary/bots/drill_gary.py`, `train/fight_cmd_rl.py`): drills got
+  a macro chore (checking the Command Center between fight commands), camera interruptions and a
+  random APM budget; the command model can take Gary's hand state as input (APM tokens left,
+  production waiting, time since the last macro action, camera on the fight); each command costs a
+  little in the reward. Retrained like v0.8's run (from imitation; run 6): the same score on the
+  114 home defenses (−63 vs −61) with 9% fewer actions (77 vs 85 per play; "nothing" 54% of
+  decisions vs 23%), reached in 40 rounds instead of 70. Not adopted (no gain in these scenarios,
+  which ask little of macro). Continuing v0.8's own model instead (run 5) slid back at once.
 - **Most urgently missing:** holding early pools (macro, placement, walls); terrain in the fight
   model; the screen (SCVs in front of marines).
 

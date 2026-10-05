@@ -110,6 +110,8 @@ class TerranGaryV5(TerranGaryV4):
         for t in chosen:
             self.told[t] = (key, self.hi.frame)
         self.task = Task("fight_cmd", data={"key": key, "tags": chosen, "center": center}, started=self.hi.frame)
+        if self.rl_log:
+            self.rl_log[-1]["executed"] = True   # (decisions Gary didn't carry out cost no action)
         return True
 
 

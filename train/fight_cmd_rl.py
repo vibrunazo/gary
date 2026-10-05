@@ -77,9 +77,9 @@ def to_go(deaths: list, t: float, horizon: float) -> float:
 
 
 def events(r: dict, cost: float) -> list:
-    """A play's rewards in time: units dying (+ zerg, - terran), and each command given costing
-    a little, so actions go where they matter (as a player's attention does)."""
-    return r["deaths"] + [(int(d["time"] * 1000 / 42) + 1, -cost) for d in r.get("log", []) if d["type"] > 0]
+    """A play's rewards in time: units dying (+ zerg, - terran), and each command Gary carried out
+    costing a little, so actions go where they matter (as a player's attention does)."""
+    return r["deaths"] + [(int(d["time"] * 1000 / 42) + 1, -cost) for d in r.get("log", []) if d.get("executed")]
 
 
 def decisions(rows: list[dict], horizon: float, cost: float = 0.0) -> list[tuple]:
