@@ -12,7 +12,8 @@ terran value lost), against the other plays of the same drill over the same stre
 (group-relative advantages); a PPO-style clipped update makes better decisions likelier, and a KL
 penalty keeps the model near the imitation model (human-like). Every few rounds the model is
 scored on held-out drills and on validation home defenses (a tenth of the training games' set, never
-trained on), which pick the best checkpoint; the real test is afterwards, on the held-out games'
+trained on), which pick the best checkpoint, and a few of those plays are saved as replays to watch
+(runs/fight_cmd_rl/<run>/replays/round<N>/); the real test is afterwards, on the held-out games'
 home defenses:
 
     python -m train.fight_cmd_rl --rounds 200
@@ -204,6 +205,9 @@ def main() -> None:
     ap.add_argument("--drills", type=int, default=32, help="training drills per round")
     ap.add_argument("--real", type=int, default=32, help="real training home defenses per round (0: drills only)")
     ap.add_argument("--val-draws", type=int, default=2, help="plays of each validation home defense")
+    ap.add_argument("--record", type=int, default=2,
+                    help="at each test point, replays (+ POV) of this many validation defenses and drills, "
+                         "with the pro / imitation / attack-move versions to compare (eval/record.py)")
     ap.add_argument("--draws", type=int, default=8, help="plays of each drill per round")
     ap.add_argument("--test-every", type=int, default=10)
     ap.add_argument("--test-drills", type=int, default=300, help="held-out drills (seeds 0..n-1)")
@@ -249,6 +253,9 @@ def main() -> None:
                     scores["validation"] = score
                     print(f"round {rnd}: validation home defenses net {score:.0f}; {beh}", flush=True)
                 history.append({"round": rnd, "test_net": {k: round(v, 1) for k, v in scores.items()}})
+                if args.record:                  # to watch what it does at this stage
+                    from eval.record import record
+                    record(path, str(out / "replays" / f"round{rnd}"), args.record, args.record, args.family[0], pool)
                 if best is None or score > best[0]:
                     best = (score, rnd)
                     model.save(out / "model.pt")
