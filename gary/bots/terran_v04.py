@@ -42,6 +42,7 @@ RESOURCES = {176, 177, 178, 188, 110}
 ACT_IF_NONE_BELOW = 0.2              # act on a unit when the model gives "nothing" less than this
                                      # (with 0.2 Gary acts on about as many units as pros do: 22% vs 27%)
 SAME_POINT = 96                      # moves to points this close count as the same order
+BOX_MARGIN = 20                      # screen pixels around the group's units when drag-selecting
 REPEAT_FRAMES = 48                   # a unit isn't given the same order again within two seconds
 IDLE_ORDERS = {2, 3}                 # Guard, PlayerGuard
 HOLD_ORDERS = {107, 177}             # HoldPosition, MedicHoldPosition
@@ -231,36 +232,41 @@ class TerranGaryV4(TerranGaryV3):
         return super()._run_task(obs, mine)
 
     def _task_fight(self, obs: dict, mine: list[dict], t: Task) -> None:
-        """Camera on the fight, select the group, give the order."""
+        """Select the group (or keep the selection if it already is the group), with the camera on
+        the group, then give the order."""
         hi, d = self.hi, t.data
         units = [u for u in mine if u["tag"] in set(d["tags"])]
         if not units:
             self.task = None
             return
-        cx, cy = d["center"]
-        if not screen_of(obs, cx, cy):
-            hi.camera_minimap(int(cx), int(cy))
-            return
-        on_screen = [u for u in units if screen_of(obs, u["x"], u["y"])]
         sel = set(obs["selection"])
-        want = {u["tag"] for u in on_screen}
+        want = {u["tag"] for u in units}
         if t.stage == "start":
-            if not on_screen:
-                self.task = None
-                return
-            if len(on_screen) == 1:
-                x, y = screen_of(obs, on_screen[0]["x"], on_screen[0]["y"])
-                hi.box(max(0, x - 4), max(0, y - 4), x + 4, y + 4)   # a click could pick what's under it
+            # the group is already selected (kiting the same units): straight to the order
+            if (want <= sel and len(sel) <= len(want) + 2) or (sel and sel <= want and len(sel) >= 0.7 * len(want)):
+                t.stage = "order"
             else:
+                on_screen = [u for u in units if screen_of(obs, u["x"], u["y"])]
+                if len(on_screen) < len(units) and not d.get("camera_moved"):
+                    d["camera_moved"] = True             # once: then take whoever is on screen
+                    self._camera_to(int(sum(u["x"] for u in units) / len(units)),
+                                    int(sum(u["y"] for u in units) / len(units)))
+                    return
+                if not on_screen:
+                    self.task = None
+                    return
+                # a generous box: units move while Gary reacts (what it sees is 0.3 s old)
                 pts = [screen_of(obs, u["x"], u["y"]) for u in on_screen]
-                hi.box(max(0, min(p[0] for p in pts) - 6), max(0, min(p[1] for p in pts) - 6),
-                       min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + 6),
-                       min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + 6))
-            t.stage = "order"
-            return
+                m = BOX_MARGIN
+                hi.box(max(0, min(p[0] for p in pts) - m), max(0, min(p[1] for p in pts) - m),
+                       min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + m),
+                       min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + m))
+                t.stage = "order"
+                return
         if not sel & want:
             self.task = None
             return
+        want = sel & want
         key = d["key"]
         a = key[0]
         if a in ("attack_unit", "gather", "own_unit"):
@@ -270,6 +276,12 @@ class TerranGaryV4(TerranGaryV3):
                 hi.right_click(*p)
                 self._say(f"fight: {len(sel & want)} {self._names(units)} -> {a.replace('_', ' ')} "
                           f"{unit_name(target['type'])}")
+            elif target and a == "attack_unit":   # off screen: attack-move there on the minimap
+                hi.minimap_command(C.ORDER_ATTACK_MOVE, target["x"], target["y"])
+                self._say(f"fight: {len(want)} {self._names(units)} -> attack move (minimap)")
+            elif target:
+                hi.minimap_right_click(target["x"], target["y"])
+                self._say(f"fight: {len(want)} {self._names(units)} -> move (minimap)")
         elif a in ("move", "attack_move"):
             p = screen_of(obs, key[1], key[2])
             if p and a == "move":
@@ -285,6 +297,18 @@ class TerranGaryV4(TerranGaryV3):
             {"stop": hi.stop, "hold": hi.hold, "stim": hi.stim, "return_cargo": hi.return_cargo}[a]()
             self._say(f"fight: {len(sel & want)} {self._names(units)} -> {a.replace('_', ' ')}")
         self.task = None
+
+    def _camera_to(self, x: int, y: int) -> None:
+        """The camera onto a map point: a saved screen (F2-F4) if one shows it, a key press, else
+        the minimap."""
+        hi = self.hi
+        vw, vh = hi.p.viewport
+        for n, (lx, ly) in hi.camera_locations.items():
+            if lx + 32 <= x <= lx + vw - 32 and ly + 32 <= y <= ly + vh - 32:
+                if hi.camera != (lx, ly):
+                    hi.camera_location(n)
+                    return
+        hi.camera_minimap(x, y)
 
     @staticmethod
     def _names(units: list[dict]) -> str:

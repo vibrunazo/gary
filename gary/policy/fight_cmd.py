@@ -115,23 +115,26 @@ class CommandModel:
         torch.save({"state": self.net.state_dict(), "config": {**self.config, "kind": self.kind}}, path)
 
     @torch.no_grad()
-    def decide(self, units: np.ndarray, time_s: float, rng: np.random.Generator) -> dict | None:
+    def decide(self, units: np.ndarray, time_s: float, rng: np.random.Generator,
+               temperature: float = 1.0) -> dict | None:
         """One command for a snapshot (units (n, 11)), drawn from the model, or None for
         "nothing": {"type", "select" (row indices), "target" (row or -1), "dest" ((x, y) relative
-        to the fight center in the mirrored frame, or None), "p_type"}."""
+        to the fight center in the mirrored frame, or None), "p_type"}. temperature < 1 draws
+        closer to the model's likeliest choices."""
         dev = next(self.net.parameters()).device
         n = min(len(units), MAX_UNITS)
         pad = np.zeros((1, n), bool)
         inputs = tensors(units[None, :n], pad, np.array([time_s], np.float32), dev)
         h, glob, own = self.net.encode(*inputs)
-        p = torch.softmax(self.net.command_logits(glob)[0], -1).double().cpu().numpy()
+        tau = temperature
+        p = torch.softmax(self.net.command_logits(glob)[0] / tau, -1).double().cpu().numpy()
         cmd = int(rng.choice(len(p), p=p / p.sum()))
         if cmd == 0 or not own.any():
             return None
         c = torch.tensor([cmd], device=dev)
         none = torch.zeros((1, n), dtype=torch.bool, device=dev)
         sel_l, _, _ = self.net.rest(h, glob, own, inputs[4], c, none)
-        ps = torch.sigmoid(sel_l[0]).cpu().numpy() * own[0].cpu().numpy()
+        ps = torch.sigmoid(sel_l[0] / tau).cpu().numpy() * own[0].cpu().numpy()
         chosen = np.nonzero(rng.random(n) < ps)[0]
         if len(chosen) == 0:
             chosen = np.array([int(ps.argmax())])
@@ -142,10 +145,10 @@ class CommandModel:
         _, tgt_l, dst_l = self.net.rest(h, glob, own, inputs[4], c, sel)
         target, dest = -1, None
         if cmd in POINTER:
-            pt = torch.softmax(tgt_l[0], -1).double().cpu().numpy()
+            pt = torch.softmax(tgt_l[0] / tau, -1).double().cpu().numpy()
             target = int(rng.choice(n, p=pt / pt.sum()))
         elif cmd in MOVES:
-            pd = torch.softmax(dst_l[0], -1).double().cpu().numpy()
+            pd = torch.softmax(dst_l[0] / tau, -1).double().cpu().numpy()
             cell = int(rng.choice(len(pd), p=pd / pd.sum()))
             x, y = point_of(cell)
             dest = (x + rng.uniform(-CELL / 2, CELL / 2), y + rng.uniform(-CELL / 2, CELL / 2))

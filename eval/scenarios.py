@@ -218,6 +218,7 @@ def make_gary(game, slot: int, version: str, style: int | None, verbose: bool = 
     else:
         bot = TerranGaryV3(hi, MapInfo.from_game(game), macro, army, style, verbose=verbose)
     bot.announce = []                # mid-game: no hello in the chat
+    bot.adopt_hotkeys()              # as if Gary had played the game so far
     return bot, hi
 
 

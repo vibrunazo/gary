@@ -66,6 +66,7 @@ def describe(act: int, uid: int) -> str:
 class TerranGaryV2(TerranGary):
     army_types = T.ARMY
     version = "v0.2"
+    production_types = T.PRODUCTION
 
     def __init__(self, hi: HumanInterface, mapinfo: MapInfo, model: MacroModel,
                  style: int | None = None, verbose: bool = True):
@@ -106,7 +107,7 @@ class TerranGaryV2(TerranGary):
         if self._idle_sweep(obs, done):
             return
         for b in done:
-            if b["type"] in T.PRODUCTION and b["tag"] not in self.hotkeyed:
+            if b["type"] in self.production_types and b["tag"] not in self.hotkeyed:
                 self.task = Task("hotkey_building", b["type"], data={"tag": b["tag"], "x": b["x"], "y": b["y"]},
                                  started=hi.frame)
                 return

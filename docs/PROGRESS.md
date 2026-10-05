@@ -71,9 +71,15 @@ quicker way to a playable Gary.
   each): −192 net, 2.8 SCVs lost (v0.4: −207, 3.3; pro +74; nothing −255). It now pulls SCVs,
   attack-moves, stims and sends workers back to mining, but in groups of 1–4 where the pro pulls
   12, and about one command every 1–2 s against the pro's ~1 per second.
-- **Most urgently missing:** bigger, faster commands (the selection is cut to what's on screen
-  and in the snapshot; Gary's hands are slow and serial); reinforcement learning on the command
-  model; fitted hands.
+- **Hands are not the bottleneck:** in fights pros select 3.9 units per command on average (5%
+  of commands: 12); the model picks ~3. Of those, only 1.7 got the order; with the camera on the
+  group, a wider drag box, reusing the selection and camera hotkeys, 2.2 do and Gary gives 24
+  orders per scenario instead of 19, but the score stays (−193). With hands twice as fast (46
+  orders, the pro's count) it's −210, and sampling closer to the model's likeliest commands
+  (temperature 0.5, 0.25) gives −189: what Gary decides is what's missing, not how fast.
+- **Most urgently missing:** the pros' big decisive commands (pulling or evacuating a whole
+  mineral line: 11–12 SCVs) can't be learned yet, because the fight snapshot (384 px around the
+  fight) leaves most of the mineral line out; rebuilding the fight data with a wider view.
 
 ### v0.4 (October 2026): learned fight model (#2)
 

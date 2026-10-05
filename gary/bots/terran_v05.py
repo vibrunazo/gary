@@ -39,13 +39,14 @@ def latest_command_model(matchup: str = "TvZ", race: str = "T") -> Path:
 
 class TerranGaryV5(TerranGaryV4):
     version = "v0.5"
+    temperature = 1.0                    # < 1: draw commands closer to the model's likeliest
 
     def _fight(self, obs: dict, mine: list[dict]) -> bool:
         snap = self._snapshot(obs)
         if snap is None:
             return False
         rows, tags, center, by_tag = snap
-        cmd = self.fight_model.decide(rows, obs["frame"] * 42 / 1000, self.rng)
+        cmd = self.fight_model.decide(rows, obs["frame"] * 42 / 1000, self.rng, self.temperature)
         if cmd is None:
             return False
         a = ACTIONS[cmd["type"]]

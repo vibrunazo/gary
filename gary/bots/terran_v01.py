@@ -54,6 +54,7 @@ class Task:
 class TerranGary:
     army_types = {MARINE}                 # what joins the attack waves
     version = "v0.1"
+    production_types = (CC, RAX)             # buildings that get a hotkey
 
     def __init__(self, hi: HumanInterface, mapinfo: MapInfo):
         self.hi = hi
@@ -155,7 +156,7 @@ class TerranGary:
             return
         # new buildings get a hotkey and a rally point
         for b in done:
-            if b["type"] in (CC, RAX) and b["tag"] not in self.hotkeyed:
+            if b["type"] in self.production_types and b["tag"] not in self.hotkeyed:
                 self.task = Task("hotkey_building", b["type"], data={"tag": b["tag"], "x": b["x"], "y": b["y"]},
                                  started=hi.frame)
                 return
@@ -232,6 +233,21 @@ class TerranGary:
             elif self.hi.train(want).accepted:
                 self.ordered_at[b["tag"]] = obs["now"]
             return
+
+    def adopt_hotkeys(self) -> None:
+        """For a game Gary takes over midway (eval/scenarios.py): its production buildings get
+        hotkeys as if it had set them itself, earlier in its own game."""
+        obs = self.hi.observe()
+        for b in obs["units"]:
+            if b["owner"] != self.slot or not b["completed"] or b["tag"] in self.hotkeyed:
+                continue
+            if b["type"] not in self.production_types:
+                continue
+            used = set(self.hotkeyed.values())
+            hk = next((k for k in (HK_CC if b["type"] == CC else HK_RAX) if k not in used), -1)
+            self.hotkeyed[b["tag"]] = hk
+            if hk >= 0:
+                self.hi.hotkeys[hk] = [b["tag"]]
 
     # --- tasks --------------------------------------------------------------------------------
 
