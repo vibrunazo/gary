@@ -45,6 +45,7 @@ REPEAT_FRAMES = 48                   # a unit isn't given the same order again w
 IDLE_ORDERS = {2, 3}                 # Guard, PlayerGuard
 HOLD_ORDERS = {107, 177}             # HoldPosition, MedicHoldPosition
 HARVEST_ORDERS = set(range(79, 91))  # Harvest1 .. ReturnMinerals: already mining or on gas
+DEST_NOISE = 96                      # sampling: spread of move destinations (pixels)
 PRIORITY = {"attack_unit": 0, "gather": 1, "own_unit": 1, "stim": 1, "hold": 2, "return_cargo": 2,
             "attack_move": 3, "stop": 3, "move": 4}
 # Enemy HP is hidden unless the unit is selected (the game's UI); the model learned with true HP,
@@ -74,6 +75,12 @@ class TerranGaryV4(TerranGaryV3):
         self.next_fight = 0
         self.fight_center: tuple[float, float] | None = None
         self.told: dict[int, tuple[tuple, int]] = {}    # unit tag -> (order key, frame given)
+        # sample: draw each unit's action, target and destination from the model's distributions
+        # instead of taking the most likely ones (reinforcement learning, train/fight_rl.py), and
+        # log every decision that was carried out in rl_log
+        self.sample = False
+        self.rng = np.random.default_rng(0)
+        self.rl_log: list[dict] = []
 
     # --- fights ----------------------------------------------------------------------------
 
@@ -115,20 +122,32 @@ class TerranGaryV4(TerranGaryV3):
         by_tag = {u["tag"]: u for u in units}
         groups: dict[tuple, list[int]] = {}
         points: dict[str, list[tuple[int, int]]] = {"move": [], "attack_move": []}
+        picked: dict[int, tuple[int, int, int, tuple[float, float]]] = {}   # tag -> (row, action, target, dest)
         for i, tag in enumerate(tags):
             if rows[i][1] != 1:
                 continue
-            # act when the model doesn't expect "nothing", with its best real action
-            if acts[i][0] >= ACT_IF_NONE_BELOW and acts[i][0] >= acts[i][1:].max():
+            if self.sample:
+                p = acts[i].astype(np.float64)
+                ai = int(self.rng.choice(len(p), p=p / p.sum()))
+                if ai == 0:
+                    continue
+            elif acts[i][0] >= ACT_IF_NONE_BELOW and acts[i][0] >= acts[i][1:].max():
                 continue                         # "nothing" is likely and the model's first choice
-            a = ACTIONS[int(acts[i][1:].argmax()) + 1]
+            else:                                # act when the model doesn't expect "nothing",
+                ai = int(acts[i][1:].argmax()) + 1   # with its best real action
+            a = ACTIONS[ai]
+            j, dest = -1, (0.0, 0.0)
             if a == "other":
                 continue
             u = by_tag[tag]
             if self._already(a, u):
                 continue
             if a in ("attack_unit", "gather", "own_unit"):
-                j = int(targets[i].argmax())
+                if self.sample:
+                    p = targets[i].astype(np.float64)
+                    j = int(self.rng.choice(len(p), p=p / p.sum()))
+                else:
+                    j = int(targets[i].argmax())
                 t = tags[j]
                 if t == tag or u.get("order_target") == t:
                     continue                     # already on it
@@ -138,13 +157,15 @@ class TerranGaryV4(TerranGaryV3):
             elif a in ("move", "attack_move"):
                 # like a player: the whole group goes to one point (the median of where the
                 # model sends each unit), not every unit to its own
-                dx, dy = dests[i]
+                dx, dy = dests[i] + (self.rng.normal(0, DEST_NOISE, 2) if self.sample else 0)
+                dest = (float(dx), float(dy))
                 dx, dy = (-dx if self.flip[0] else dx), (-dy if self.flip[1] else dy)
                 points[a].append((int(u["x"] + dx), int(u["y"] + dy)))
                 key = (a,)
             else:
                 key = (a,)
             groups.setdefault(key, []).append(tag)
+            picked[tag] = (i, ai, j, dest)
         for a, pts in points.items():
             if (a,) in groups:
                 groups[(a, int(np.median([p[0] for p in pts])), int(np.median([p[1] for p in pts])))] = groups.pop((a,))
@@ -157,6 +178,11 @@ class TerranGaryV4(TerranGaryV3):
         key = min(groups, key=lambda k: (PRIORITY.get(k[0], 5), -len(groups[k])))
         for tag in groups[key][:12]:
             self.told[tag] = (key, hi.frame)
+        if self.sample:
+            done = [picked[t] for t in groups[key][:12]]
+            self.rl_log.append({"rows": rows, "time": obs["frame"] * 42 / 1000,
+                                "unit": [d[0] for d in done], "act": [d[1] for d in done],
+                                "target": [d[2] for d in done], "dest": [d[3] for d in done]})
         self.task = Task("fight_cmd", data={"key": key, "tags": groups[key][:12], "center": center},
                          started=hi.frame)
         return True

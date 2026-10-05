@@ -7,6 +7,28 @@ on them starts.
 
 Legend: **—** not started · **○** scripted stand-in · **◐** partial · **●** working (for now)
 
+## Roadmap phase
+
+**Now: P2 Micro** ([ARCHITECTURE.md §12](ARCHITECTURE.md#12-roadmap)), with a rough
+P2b (first playable) reached early: Gary already plays whole TvZ games against people, through
+the Remastered bridge. The phases didn't go strictly in order: the macro and army are learned
+by imitation (P3-style pieces) rather than scripted, because the replay pipeline made that the
+quicker way to a playable Gary.
+
+| Phase | Status | What exists | What's missing for its exit criteria |
+|---|---|---|---|
+| P0 Infra | ◐ | OpenBW env, human interface v1, POV and decision logs, eval against a scripted rush and pro scenarios | Vectorized env and its games/hour benchmark; the formal trace schema; classic bots to play against; the interface parity test |
+| P1 Data | ◐ | ~70k replays indexed, resim with Remastered support (go decided: it works), fog-of-war views | Camera logger, camera inference, fitting human profiles from data (the interface's numbers are still placeholders) |
+| P1b Taxonomy | ◐ | TvZ build clusters with readable rules (`taxonomy/discover.py`) | A reviewed `taxonomy/tvz/v1.yaml`, stability and gold-set reports |
+| P1c Strategy stats | — | | Win-rate table, feature library, guide claims |
+| **P2 Micro** | **◐ (current)** | Fight model learned from pro skirmishes; scenario suite from pro replays (`eval/scenarios.py`); first reinforcement learning on scenarios (`train/fight_rl.py`) | Responses within the human band: on the scenarios Gary is barely better than doing nothing (pro +74, Gary about −210, nothing −255) |
+| P2b First playable | ◐ | Full games against people, offline, via the bridge; learned macro steered by build style | Build timings within tolerance (≥18/20 unharassed runs); supply blocks and idle production under harass within the human band |
+| P2c Debug viewer | ● | POV viewer with cursor, clicks and every action in words; videos | Trace overlays beyond actions |
+| P3 BC full game | ◐ (early) | Separate imitation models for macro, army movement and fights | One policy with intent and belief heads, Opponent Model, value network |
+| P4 RL | ◐ (started) | Segment RL (T2a) on 45 s fight scenarios: runs, no gain yet | Elo gain at equal humanlikeness |
+| P5 Explain, P5b Broadcast | — | (The POV viewer's action overlay is a start) | |
+| P6 Deploy | ◐ | Remastered bridge for offline games | Pro blind-test sessions |
+
 ## Components by version
 
 | Component | What it is | Now (v0.4) | v0.4 | v0.3 | v0.2 | v0.1 | v0 |
@@ -27,7 +49,7 @@ Legend: **—** not started · **○** scripted stand-in · **◐** partial · *
 | Replay pipeline | Inventory, build orders, resim, desync checks (§7.1–7.2) | ~70k replays indexed; TvZ re-simulated with fog-of-war views | ● | ● | ● | ● | ● |
 | Build taxonomy | Build styles discovered from replays (§7.3) | TvZ clusters with readable rules; style labels for ~45% of players | ● | ● | ● | ● | ● |
 | Training sets | Data for the learned models | Macro, army and fight sets for TvZ (fight: 7.2M snapshots) | ◐ | ◐ | ◐ | — | — |
-| Learning beyond imitation | Outcome-weighted learning, reinforcement learning | Fight estimate learned from outcomes; no reinforcement learning | ◐ | ◐ | — | — | — |
+| Learning beyond imitation | Outcome-weighted learning, reinforcement learning | Fight estimate learned from outcomes; reinforcement learning on pro scenarios runs, no gain yet | ◐ | ◐ | — | — | — |
 | POV viewer | Watch any game from Gary's screen (`viewer/`) | Cursor, clicks, every action in words; Remastered replays; videos | ● | ● | ● | ● | — |
 | Trace | Gary's decisions and reasons, recorded (§6.5) | Decision log with model probabilities and fight estimates; POV action log | ◐ | ◐ | ◐ | ◐ | — |
 | Evaluation | Matches against opponents, many seeds, a scoreboard (§9) | `eval/vs_rush.py`: several seeds against one scripted Zerg rush; `eval/scenarios.py`: 45 pro skirmishes where Gary takes over the Terran | ◐ | ◐ | ○ | ○ | — |
@@ -50,7 +72,11 @@ Legend: **—** not started · **○** scripted stand-in · **◐** partial · *
   games where the pro's control mattered; net value over 45 s, zerg lost minus terran lost): the
   pro +74, v0.3 −194, v0.4 −253, doing nothing −255. The fight model gives about 14 orders where
   the pro gives about 40, and rarely commits to what decided these fights: pulling a dozen SCVs
-  with attack-move while marines kite.
+  with attack-move while marines kite. Sampling decisions from the model (instead of fixed
+  thresholds) scores −207. Reinforcement learning from scenarios (`train/fight_rl.py`: 40 rounds
+  of 512 plays, group-relative advantages, reward-to-go over 20 s, KL to the imitation model) left
+  the held-out score where it started (−222 → −217); on 4 scenarios it trains and is scored on it
+  gains about +90, so the loop learns but doesn't yet generalize from this much play.
 - **Most urgently missing:** a fight model that acts like the pros in those scenarios (the
   scenarios are now the test); holding the immediate rush through the macro (bunker and marines
   in time).
