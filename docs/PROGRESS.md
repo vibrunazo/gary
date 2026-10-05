@@ -85,6 +85,12 @@ quicker way to a playable Gary.
   for repairable buildings; healing counts back); spellcasters' energy spent; and enemy fighters
   still near a Terran base at the end, against the Terran (so backing off a defense doesn't pay).
   Same ranking on the 114 home defenses: pro +1, v0.8 −91, v0.7 −130, v0.3 −161, nothing −302.
+- **RL with the fuller score** (run 7, from imitation, with the shared-hands changes): validation
+  −172 → −126 by round 40, then the drift toward backing off returned (slower than before);
+  the 114 home defenses: −110 (v0.8 −91 on the same score). Seven RL runs in, the fight model
+  peaks near v0.8's level after 40–70 rounds and then drifts; more reward tuning looks like
+  diminishing returns. What it can't see is a likelier limit: terrain, recent damage, where the
+  threats come from.
 - **Most urgently missing:** holding early pools (macro, placement, walls); terrain in the fight
   model; the screen (SCVs in front of marines).
 
