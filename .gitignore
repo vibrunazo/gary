@@ -82,3 +82,6 @@ desktop.ini
 /resim/build/
 /env/build/
 /viewer/build/
+
+# point-of-view logs from live games (data, like replays)
+*.pov.jsonl

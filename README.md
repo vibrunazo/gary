@@ -7,5 +7,6 @@ did what it did.
 
 **License:** code is [MIT-0](LICENSE); docs and data are [CC0](LICENSE-CC0). No attribution required.
 
-**Status:** early design. There's no playable bot yet. The design lives in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+**Status:** early. Gary plays Terran in TvZ, with build and army decisions learned from pro
+replays, but it's not a good sparring partner yet. What each version can do:
+[docs/PROGRESS.md](docs/PROGRESS.md). The design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
