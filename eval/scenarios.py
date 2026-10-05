@@ -137,7 +137,7 @@ def run_one(sc: dict, controller: str, seconds: float, version: str, style: int 
             save: str | None = None, verbose: bool = False, fight_path: str | None = None,
             sample_seed: int | None = None) -> dict:
     """One scenario under one controller. Gary: fight_path picks the fight model (default the
-    latest trained); with sample_seed Gary samples its fight decisions and the row gets them
+    latest trained); sample_seed seeds its sampled fight decisions and the row gets them
     ("log")."""
     from gary.env import LIVE_COMMAND_DELAY, Game
     replay = data_root() / "raw" / sc["rel_path"]
@@ -157,7 +157,7 @@ def run_one(sc: dict, controller: str, seconds: float, version: str, style: int 
             if controller == "gary":
                 bot, hi = make_gary(game, slot, version, style, verbose, fight_path)
                 if sample_seed is not None:
-                    bot.sample, bot.rng = True, np.random.default_rng(sample_seed)
+                    bot.rng, bot.rl_log = np.random.default_rng(sample_seed), []
             while game.frame < end:
                 if bot:
                     bot.act()
@@ -167,7 +167,7 @@ def run_one(sc: dict, controller: str, seconds: float, version: str, style: int 
                 if game.frame % 12 < 2:
                     losses.note(game.observe(), game)
             row.update(losses.result(game))
-            if bot and bot.sample:
+            if bot and bot.rl_log is not None:
                 row["log"] = bot.rl_log
             if hi:
                 acts = [e["act"] for e in hi.pov if "act" in e]

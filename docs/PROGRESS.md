@@ -73,7 +73,7 @@ quicker way to a playable Gary.
   pro +74, v0.3 −194, v0.4 −253, doing nothing −255. The fight model gives about 14 orders where
   the pro gives about 40, and rarely commits to what decided these fights: pulling a dozen SCVs
   with attack-move while marines kite. Sampling decisions from the model (instead of fixed
-  thresholds) scores −207. Reinforcement learning from scenarios (`train/fight_rl.py`: 40 rounds
+  thresholds) scores −207, and is now the default. Reinforcement learning from scenarios (`train/fight_rl.py`: 40 rounds
   of 512 plays, group-relative advantages, reward-to-go over 20 s, KL to the imitation model) left
   the held-out score where it started (−222 → −217); on 4 scenarios it trains and is scored on it
   gains about +90, so the loop learns but doesn't yet generalize from this much play.

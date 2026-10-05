@@ -3,7 +3,8 @@
 Whenever enemy fighters are near Gary's units, the fight model (gary/policy/fight.py, trained on
 pro TvZ skirmishes) looks at every unit around the fight and says what each of Gary's should do:
 attack which unit, move where, attack-move, go back to mining, repair (right-click an own unit),
-stop, hold, stim, return cargo, or nothing. Gary groups units given the same order and carries the
+stop, hold, stim, return cargo, or nothing, drawn from the model's probabilities (sampling plays
+better than always taking the likeliest). Gary groups units given the same order and carries the
 orders out with human hands, one group per turn: camera on the fight, select (drag box, or click
 and shift-clicks), then right-click the target, A-click, or the hotkey. Units already doing what
 they were told are left alone. This replaces v0.3's scripted worker pull; the army model still
@@ -75,12 +76,14 @@ class TerranGaryV4(TerranGaryV3):
         self.next_fight = 0
         self.fight_center: tuple[float, float] | None = None
         self.told: dict[int, tuple[tuple, int]] = {}    # unit tag -> (order key, frame given)
-        # sample: draw each unit's action, target and destination from the model's distributions
-        # instead of taking the most likely ones (reinforcement learning, train/fight_rl.py), and
-        # log every decision that was carried out in rl_log
-        self.sample = False
+        # sample (the default): draw each unit's action, target and destination from the model's
+        # distributions; it plays better in pro scenarios than acting on fixed thresholds
+        # (eval/scenarios.py: -207 vs -253). False: the most likely action when "nothing" is
+        # unlikely (ACT_IF_NONE_BELOW). rl_log, when a list, gets every decision carried out
+        # (reinforcement learning, train/fight_rl.py).
+        self.sample = True
         self.rng = np.random.default_rng(0)
-        self.rl_log: list[dict] = []
+        self.rl_log: list[dict] | None = None
 
     # --- fights ----------------------------------------------------------------------------
 
@@ -178,7 +181,7 @@ class TerranGaryV4(TerranGaryV3):
         key = min(groups, key=lambda k: (PRIORITY.get(k[0], 5), -len(groups[k])))
         for tag in groups[key][:12]:
             self.told[tag] = (key, hi.frame)
-        if self.sample:
+        if self.rl_log is not None:
             done = [picked[t] for t in groups[key][:12]]
             self.rl_log.append({"rows": rows, "time": obs["frame"] * 42 / 1000,
                                 "unit": [d[0] for d in done], "act": [d[1] for d in done],
