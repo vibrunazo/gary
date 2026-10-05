@@ -229,6 +229,8 @@ def run_one(sc: dict, controller: str, seconds: float, version: str, style: int 
         if hi:
             acts = [e["act"] for e in hi.pov if "act" in e]
             row["acts"] = len(acts)
+            # actions that are commands in a replay (camera moves aren't): comparable to EAPM
+            row["command_acts"] = sum(1 for a in acts if "camera" not in a and not a.startswith(("F", "Shift+F", "arrow", "✗")))
             row["fight_orders"] = sum(1 for a in acts if a.startswith(("right-click", "A-click", "minimap right-click", "minimap attack", "S ", "H ", "T ", "C ")))
         if save:
             game.save_replay(save)
@@ -262,7 +264,7 @@ def make_gary(game, slot: int, version: str, style: int | None, verbose: bool = 
     from gary.bots.terran_v03 import TerranGaryV3, latest_army_model
     from gary.interface import HumanInterface
     from gary.mapinfo import MapInfo
-    hi = HumanInterface(game, slot, v01.PROFILES["b_rank"], seed=1)
+    hi = HumanInterface(game, slot, v01.PROFILES["pro"], seed=1)
     macro, army = _model("macro", str(latest_model())), _model("army", str(latest_army_model()))
     if version == "v04":
         from gary.bots.terran_v04 import TerranGaryV4, latest_fight_model

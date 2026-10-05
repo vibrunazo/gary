@@ -22,7 +22,7 @@ data later): hit-testing uses each unit's clickable rectangle, not its exact pix
 selection uses the game's own rules approximately; no memory of fogged units yet (§6.10).
 
 Usage:
-    hi = HumanInterface(game, slot=3, profile=PROFILES["b_rank"])
+    hi = HumanInterface(game, slot=3, profile=PROFILES["pro"])
     obs = hi.observe()
     hi.camera_center(x, y); hi.click(sx, sy); hi.right_click(sx, sy); hi.train(SCV)
     hi.step(8)   # advances the game; queued clicks land when their mouse travel finishes
@@ -64,6 +64,12 @@ class Profile:
 
 
 PROFILES = {
+    # Gary's default: as fast as the pros in early TvZ defenses. Fitted to the time from selecting
+    # units to the next targeted command in pro replays (median 168 ms in the home-defense
+    # scenarios; b_rank's mouse took 504 ms); reaction and key speed are estimates until the camera
+    # logger measures them (§7.4)
+    "pro": Profile(name="pro", fitts_a_ms=20, fitts_b_ms=28, reaction_ms=200.0, key_ms=40.0,
+                   apm_per_second=7.0, apm_capacity=20.0),
     "b_rank": Profile(),
     "b_rank_widescreen": Profile(name="b_rank_widescreen", viewport=(854, 400)),
     "c_rank": Profile(name="c_rank", apm_capacity=7.0, apm_per_second=2.2, scatter_px=4.0,
@@ -87,7 +93,7 @@ class _Pending:
 
 
 class HumanInterface:
-    def __init__(self, game: Game, slot: int, profile: Profile = PROFILES["b_rank"], seed: int = 0):
+    def __init__(self, game: Game, slot: int, profile: Profile = PROFILES["pro"], seed: int = 0):
         self.game = game
         self.slot = slot
         self.p = profile

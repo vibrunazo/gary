@@ -613,7 +613,7 @@ def play(map_path: str, minutes: float, seed: int | None, save: str, opponent: s
     with Game.new(map_path, races, [name, "Idle (Z)"], seed=seed,
                   command_delay=command_delay) as game:
         mapinfo = MapInfo.from_game(game)
-        hi = HumanInterface(game, _terran_slot(game), PROFILES["b_rank"], seed=1)
+        hi = HumanInterface(game, _terran_slot(game), PROFILES["pro"], seed=1)
         gary = make_bot(hi, mapinfo)
         end = int(minutes * 60 * 24)
         while hi.frame < end:
@@ -691,7 +691,7 @@ def main() -> None:
     ap.add_argument("--live", action="store_true",
                     help="play in a live SC:R client via the bridge instead of headless OpenBW")
     ap.add_argument("--pipe", default=r"\\.\pipe\gary_scr", help="bridge named pipe (with --live)")
-    ap.add_argument("--profile", default="b_rank", choices=sorted(PROFILES))
+    ap.add_argument("--profile", default="pro", choices=sorted(PROFILES))
     ap.add_argument("--pov", help="where to save the point-of-view log (default: alongside --save)")
     args = ap.parse_args()
     if args.live:

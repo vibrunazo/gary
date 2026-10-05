@@ -170,7 +170,8 @@ def play_match(map_path: str, minutes: float, seed: int | None, save: str, make_
                 slot_of["T"] = u["owner"]
             elif u["type"] == HATCH:
                 slot_of["Z"] = u["owner"]
-        his = {r: HumanInterface(game, s, PROFILES["b_rank"], seed=s) for r, s in slot_of.items()}
+        # Gary with its pro-speed hands; the dummy keeps b_rank hands (the benchmark stays the same)
+        his = {r: HumanInterface(game, s, PROFILES["pro" if r == "T" else "b_rank"], seed=s) for r, s in slot_of.items()}
         gary = make_terran(his["T"], mapinfo)
         zerg = ZergRush(his["Z"], mapinfo)
         # the dummy knows where Gary is (no scouting): its waves go straight to Gary's main

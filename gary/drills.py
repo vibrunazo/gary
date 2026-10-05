@@ -143,7 +143,7 @@ def drill_gary(game: Game, drill: Drill, fight_model, seed: int, verbose: bool =
     from gary.bots.drill_gary import DrillGary
     from gary.bots.terran_v01 import PROFILES
     from gary.interface import HumanInterface
-    hi = HumanInterface(game, TERRAN_SLOT, PROFILES["b_rank"], seed=1)
+    hi = HumanInterface(game, TERRAN_SLOT, PROFILES["pro"], seed=1)
     x = sum(u[1] for u in drill.terran) / len(drill.terran)
     y = sum(u[2] for u in drill.terran) / len(drill.terran)
     vw, vh = hi.p.viewport

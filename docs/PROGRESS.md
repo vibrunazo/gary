@@ -35,7 +35,7 @@ quicker way to a playable Gary.
 |---|---|---|---|---|---|---|---|---|---|---|
 | Game: headless | OpenBW game Gary plays in for development and tests (`env/`, `gary/env.py`) | Melee games on any map, network-style command delay, replays saved | ● | ● | ● | ● | ● | ● | ● | ● |
 | Game: live Remastered | Gary in a real StarCraft: Remastered client over LAN (`adapters/scr_bridge`) | Plays; known gaps in the bridge's map checks and hotkeys (its README) | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | — |
-| Human interface | The only path to the game: screen clicks, camera, fog, reaction delay, APM (§6.3) | Clicks, drag boxes, camera hotkeys, fog, 0.3 s delay, APM budget; profiles not fitted from data yet | ● | ● | ● | ● | ● | ● | ● | ● |
+| Human interface | The only path to the game: screen clicks, camera, fog, reaction delay, APM (§6.3) | Clicks, drag boxes, camera hotkeys, fog, reaction delay, APM budget; pro-speed hands fitted to pro replays' select-to-order times yet | ● | ● | ● | ● | ● | ● | ● | ● |
 | Perception and memory | What Gary knows: visible units, remembered enemy units (§6.9, §6.10) | Fog and hidden enemy HP; remembers enemy buildings and the enemy army seen in the last 3 min | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ |
 | Macro decisions | What to build, train, research, and when | Learned from ~14k pro TvZ games; steerable by build style | ● | ● | ● | ● | ● | ● | ○ | — |
 | Macro executor | Carries out macro decisions: placement, production, gas, mining (§5) | Scripted: any Terran building, unit, add-on, research, upgrade, expansion | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
@@ -71,7 +71,12 @@ quicker way to a playable Gary.
   - **no plain moves or stops from the model** for fighting units (a guard rail: they took
     marines out of fights, as watching Gary vs the pro showed; −129 with them, −117 without, the
     same as no model in fights at all), until reinforcement learning teaches when a move helps
-- **Results** (114 home defenses, 4 draws): **−117**, 2.1 SCVs lost: the first Gary better than
+- **Pro-speed hands** (all versions, live too): the `pro` profile is fitted to pro replays: from
+  selecting units to the next targeted command pros take 168 ms (median, home defenses), Gary's
+  old b_rank hands 504 ms. Gary now gives 107 commands a minute there (b_rank 80; the pros 185
+  effective: the rest is Gary's decision loop, not its hands). With them: home defenses v0.7 −92,
+  v0.3 −131, v0.6 −185; the immediate 9-pool: v0.3 holds 4 of 8, v0.7 2.
+- **Results** (b_rank hands; 114 home defenses, 4 draws): **−117**, 2.1 SCVs lost: the first Gary better than
   v0.3's −157 (v0.6 with the first three fixes −195; pro +29; nothing −260). Against the
   immediate 9-pool it holds 2 of 8 seeds, like v0.3: that's decided by placement and macro
   (bunker, marines, walls in time), not by fight micro.

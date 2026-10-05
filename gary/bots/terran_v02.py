@@ -440,7 +440,7 @@ def main() -> None:
     ap.add_argument("--quiet", action="store_true", help="don't print each decision")
     ap.add_argument("--live", action="store_true", help="play in a live SC:R client via the bridge")
     ap.add_argument("--pipe", default=r"\\.\pipe\gary_scr", help="bridge named pipe (with --live)")
-    ap.add_argument("--profile", default="b_rank", choices=sorted(v01.PROFILES))
+    ap.add_argument("--profile", default="pro", choices=sorted(v01.PROFILES))
     ap.add_argument("--pov", help="where to save the point-of-view log (live)")
     args = ap.parse_args()
     model = MacroModel.load(args.model or latest_model())

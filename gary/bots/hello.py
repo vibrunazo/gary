@@ -92,7 +92,7 @@ def main() -> None:
     ap.add_argument("--races", nargs="+", default=["T", "Z"], help="one race per player, e.g. T Z")
     ap.add_argument("--seed", type=int, help="random start locations; default: current time")
     ap.add_argument("--minutes", type=float, default=4)
-    ap.add_argument("--profile", default="b_rank", choices=sorted(PROFILES))
+    ap.add_argument("--profile", default="pro", choices=sorted(PROFILES))
     ap.add_argument("--save", default="gary_hello.rep", help="where to save the resulting replay")
     args = ap.parse_args()
 
