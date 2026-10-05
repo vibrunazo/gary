@@ -159,6 +159,7 @@ class CommandModel:
         tau = temperature
         p = torch.softmax(self.net.command_logits(glob)[0] / tau, -1).double().cpu().numpy()
         cmd = int(rng.choice(len(p), p=p / p.sum()))
+        self.last = {"type": cmd, "select": [], "target": -1, "cell": -1}   # the raw draw (for RL)
         if cmd == 0 or not own.any():
             return None
         c = torch.tensor([cmd], device=dev)
@@ -170,6 +171,7 @@ class CommandModel:
             chosen = np.array([int(ps.argmax())])
         if len(chosen) > MAX_SELECT:
             chosen = chosen[np.argsort(-ps[chosen])[:MAX_SELECT]]
+        self.last["select"] = [int(i) for i in chosen]
         sel = torch.zeros((1, n), dtype=torch.bool, device=dev)
         sel[0, torch.as_tensor(chosen, device=dev)] = True
         _, tgt_l, dst_l = self.net.rest(h, glob, own, inputs[4], c, sel)
@@ -177,9 +179,11 @@ class CommandModel:
         if cmd in POINTER:
             pt = torch.softmax(tgt_l[0] / tau, -1).double().cpu().numpy()
             target = int(rng.choice(n, p=pt / pt.sum()))
+            self.last["target"] = target
         elif cmd in MOVES:
             pd = torch.softmax(dst_l[0] / tau, -1).double().cpu().numpy()
             cell = int(rng.choice(len(pd), p=pd / pd.sum()))
+            self.last["cell"] = cell
             x, y = point_of(cell)
             dest = (x + rng.uniform(-CELL / 2, CELL / 2), y + rng.uniform(-CELL / 2, CELL / 2))
         return {"type": cmd, "select": [int(i) for i in chosen], "target": target, "dest": dest,

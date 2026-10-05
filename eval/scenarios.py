@@ -270,11 +270,11 @@ def make_gary(game, slot: int, version: str, style: int | None, verbose: bool = 
         from gary.bots.terran_v04 import TerranGaryV4, latest_fight_model
         bot = TerranGaryV4(hi, MapInfo.from_game(game), macro, army,
                            _model("fight", str(fight_path or latest_fight_model())), style, verbose=verbose)
-    elif version in ("v05", "v06", "v07"):
+    elif version in ("v05", "v06", "v07", "v07free"):
         from gary.bots.terran_v05 import TerranGaryV5, latest_command_model
         from gary.bots.terran_v06 import TerranGaryV6
-        from gary.bots.terran_v07 import TerranGaryV7
-        cls = {"v05": TerranGaryV5, "v06": TerranGaryV6, "v07": TerranGaryV7}[version]
+        from gary.bots.terran_v07 import TerranGaryV7, TerranGaryV7Free
+        cls = {"v05": TerranGaryV5, "v06": TerranGaryV6, "v07": TerranGaryV7, "v07free": TerranGaryV7Free}[version]
         bot = cls(hi, MapInfo.from_game(game), macro, army,
                   _model("fight", str(fight_path or latest_command_model(memory=version != "v05"))), style, verbose=verbose)
     else:
@@ -296,7 +296,8 @@ def main() -> None:
     ap.add_argument("--run", type=int, help="score the first N saved scenarios")
     ap.add_argument("--controllers", nargs="+", default=CONTROLLERS, choices=CONTROLLERS)
     ap.add_argument("--seconds", type=float, default=45)
-    ap.add_argument("--version", default="v04", choices=["v03", "v04", "v05", "v06", "v07"], help="which Gary takes over")
+    ap.add_argument("--version", default="v04", choices=["v03", "v04", "v05", "v06", "v07", "v07free"],
+                    help="which Gary takes over (v07free: v0.7 without its guard rail, for RL-trained fight models)")
     ap.add_argument("--style", type=int, default=1)
     ap.add_argument("--parallel", type=int, default=max(1, (os.cpu_count() or 6) * 2 // 3),
                     help="worker processes (default: 2/3 of the logical cores; more add nothing measurable)")

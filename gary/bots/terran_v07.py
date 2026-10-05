@@ -44,6 +44,14 @@ class TerranGaryV7(TerranGaryV6):
         return action not in ("move", "stop")
 
 
+class TerranGaryV7Free(TerranGaryV7):
+    """v0.7 without the guard rail on the model's moves and stops: for judging fight models
+    trained by reinforcement learning (eval/scenarios.py --version v07free)."""
+
+    def _may_issue(self, action: str) -> bool:
+        return True
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--map", help="a .scm/.scx map (or a pre-1.18 replay) for headless play")

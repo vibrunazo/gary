@@ -63,6 +63,9 @@ class TerranGaryV5(TerranGaryV4):
         if self.fight_model.memory:              # what Gary's hands did in the last seconds
             hist = history_inputs(tags, rows, center, self.flip, obs["frame"], self.hi.commands)
         cmd = self.fight_model.decide(rows, obs["frame"] * 42 / 1000, self.rng, self.temperature, hist)
+        if self.rl_log is not None:              # every decision, "nothing" too (train/fight_cmd_rl.py)
+            self.rl_log.append({"rows": rows, "time": obs["frame"] * 42 / 1000, "hist": hist,
+                                **getattr(self.fight_model, "last", {"type": 0, "select": [], "target": -1, "cell": -1})})
         if cmd is None:
             return False
         a = ACTIONS[cmd["type"]]

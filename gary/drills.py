@@ -177,6 +177,7 @@ def run_drill(drill: Drill, controller: str = "gary", fight_path: str | None = N
                 game.act(TERRAN_SLOT, C.select(mine[i:i + 12]))
                 game.act(TERRAN_SLOT, C.targeted_order(C.ORDER_ATTACK_MOVE, int(zx), int(zy)))
         end = game.frame + int(drill.seconds * 1000 / 42)
+        deaths, alive = [], set(start)
         while game.frame < end:
             if game.frame % ZERG_EVERY == 0:
                 zerg_script(game, game.observe())
@@ -185,6 +186,11 @@ def run_drill(drill: Drill, controller: str = "gary", fight_path: str | None = N
                 hi.step(2)
             else:
                 game.step(2)
+            if game.frame % 12 < 2:              # when units die (credit for decisions: RL)
+                for tag in [t for t in alive if game.unit_type_of(t) == -1]:
+                    alive.discard(tag)
+                    owner, kind = start[tag]
+                    deaths.append((game.frame, VALUE.get(kind, 50) * (1 if owner == ZERG_SLOT else -1)))
         lost = {TERRAN_SLOT: 0, ZERG_SLOT: 0}
         left = {TERRAN_SLOT: 0, ZERG_SLOT: 0}
         for tag, (owner, kind) in start.items():
@@ -193,7 +199,7 @@ def run_drill(drill: Drill, controller: str = "gary", fight_path: str | None = N
             else:
                 left[owner] += 1
         row.update(T_lost=lost[TERRAN_SLOT], Z_lost=lost[ZERG_SLOT], T_left=left[TERRAN_SLOT], Z_left=left[ZERG_SLOT],
-                   net=lost[ZERG_SLOT] - lost[TERRAN_SLOT], **drill.info)
+                   net=lost[ZERG_SLOT] - lost[TERRAN_SLOT], deaths=deaths, **drill.info)
         if bot and log:
             row["log"] = bot.rl_log
         if hi:
