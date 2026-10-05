@@ -2,13 +2,18 @@
 T0 micro curriculum).
 
 Starts from the imitation-trained command model with memory (train/fight_cmd.py --memory) and
-improves it on drills (gary/drills.py): each round Gary plays a batch of drills several times each,
-drawing its commands from the model, through the human interface. Every decision (nothing
+improves it on drills (gary/drills.py) and on real pro positions: home defenses from training
+games (eval/scenarios.py --split train), where Gary plays as v0.7 without its guard rail (the worker
+pull rule, bunker loads, production...) and only the fight model's decisions are trained. Each round
+Gary plays a batch of each several times, drawing its commands from the model, through the human
+interface. Every decision (nothing
 included) is judged by what happened in the HORIZON_S seconds after it (zerg value killed minus
 terran value lost), against the other plays of the same drill over the same stretch
 (group-relative advantages); a PPO-style clipped update makes better decisions likelier, and a KL
 penalty keeps the model near the imitation model (human-like). Every few rounds the model is
-scored on held-out drills it never trains on; the real test is afterwards, on the pro scenarios:
+scored on held-out drills and on validation home defenses (a tenth of the training games' set, never
+trained on), which pick the best checkpoint; the real test is afterwards, on the held-out games'
+home defenses:
 
     python -m train.fight_cmd_rl --rounds 200
     python -m eval.scenarios --run 114 --version v07free --controllers gary --samples 4 \\
@@ -46,6 +51,26 @@ def play(args: tuple) -> dict:
     return run_drill(make_drill(family, seed), "gary", path, sample_seed=draw, log=log)
 
 
+def play_real(args: tuple) -> dict:
+    """A real home defense (pro position, the Zerg replaying the pro), Gary as v0.7 without its
+    guard rail with the given fight model; logs the fight model's decisions."""
+    from eval import scenarios as S
+    sc, path, draw = args
+    r = S.run_one(sc, "gary", 45, "v07free", 1, fight_path=path, sample_seed=draw)
+    r["drill"] = "real_" + sc["sha1"][:12]
+    if "error" not in r:
+        r["net"] = r["Z_lost"] - r["T_lost"]
+    return r
+
+
+def real_splits() -> tuple[list[dict], list[dict]]:
+    """The training games' home defenses: train, and a tenth (by game) for validation."""
+    from eval import scenarios as S
+    scs = [json.loads(line) for line in S.scenarios_path("train").read_text(encoding="utf-8").splitlines()]
+    val = [sc for sc in scs if int(sc["sha1"][:8], 16) % 10 == 1]
+    return [sc for sc in scs if int(sc["sha1"][:8], 16) % 10 != 1], val
+
+
 def to_go(deaths: list, t: float, horizon: float) -> float:
     return sum(v for f, v in deaths if t < f * 42 / 1000 <= t + horizon)
 
@@ -62,6 +87,8 @@ def decisions(rows: list[dict], horizon: float) -> list[tuple]:
             continue
         for k, r in enumerate(rs):
             for d in r.get("log", []):
+                if len(d["rows"]) == 0:
+                    continue
                 g = np.array([to_go(o["deaths"], d["time"], horizon) for o in rs], np.float32)
                 a = (g[k] - g.mean()) / max(float(g.std()), ADV_FLOOR)
                 if a != 0:
@@ -125,12 +152,23 @@ def update(net, ref, opt, decs: list, args, device: str) -> dict:
     with torch.no_grad():
         old = [log_probs(net, *p[:6])[0] for p in parts]
         ref_lp = [log_probs(ref, *p[:6])[1] for p in parts]
+    bad = sum(int((~torch.isfinite(o)).sum()) for o in old)
+    if bad:                                      # left out of the update (and shown once, to fix)
+        k = next(i for i, o in enumerate(old) if not torch.isfinite(o).all())
+        j = int(torch.nonzero(~torch.isfinite(old[k]))[0])
+        d = decs[k * args.minibatch + j][0]
+        print(f"  {bad} decisions with a non-finite log-probability left out, e.g. type {d['type']} select "
+              f"{d['select']} target {d['target']} cell {d['cell']} units {len(d['rows'])}", flush=True)
     stats = {"pg": 0.0, "kl": 0.0, "clipped": 0.0, "n": 0}
     for _ in range(args.epochs):
         for k in random.sample(range(len(parts)), len(parts)):
             *inp, adv = parts[k]
             lp, type_lp = log_probs(net, *inp)
-            ratio = torch.exp((lp - old[k]).clamp(-20, 20))
+            ok = torch.isfinite(old[k]) & torch.isfinite(lp)
+            if not ok.any():
+                continue
+            ratio = torch.exp((lp - old[k]).clamp(-20, 20))[ok]
+            adv = adv[ok]
             pg = -torch.min(ratio * adv, ratio.clamp(1 - args.clip, 1 + args.clip) * adv).mean()
             kl = (type_lp.exp() * (type_lp - ref_lp[k])).sum(-1).mean()
             loss = pg + args.kl * kl
@@ -141,6 +179,12 @@ def update(net, ref, opt, decs: list, args, device: str) -> dict:
             stats["pg"] += pg.item(); stats["kl"] += kl.item()
             stats["clipped"] += ((ratio - 1).abs() > args.clip).float().mean().item(); stats["n"] += 1
     return {k: round(v / max(1, stats["n"]), 4) for k, v in stats.items() if k != "n"}
+
+
+def validate(pool, val: list[dict], path: str, draws: int) -> tuple[float, dict]:
+    rows = [r for r in pool.map(play_real, [(sc, path, k) for sc in val for k in range(draws)], chunksize=draws)
+            if "error" not in r]
+    return float(np.mean([r["net"] for r in rows])), behavior(rows)
 
 
 def test(pool, family: str, n: int, path: str) -> tuple[float, dict]:
@@ -154,10 +198,12 @@ def main() -> None:
     ap.add_argument("--init", help="command model to start from (default: the latest with memory)")
     ap.add_argument("--ref", help="model the KL penalty keeps close to (default: the latest imitation model with "
                                   "memory, so continued runs stay human-like)")
-    ap.add_argument("--family", nargs="+", default=["home_defense", "mm_vs_lings"],
+    ap.add_argument("--family", nargs="+", default=["home_defense"],
                     help="drill families, trained on in turn and tested each on its own")
     ap.add_argument("--rounds", type=int, default=200)
-    ap.add_argument("--drills", type=int, default=64, help="training drills per round")
+    ap.add_argument("--drills", type=int, default=32, help="training drills per round")
+    ap.add_argument("--real", type=int, default=32, help="real training home defenses per round (0: drills only)")
+    ap.add_argument("--val-draws", type=int, default=2, help="plays of each validation home defense")
     ap.add_argument("--draws", type=int, default=8, help="plays of each drill per round")
     ap.add_argument("--test-every", type=int, default=10)
     ap.add_argument("--test-drills", type=int, default=300, help="held-out drills (seeds 0..n-1)")
@@ -184,6 +230,9 @@ def main() -> None:
     model.config = {**model.config, "rl": {"init": str(init), "ref": str(ref_path), **vars(args)}}
     history, best = [], None
     rng = random.Random(0)
+    train_real, val_real = real_splits() if args.real else ([], [])
+    if args.real:
+        print(f"real home defenses: {len(train_real)} to train on, {len(val_real)} for validation", flush=True)
     print(f"from {init} (KL to {ref_path}); {args.drills} drills x {args.draws} plays per round", flush=True)
     with ProcessPoolExecutor(args.parallel) as pool:
         for rnd in range(args.rounds + 1):
@@ -195,6 +244,10 @@ def main() -> None:
                     scores[fam], beh = test(pool, fam, args.test_drills, path)
                     print(f"round {rnd}: held-out {fam} net {scores[fam]:.0f}; {beh}", flush=True)
                 score = float(np.mean(list(scores.values())))
+                if val_real:                     # real positions pick the best checkpoint
+                    score, beh = validate(pool, val_real, path, args.val_draws)
+                    scores["validation"] = score
+                    print(f"round {rnd}: validation home defenses net {score:.0f}; {beh}", flush=True)
                 history.append({"round": rnd, "test_net": {k: round(v, 1) for k, v in scores.items()}})
                 if best is None or score > best[0]:
                     best = (score, rnd)
@@ -205,6 +258,10 @@ def main() -> None:
             drills = [(args.family[i % len(args.family)], rng.randrange(*TRAIN_SEEDS)) for i in range(args.drills)]
             rows = list(pool.map(play, [(fam, s, path, k, True) for fam, s in drills for k in range(args.draws)],
                                  chunksize=args.draws))
+            if train_real:
+                scs = rng.sample(train_real, min(args.real, len(train_real)))
+                rows += list(pool.map(play_real, [(sc, path, k) for sc in scs for k in range(args.draws)],
+                                      chunksize=args.draws))
             decs = decisions(rows, args.horizon)
             nets = [r["net"] for r in rows if "error" not in r]
             stats = update(net, ref, opt, decs, args, device) if decs else {}
@@ -216,7 +273,8 @@ def main() -> None:
                 if old.name != f"round{rnd}.pt":
                     old.unlink()
     (out / "history.json").write_text(json.dumps(history, indent=1), encoding="utf-8")
-    print(f"best held-out drills net (mean of families) {best[0]:.0f} at round {best[1]} -> {out / 'model.pt'}")
+    print(f"best {'validation home defenses' if val_real else 'held-out drills'} net {best[0]:.0f} at round {best[1]} "
+          f"-> {out / 'model.pt'}")
 
 
 if __name__ == "__main__":

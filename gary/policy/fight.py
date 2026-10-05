@@ -125,6 +125,8 @@ def snapshot(obs: dict, slot: int, flip: tuple[bool, bool], supply_x2, is_worker
               and (u["owner"] != 11 or u["type"] in (176, 177, 178, 188))]
     around.sort(key=lambda u: (u["x"] - cx) ** 2 + (u["y"] - cy) ** 2)
     around = around[:max_units]
+    if not any(u["owner"] == slot for u in around):
+        return None                              # the engaged enemies are spread out: no one fight
     row = {u["tag"]: i for i, u in enumerate(around)}
     fx, fy = flip
     rows = np.zeros((len(around), 11), np.int16)
