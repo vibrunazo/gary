@@ -36,6 +36,7 @@ from collections import deque
 from dataclasses import dataclass, field, replace
 
 from gary import commands as C
+from gary import terran as T
 from gary.env import Game
 
 FRAME_MS = 42  # one frame at Fastest speed
@@ -254,6 +255,7 @@ class HumanInterface:
 
     def _record_result(self, command: bytes, ok: bool) -> None:
         if not ok:
+            self._log_pov(act=f"\u2717 rejected: {COMMAND_NAMES.get(command[0], hex(command[0]))}")
             self.stats["rejected_by_game"] += 1
             key = f"rejected_by_game_{command[0]:#04x}"
             self.stats[key] = self.stats.get(key, 0) + 1
@@ -430,13 +432,17 @@ class HumanInterface:
         self._mouse_moves = [m for m in self._mouse_moves if m[1] >= self.frame - 1] or self._mouse_moves[-1:]
         return pos if pos is not None else self.cursor
 
-    def _log_pov(self, click: str | None = None) -> None:
+    def _log_pov(self, click: str | None = None, act: str | None = None) -> None:
+        """One POV entry: camera, cursor, the click if any, and what Gary did, in words ("act")."""
         cur = self._displayed_cursor()
         key = (self.camera, cur)
-        if click is None and key == self._last_pov and self.frame % 24:
+        if click is None and act is None and key == self._last_pov and self.frame % 24:
             return
         self._last_pov = key
-        self.pov.append({"frame": self.frame, "camera": list(self.camera), "cursor": list(cur), "click": click})
+        entry = {"frame": self.frame, "camera": list(self.camera), "cursor": list(cur), "click": click}
+        if act:
+            entry["act"] = act
+        self.pov.append(entry)
 
     def save_pov(self, path) -> None:
         """Write the point-of-view log (one JSON object per line) for viewer/gary_view --pov."""
@@ -450,62 +456,100 @@ class HumanInterface:
         g = self.game
         click = {"click": "left", "box": "left", "build": "left", "right_click": "right",
                  "minimap_right_click": "right", "minimap_order": "left"}.get(a.kind)
-        if click:
-            self._log_pov(click)
+        act = None                       # what happened, in words, for the POV log
         if a.kind == "camera":
             self._center_camera(a.args["x"], a.args["y"])
+            act = "minimap click (camera)"
         elif a.kind == "scroll":
             self.scroll = (a.args["dx"], a.args["dy"], a.args["frames"])
+            act = "arrow keys (scroll)"
         elif a.kind == "camera_location_set":
             self.camera_locations[a.args["n"]] = self.camera
+            act = f"Shift+F{a.args['n']} (save screen)"
         elif a.kind == "camera_location":
             self.camera = self.camera_locations[a.args["n"]]
+            act = f"F{a.args['n']} (jump to screen)"
         elif a.kind == "camera_to_group":
             tags = set(self.hotkeys.get(a.args["n"], []))
             units = [u for u in self.history[-1][1]["units"] if u["tag"] in tags]
             if units:
                 self._center_camera(sum(u["x"] for u in units) // len(units), sum(u["y"] for u in units) // len(units))
+            act = f"{a.args['n']} {a.args['n']} (center on group)"
         elif a.kind == "click":
             tag = g.unit_at(self.slot, *self._to_map(a.args["sx"], a.args["sy"]))
+            act = "click: nothing there"
             if tag:
+                name = unit_name(g.unit_type_of(tag))
                 if a.args["shift"] and self.selection:
+                    act = f"shift-click: add {name}"
                     if self._send(bytes([0x0A, 1]) + tag.to_bytes(2, "little")):
                         self.selection = (self.selection + [tag])[:12]
-                elif self._send(C.select([tag])):
-                    self.selection = [tag]
+                else:
+                    act = f"click: select {name}"
+                    if self._send(C.select([tag])):
+                        self.selection = [tag]
         elif a.kind == "box":
             x0, y0 = self._to_map(a.args["x0"], a.args["y0"])
             x1, y1 = self._to_map(a.args["sx"], a.args["sy"])
             tags = g.box_select(self.slot, x0, y0, x1, y1)
+            act = f"drag box: {len(tags)} unit{'s' * (len(tags) != 1)}" if tags else "drag box: nothing"
             if tags and self._send(C.select(tags)):
                 self.selection = tags
         elif a.kind == "right_click":
             x, y = self._to_map(a.args["sx"], a.args["sy"])
             tag = g.unit_at(self.slot, x, y)
-            self._send(C.right_click(x, y, tag, C.NO_UNIT if not tag else g.unit_type_of(tag), a.args["queued"]))
+            kind = g.unit_type_of(tag) if tag else None
+            if kind is None:
+                act = "right-click ground (move)"
+            elif kind in RESOURCES:
+                act = f"right-click {unit_name(kind)} (gather)"
+            else:
+                act = f"right-click {unit_name(kind)}"
+            self._send(C.right_click(x, y, tag, C.NO_UNIT if not tag else kind, a.args["queued"]))
         elif a.kind == "minimap_right_click":
+            act = "minimap right-click (move)"
             self._send(C.right_click(a.args["x"], a.args["y"]))
         elif a.kind == "minimap_order":
+            act = "minimap attack-move" if a.args["order"] == C.ORDER_ATTACK_MOVE else f"minimap order {a.args['order']}"
             self._send(C.targeted_order(a.args["order"], a.args["x"], a.args["y"]))
         elif a.kind == "train":
+            act = f"train {unit_name(a.args['unit_type'])}"
             self._send(C.train(a.args["unit_type"]))
         elif a.kind == "morph":
+            act = f"morph {unit_name(a.args['unit_type'])}"
             self._send(C.morph(a.args["unit_type"]))
         elif a.kind == "research":
+            act = f"research {T.TECH_NAMES.get(a.args['tech'], a.args['tech'])}"
             self._send(C.research(a.args["tech"]))
         elif a.kind == "upgrade":
+            act = f"upgrade {T.UPGRADE_NAMES.get(a.args['upgrade_id'], a.args['upgrade_id'])}"
             self._send(C.upgrade(a.args["upgrade_id"]))
         elif a.kind == "build":
             x, y = self._to_map(a.args["sx"], a.args["sy"])
+            act = f"place {unit_name(a.args['unit_type'])}"
             self._send(C.build(a.args["unit_type"], x // 32, y // 32, a.args["order"]))
         elif a.kind == "hotkey_set":
             self.hotkeys[a.args["n"]] = list(self.selection)
+            act = f"Ctrl+{a.args['n']} (make group)"
         elif a.kind == "hotkey_add":
             self.hotkeys[a.args["n"]] = list(dict.fromkeys(self.hotkeys.get(a.args["n"], []) + self.selection))[:12]
+            act = f"Shift+{a.args['n']} (add to group)"
         elif a.kind == "hotkey_recall":
             tags = self.hotkeys.get(a.args["n"], [])
+            act = f"{a.args['n']} (select group)"
             if tags and self._send(C.select(tags)):
                 self.selection = list(tags)
+        self._log_pov(click, act)
+
+RESOURCES = {176, 177, 178, 188, 110, 157, 149}      # mineral fields, geyser, refineries / extractor
+OTHER_NAMES = {176: "Mineral Field", 177: "Mineral Field", 178: "Mineral Field", 188: "Vespene Geyser",
+               35: "Larva", 36: "Egg", 37: "Zergling", 41: "Drone", 42: "Overlord", 131: "Hatchery"}
+COMMAND_NAMES = {0x09: "select", 0x0A: "shift-select", 0x0C: "build", 0x14: "right-click", 0x15: "order",
+                 0x1F: "train", 0x23: "morph", 0x30: "research", 0x32: "upgrade"}
+
+
+def unit_name(unit_type: int) -> str:
+    return T.NAMES.get(unit_type) or OTHER_NAMES.get(unit_type) or f"unit {unit_type}"
 
 
 def screen_of(obs: dict, x: int, y: int) -> tuple[int, int] | None:

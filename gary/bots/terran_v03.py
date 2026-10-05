@@ -118,7 +118,6 @@ class TerranGaryV3(TerranGaryV2):
         self.ask_turn += 1
         grid, glob = self.army_tracker.inputs(obs, group)
         where, kind = self.army_model.predict(grid, glob)
-        attack = int(kind[0].argmax()) == 1
         cx = sum(u["x"] for u in group) / len(group)
         cy = sum(u["y"] for u in group) / len(group)
         here = self.army_tracker.cell(cx, cy)
@@ -130,16 +129,19 @@ class TerranGaryV3(TerranGaryV2):
             self.proposed.pop(here, None)
             return False                                          # stay
         best = int(np.where(away, where[0], -1).argmax())          # where, if moving
+        # move or attack-move as the model says, but never walk (rather than fight) into where
+        # enemy buildings were seen. (Always attack-moving was tried: the model's plain moves are
+        # often regrouping or pulling back, and stopping to fight there lost more games.)
+        attack = int(kind[0].argmax()) == 1
+        near_enemy = self.army_tracker.seen_buildings.reshape(GRID, GRID)[
+            max(0, best // GRID - 2):best // GRID + 3, max(0, best % GRID - 2):best % GRID + 3].any()
+        attack = attack or bool(near_enemy)
         proposed, self.proposed[here] = self.proposed.get(here), best
         if proposed is None or cell_dist(proposed, best) > 1:
             return False                                          # wait until it says so twice
         last = self.ordered.get(here)
         if last and cell_dist(last[0], best) <= 1 and last[1] == attack and hi.frame - last[2] < REORDER_AFTER:
             return False
-        # never walk (rather than fight) into where enemy buildings were seen
-        near_enemy = self.army_tracker.seen_buildings.reshape(GRID, GRID)[
-            max(0, best // GRID - 2):best // GRID + 3, max(0, best % GRID - 2):best % GRID + 3].any()
-        attack = attack or bool(near_enemy)
         # will it go well? the model's fight estimate for going there vs staying put
         go = self.army_model.fight(grid, glob, best, attack)
         stay = self.army_model.fight(grid, glob, here, False)
@@ -175,11 +177,12 @@ class TerranGaryV3(TerranGaryV2):
             theirs = sum(supply_x2(u["type"]) for u in near)
             alive = {u["tag"] for u in mine}
             self.pulled &= alive
-            if theirs > ours + 2 and len(self.pulled) < 8 and hi.frame >= self.next_pull:
+            if theirs >= 2 and theirs > ours and len(self.pulled) < 2 * len(near) + 1 and hi.frame >= self.next_pull:
                 self.next_pull = hi.frame + 24 * 3              # one pull at a time
                 tx = sum(u["x"] for u in near) // len(near)
                 ty = sum(u["y"] for u in near) // len(near)
-                self.task = Task("pull", data={"cc": (cc["x"], cc["y"]), "to": (tx, ty)}, started=hi.frame)
+                self.task = Task("pull", data={"cc": (cc["x"], cc["y"]), "to": (tx, ty), "n": 2 * len(near) + 1},
+                                 started=hi.frame)
                 self._say(f"pulls workers: {len(near)} enemy units at the base, outnumbering the army there")
                 return True
             return False
@@ -206,7 +209,10 @@ class TerranGaryV3(TerranGaryV2):
         if not miners:
             self.task = None
             return
-        pts = [screen_of(obs, u["x"], u["y"]) for u in miners[:10]]
+        # about two workers per attacker, the ones closest to the attackers
+        tx, ty = d["to"]
+        miners.sort(key=lambda u: math.dist((u["x"], u["y"]), (tx, ty)))
+        pts = [screen_of(obs, u["x"], u["y"]) for u in miners[:min(10, d["n"] - len(self.pulled))]]
         hi.box(max(0, min(p[0] for p in pts) - 6), max(0, min(p[1] for p in pts) - 6),
                min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + 6),
                min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + 6))

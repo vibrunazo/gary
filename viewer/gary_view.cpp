@@ -2,7 +2,7 @@
 //
 //   gary_view --data <dir> --replay <file.rep> [--pov <file.pov.jsonl>] [--size 640x400]
 //             [--scale N] [--record out.mp4 [--from SECONDS] [--to SECONDS] [--speed N]]
-//             [--flat --unit-limit N]
+//             [--flat --unit-limit N] [--subtitles file.ass]
 //
 // Remastered replays: run it through viewer/watch.py, which decodes the replay first (--flat
 // takes the decoded stream, --unit-limit the game's unit table size).
@@ -284,7 +284,7 @@ int main(int argc, char** argv) {
 }
 
 int run(int argc, char** argv) {
-	std::string data_dir, replay_file, pov_file, record_file;
+	std::string data_dir, replay_file, pov_file, record_file, subtitles_file;
 	int width = 0, height = 0, scale = 2;
 	double from_s = 0, to_s = 1e9;
 	int speed = 1;
@@ -297,6 +297,7 @@ int run(int argc, char** argv) {
 		else if (!strcmp(argv[i], "--size") && i + 1 < argc) sscanf(argv[++i], "%dx%d", &width, &height);
 		else if (!strcmp(argv[i], "--scale") && i + 1 < argc) scale = std::max(1, atoi(argv[++i]));
 		else if (!strcmp(argv[i], "--record") && i + 1 < argc) record_file = argv[++i];
+		else if (!strcmp(argv[i], "--subtitles") && i + 1 < argc) subtitles_file = argv[++i];
 		else if (!strcmp(argv[i], "--from") && i + 1 < argc) from_s = atof(argv[++i]);
 		else if (!strcmp(argv[i], "--to") && i + 1 < argc) to_s = atof(argv[++i]);
 		else if (!strcmp(argv[i], "--speed") && i + 1 < argc) speed = std::max(1, atoi(argv[++i]));
@@ -338,10 +339,24 @@ int run(int argc, char** argv) {
 
 	if (!record_file.empty()) {
 		// Pipe raw frames into ffmpeg: H.264, ~24 frames per second like the game at Fastest.
-		char cmd[1024];
+		// Scaled up 2x with crisp pixels; --subtitles burns in a subtitle file on top (viewer/watch.py
+		// writes one with Gary's actions, like a screencast-keys overlay).
+		std::string vf = "scale=iw*2:ih*2:flags=neighbor";
+		if (!subtitles_file.empty()) {
+			std::string path;
+			for (char c : subtitles_file) {
+				if (c == '\\') path += '/';
+				else if (c == ':') path += "\\:";
+				else if (c == '\'') path += "\\'";
+				else path += c;
+			}
+			vf += ",subtitles='" + path + "'";
+		}
+		char cmd[2048];
 		snprintf(cmd, sizeof cmd,
 		         "ffmpeg -loglevel error -y -f rawvideo -pix_fmt rgba -s %dx%d -r 24 -i - "
-		         "-c:v libx264 -pix_fmt yuv420p -crf 20 \"%s\"", width, height, record_file.c_str());
+		         "-vf \"%s\" -c:v libx264 -pix_fmt yuv420p -crf 20 \"%s\"", width, height, vf.c_str(),
+		         record_file.c_str());
 #ifdef _WIN32
 		FILE* out = _popen(cmd, "wb");
 #else

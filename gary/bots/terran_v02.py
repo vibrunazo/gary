@@ -100,6 +100,8 @@ class TerranGaryV2(TerranGary):
         if idle:
             self.task = Task("mine", data={"tags": [u["tag"] for u in idle]}, started=hi.frame)
             return
+        if self._idle_sweep(obs, done):
+            return
         for b in done:
             if b["type"] in T.PRODUCTION and b["tag"] not in self.hotkeyed:
                 self.task = Task("hotkey_building", b["type"], data={"tag": b["tag"], "x": b["x"], "y": b["y"]},
@@ -302,10 +304,6 @@ class TerranGaryV2(TerranGary):
                     continue
             return b
         return None
-
-    def _my_bases(self, mine: list[dict]) -> list[Base]:
-        halls = [u for u in mine if u["type"] == T.CC and u["completed"]]
-        return [b for b in self.map.bases if any(math.dist(b.center, (h["x"], h["y"])) < 6 * 32 for h in halls)]
 
     def _free_geyser(self, obs: dict, mine: list[dict]) -> tuple[Base, tuple[int, int]] | None:
         refineries = [u for u in mine if u["type"] == T.REFINERY] + \

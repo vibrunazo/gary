@@ -77,6 +77,7 @@ class TerranGary:
         self.army_sent: set[int] = set()
         self.setup_done = False
         self.ignore_idle_until: dict[int, int] = {}   # workers we failed to send: retry later
+        self.next_sweep = 0                           # next look for idle workers off screen
 
     # --- geometry ------------------------------------------------------------------------
 
@@ -146,6 +147,8 @@ class TerranGary:
                 and self.ignore_idle_until.get(u["tag"], 0) <= hi.frame]
         if idle:
             self.task = Task("mine", data={"tags": [u["tag"] for u in idle]}, started=hi.frame)
+            return
+        if self._idle_sweep(obs, done):
             return
         # new buildings get a hotkey and a rally point
         for b in done:
@@ -271,15 +274,50 @@ class TerranGary:
                 self.ignore_idle_until[tag] = hi.frame + 24 * 20
             self.task = None
             return
-        fields = [m for b in self.map.bases for m in b.minerals if screen_of(obs, *m)]
+        # the closest mineral field to the Command Center of the nearest base Gary owns (a field
+        # at a base without a Command Center means a long walk with every load)
+        w = workers[0]
+        bases = self._my_bases(mine) or [self.main]
+        base = min(bases, key=lambda b: math.dist(b.center, (w["x"], w["y"])))
+        fields = [m for m in base.minerals if screen_of(obs, *m)] or \
+                 [m for b in bases for m in b.minerals if screen_of(obs, *m)]
         if fields:
-            w = workers[0]
-            m = min(fields, key=lambda m: math.dist(m, (w["x"], w["y"])))
+            m = min(fields, key=lambda m: math.dist(m, base.center))
             hi.right_click(*screen_of(obs, *m))
         # whether or not it worked, don't fixate on these workers: look again in 20 s
         for tag in tags:
             self.ignore_idle_until[tag] = hi.frame + 24 * 20
         self.task = None
+
+    def _my_bases(self, mine: list[dict]) -> list[Base]:
+        """Bases with one of Gary's finished Command Centers."""
+        halls = [u for u in mine if u["type"] == CC and u["completed"]]
+        return [b for b in self.map.bases if any(math.dist(b.center, (h["x"], h["y"])) < 6 * 32 for h in halls)]
+
+    def _town_hall_spot(self, base: Base, builder: int) -> tuple[int, int]:
+        """The base's town-hall tile, or the nearest tile around it the game accepts (map knowledge
+        can be a tile off)."""
+        tx, ty = base.tile
+        near = sorted(((dx, dy) for dx in range(-2, 3) for dy in range(-2, 3)), key=lambda d: abs(d[0]) + abs(d[1]))
+        for dx, dy in near:
+            if self.hi.game.can_place(self.slot, CC, tx + dx, ty + dy, builder):
+                return tx + dx, ty + dy
+        return base.tile
+
+    def _idle_sweep(self, obs: dict, done: list[dict]) -> bool:
+        """Every 10 s, look at an idle worker the camera isn't showing, so the mining routine
+        (which works on what's on screen) can send it back. True if Gary moved the camera."""
+        hi = self.hi
+        if hi.frame < self.next_sweep:
+            return False
+        busy = {getattr(self, "scout", None)} | set(getattr(self, "pulled", set()))
+        away = [u for u in done if u["type"] == SCV and u["order"] == IDLE and u["tag"] not in busy
+                and not screen_of(obs, u["x"], u["y"]) and self.ignore_idle_until.get(u["tag"], 0) <= hi.frame]
+        self.next_sweep = hi.frame + 24 * 10
+        if not away:
+            return False
+        hi.camera_minimap(away[0]["x"], away[0]["y"])
+        return True
 
     def _free_worker(self, obs: dict, u: dict) -> bool:
         """A finished SCV on screen that isn't busy placing or constructing a building."""
@@ -352,7 +390,8 @@ class TerranGary:
             if "spot" not in t.data:
                 if not self._look_at(obs, t.where):
                     return
-                spot = base.tile if t.unit_type == CC else self._spot(t.unit_type, base, t.data["worker"])
+                spot = self._town_hall_spot(base, t.data["worker"]) if t.unit_type == CC else \
+                    self._spot(t.unit_type, base, t.data["worker"])
                 if not spot:
                     self._fail_build(t)
                     return
