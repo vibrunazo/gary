@@ -1,9 +1,10 @@
 """Scenario tests from real pro positions (#2, step 4).
 
-A held-out pro TvZ replay plays in OpenBW up to an early skirmish at the Terran's buildings
-(zerg fighters around them before 6:00). There the Terran is handed to a controller while the Zerg
-keeps replaying what the pro Zerg did, and the next seconds are scored by the value (minerals +
-gas) each side loses. Controllers:
+A held-out pro TvZ replay plays in OpenBW up to an early skirmish at the Terran's home (zerg
+fighters attacking near a Terran town hall before 6:00; not the Terran's own attacks, like bunker
+rushes). There the Terran is handed to a controller while the Zerg keeps replaying what the pro
+Zerg did, and the next seconds are scored by the value (minerals + gas) each side loses.
+Controllers:
 
   pro       the Terran pro's own commands keep playing (what really happened)
   gary      Gary (v0.4 by default) takes over the Terran with human hands
@@ -12,9 +13,12 @@ gas) each side loses. Controllers:
     python -m eval.scenarios --pick 200 --screen      # find scenarios in held-out games
     python -m eval.scenarios --run 30 --parallel 8    # score them under each controller
 
---screen plays each picked scenario under the pro and under nothing and keeps the decisive
-ones: where the pro's control was worth at least --min-gap (net value: zerg lost - terran lost)
-over leaving the units alone. Elsewhere the zerglings weren't a threat and every controller ties.
+--pick proposes up to 3 early fights per game; --screen plays each under the pro and under
+nothing and keeps, per game, the first that is at the Terran's home (decided from the game at the
+takeover: the fight is nearer a Terran town hall than a Zerg one, and no Terran bunker stands at a
+Zerg base) and decisive: the pro's control was worth at least --min-gap (net value: zerg lost -
+terran lost) over leaving the units alone. Elsewhere the zerglings weren't a threat and every
+controller ties.
 
 The Zerg replays commands, not intentions: once the Terran plays differently, a zerg command may
 target a unit that isn't there any more, and units the Zerg makes after the takeover can get
@@ -26,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 from collections import OrderedDict
@@ -46,6 +51,9 @@ BEFORE_S = 360                  # skirmishes before 6:00
 LEAD_FRAMES = 24                # take over one second before the skirmish snapshot
 ZERG_FIGHTERS = {37, 38, 39, 43, 47, 50, 103}   # zergling, hydra, ultra, muta, scourge, infested, lurker
 MIN_FIGHTERS = 3
+CANDIDATES_PER_GAME = 3         # --pick: fights proposed per game...
+CANDIDATE_GAP_S = 30            # ...at least this far apart
+T_HALLS, Z_HALLS, BUNKER = {106}, {131, 132, 133}, 125
 ZERG_COST = {37: (25, 0), 38: (75, 25), 39: (200, 200), 41: (50, 0), 42: (100, 0), 43: (100, 100),
              45: (100, 100), 46: (50, 150), 47: (12, 38), 103: (125, 125),
              131: (300, 0), 142: (200, 0), 149: (75, 0), 143: (125, 0), 146: (175, 0), 141: (200, 150),
@@ -67,10 +75,11 @@ def value(unit_type: int) -> int:
 # --- picking -----------------------------------------------------------------------------------
 
 def pick(n: int, split: str = "test") -> list[dict]:
-    """The first early skirmish at the Terran's buildings in each TvZ game of the split (held-out
-    games for "test"), from the fight dataset (ingest/fight_dataset.py)."""
+    """Early skirmishes, up to CANDIDATES_PER_GAME per TvZ game of the split (held-out games for
+    "test"), at least CANDIDATE_GAP_S apart, from the fight dataset (ingest/fight_dataset.py);
+    n candidates in all. Whether one is at the Terran's home is decided by --screen."""
     from train.macro import is_test
-    fight_dir = data_root() / "interim" / "fight" / "v1"
+    fight_dir = data_root() / "interim" / "fight" / "v3"
     rows = {}
     with open(fight_dir / "index.jsonl", encoding="utf-8") as f:
         for r in map(json.loads, f):
@@ -82,10 +91,12 @@ def pick(n: int, split: str = "test") -> list[dict]:
         ti = next((i for i, p in enumerate(r["players"]) if p["race"] == "T" and p["snapshots"] > 0), None)
         if ti is None:
             continue
-        z = np.load(fight_dir / r["sha1"][:2] / f"{r['sha1']}.npz")
+        z = dict(np.load(fight_dir / r["sha1"][:2] / f"{r['sha1']}.npz"))   # each array decompressed once
         frames, players, starts, units = z["snap_frame"], z["snap_player"], z["snap_start"], z["units"]
+        last = -10 ** 9
+        taken = 0
         for i in range(len(frames)):
-            if players[i] != ti or frames[i] * 42 / 1000 > BEFORE_S:
+            if players[i] != ti or frames[i] * 42 / 1000 > BEFORE_S or frames[i] - last < CANDIDATE_GAP_S * 1000 / 42:
                 continue
             u = units[starts[i]:starts[i + 1]]
             own_buildings = int(sum(1 for k, side in u[:, :2] if side == 1 and is_building(int(k))))
@@ -94,14 +105,28 @@ def pick(n: int, split: str = "test") -> list[dict]:
                 out.append({"sha1": r["sha1"], "rel_path": r["rel_path"], "map": r.get("map"),
                             "terran_slot": r["players"][ti]["slot"], "terran": r["players"][ti]["name"],
                             "frame": max(0, int(frames[i]) - LEAD_FRAMES), "zerg_fighters": fighters,
-                            "own_units": int((u[:, 1] == 1).sum())})
-                break
+                            "own_units": int((u[:, 1] == 1).sum()),
+                            "cx": int(z["snap_cx"][i]), "cy": int(z["snap_cy"][i])})
+                last, taken = int(frames[i]), taken + 1
+                if taken == CANDIDATES_PER_GAME:
+                    break
         if len(out) >= n:
             break
     return out
 
 
 # --- running -----------------------------------------------------------------------------------
+
+def at_home(obs: dict, slot: int, center: tuple[int, int]) -> bool:
+    """Whether a fight (its center) is at the Terran's (slot) home: nearer a Terran town hall than
+    a Zerg one, and no Terran bunker at a Zerg base (a bunker rush)."""
+    mine = [(u["x"], u["y"]) for u in obs["units"] if u["owner"] == slot and u["type"] in T_HALLS]
+    theirs = [(u["x"], u["y"]) for u in obs["units"] if u["owner"] not in (slot, 11) and u["type"] in Z_HALLS]
+    near = lambda halls, p: min((math.dist(p, h) for h in halls), default=1e9)
+    rush = any(near(theirs, (u["x"], u["y"])) < 12 * 32 for u in obs["units"]
+               if u["owner"] == slot and u["type"] == BUNKER)
+    return near(mine, center) < near(theirs, center) and not rush
+
 
 class Losses:
     """Every unit either side had during the window, and when the ones that died died."""
@@ -135,7 +160,7 @@ class Losses:
         return out
 
 
-_games: OrderedDict = OrderedDict()      # per process: scenario sha1 -> its game, saved at the takeover
+_games: OrderedDict = OrderedDict()      # per process: (sha1, frame) -> its game, saved at the takeover
 CACHED_GAMES = 4
 
 
@@ -143,14 +168,15 @@ def scenario_game(sc: dict):
     """The scenario's game at the takeover frame: loaded and replayed up to it the first time,
     then restored from an exact copy (OpenBW's state copy) for every further play."""
     from gary.env import LIVE_COMMAND_DELAY, Game
-    game = _games.pop(sc["sha1"], None)
+    key = (sc["sha1"], sc["frame"])
+    game = _games.pop(key, None)
     if game is None:
         game = Game.scenario(data_root() / "raw" / sc["rel_path"], command_delay=LIVE_COMMAND_DELAY)
         game.step(sc["frame"])
         game.save()
     else:
         game.restore()
-    _games[sc["sha1"]] = game
+    _games[key] = game
     while len(_games) > CACHED_GAMES:
         _games.popitem(last=False)[1].close()
     return game
@@ -170,6 +196,8 @@ def run_one(sc: dict, controller: str, seconds: float, version: str, style: int 
         zerg = next(p["slot"] for p in obs["players"] if p["slot"] != slot and p["race"] == 0)
         losses = Losses({slot: "T", zerg: "Z"})
         losses.note(obs, game)
+        if "cx" in sc:                         # (the fight's center, from the data)
+            row["home"] = at_home(obs, slot, (sc["cx"], sc["cy"]))
         end = game.frame + int(seconds * 1000 / 42)
         bot, hi = None, None
         if controller != "pro":
@@ -275,13 +303,19 @@ def main() -> None:
             with ProcessPoolExecutor(args.parallel) as pool:
                 res = list(pool.map(_job, jobs, chunksize=2))   # a scenario's plays on one worker
             net = lambda r: r["Z_lost"] - r["T_lost"] if "error" not in r else None
-            kept = []
+            kept, games, away = [], set(), 0
             for sc, pro, nothing in zip(found, res[0::2], res[1::2]):
-                if net(pro) is not None and net(nothing) is not None:
-                    sc["gap"] = net(pro) - net(nothing)
-                    if sc["gap"] >= args.min_gap:
-                        kept.append(sc)
-            print(f"screened {len(found)}: {len(kept)} where the pro's control was worth {args.min_gap}+")
+                if net(pro) is None or net(nothing) is None or sc["sha1"] in games:
+                    continue
+                if not pro["home"]:
+                    away += 1
+                    continue
+                sc["gap"] = net(pro) - net(nothing)
+                if sc["gap"] >= args.min_gap:
+                    kept.append(sc)
+                    games.add(sc["sha1"])
+            print(f"screened {len(found)} fights: {away} not at the Terran's home; kept {len(kept)} at home where "
+                  f"the pro's control was worth {args.min_gap}+ (one per game)")
             found = kept
         path = scenarios_path(args.split)
         path.parent.mkdir(parents=True, exist_ok=True)

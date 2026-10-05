@@ -21,7 +21,7 @@ quicker way to a playable Gary.
 | P1 Data | ◐ | ~70k replays indexed, resim with Remastered support (go decided: it works), fog-of-war views | Camera logger, camera inference, fitting human profiles from data (the interface's numbers are still placeholders) |
 | P1b Taxonomy | ◐ | TvZ build clusters with readable rules (`taxonomy/discover.py`) | A reviewed `taxonomy/tvz/v1.yaml`, stability and gold-set reports |
 | P1c Strategy stats | — | | Win-rate table, feature library, guide claims |
-| **P2 Micro** | **◐ (current)** | Fight and command models learned from pro skirmishes; scenario suite from pro replays (`eval/scenarios.py`); first reinforcement learning on scenarios (`train/fight_rl.py`) | Responses within the human band: on the scenarios Gary is barely better than doing nothing (pro +74, Gary v0.6 −173, nothing −255) |
+| **P2 Micro** | **◐ (current)** | Fight and command models learned from pro skirmishes; scenario suite from pro replays (`eval/scenarios.py`); first reinforcement learning on scenarios (`train/fight_rl.py`) | Responses within the human band: on home-defense scenarios the learned fight models are barely better than doing nothing and worse than v0.3's scripted pull (pro +29, v0.3 −157, v0.6 −209, nothing −260) |
 | P2b First playable | ◐ | Full games against people, offline, via the bridge; learned macro steered by build style | Build timings within tolerance (≥18/20 unharassed runs); supply blocks and idle production under harass within the human band |
 | P2c Debug viewer | ● | POV viewer with cursor, clicks and every action in words; videos | Trace overlays beyond actions |
 | P3 BC full game | ◐ (early) | Separate imitation models for macro, army movement and fights | One policy with intent and belief heads, Opponent Model, value network |
@@ -52,7 +52,7 @@ quicker way to a playable Gary.
 | Learning beyond imitation | Outcome-weighted learning, reinforcement learning | Fight estimate learned from outcomes; reinforcement learning on pro scenarios runs, no gain yet | ◐ | ◐ | ◐ | ◐ | — | — | — |
 | POV viewer | Watch any game from Gary's screen (`viewer/`) | Cursor, clicks, every action in words; Remastered replays; videos | ● | ● | ● | ● | ● | ● | — |
 | Trace | Gary's decisions and reasons, recorded (§6.5) | Decision log with model probabilities and fight estimates; POV action log | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | — |
-| Evaluation | Matches against opponents, many seeds, a scoreboard (§9) | `eval/vs_rush.py`: several seeds against one scripted Zerg rush; `eval/scenarios.py`: 45 pro skirmishes where Gary takes over the Terran | ◐ | ◐ | ◐ | ◐ | ○ | ○ | — |
+| Evaluation | Matches against opponents, many seeds, a scoreboard (§9) | `eval/vs_rush.py`: several seeds against one scripted Zerg rush; `eval/scenarios.py`: 114 pro home defenses where Gary takes over the Terran | ◐ | ◐ | ◐ | ◐ | ○ | ○ | — |
 | Matchups and races | | Terran in TvZ only | T | T | T | T | T | T | T |
 
 ## Versions
@@ -73,8 +73,16 @@ quicker way to a playable Gary.
   45 decisive scenarios the pro drilled in 22–24% (in the rest 7–10%), and those are the biggest
   swings (the pro's edge over doing nothing: 441–475 with a drill, ~290 without), about a third of
   the pro's total edge. A two-step, precisely timed trick like this isn't learned from clicks.
-- **Most urgently missing:** drilling as a skill (scripted mechanics under the human interface,
-  when to use it decided by rule, later learned); finding out what decides the other two thirds.
+- **The suite was partly wrong:** 14 of those 45 scenarios were the Terran attacking (10 bunker
+  rushes), which Gary's macro never plans. The picker now keeps only defenses at the Terran's home
+  (114 games, one fight each). Re-scored there: pro +29, **v0.3's scripted worker pull −157**,
+  v0.6 −209, v0.5 −211, v0.4 −216, nothing −260. On plain defense every learned fight model is
+  worse than v0.3's simple rule. Drilling: 18% of these defenses, about a quarter of the pro's
+  edge ([#21](https://github.com/vibrunazo/gary/issues/21); bunker rushes:
+  [#22](https://github.com/vibrunazo/gary/issues/22); both are advanced techniques for later
+  intents, not now).
+- **Most urgently missing:** the fundamentals of defense, measured on this suite and on the
+  immediate 9-pool (`eval/vs_rush`).
 
 ### v0.5 (October 2026): fight command model (#2)
 
