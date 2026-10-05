@@ -272,6 +272,11 @@ the same game against the same opponents (including x64 clients over Battle.net)
   human's; real players' replays, which Gary learns from, are full of them. The interface will
   switch to real 0x13 commands (OpenBW runs them), so verify the bridge sends them and the game
   applies them (the live replay should show `Hotkey` commands).
+- `depot_spot_ok` disagrees with `gary_env_depot_spot_ok` by a tile: on Fighting Spirit 1.3
+  (bottom-left start) live MapInfo put the natural's town hall at tile (37, 112), OpenBW's gives
+  (36, 112), and only (36, 112) is placeable. Gary ordered its expansion three times at (37, 112)
+  and never got a natural ("Gary v03 got owned 01", 2026-10-04: CC orders at 2:51, 4:00, 4:52).
+  Match the resource-distance rule exactly (compare both on every base of a few maps).
 - The headless env now delays every command by `gary.env.LIVE_COMMAND_DELAY` (3 frames: the
   reported turn latency 2 + 1 hand-off). Re-measure it once a live game sends real hotkeys, and
   keep the two in step if the latency setting changes.
