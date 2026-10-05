@@ -272,6 +272,11 @@ the same game against the same opponents (including x64 clients over Battle.net)
   human's; real players' replays, which Gary learns from, are full of them. The interface will
   switch to real 0x13 commands (OpenBW runs them), so verify the bridge sends them and the game
   applies them (the live replay should show `Hotkey` commands).
+- Observation fields Gary v0.4's fight model reads per unit, now in `gary_env_observe`:
+  `cooldown` (ground weapon cooldown), `order_target` (the order's target unit tag, 0 if none),
+  `carrying` (worker carrying flags). Live they default to 0, which the fight model was not
+  trained on; add them to the bridge's unit records. Also: shields for units without shields
+  should be 0.
 - `depot_spot_ok` disagrees with `gary_env_depot_spot_ok` by a tile: on Fighting Spirit 1.3
   (bottom-left start) live MapInfo put the natural's town hall at tile (37, 112), OpenBW's gives
   (36, 112), and only (36, 112) is placeable. Gary ordered its expansion three times at (37, 112)
