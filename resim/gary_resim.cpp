@@ -95,6 +95,8 @@ std::string json_escape(const a_string& s) {
 
 // Same as replay_functions::next_frame, but counts accepted / rejected actions per player
 // (Remastered command handling: scr_replay.h).
+bool is_player(const state& st, int i);
+
 struct counting_replay_functions : scr_replay<replay_functions> {
 	std::array<int, 12> accepted{};
 	std::array<int, 12> rejected{};
@@ -106,6 +108,7 @@ struct counting_replay_functions : scr_replay<replay_functions> {
 		execute_actions_scr([&](int owner, int action_id, const uint8_t* cmd, const uint8_t* end, bool ok) {
 			if (ok) print_production_command(owner, action_id, cmd, end);
 			if (ok) print_army_command(owner, action_id, cmd, end);
+			if (ok && fights_until > 0 && st.current_frame <= fights_until) print_unit_command(owner, action_id, cmd, end);
 			if (!ok && debug_rejects) fprintf(stderr, "reject frame %d owner %d action 0x%02x\n", st.current_frame, owner, action_id);
 			if (owner >= 0 && owner < 12) {
 				if (ok) ++accepted[owner];
@@ -174,11 +177,108 @@ struct counting_replay_functions : scr_replay<replay_functions> {
 		       st.current_frame, owner, kind, x, y, n, sup, sx / n, sy / n);
 	}
 
+	// --- fights (--fights SECONDS), for training data on unit control ---------------------------
+	// Every command a player gives to units, with the units selected when it ran:
+	//   {"type":"ucmd","frame":F,"slot":P,"cmd":"rclick|order|stop|hold|stim|siege|unsiege|
+	//    return|burrow|unburrow","units":[tags],"x":X,"y":Y,"target":tag,"order":id}
+	// and, every FIGHT_EVERY frames while a player's units have visible enemy fighters within
+	// FIGHT_NEAR pixels, the units around the fight as that player could see them:
+	//   {"type":"fight","frame":F,"slot":P,"cx":CX,"cy":CY,"u":[[tag,type,own,x,y,hp,shields,
+	//    cooldown,order,order_target,carrying,completed],...]}   own: 1 the player, 0 enemy, 2 neutral
+	//    (mineral fields and geysers, so "back to mining" can be learned)
+	// (tags are OpenBW's unit IDs in both, so commands and snapshots line up).
+	int fights_until = 0;          // frame; 0 = off
+	static constexpr int FIGHT_EVERY = 12, FIGHT_NEAR = 8 * 32, FIGHT_AROUND = 12 * 32;
+
+	static bool fighter(const unit_t* u, const counting_replay_functions& f) {
+		return u->unit_type->supply_required.raw_value > 0 && !f.ut_worker(u->unit_type) && !f.ut_building(u->unit_type);
+	}
+
+	void print_unit_command(int owner, int action_id, const uint8_t* cmd, const uint8_t* end) {
+		auto u16 = [&](int at) { return cmd + at + 1 < end ? (int)(cmd[at] | cmd[at + 1] << 8) : -1; };
+		auto u8 = [&](int at) { return cmd + at < end ? (int)cmd[at] : -1; };
+		const char* name = nullptr;
+		int x = -1, y = -1, target = 0, order = -1;
+		switch (action_id) {  // cmd[0] = player id, cmd[1] = action id
+		case 0x14: name = "rclick"; x = u16(2); y = u16(4); target = u16(6); break;
+		case 0x15: name = "order"; x = u16(2); y = u16(4); target = u16(6); order = u8(10); break;
+		case 0x60: name = "rclick"; x = u16(2); y = u16(4); target = translate_unit_id((uint16_t)u16(6)); break;
+		case 0x61: name = "order"; x = u16(2); y = u16(4); target = translate_unit_id((uint16_t)u16(6)); order = u8(12); break;
+		case 26: name = "stop"; break;
+		case 30: name = "return"; break;
+		case 37: name = "unsiege"; break;
+		case 38: name = "siege"; break;
+		case 43: name = "hold"; break;
+		case 44: name = "burrow"; break;
+		case 45: name = "unburrow"; break;
+		case 54: name = "stim"; break;
+		default: return;
+		}
+		std::string units;
+		for (unit_t* u : action_st.selection.at(owner)) {
+			if (!u || u->owner != owner || ut_building(u->unit_type)) continue;
+			if (!units.empty()) units += ',';
+			units += std::to_string(get_unit_id(u).raw_value);
+		}
+		if (units.empty()) return;
+		if (target == 0x7ff) target = 0;
+		printf("{\"type\":\"ucmd\",\"frame\":%d,\"slot\":%d,\"cmd\":\"%s\",\"units\":[%s],\"x\":%d,\"y\":%d,\"target\":%d,\"order\":%d}\n",
+		       st.current_frame, owner, name, units.c_str(), x, y, target, order);
+	}
+
+	void print_fights() {
+		if (!fights_until || st.current_frame > fights_until || st.current_frame % FIGHT_EVERY) return;
+		for (int p = 0; p != 8; ++p) {
+			if (!is_player(st, p)) continue;
+			// visible enemy fighters close to any of p's units
+			std::vector<const unit_t*> engaged;
+			for (int o = 0; o != 8; ++o) {
+				if (o == p || !is_player(st, o)) continue;
+				for (const unit_t* e : ptr(st.player_units[o])) {
+					if (!e->sprite || us_hidden(e) || !fighter(e, *this) || !(e->sprite->visibility_flags & (1 << p))) continue;
+					for (const unit_t* m : ptr(st.player_units[p])) {
+						if (!m->sprite || us_hidden(m)) continue;
+						int dx = e->sprite->position.x - m->sprite->position.x, dy = e->sprite->position.y - m->sprite->position.y;
+						if (dx * dx + dy * dy <= FIGHT_NEAR * FIGHT_NEAR) { engaged.push_back(e); break; }
+					}
+				}
+			}
+			if (engaged.empty()) continue;
+			long cx = 0, cy = 0;
+			for (auto* e : engaged) { cx += e->sprite->position.x; cy += e->sprite->position.y; }
+			cx /= (long)engaged.size();
+			cy /= (long)engaged.size();
+			std::string out;
+			for (int o : {0, 1, 2, 3, 4, 5, 6, 7, 11}) {
+				if (o != 11 && !is_player(st, o)) continue;
+				for (const unit_t* u : ptr(st.player_units[o])) {
+					if (!u->sprite || us_hidden(u)) continue;
+					if (o == 11 && !ut_resource(u)) continue;      // neutral: only minerals and geysers
+					if (o != p && !(u->sprite->visibility_flags & (1 << p))) continue;
+					long dx = u->sprite->position.x - cx, dy = u->sprite->position.y - cy;
+					if (dx * dx + dy * dy > (long)FIGHT_AROUND * FIGHT_AROUND) continue;
+					const unit_t* t = u->order_target.unit;
+					char buf[160];
+					snprintf(buf, sizeof buf, "%s[%u,%d,%d,%d,%d,%d,%d,%d,%d,%u,%d,%d]", out.empty() ? "" : ",",
+					         (unsigned)get_unit_id(u).raw_value, (int)u->unit_type->id, o == p ? 1 : o == 11 ? 2 : 0,
+					         u->sprite->position.x, u->sprite->position.y, u->hp.integer_part(),
+					         u->unit_type->has_shield ? u->shield_points.integer_part() : 0,
+					         (int)u->ground_weapon_cooldown, (int)u->order_type->id,
+					         t ? (unsigned)get_unit_id(t).raw_value : 0u, (int)u->carrying_flags, u_completed(u) ? 1 : 0);
+					out += buf;
+				}
+			}
+			printf("{\"type\":\"fight\",\"frame\":%d,\"slot\":%d,\"cx\":%ld,\"cy\":%ld,\"u\":[%s]}\n",
+			       st.current_frame, p, cx, cy, out.c_str());
+		}
+	}
+
 	void next_frame_counted() {
 		if (st.current_frame == replay_st.end_frame) error("replay: attempt to play past end");
 		execute_actions_counted();
 		state_functions::next_frame();
 		track_units();
+		print_fights();
 		if (debug_rejects) track_object_usage();
 	}
 
@@ -430,6 +530,7 @@ int main(int argc, char** argv) {
 	std::string data_dir, replay_file;
 	bool flat = false;
 	int unit_limit = 1700;
+	double fights_s = 0;           // --fights SECONDS: fight snapshots and unit commands up to then
 	int every = 24;
 	for (int i = 1; i < argc; ++i) {
 		if (!strcmp(argv[i], "--data") && i + 1 < argc) data_dir = argv[++i];
@@ -437,6 +538,7 @@ int main(int argc, char** argv) {
 		else if (!strcmp(argv[i], "--every") && i + 1 < argc) every = std::max(0, atoi(argv[++i]));
 		else if (!strcmp(argv[i], "--flat")) flat = true;
 		else if (!strcmp(argv[i], "--unit-limit") && i + 1 < argc) unit_limit = atoi(argv[++i]);
+		else if (!strcmp(argv[i], "--fights") && i + 1 < argc) fights_s = atof(argv[++i]);
 		else {
 			fprintf(stderr, "usage: gary_resim --data <dir> --replay <file.rep> [--every <frames>]\n");
 			return 2;
@@ -453,6 +555,7 @@ int main(int argc, char** argv) {
 		replay_state replay_st;
 		counting_replay_functions f(player.st(), action_st, replay_st);
 		f.unit_limit = unit_limit;
+		f.fights_until = (int)(fights_s * 1000 / 42);
 		// "--replay -" reads the replay from stdin. Callers use it for paths the Windows ANSI
 		// command line can't carry (e.g. Korean map names in file names).
 		std::vector<uint8_t> replay_bytes;
