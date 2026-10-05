@@ -97,3 +97,37 @@ class FightModel:
         act, target, dest = self.net(*tensors(u, pad, np.array([time_s], np.float32), dev))
         return (torch.softmax(act[0], -1).cpu().numpy(), torch.softmax(target[0], -1).cpu().numpy(),
                 (dest[0] * DEST_SCALE).cpu().numpy())
+
+
+FIGHT_NEAR = 8 * 32             # enemy fighters this close to own units make a fight
+FIGHT_AROUND = 12 * 32          # units this close to the fight's center are in the snapshot
+
+
+def snapshot(obs: dict, slot: int, flip: tuple[bool, bool], supply_x2, is_worker, is_building):
+    """The fight around the player's units right now, built from an observation the way
+    resim --fights builds it from replays: (unit rows (n, 11), their tags, the center (x, y)),
+    or None when no visible enemy fighter is near. Rows are mirrored by flip (the player's main
+    top-left) and sorted nearest first."""
+    mine = [u for u in obs["units"] if u["owner"] == slot]
+    enemy = [u for u in obs["units"] if u["owner"] not in (slot, 11)]
+    fighters = [e for e in enemy if supply_x2(e["type"]) > 0 and not is_worker(e["type"]) and not is_building(e["type"])]
+    engaged = [e for e in fighters
+               if any((e["x"] - m["x"]) ** 2 + (e["y"] - m["y"]) ** 2 <= FIGHT_NEAR ** 2 for m in mine)]
+    if not engaged:
+        return None
+    cx = sum(e["x"] for e in engaged) / len(engaged)
+    cy = sum(e["y"] for e in engaged) / len(engaged)
+    around = [u for u in obs["units"] if (u["x"] - cx) ** 2 + (u["y"] - cy) ** 2 <= FIGHT_AROUND ** 2
+              and (u["owner"] != 11 or u["type"] in (176, 177, 178, 188))]
+    around.sort(key=lambda u: (u["x"] - cx) ** 2 + (u["y"] - cy) ** 2)
+    around = around[:MAX_UNITS]
+    row = {u["tag"]: i for i, u in enumerate(around)}
+    fx, fy = flip
+    rows = np.zeros((len(around), 11), np.int16)
+    for i, u in enumerate(around):
+        rx, ry = u["x"] - cx, u["y"] - cy
+        side = 1 if u["owner"] == slot else 2 if u["owner"] == 11 else 0
+        rows[i] = (u["type"], side, -rx if fx else rx, -ry if fy else ry, min(u.get("hp") or 0, 32767),
+                   u.get("shields") or 0, u.get("cooldown", 0), u.get("order", 0),
+                   row.get(u.get("order_target", 0), -1), u.get("carrying", 0), u.get("completed", 1))
+    return rows, [u["tag"] for u in around], (cx, cy)

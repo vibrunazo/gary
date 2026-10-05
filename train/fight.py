@@ -120,11 +120,11 @@ def batch(data: tuple, idx: np.ndarray, device: str):
                     torch.as_tensor(DST.astype(np.float32), device=device) / DEST_SCALE)
 
 
-def losses(net: FightNet, inputs, labels) -> torch.Tensor:
+def losses(net: FightNet, inputs, labels, weights: torch.Tensor | None = None) -> torch.Tensor:
     act_l, tgt_l, dst_l = net(*inputs)
     act, tgt, dst = labels
     own = act >= 0
-    loss = F.cross_entropy(act_l[own], act[own])
+    loss = F.cross_entropy(act_l[own], act[own], weight=weights)
     aimed = own & (tgt >= 0)
     if aimed.any():
         loss = loss + F.cross_entropy(tgt_l[aimed], tgt[aimed])
@@ -185,6 +185,8 @@ def main() -> None:
     ap.add_argument("--lr", type=float, default=5e-4)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--limit", type=int, help="only this many player-games (quick tests)")
+    ap.add_argument("--class-weight", type=float, default=0.5,
+                    help="weigh each action by frequency^-this in the loss (rare actions count more); 0 = off")
     args = ap.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     t0 = time.time()
@@ -197,13 +199,20 @@ def main() -> None:
     opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=1e-4)
     steps = args.epochs * (n_train // args.batch + 1)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=args.lr, total_steps=steps)
+    # rare actions (attacking a unit, stim, hold...) would otherwise never beat "nothing" and "move"
+    acts = data["train"][2]
+    counts = np.bincount(acts[acts >= 0].astype(np.int64), minlength=len(ACTIONS)).astype(np.float64)
+    w = np.where(counts > 0, (counts / counts.sum()) ** -args.class_weight, 0.0)
+    weights = torch.tensor(w / (w * counts).sum() * counts.sum(), dtype=torch.float32, device=device)
+    print("action weights:", {a: round(float(x), 2) for a, x in zip(ACTIONS, weights.tolist())}, flush=True)
+    config["class_weight"] = args.class_weight
     for epoch in range(args.epochs):
         net.train()
         perm = np.random.permutation(n_train)
         total, nb = 0.0, 0
         for s in range(0, n_train, args.batch):
             inputs, labels = batch(data["train"], perm[s:s + args.batch], device)
-            loss = losses(net, inputs, labels)
+            loss = losses(net, inputs, labels, weights)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)

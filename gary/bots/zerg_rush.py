@@ -207,7 +207,7 @@ def play_match(map_path: str, minutes: float, seed: int | None, save: str, make_
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--vs", default="v03", choices=["v01", "v02", "v03"], help="which Gary plays Terran")
+    ap.add_argument("--vs", default="v03", choices=["v01", "v02", "v03", "v04"], help="which Gary plays Terran")
     ap.add_argument("--map", required=True)
     ap.add_argument("--minutes", type=float, default=10)
     ap.add_argument("--seed", type=int)
@@ -222,6 +222,16 @@ def main() -> None:
         from gary.policy.macro import MacroModel
         macro = MacroModel.load(latest_model())
         make = lambda hi, m: TerranGaryV2(hi, m, macro, args.style)
+    elif args.vs == "v04":
+        from gary.bots.terran_v02 import latest_model
+        from gary.bots.terran_v03 import latest_army_model
+        from gary.bots.terran_v04 import TerranGaryV4, latest_fight_model
+        from gary.policy.army import ArmyModel
+        from gary.policy.fight import FightModel
+        from gary.policy.macro import MacroModel
+        macro, army = MacroModel.load(latest_model()), ArmyModel.load(latest_army_model())
+        fight = FightModel.load(latest_fight_model())
+        make = lambda hi, m: TerranGaryV4(hi, m, macro, army, fight, args.style)
     else:
         from gary.bots.terran_v02 import latest_model
         from gary.bots.terran_v03 import TerranGaryV3, latest_army_model

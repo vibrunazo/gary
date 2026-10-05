@@ -53,6 +53,24 @@ def upgrade(upgrade_id: int) -> bytes:
     return struct.pack("<BB", 0x32, upgrade_id)
 
 
+def stop() -> bytes:
+    """The selected units stop."""
+    return struct.pack("<BB", 0x1A, 0)
+
+
+def hold_position() -> bytes:
+    return struct.pack("<BB", 0x2B, 0)
+
+
+def stim() -> bytes:
+    """Marines and firebats in the selection use stim packs."""
+    return struct.pack("<B", 0x36)
+
+
+def return_cargo() -> bytes:
+    return struct.pack("<BB", 0x1E, 0)
+
+
 def chat(sender_slot: int, text: str) -> bytes:
     """A chat message to everyone (as replays record it): up to 80 bytes of text."""
     return struct.pack("<BB", 0x5C, sender_slot) + text.encode("utf-8", "replace")[:79].ljust(80, b"\0")

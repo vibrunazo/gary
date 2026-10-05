@@ -1,0 +1,227 @@
+"""Gary v0.4, Terran: v0.3 plus a learned fight model controlling units in skirmishes (#2).
+
+Whenever enemy fighters are near Gary's units, the fight model (gary/policy/fight.py, trained on
+pro TvZ skirmishes) looks at every unit around the fight and says what each of Gary's should do:
+attack which unit, move where, attack-move, go back to mining, repair (right-click an own unit),
+stop, hold, stim, return cargo, or nothing. Gary groups units given the same order and carries the
+orders out with human hands, one group per turn: camera on the fight, select (drag box, or click
+and shift-clicks), then right-click the target, A-click, or the hotkey. Units already doing what
+they were told are left alone. This replaces v0.3's scripted worker pull; the army model still
+moves the army clusters that aren't in a fight.
+
+    python -m gary.bots.terran_v04 --map path/to/map.scx --minutes 12 --style 1
+    python -m gary.bots.terran_v04 --live --style 1
+"""
+
+from __future__ import annotations
+
+import argparse
+import math
+from pathlib import Path
+
+import numpy as np
+
+from gary import commands as C
+from gary.bots import terran_v01 as v01
+from gary.bots.terran_v01 import Task
+from gary.bots.terran_v02 import latest_model
+from gary.bots.terran_v03 import TerranGaryV3, latest_army_model
+from gary.env import LIVE_COMMAND_DELAY
+from gary.interface import HumanInterface, screen_of, unit_name
+from gary.mapinfo import MapInfo
+from gary.policy.army import ArmyModel, is_building, is_worker, supply_x2
+from gary.policy.fight import ACTIONS, FightModel, snapshot
+from gary.policy.macro import MacroModel
+from gary.version import announcement
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+ASK_EVERY = 12                       # frames between fight decisions (half a second)
+ACT_IF_NONE_BELOW = 0.2              # act on a unit when the model gives "nothing" less than this
+                                     # (with 0.2 Gary acts on about as many units as pros do: 22% vs 27%)
+SAME_POINT = 96                      # a move this close to a unit's current target is "already doing it"
+PRIORITY = {"attack_unit": 0, "gather": 1, "own_unit": 1, "stim": 1, "hold": 2, "return_cargo": 2,
+            "attack_move": 3, "stop": 3, "move": 4}
+# Enemy HP is hidden unless the unit is selected (the game's UI); the model learned with true HP,
+# so unseen enemies count as full HP.
+MAX_HP = {37: 35, 38: 80, 39: 400, 41: 40, 42: 200, 43: 120, 44: 150, 45: 120, 46: 80, 47: 25, 50: 60,
+          62: 250, 103: 125, 35: 25, 36: 200, 40: 30}
+
+
+def latest_fight_model(matchup: str = "TvZ", race: str = "T") -> Path:
+    found = sorted((REPO_ROOT / "runs" / "fight").glob(f"{matchup}_{race}_*/model.pt"))
+    if not found:
+        raise SystemExit(f"no trained fight model in runs/fight (python -m train.fight --race {race})")
+    return found[-1]
+
+
+class TerranGaryV4(TerranGaryV3):
+    version = "v0.4"
+
+    def __init__(self, hi: HumanInterface, mapinfo: MapInfo, model: MacroModel, army_model: ArmyModel,
+                 fight_model: FightModel, style: int | None = None, verbose: bool = True):
+        super().__init__(hi, mapinfo, model, army_model, style, verbose)
+        self.fight_model = fight_model
+        self.announce = announcement(self.version, style, {"macro": getattr(model, "path", "?"),
+                                                           "army": getattr(army_model, "path", "?"),
+                                                           "fight": getattr(fight_model, "path", "?")})
+        self.flip = (self.main.center[0] > mapinfo.size[0] / 2, self.main.center[1] > mapinfo.size[1] / 2)
+        self.next_fight = 0
+        self.fight_center: tuple[float, float] | None = None
+
+    # --- fights ----------------------------------------------------------------------------
+
+    def _worker_defense(self, obs: dict, mine: list[dict]) -> bool:
+        return False                             # the fight model decides what workers do (_army)
+
+    def _fight(self, obs: dict, mine: list[dict]) -> bool:
+        hi = self.hi
+        if hi.frame < self.next_fight:
+            return False
+        self.next_fight = hi.frame + ASK_EVERY
+        units = [dict(u) for u in obs["units"]]
+        for u in units:                          # hidden enemy HP: assume full
+            if u["owner"] not in (self.slot, 11) and u.get("hp") is None:
+                u["hp"], u["shields"] = MAX_HP.get(u["type"], 100), 0
+        snap = snapshot({**obs, "units": units}, self.slot, self.flip, supply_x2, is_worker, is_building)
+        if snap is None:
+            self.fight_center = None
+            return False
+        rows, tags, center = snap
+        self.fight_center = center
+        acts, targets, dests = self.fight_model.predict(rows, obs["frame"] * 42 / 1000)
+        by_tag = {u["tag"]: u for u in units}
+        groups: dict[tuple, list[int]] = {}
+        for i, tag in enumerate(tags):
+            if rows[i][1] != 1:
+                continue
+            # act when the model doesn't expect "nothing", with its best real action
+            if acts[i][0] >= ACT_IF_NONE_BELOW:
+                continue
+            a = ACTIONS[int(acts[i][1:].argmax()) + 1]
+            if a == "other":
+                continue
+            u = by_tag[tag]
+            if a in ("attack_unit", "gather", "own_unit"):
+                t = tags[int(targets[i].argmax())]
+                if t == tag or u.get("order_target") == t:
+                    continue                     # already on it
+                key = (a, t)
+            elif a in ("move", "attack_move"):
+                dx, dy = dests[i]
+                dx, dy = (-dx if self.flip[0] else dx), (-dy if self.flip[1] else dy)
+                x, y = int(u["x"] + dx), int(u["y"] + dy)
+                key = (a, (x // SAME_POINT) * SAME_POINT + SAME_POINT // 2, (y // SAME_POINT) * SAME_POINT + SAME_POINT // 2)
+            else:
+                key = (a,)
+            groups.setdefault(key, []).append(tag)
+        if not groups:
+            return False
+        key = min(groups, key=lambda k: (PRIORITY.get(k[0], 5), -len(groups[k])))
+        self.task = Task("fight_cmd", data={"key": key, "tags": groups[key][:12], "center": center},
+                         started=hi.frame)
+        return True
+
+    def _army(self, obs: dict, mine: list[dict], done: list[dict]) -> bool:
+        if self._fight(obs, mine):
+            return True
+        if self.fight_center is not None:        # the army model leaves units in a fight alone
+            cx, cy = self.fight_center
+            done = [u for u in done if math.dist((u["x"], u["y"]), (cx, cy)) > 12 * 32]
+        return super()._army(obs, mine, done)
+
+    def _run_task(self, obs: dict, mine: list[dict]) -> None:
+        t = self.task
+        if t.kind == "fight_cmd":
+            if self.hi.frame - t.started > 24 * 3:
+                self.task = None
+                return
+            return self._task_fight(obs, mine, t)
+        return super()._run_task(obs, mine)
+
+    def _task_fight(self, obs: dict, mine: list[dict], t: Task) -> None:
+        """Camera on the fight, select the group, give the order."""
+        hi, d = self.hi, t.data
+        units = [u for u in mine if u["tag"] in set(d["tags"])]
+        if not units:
+            self.task = None
+            return
+        cx, cy = d["center"]
+        if not screen_of(obs, cx, cy):
+            hi.camera_minimap(int(cx), int(cy))
+            return
+        on_screen = [u for u in units if screen_of(obs, u["x"], u["y"])]
+        sel = set(obs["selection"])
+        want = {u["tag"] for u in on_screen}
+        if t.stage == "start":
+            if not on_screen:
+                self.task = None
+                return
+            if len(on_screen) == 1:
+                x, y = screen_of(obs, on_screen[0]["x"], on_screen[0]["y"])
+                hi.box(max(0, x - 4), max(0, y - 4), x + 4, y + 4)   # a click could pick what's under it
+            else:
+                pts = [screen_of(obs, u["x"], u["y"]) for u in on_screen]
+                hi.box(max(0, min(p[0] for p in pts) - 6), max(0, min(p[1] for p in pts) - 6),
+                       min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + 6),
+                       min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + 6))
+            t.stage = "order"
+            return
+        if not sel & want:
+            self.task = None
+            return
+        key = d["key"]
+        a = key[0]
+        if a in ("attack_unit", "gather", "own_unit"):
+            target = next((u for u in obs["units"] if u["tag"] == key[1]), None)
+            p = target and screen_of(obs, target["x"], target["y"])
+            if p:
+                hi.right_click(*p)
+                self._say(f"fight: {len(sel & want)} {self._names(units)} -> {a.replace('_', ' ')} "
+                          f"{unit_name(target['type'])}")
+        elif a in ("move", "attack_move"):
+            p = screen_of(obs, key[1], key[2])
+            if p:
+                if a == "move":
+                    hi.right_click(*p)
+                else:
+                    hi.order_click(C.ORDER_ATTACK_MOVE, *p)
+                self._say(f"fight: {len(sel & want)} {self._names(units)} -> {a.replace('_', ' ')}")
+        else:
+            {"stop": hi.stop, "hold": hi.hold, "stim": hi.stim, "return_cargo": hi.return_cargo}[a]()
+            self._say(f"fight: {len(sel & want)} {self._names(units)} -> {a.replace('_', ' ')}")
+        self.task = None
+
+    @staticmethod
+    def _names(units: list[dict]) -> str:
+        kinds = {unit_name(u["type"]) for u in units}
+        return "/".join(sorted(kinds))
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--map", help="a .scm/.scx map (or a pre-1.18 replay) for headless play")
+    ap.add_argument("--minutes", type=float, default=12)
+    ap.add_argument("--seed", type=int)
+    ap.add_argument("--save", default="gary_v04.rep")
+    ap.add_argument("--command-delay", type=int, default=LIVE_COMMAND_DELAY)
+    ap.add_argument("--style", type=int, help="build-style cluster to steer the macro toward")
+    ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--live", action="store_true", help="play in a live SC:R client via the bridge")
+    ap.add_argument("--pipe", default=r"\\.\pipe\gary_scr")
+    ap.add_argument("--profile", default="b_rank", choices=sorted(v01.PROFILES))
+    ap.add_argument("--pov", help="where to save the point-of-view log (live)")
+    args = ap.parse_args()
+    macro, army = MacroModel.load(latest_model()), ArmyModel.load(latest_army_model())
+    fight = FightModel.load(latest_fight_model())
+    make = lambda hi, mapinfo: TerranGaryV4(hi, mapinfo, macro, army, fight, args.style, verbose=not args.quiet)
+    if args.live:
+        v01.play_live(args.pipe, args.minutes, args.profile, args.pov or "gary_v04_live.pov.jsonl", make_bot=make)
+    else:
+        if not args.map:
+            ap.error("--map is required unless --live")
+        v01.play(args.map, args.minutes, args.seed, args.save, command_delay=args.command_delay,
+                 make_bot=make, name="Gary v0.4 (T)")
+
+
+if __name__ == "__main__":
+    main()

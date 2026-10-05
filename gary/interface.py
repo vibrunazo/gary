@@ -372,6 +372,23 @@ class HumanInterface:
         """Hotkey: train from the selected building."""
         return self._schedule_key("train", unit_type=unit_type)
 
+    def order_click(self, order: int, sx: int, sy: int) -> ActionResult:
+        """A hotkey order then a click on the screen: e.g. A + click = attack-move there, or
+        attack the unit under the cursor."""
+        return self._schedule_click(sx, sy, 16, "order_click", order=order)
+
+    def stop(self) -> ActionResult:
+        return self._schedule_key("stop")
+
+    def hold(self) -> ActionResult:
+        return self._schedule_key("hold")
+
+    def stim(self) -> ActionResult:
+        return self._schedule_key("stim")
+
+    def return_cargo(self) -> ActionResult:
+        return self._schedule_key("return_cargo")
+
     def chat(self, text: str) -> ActionResult:
         """Enter, type a message, Enter: a chat line to everyone."""
         return self._schedule_key("chat", text=text)
@@ -532,6 +549,17 @@ class HumanInterface:
             x, y = self._to_map(a.args["sx"], a.args["sy"])
             act = f"place {unit_name(a.args['unit_type'])}"
             self._send(C.build(a.args["unit_type"], x // 32, y // 32, a.args["order"]))
+        elif a.kind == "order_click":
+            x, y = self._to_map(a.args["sx"], a.args["sy"])
+            tag = g.unit_at(self.slot, x, y)
+            kind = g.unit_type_of(tag) if tag else None
+            what = "attack-move" if a.args["order"] == C.ORDER_ATTACK_MOVE else f"order {a.args['order']}"
+            act = f"A-click {unit_name(kind)} ({what})" if kind is not None else f"A-click ground ({what})"
+            self._send(C.targeted_order(a.args["order"], x, y, tag, kind if kind is not None else C.NO_UNIT))
+        elif a.kind in ("stop", "hold", "stim", "return_cargo"):
+            act = {"stop": "S (stop)", "hold": "H (hold position)", "stim": "T (stim packs)",
+                   "return_cargo": "C (return cargo)"}[a.kind]
+            self._send({"stop": C.stop, "hold": C.hold_position, "stim": C.stim, "return_cargo": C.return_cargo}[a.kind]())
         elif a.kind == "chat":
             act = f"chat: {a.args['text']}"
             self._send(C.chat(self.slot, a.args["text"]))
@@ -552,7 +580,8 @@ RESOURCES = {176, 177, 178, 188, 110, 157, 149}      # mineral fields, geyser, r
 OTHER_NAMES = {176: "Mineral Field", 177: "Mineral Field", 178: "Mineral Field", 188: "Vespene Geyser",
                35: "Larva", 36: "Egg", 37: "Zergling", 41: "Drone", 42: "Overlord", 131: "Hatchery"}
 COMMAND_NAMES = {0x09: "select", 0x0A: "shift-select", 0x0C: "build", 0x14: "right-click", 0x15: "order",
-                 0x1F: "train", 0x23: "morph", 0x30: "research", 0x32: "upgrade", 0x5C: "chat"}
+                 0x1F: "train", 0x23: "morph", 0x30: "research", 0x32: "upgrade", 0x5C: "chat",
+                 0x1A: "stop", 0x2B: "hold", 0x36: "stim", 0x1E: "return cargo"}
 
 
 def unit_name(unit_type: int) -> str:
