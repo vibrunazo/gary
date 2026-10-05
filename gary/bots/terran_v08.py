@@ -27,10 +27,16 @@ from gary.policy.fight_cmd import CommandModel
 from gary.policy.macro import MacroModel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+# the model v0.8 was judged with (RL run 4, round 70: 114 home defenses -61); later runs don't
+# replace it unless they beat it and this is updated
+V08_MODEL = REPO_ROOT / "runs" / "fight_cmd_rl" / "home_defense_20261005_091044" / "model.pt"
 
 
 def latest_rl_fight_model() -> Path:
-    """The newest fight command model trained by reinforcement learning (runs/fight_cmd_rl)."""
+    """v0.8's fight model, or (on a machine without it) the newest one trained by reinforcement
+    learning (runs/fight_cmd_rl)."""
+    if V08_MODEL.exists():
+        return V08_MODEL
     found = sorted((REPO_ROOT / "runs" / "fight_cmd_rl").glob("*/model.pt"), key=lambda p: p.stat().st_mtime)
     if not found:
         raise SystemExit("no RL-trained fight model in runs/fight_cmd_rl (python -m train.fight_cmd_rl)")
