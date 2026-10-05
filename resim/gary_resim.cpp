@@ -189,7 +189,9 @@ struct counting_replay_functions : scr_replay<replay_functions> {
 	//    (mineral fields and geysers, so "back to mining" can be learned)
 	// (tags are OpenBW's unit IDs in both, so commands and snapshots line up).
 	int fights_until = 0;          // frame; 0 = off
-	static constexpr int FIGHT_EVERY = 12, FIGHT_NEAR = 8 * 32, FIGHT_AROUND = 12 * 32;
+	// a fight snapshot: everyone within FIGHT_AROUND of the fight, and the player's own units
+	// within FIGHT_OWN (the whole mineral line a player might pull or evacuate)
+	static constexpr int FIGHT_EVERY = 12, FIGHT_NEAR = 8 * 32, FIGHT_AROUND = 12 * 32, FIGHT_OWN = 24 * 32;
 
 	static bool fighter(const unit_t* u, const counting_replay_functions& f) {
 		return u->unit_type->supply_required.raw_value > 0 && !f.ut_worker(u->unit_type) && !f.ut_building(u->unit_type);
@@ -257,7 +259,8 @@ struct counting_replay_functions : scr_replay<replay_functions> {
 					if (o == 11 && !ut_resource(u)) continue;      // neutral: only minerals and geysers
 					if (o != p && !(u->sprite->visibility_flags & (1 << p))) continue;
 					long dx = u->sprite->position.x - cx, dy = u->sprite->position.y - cy;
-					if (dx * dx + dy * dy > (long)FIGHT_AROUND * FIGHT_AROUND) continue;
+					long r = o == p ? FIGHT_OWN : FIGHT_AROUND;
+					if (dx * dx + dy * dy > r * r) continue;
 					const unit_t* t = u->order_target.unit;
 					char buf[160];
 					snprintf(buf, sizeof buf, "%s[%u,%d,%d,%d,%d,%d,%d,%d,%d,%u,%d,%d]", out.empty() ? "" : ",",

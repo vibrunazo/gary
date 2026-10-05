@@ -44,7 +44,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "resim"))
 import scr_format  # noqa: E402
 
-VERSION = "v1"
+VERSION = "v2"                  # v2: own units within 768 px of the fight (v1: 384, like everyone)
 FIGHTS_UNTIL_S = 600            # the first 10 minutes: early harass and skirmishes
 LABEL_FRAMES = 12               # an order counts for a snapshot if it comes within half a second
 ACTIONS = ["none", "move", "attack_move", "attack_unit", "gather", "own_unit", "stop", "hold",

@@ -10,8 +10,9 @@ AlphaStar-style, one part after the other:
   3. its target: a unit (a pointer into the set) for attacks, gathering and right-clicks on own
      units, or a point for moves (a cell of a 32x32 grid of 64-pixel cells around the fight)
 
-Same input as the fight model: the units around the fight as the player sees them, mirrored so the
-player's main is top-left. Learned from the same pro skirmishes (train/fight_cmd.py): the commands
+Same input as the fight model, the units around the fight as the player sees them, mirrored so the
+player's main is top-left, except that the player's own units are taken from twice as far (the
+whole mineral line a player may pull or evacuate; fight set v2). Learned from the same pro skirmishes (train/fight_cmd.py): the commands
 are rebuilt from the per-unit labels (units told the same thing in the same half second).
 """
 
@@ -24,8 +25,10 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from gary.policy.fight import ACTIONS, MAX_UNITS, N_ORDERS, N_TYPES, tensors
+from gary.policy.fight import ACTIONS, FIGHT_OWN, N_ORDERS, N_TYPES, tensors
 
+MAX_UNITS = 64                  # units per snapshot: own units within FIGHT_OWN (fight set v2)
+OWN_RADIUS = FIGHT_OWN
 GRID = 32                       # destination cells per side
 CELL = 64                       # pixels per cell: the grid covers +-1024 px around the fight
 HALF = GRID * CELL // 2

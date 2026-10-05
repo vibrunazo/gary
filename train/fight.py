@@ -42,20 +42,20 @@ A = {a: i for i, a in enumerate(ACTIONS)}
 TARGETED = {A["attack_unit"]: 0, A["gather"]: 2, A["own_unit"]: 1}   # action -> side of its target
 
 
-def fight_dir() -> Path:
-    return data_root() / "interim" / "fight" / "v1"
+def fight_dir(version: str = "v1") -> Path:
+    return data_root() / "interim" / "fight" / version
 
 
-def jobs_for(matchup: str, race: str) -> list[tuple[str, int, bool]]:
+def jobs_for(matchup: str, race: str, version: str = "v1") -> list[tuple[str, int, bool]]:
     out = []
-    with open(fight_dir() / "index.jsonl", encoding="utf-8") as f:
+    with open(fight_dir(version) / "index.jsonl", encoding="utf-8") as f:
         rows = {r["sha1"]: r for r in map(json.loads, f)}
     for r in rows.values():
         if not r.get("ok") or r["matchup"] != matchup:
             continue
         for i, p in enumerate(r["players"]):
             if p["race"] == race and p["snapshots"] > 0:
-                out.append((str(fight_dir() / r["sha1"][:2] / f"{r['sha1']}.npz"), i, is_test(r["sha1"])))
+                out.append((str(fight_dir(version) / r["sha1"][:2] / f"{r['sha1']}.npz"), i, is_test(r["sha1"])))
     return out
 
 

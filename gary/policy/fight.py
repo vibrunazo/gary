@@ -101,13 +101,16 @@ class FightModel:
 
 FIGHT_NEAR = 8 * 32             # enemy fighters this close to own units make a fight
 FIGHT_AROUND = 12 * 32          # units this close to the fight's center are in the snapshot
+FIGHT_OWN = 24 * 32             # ...and the player's own units this close (fight set v2)
 
 
-def snapshot(obs: dict, slot: int, flip: tuple[bool, bool], supply_x2, is_worker, is_building):
+def snapshot(obs: dict, slot: int, flip: tuple[bool, bool], supply_x2, is_worker, is_building,
+             own_radius: int = FIGHT_AROUND, max_units: int = MAX_UNITS):
     """The fight around the player's units right now, built from an observation the way
     resim --fights builds it from replays: (unit rows (n, 11), their tags, the center (x, y)),
     or None when no visible enemy fighter is near. Rows are mirrored by flip (the player's main
-    top-left) and sorted nearest first."""
+    top-left) and sorted nearest first. own_radius: how far the player's own units are taken
+    (FIGHT_AROUND as in fight set v1, FIGHT_OWN as in v2)."""
     mine = [u for u in obs["units"] if u["owner"] == slot]
     enemy = [u for u in obs["units"] if u["owner"] not in (slot, 11)]
     fighters = [e for e in enemy if supply_x2(e["type"]) > 0 and not is_worker(e["type"]) and not is_building(e["type"])]
@@ -117,10 +120,11 @@ def snapshot(obs: dict, slot: int, flip: tuple[bool, bool], supply_x2, is_worker
         return None
     cx = sum(e["x"] for e in engaged) / len(engaged)
     cy = sum(e["y"] for e in engaged) / len(engaged)
-    around = [u for u in obs["units"] if (u["x"] - cx) ** 2 + (u["y"] - cy) ** 2 <= FIGHT_AROUND ** 2
+    around = [u for u in obs["units"]
+              if (u["x"] - cx) ** 2 + (u["y"] - cy) ** 2 <= (own_radius if u["owner"] == slot else FIGHT_AROUND) ** 2
               and (u["owner"] != 11 or u["type"] in (176, 177, 178, 188))]
     around.sort(key=lambda u: (u["x"] - cx) ** 2 + (u["y"] - cy) ** 2)
-    around = around[:MAX_UNITS]
+    around = around[:max_units]
     row = {u["tag"]: i for i, u in enumerate(around)}
     fx, fy = flip
     rows = np.zeros((len(around), 11), np.int16)

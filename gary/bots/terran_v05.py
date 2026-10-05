@@ -24,7 +24,7 @@ from gary.bots.terran_v04 import RESOURCES, TerranGaryV4
 from gary.env import LIVE_COMMAND_DELAY
 from gary.policy.army import ArmyModel
 from gary.policy.fight import ACTIONS
-from gary.policy.fight_cmd import MOVES, POINTER, CommandModel
+from gary.policy.fight_cmd import MAX_UNITS, MOVES, OWN_RADIUS, POINTER, CommandModel
 from gary.policy.macro import MacroModel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -40,6 +40,7 @@ def latest_command_model(matchup: str = "TvZ", race: str = "T") -> Path:
 class TerranGaryV5(TerranGaryV4):
     version = "v0.5"
     temperature = 1.0                    # < 1: draw commands closer to the model's likeliest
+    own_radius, max_units = OWN_RADIUS, MAX_UNITS
 
     def _fight(self, obs: dict, mine: list[dict]) -> bool:
         snap = self._snapshot(obs)

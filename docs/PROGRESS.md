@@ -48,7 +48,7 @@ quicker way to a playable Gary.
 | Opponent model | Beliefs about the opponent's build and army | Not started | — | — | — | — | — | — |
 | Replay pipeline | Inventory, build orders, resim, desync checks (§7.1–7.2) | ~70k replays indexed; TvZ re-simulated with fog-of-war views | ● | ● | ● | ● | ● | ● |
 | Build taxonomy | Build styles discovered from replays (§7.3) | TvZ clusters with readable rules; style labels for ~45% of players | ● | ● | ● | ● | ● | ● |
-| Training sets | Data for the learned models | Macro, army and fight sets for TvZ (fight: 7.2M snapshots) | ◐ | ◐ | ◐ | ◐ | — | — |
+| Training sets | Data for the learned models | Macro, army and fight sets for TvZ (fight v2: own units from twice as far) | ◐ | ◐ | ◐ | ◐ | — | — |
 | Learning beyond imitation | Outcome-weighted learning, reinforcement learning | Fight estimate learned from outcomes; reinforcement learning on pro scenarios runs, no gain yet | ◐ | ◐ | ◐ | — | — | — |
 | POV viewer | Watch any game from Gary's screen (`viewer/`) | Cursor, clicks, every action in words; Remastered replays; videos | ● | ● | ● | ● | ● | — |
 | Trace | Gary's decisions and reasons, recorded (§6.5) | Decision log with model probabilities and fight estimates; POV action log | ◐ | ◐ | ◐ | ◐ | ◐ | — |
@@ -77,9 +77,14 @@ quicker way to a playable Gary.
   orders per scenario instead of 19, but the score stays (−193). With hands twice as fast (46
   orders, the pro's count) it's −210, and sampling closer to the model's likeliest commands
   (temperature 0.5, 0.25) gives −189: what Gary decides is what's missing, not how fast.
-- **Most urgently missing:** the pros' big decisive commands (pulling or evacuating a whole
-  mineral line: 11–12 SCVs) can't be learned yet, because the fight snapshot (384 px around the
-  fight) leaves most of the mineral line out; rebuilding the fight data with a wider view.
+- **Wider view (fight set v2):** the fight snapshot now takes Gary's own units from 768 px (the
+  whole mineral line; up to 64 units). Retrained on it (0.75M commands; selection IoU 0.65 vs
+  0.43 for all own units, target 50%, destination 31%), Gary's commands grow to the pros' size
+  (3.7 units chosen, the pros' real average is 3.9), but the score stays (−191).
+- **Most urgently missing:** coherence over time. The model decides each command from the
+  current snapshot alone, so Gary switches plans every second or two (move, attack-move, back to
+  mining, move) where a pro holds one for several seconds (evacuate the mineral line, then come
+  back): the command model needs memory of its recent commands, or a slower plan (intent) above it.
 
 ### v0.4 (October 2026): learned fight model (#2)
 

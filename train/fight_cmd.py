@@ -36,8 +36,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "ingest"))
 
 from gary.bots.terran_v04 import latest_fight_model  # noqa: E402
-from gary.policy.fight import ACTIONS, MAX_UNITS, OTARGET, SIDE, X, Y, tensors  # noqa: E402
-from gary.policy.fight_cmd import GRID, MOVES, POINTER, CommandModel, CommandNet, cell_of  # noqa: E402
+from gary.policy.fight import ACTIONS, OTARGET, SIDE, X, Y, tensors  # noqa: E402
+from gary.policy.fight_cmd import GRID, MAX_UNITS, MOVES, POINTER, CommandModel, CommandNet, cell_of  # noqa: E402
 from train.fight import KEEP_IDLE, PER_GAME, jobs_for  # noqa: E402
 
 A = {a: i for i, a in enumerate(ACTIONS)}
@@ -207,15 +207,16 @@ def main() -> None:
     ap.add_argument("--class-weight", type=float, default=0.5,
                     help="weigh each command type by frequency^-this in the loss; 0 = off")
     ap.add_argument("--no-init", action="store_true", help="don't start the encoder from the fight model")
+    ap.add_argument("--data", default="v2", help="fight set version (ingest/fight_dataset.py)")
     args = ap.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     t0 = time.time()
-    jobs = jobs_for(args.matchup, args.race)[:args.limit]
+    jobs = jobs_for(args.matchup, args.race, args.data)[:args.limit]
     data = load_all(jobs, args.workers)
     n_train, n_test = len(data["train"][0]), len(data["test"][0])
     print(f"{len(jobs)} player-games; examples: train {n_train:,}, test {n_test:,} ({time.time() - t0:.0f} s)", flush=True)
     config = {"net": {"d": 128, "layers": 3, "heads": 4}, "matchup": args.matchup, "race": args.race,
-              "class_weight": args.class_weight}
+              "class_weight": args.class_weight, "data": args.data}
     net = CommandNet(**config["net"]).to(device)
     if not args.no_init:                     # the unit encoder from the per-unit fight model
         init = latest_fight_model(args.matchup, args.race)

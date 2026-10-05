@@ -31,7 +31,7 @@ from gary.env import LIVE_COMMAND_DELAY
 from gary.interface import HumanInterface, screen_of, unit_name
 from gary.mapinfo import MapInfo
 from gary.policy.army import ArmyModel, is_building, is_worker, supply_x2
-from gary.policy.fight import ACTIONS, FightModel, snapshot
+from gary.policy.fight import ACTIONS, FIGHT_AROUND, MAX_UNITS, FightModel, snapshot
 from gary.policy.macro import MacroModel
 from gary.version import announcement
 
@@ -65,6 +65,7 @@ def latest_fight_model(matchup: str = "TvZ", race: str = "T") -> Path:
 
 class TerranGaryV4(TerranGaryV3):
     version = "v0.4"
+    own_radius, max_units = FIGHT_AROUND, MAX_UNITS      # the fight snapshot, as the model learned it
 
     def __init__(self, hi: HumanInterface, mapinfo: MapInfo, model: MacroModel, army_model: ArmyModel,
                  fight_model: FightModel, style: int | None = None, verbose: bool = True):
@@ -118,7 +119,8 @@ class TerranGaryV4(TerranGaryV3):
         for u in units:                          # hidden enemy HP: assume full
             if u["owner"] not in (self.slot, 11) and u.get("hp") is None:
                 u["hp"], u["shields"] = MAX_HP.get(u["type"], 100), 0
-        snap = snapshot({**obs, "units": units}, self.slot, self.flip, supply_x2, is_worker, is_building)
+        snap = snapshot({**obs, "units": units}, self.slot, self.flip, supply_x2, is_worker, is_building,
+                        self.own_radius, self.max_units)
         if snap is None:
             self.fight_center = None
             return None
