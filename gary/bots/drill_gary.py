@@ -1,14 +1,16 @@
 """Gary's fight layer alone, for micro drills (gary/drills.py): no base, no macro.
 
 The same fight code as Gary v0.7 (snapshot, command model with memory, human-hands executor),
-started without the parts that need a base. Unlike v0.7, every command type and every unit is
-the model's (no guard rails): drills are where reinforcement learning teaches it when a move helps.
+started without the parts that need a base. Unlike v0.7, every command type is the model's (no
+guard rail): drills are where reinforcement learning teaches it when a move helps. Workers aren't
+the model's (in v0.7 a rule pulls them); in drills they keep mining.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
+from gary import terran as T
 from gary.bots.terran_v07 import TerranGaryV7
 from gary.interface import HumanInterface
 
@@ -45,4 +47,4 @@ class DrillGary(TerranGaryV7):
         return True
 
     def _may_command(self, unit: dict) -> bool:
-        return True
+        return unit["type"] != T.SCV                 # as in v0.7: workers are a rule's, not the model's

@@ -30,7 +30,7 @@ import torch
 import torch.nn.functional as F
 
 from gary.bots.terran_v05 import latest_command_model
-from gary.drills import make_drill, run_drill
+from gary.drills import behavior, make_drill, run_drill
 from gary.policy.fight import tensors
 from gary.policy.fight_cmd import MOVES, POINTER, CommandModel
 from gary.policy.fight_memory import HIST_K, TOKEN_FEATURES, UNIT_FEATURES
@@ -143,15 +143,17 @@ def update(net, ref, opt, decs: list, args, device: str) -> dict:
     return {k: round(v / max(1, stats["n"]), 4) for k, v in stats.items() if k != "n"}
 
 
-def test(pool, family: str, n: int, path: str) -> float:
-    rows = list(pool.map(play, [(family, s, path, 0, False) for s in range(n)], chunksize=4))
-    return float(np.mean([r["net"] for r in rows if "error" not in r]))
+def test(pool, family: str, n: int, path: str) -> tuple[float, dict]:
+    """Held-out drills (seeds 0..n-1): mean net, and what the model did (behavior check)."""
+    rows = [r for r in pool.map(play, [(family, s, path, 0, True) for s in range(n)], chunksize=4) if "error" not in r]
+    return float(np.mean([r["net"] for r in rows])), behavior(rows)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--init", help="command model to start from (default: the latest with memory)")
-    ap.add_argument("--family", default="mm_vs_lings")
+    ap.add_argument("--family", nargs="+", default=["home_defense", "mm_vs_lings"],
+                    help="drill families, trained on in turn and tested each on its own")
     ap.add_argument("--rounds", type=int, default=200)
     ap.add_argument("--drills", type=int, default=64, help="training drills per round")
     ap.add_argument("--draws", type=int, default=8, help="plays of each drill per round")
@@ -174,7 +176,7 @@ def main() -> None:
         p.requires_grad_(False)
     net = model.net
     opt = torch.optim.Adam(net.parameters(), lr=args.lr)
-    out = REPO_ROOT / "runs" / "fight_cmd_rl" / time.strftime(f"{args.family}_%Y%m%d_%H%M%S")
+    out = REPO_ROOT / "runs" / "fight_cmd_rl" / time.strftime(f"{'+'.join(args.family)}_%Y%m%d_%H%M%S")
     out.mkdir(parents=True)
     model.config = {**model.config, "rl": {"init": str(init), **vars(args)}}
     history, best = [], None
@@ -185,17 +187,20 @@ def main() -> None:
             path = str(out / f"round{rnd}.pt")
             model.save(path)
             if rnd % args.test_every == 0 or rnd == args.rounds:
-                score = test(pool, args.family, args.test_drills, path)
-                history.append({"round": rnd, "test_net": round(score, 1)})
-                print(f"round {rnd}: held-out drills net {score:.0f}", flush=True)
+                scores = {}
+                for fam in args.family:
+                    scores[fam], beh = test(pool, fam, args.test_drills, path)
+                    print(f"round {rnd}: held-out {fam} net {scores[fam]:.0f}; {beh}", flush=True)
+                score = float(np.mean(list(scores.values())))
+                history.append({"round": rnd, "test_net": {k: round(v, 1) for k, v in scores.items()}})
                 if best is None or score > best[0]:
                     best = (score, rnd)
                     model.save(out / "model.pt")
             if rnd == args.rounds:
                 break
             t0 = time.time()
-            seeds = [rng.randrange(*TRAIN_SEEDS) for _ in range(args.drills)]
-            rows = list(pool.map(play, [(args.family, s, path, k, True) for s in seeds for k in range(args.draws)],
+            drills = [(args.family[i % len(args.family)], rng.randrange(*TRAIN_SEEDS)) for i in range(args.drills)]
+            rows = list(pool.map(play, [(fam, s, path, k, True) for fam, s in drills for k in range(args.draws)],
                                  chunksize=args.draws))
             decs = decisions(rows, args.horizon)
             nets = [r["net"] for r in rows if "error" not in r]
@@ -208,7 +213,7 @@ def main() -> None:
                 if old.name != f"round{rnd}.pt":
                     old.unlink()
     (out / "history.json").write_text(json.dumps(history, indent=1), encoding="utf-8")
-    print(f"best held-out drills net {best[0]:.0f} at round {best[1]} -> {out / 'model.pt'}")
+    print(f"best held-out drills net (mean of families) {best[0]:.0f} at round {best[1]} -> {out / 'model.pt'}")
 
 
 if __name__ == "__main__":
