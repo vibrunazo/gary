@@ -40,6 +40,14 @@ def _load_dll() -> ctypes.CDLL:
     dll = ctypes.CDLL(str(path))
     dll.gary_env_create.restype = ctypes.c_void_p
     dll.gary_env_create.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    dll.gary_env_create_custom.restype = ctypes.c_void_p
+    dll.gary_env_create_custom.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                                           ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int),
+                                           ctypes.POINTER(ctypes.c_char_p), ctypes.c_uint32]
+    dll.gary_env_walkable.restype = ctypes.c_bool
+    dll.gary_env_walkable.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+    dll.gary_env_map_chk.restype = ctypes.c_int
+    dll.gary_env_map_chk.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
     dll.gary_env_create_scenario.restype = ctypes.c_void_p
     dll.gary_env_create_scenario.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
     dll.gary_env_drop_commands.argtypes = [ctypes.c_void_p, ctypes.c_int]
@@ -91,6 +99,18 @@ def decode_observation(raw: bytes) -> dict:
     return json.loads(raw.decode("utf-8", errors="replace"))
 
 
+def map_chk(map_path: str | Path) -> bytes:
+    """A map file's scenario data (scenario.chk; a .scm/.scx map or a pre-1.18 replay's map)."""
+    global _dll
+    _dll = _dll or _load_dll()
+    n = _dll.gary_env_map_chk(str(map_path).encode(), None, 0)
+    if n < 0:
+        raise GameError(_dll.gary_env_error(None).decode(errors="replace"))
+    buf = ctypes.create_string_buffer(n)
+    _dll.gary_env_map_chk(str(map_path).encode(), buf, n)
+    return buf.raw
+
+
 class GameError(RuntimeError):
     pass
 
@@ -120,6 +140,23 @@ class Game:
         name_arr = (ctypes.c_char_p * n)(*[nm.encode()[:24] for nm in names])
         h = _dll.gary_env_create_game(str(gamedata or _gamedata_dir()).encode(), str(map_path).encode(),
                                       n, race_arr, name_arr, seed)
+        if not h:
+            raise GameError(_dll.gary_env_error(None).decode(errors="replace"))
+        return cls(h, command_delay)
+
+    @classmethod
+    def custom(cls, chk: bytes, map_name: str, slots: list[int], races: list[str], names: list[str],
+               seed: int = 0, gamedata: str | Path | None = None, command_delay: int = 0) -> "Game":
+        """A "use map settings" game on map data (a scenario.chk, see map_chk): the given slots get
+        the map's preplaced units and no melee rules apply (drills: gary/drills.py). Saved replays
+        carry the map, so they play back like any game."""
+        global _dll
+        _dll = _dll or _load_dll()
+        codes = {"Z": 0, "T": 1, "P": 2}
+        n = len(slots)
+        h = _dll.gary_env_create_custom(str(gamedata or _gamedata_dir()).encode(), chk, len(chk), map_name.encode()[:31], n,
+                                        (ctypes.c_int * n)(*slots), (ctypes.c_int * n)(*[codes[r.upper()[0]] for r in races]),
+                                        (ctypes.c_char_p * n)(*[nm.encode()[:24] for nm in names]), seed)
         if not h:
             raise GameError(_dll.gary_env_error(None).decode(errors="replace"))
         return cls(h, command_delay)
@@ -240,6 +277,10 @@ class Game:
     def depot_spot_ok(self, tile_x: int, tile_y: int) -> bool:
         """Map knowledge: a resource depot fits here by terrain and resource distance."""
         return _dll.gary_env_depot_spot_ok(self._h, tile_x, tile_y)
+
+    def walkable(self, x: int, y: int) -> bool:
+        """Whether ground units can stand at map pixel (x, y) (terrain only)."""
+        return _dll.gary_env_walkable(self._h, x, y)
 
     def start_locations(self) -> list[dict]:
         """Map knowledge: the start locations' pixel centers."""

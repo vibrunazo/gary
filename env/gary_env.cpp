@@ -541,97 +541,152 @@ std::vector<int> start_location_slots(const std::vector<uint8_t>& chk) {
 
 }  // namespace
 
+namespace {
+
+// A new game on map data (a scenario.chk) with n players in the given slots. Melee: the map's
+// start locations and starting units (workers and a main building). Use map settings (ums): the
+// map's own preplaced units for those slots, and no melee victory rules (drills, made by adding
+// units to a map: gary/drills.py).
+env* new_game(const char* data_dir, std::vector<uint8_t> map_data, const std::string& map_name, int n,
+              const std::vector<int>& slots, const int* races, const char* const* names, uint32_t seed, bool ums) {
+	auto e = std::make_unique<env>(data_dir);
+	e->map_data = std::move(map_data);
+	std::array<int, 12> race_of{}, controller{}, player_id{};
+	player_id.fill(-1);
+	for (int i = 0; i != n; ++i) {
+		int slot = slots[i];
+		controller[slot] = player_t::controller_occupied;
+		race_of[slot] = races[i];
+		player_id[slot] = i;
+		e->replay_st.player_name[slot] = names[i];
+	}
+	e->funcs.emplace(e->player.st(), e->action_st, e->replay_st);
+	for (size_t i = 0; i != 12; ++i) e->action_st.player_id[i] = player_id[i];
+	state& st = e->player.st();
+	game_load_functions load(st);
+	load.load_map_data(e->map_data.data(), e->map_data.size(), [&]() {
+		load.setup_info.victory_condition = ums ? 0 : 1;  // melee
+		load.setup_info.starting_units = ums ? 0 : 2;     // workers and a main building
+		load.setup_info.tournament_mode = 0;
+		load.setup_info.resource_type = 1;
+		load.setup_info.starting_minerals = 50;
+		for (size_t i = 0; i != 12; ++i) {
+			st.players[i].controller = controller[i];
+			st.players[i].race = (race_t)race_of[i];
+			st.players[i].force = 0;
+			if (ums && i < 8) load.setup_info.create_melee_units_for_player[i] = false;
+		}
+		st.lcg_rand_state = seed;
+	});
+	e->replay_st.end_frame = 0x7fffffff;
+	e->replay_st.map_name = map_name.c_str();
+
+	// Game info for saved replays, laid out like a replay saved by the game itself.
+	uint8_t* h = e->header.data();
+	memset(h, 0, e->header.size());
+	h[0] = 1;  // Brood War
+	h[7] = 72;
+	put32(h + 8, seed);
+	memset(h + 12, 8, 8);
+	strncpy((char*)h + 24, "Gary", 23);
+	put16(h + 52, (uint16_t)st.game->map_tile_width);
+	put16(h + 54, (uint16_t)st.game->map_tile_height);
+	h[56] = (uint8_t)n;  // active players
+	h[57] = (uint8_t)n;  // slots
+	h[58] = 6;           // fastest
+	put16(h + 60, ums ? 10 : 2);    // game type: use map settings / melee
+	put16(h + 62, 1);
+	put16(h + 68, (uint16_t)st.game->tileset_index);
+	strncpy((char*)h + 72, "Gary", 24);
+	strncpy((char*)h + 97, map_name.c_str(), 31);
+	put16(h + 129, ums ? 10 : 2);
+	put16(h + 131, 1);
+	const uint8_t melee[11] = {1, 1, 1, 2, 2, 0, 1, 1, 0, 1, 0};  // victory .. tournament
+	const uint8_t map_settings[11] = {0, 1, 1, 2, 0, 0, 1, 1, 0, 1, 0};
+	memcpy(h + 137, ums ? map_settings : melee, 11);
+	put32(h + 152, 50);
+	for (int i = 0; i != 12; ++i) {
+		uint8_t* slot = h + 161 + i * 36;
+		put32(slot, (uint32_t)i);
+		put32(slot + 4, (uint32_t)player_id[i]);
+		slot[8] = (uint8_t)controller[i];
+		slot[9] = (uint8_t)(controller[i] ? race_of[i] : 6);
+		slot[10] = 0;
+		strncpy((char*)slot + 11, e->replay_st.player_name[i].c_str(), 24);
+	}
+	for (int i = 0; i != 8; ++i) put32(h + 161 + 12 * 36 + i * 4, (uint32_t)i);
+	for (int i = 0; i != 8; ++i) h[161 + 12 * 36 + 32 + i] = (!ums && controller[i]) ? 1 : 0;  // melee units
+	return e.release();
+}
+
+std::string map_stem(const std::string& path) {
+	std::string stem = path;  // the map's file name, shown as the replay's map name
+	size_t slash = stem.find_last_of("/\\");
+	if (slash != std::string::npos) stem = stem.substr(slash + 1);
+	size_t dot = stem.find_last_of('.');
+	if (dot != std::string::npos) stem = stem.substr(0, dot);
+	return stem;
+}
+
+}  // namespace
+
 // Starts a melee game on a map file (.scm/.scx, or a pre-1.18 replay's embedded map) with
 // n players. races: 0 zerg, 1 terran, 2 protoss. names: n strings. Players get random start
 // locations (from seed). Returns null on error (gary_env_error(null) has the message).
 GARY_API void* gary_env_create_game(const char* data_dir, const char* map_path, int n, const int* races,
                                     const char* const* names, uint32_t seed) {
 	try {
-		auto e = std::make_unique<env>(data_dir);
-		e->map_data = read_map(map_path);
-		auto slots = start_location_slots(e->map_data);
+		auto map = read_map(map_path);
+		auto slots = start_location_slots(map);
 		if ((int)slots.size() < n) error("map has %d start locations, %d players requested", (int)slots.size(), n);
 		uint32_t rng = seed * 2654435761u + 1;
 		for (size_t i = slots.size(); i > 1; --i) {  // shuffle start locations
 			rng = rng * 1103515245u + 12345u;
 			std::swap(slots[i - 1], slots[(rng >> 16) % i]);
 		}
-		std::array<int, 12> race_of{}, controller{}, player_id{};
-		player_id.fill(-1);
-		for (int i = 0; i != n; ++i) {
-			int slot = slots[i];
-			controller[slot] = player_t::controller_occupied;
-			race_of[slot] = races[i];
-			player_id[slot] = i;
-			e->replay_st.player_name[slot] = names[i];
-		}
-		e->funcs.emplace(e->player.st(), e->action_st, e->replay_st);
-		for (size_t i = 0; i != 12; ++i) e->action_st.player_id[i] = player_id[i];
-		state& st = e->player.st();
-		game_load_functions load(st);
-		load.load_map_data(e->map_data.data(), e->map_data.size(), [&]() {
-			load.setup_info.victory_condition = 1;  // melee
-			load.setup_info.starting_units = 2;     // workers and a main building
-			load.setup_info.tournament_mode = 0;
-			load.setup_info.resource_type = 1;
-			load.setup_info.starting_minerals = 50;
-			for (size_t i = 0; i != 12; ++i) {
-				st.players[i].controller = controller[i];
-				st.players[i].race = (race_t)race_of[i];
-				st.players[i].force = 0;
-			}
-			st.lcg_rand_state = seed;
-		});
-		e->replay_st.end_frame = 0x7fffffff;
-		std::string stem = map_path;  // the map's file name, shown as the replay's map name
-		size_t slash = stem.find_last_of("/\\");
-		if (slash != std::string::npos) stem = stem.substr(slash + 1);
-		size_t dot = stem.find_last_of('.');
-		if (dot != std::string::npos) stem = stem.substr(0, dot);
-		e->replay_st.map_name = stem.c_str();
-
-		// Game info for saved replays, laid out like a melee replay saved by the game itself.
-		uint8_t* h = e->header.data();
-		memset(h, 0, e->header.size());
-		h[0] = 1;  // Brood War
-		h[7] = 72;
-		put32(h + 8, seed);
-		memset(h + 12, 8, 8);
-		strncpy((char*)h + 24, "Gary", 23);
-		put16(h + 52, (uint16_t)st.game->map_tile_width);
-		put16(h + 54, (uint16_t)st.game->map_tile_height);
-		h[56] = (uint8_t)n;  // active players
-		h[57] = (uint8_t)n;  // slots
-		h[58] = 6;           // fastest
-		put16(h + 60, 2);    // game type: melee
-		put16(h + 62, 1);
-		put16(h + 68, (uint16_t)st.game->tileset_index);
-		strncpy((char*)h + 72, "Gary", 24);
-		strncpy((char*)h + 97, stem.c_str(), 31);
-		put16(h + 129, 2);
-		put16(h + 131, 1);
-		const uint8_t settings[11] = {1, 1, 1, 2, 2, 0, 1, 1, 0, 1, 0};  // victory .. tournament
-		memcpy(h + 137, settings, sizeof settings);
-		put32(h + 152, 50);
-		for (int i = 0; i != 12; ++i) {
-			uint8_t* slot = h + 161 + i * 36;
-			put32(slot, (uint32_t)i);
-			put32(slot + 4, (uint32_t)player_id[i]);
-			slot[8] = (uint8_t)controller[i];
-			slot[9] = (uint8_t)(controller[i] ? race_of[i] : 6);
-			slot[10] = 0;
-			strncpy((char*)slot + 11, e->replay_st.player_name[i].c_str(), 24);
-		}
-		for (int i = 0; i != 8; ++i) put32(h + 161 + 12 * 36 + i * 4, (uint32_t)i);
-		for (int i = 0; i != 8; ++i) h[161 + 12 * 36 + 32 + i] = controller[i] ? 1 : 0;
-		return e.release();
+		return new_game(data_dir, std::move(map), map_stem(map_path), n, slots, races, names, seed, false);
 	} catch (const std::exception& ex) {
 		g_create_error = ex.what();
 		return nullptr;
 	}
 }
 
+// Starts a "use map settings" game from map data (a scenario.chk, e.g. a map with drill units
+// added: gary/drills.py): n players in the given slots (0-7) with the map's preplaced units for
+// them, and no melee rules. Returns null on error.
+GARY_API void* gary_env_create_custom(const char* data_dir, const uint8_t* chk, int size, const char* map_name,
+                                      int n, const int* slots, const int* races, const char* const* names, uint32_t seed) {
+	try {
+		return new_game(data_dir, std::vector<uint8_t>(chk, chk + size), map_name, n, std::vector<int>(slots, slots + n),
+		                races, names, seed, true);
+	} catch (const std::exception& ex) {
+		g_create_error = ex.what();
+		return nullptr;
+	}
+}
+
+// A map file's scenario data (scenario.chk), into out (capacity bytes). Returns its size (copied
+// only if it fits; call with capacity 0 to ask), or -1 on error.
+GARY_API int gary_env_map_chk(const char* map_path, uint8_t* out, int capacity) {
+	try {
+		auto map = read_map(map_path);
+		if ((int)map.size() <= capacity) memcpy(out, map.data(), map.size());
+		return (int)map.size();
+	} catch (const std::exception& ex) {
+		g_create_error = ex.what();
+		return -1;
+	}
+}
+
 // --- building placement and map knowledge ------------------------------------------------------
+
+// Whether ground units can stand at map pixel (x, y) (the terrain's walkable minitiles; units and
+// buildings aside). For placing drill units (gary/drills.py).
+GARY_API bool gary_env_walkable(void* h, int x, int y) {
+	auto& f = *((env*)h)->funcs;
+	if (x < 0 || y < 0 || x >= (int)f.game_st.map_width || y >= (int)f.game_st.map_height) return false;
+	return f.is_walkable(xy(x, y));
+}
 
 // Whether a player could place unit_type with its top-left tile at (tile_x, tile_y) right now,
 // using the game's own check (the green/red placement grid): terrain, creep / pylon power,
