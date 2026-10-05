@@ -80,6 +80,14 @@ quicker way to a playable Gary.
   v0.3's −157 (v0.6 with the first three fixes −195; pro +29; nothing −260). Against the
   immediate 9-pool it holds 2 of 8 seeds, like v0.3: that's decided by placement and macro
   (bunker, marines, walls in time), not by fight micro.
+- **First RL on micro drills** (`gary/drills.py`: marines and medics vs zerglings, made-up fights
+  on real maps as preplaced units, watchable replays; `train/fight_cmd_rl.py`): held-out drills
+  −281 → +71 in 90 rounds (doing nothing +24), but it learned to **run away** (its moves go a
+  median 860 px from the zerglings, never toward them): the drills have nothing to defend and the
+  scripted zerglings re-target only once a second. On the 114 home defenses without the guard
+  rail it barely helps (−126 → −121); in 07720d60, a marine fight, it helps a lot (−428 → +166),
+  because the replayed Zerg can't punish a retreat. The guard rail stays; drills need something
+  to defend and zerglings that chase.
 - **Most urgently missing:** the pulled SCVs fight as a blob; the pros put them between the lings
   and the marines (a scripted "screen" next, then the ways for a model to learn it: unit features
   for the relation, synthetic micro drills with RL); macro against the immediate 9-pool.
