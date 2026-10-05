@@ -36,6 +36,7 @@ from gary.bots.terran_v02 import TerranGaryV2, latest_model
 from gary.env import LIVE_COMMAND_DELAY
 from gary.interface import HumanInterface, screen_of
 from gary.mapinfo import MapInfo
+from gary.version import announcement
 from gary.policy.army import GRID, ArmyModel, ArmyTracker, is_building, supply_x2
 from gary.policy.macro import MacroModel
 
@@ -65,10 +66,14 @@ def cell_dist(a: int, b: int) -> int:
 
 
 class TerranGaryV3(TerranGaryV2):
+    version = "v0.3"
+
     def __init__(self, hi: HumanInterface, mapinfo: MapInfo, model: MacroModel, army_model: ArmyModel,
                  style: int | None = None, verbose: bool = True):
         super().__init__(hi, mapinfo, model, style, verbose)
         self.army_model = army_model
+        self.announce = announcement(self.version, style, {"macro": getattr(model, "path", "?"),
+                                                     "army": getattr(army_model, "path", "?")})
         self.army_tracker = ArmyTracker(army_model.spec, self.slot, mapinfo.size, self.main.center)
         self.next_ask = 0
         self.ask_turn = 0

@@ -30,6 +30,7 @@ from gary.bots.terran_v01 import IDLE, Task, TerranGary
 from gary.env import LIVE_COMMAND_DELAY
 from gary.interface import HumanInterface, screen_of
 from gary.mapinfo import Base, MapInfo
+from gary.version import announcement
 from gary.policy.macro import ACT_NAMES, MacroModel, MacroTracker
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -64,11 +65,13 @@ def describe(act: int, uid: int) -> str:
 
 class TerranGaryV2(TerranGary):
     army_types = T.ARMY
+    version = "v0.2"
 
     def __init__(self, hi: HumanInterface, mapinfo: MapInfo, model: MacroModel,
                  style: int | None = None, verbose: bool = True):
         super().__init__(hi, mapinfo)
         self.model = model
+        self.announce = announcement(self.version, style, {"macro": getattr(model, "path", "?")})
         self.tracker = MacroTracker(model.spec, self.slot, style)
         self.verbose = verbose
         self.goal: dict | None = None

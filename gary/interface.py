@@ -372,6 +372,10 @@ class HumanInterface:
         """Hotkey: train from the selected building."""
         return self._schedule_key("train", unit_type=unit_type)
 
+    def chat(self, text: str) -> ActionResult:
+        """Enter, type a message, Enter: a chat line to everyone."""
+        return self._schedule_key("chat", text=text)
+
     def research(self, tech: int) -> ActionResult:
         """Hotkey: research a tech in the selected building."""
         return self._schedule_key("research", tech=tech)
@@ -528,6 +532,9 @@ class HumanInterface:
             x, y = self._to_map(a.args["sx"], a.args["sy"])
             act = f"place {unit_name(a.args['unit_type'])}"
             self._send(C.build(a.args["unit_type"], x // 32, y // 32, a.args["order"]))
+        elif a.kind == "chat":
+            act = f"chat: {a.args['text']}"
+            self._send(C.chat(self.slot, a.args["text"]))
         elif a.kind == "hotkey_set":
             self.hotkeys[a.args["n"]] = list(self.selection)
             act = f"Ctrl+{a.args['n']} (make group)"
@@ -545,7 +552,7 @@ RESOURCES = {176, 177, 178, 188, 110, 157, 149}      # mineral fields, geyser, r
 OTHER_NAMES = {176: "Mineral Field", 177: "Mineral Field", 178: "Mineral Field", 188: "Vespene Geyser",
                35: "Larva", 36: "Egg", 37: "Zergling", 41: "Drone", 42: "Overlord", 131: "Hatchery"}
 COMMAND_NAMES = {0x09: "select", 0x0A: "shift-select", 0x0C: "build", 0x14: "right-click", 0x15: "order",
-                 0x1F: "train", 0x23: "morph", 0x30: "research", 0x32: "upgrade"}
+                 0x1F: "train", 0x23: "morph", 0x30: "research", 0x32: "upgrade", 0x5C: "chat"}
 
 
 def unit_name(unit_type: int) -> str:

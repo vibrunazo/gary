@@ -24,6 +24,7 @@ from gary import terran as T
 from gary.env import LIVE_COMMAND_DELAY, Game, GameError
 from gary.interface import PROFILES, HumanInterface, screen_of
 from gary.mapinfo import Base, MapInfo
+from gary.version import announcement
 
 DEPOT, RAX, CC, SCV, MARINE = C.SUPPLY_DEPOT, C.BARRACKS, C.COMMAND_CENTER, C.SCV, C.MARINE
 COST = {unit: minerals for unit, (minerals, _gas) in T.COST.items()}
@@ -52,6 +53,7 @@ class Task:
 
 class TerranGary:
     army_types = {MARINE}                 # what joins the attack waves
+    version = "v0.1"
 
     def __init__(self, hi: HumanInterface, mapinfo: MapInfo):
         self.hi = hi
@@ -76,6 +78,7 @@ class TerranGary:
         self.attacks_sent = 0
         self.army_sent: set[int] = set()
         self.setup_done = False
+        self.announce = announcement(self.version)   # said in the chat at the start of the game
         self.ignore_idle_until: dict[int, int] = {}   # workers we failed to send: retry later
         self.next_sweep = 0                           # next look for idle workers off screen
 
@@ -196,7 +199,11 @@ class TerranGary:
         self._produce(obs, done, me, budget)
 
     def _setup(self, obs: dict) -> None:
-        """Remember the main as F2; the main CC gets its hotkey through the normal path."""
+        """Say which Gary this is in the chat, then remember the main as F2 (the main CC gets its
+        hotkey through the normal path)."""
+        if self.announce:
+            self.hi.chat(self.announce.pop(0))
+            return
         if not self._look_at(obs, "main"):
             return
         self.hi.camera_location_set(LOC_MAIN)

@@ -102,7 +102,9 @@ class ArmyModel:
         spec = ArmySpec(**ck["spec"])
         net = ArmyNet(spec.n_global, **ck["config"]["net"])
         net.load_state_dict(ck["state"])
-        return cls(spec, net.to(device), ck["config"])
+        model = cls(spec, net.to(device), ck["config"])
+        model.path = str(path)
+        return model
 
     def save(self, path: str | Path) -> None:
         torch.save({"spec": self.spec.to_dict(), "state": self.net.state_dict(), "config": self.config}, path)

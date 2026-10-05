@@ -117,7 +117,9 @@ class MacroModel:
         net.load_state_dict(ck["state"])
         caps_path = Path(path).with_name("caps.json")
         caps = {int(k): v for k, v in json.loads(caps_path.read_text()).items()} if caps_path.exists() else None
-        return cls(spec, net.to(device), ck["config"], caps)
+        model = cls(spec, net.to(device), ck["config"], caps)
+        model.path = str(path)
+        return model
 
     def save(self, path: str | Path) -> None:
         torch.save({"spec": self.spec.to_dict(), "state": self.net.state_dict(), "config": self.config}, path)

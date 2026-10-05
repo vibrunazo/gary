@@ -53,6 +53,11 @@ def upgrade(upgrade_id: int) -> bytes:
     return struct.pack("<BB", 0x32, upgrade_id)
 
 
+def chat(sender_slot: int, text: str) -> bytes:
+    """A chat message to everyone (as replays record it): up to 80 bytes of text."""
+    return struct.pack("<BB", 0x5C, sender_slot) + text.encode("utf-8", "replace")[:79].ljust(80, b"\0")
+
+
 def morph(unit_type: int) -> bytes:
     """Zerg: morph the selected larva (or units) into unit_type."""
     return struct.pack("<BH", 0x23, unit_type)
