@@ -88,6 +88,14 @@ quicker way to a playable Gary.
   rail it barely helps (−126 → −121); in 07720d60, a marine fight, it helps a lot (−428 → +166),
   because the replayed Zerg can't punish a retreat. The guard rail stays; drills need something
   to defend and zerglings that chase.
+- **Second RL run** with a `home_defense` drill family (a real base, SCVs mining, zerglings
+  coming for the mineral line; everything lost counts) and zerglings that chase, trained together
+  with `mm_vs_lings`: held-out `home_defense` +9 → +152 (attack-move +103, nothing −16) with
+  healthy moves (~150 px, a third toward the zerglings); on open ground it drifted toward standing
+  and backing off (moves 171 → 389 px), so the run stopped at round 40. On the 114 home defenses
+  **without the guard rail: −81** (imitation model −126; v0.7 with its guard rail −92), moving
+  like the imitation model (232 px, 43% toward the zerglings): the first learned fight model at
+  least as good as the guard rail, within the noise (±14).
 - **Most urgently missing:** the pulled SCVs fight as a blob; the pros put them between the lings
   and the marines (a scripted "screen" next, then the ways for a model to learn it: unit features
   for the relation, synthetic micro drills with RL); macro against the immediate 9-pool.
