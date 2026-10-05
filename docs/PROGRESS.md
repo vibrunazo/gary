@@ -21,7 +21,7 @@ quicker way to a playable Gary.
 | P1 Data | ◐ | ~70k replays indexed, resim with Remastered support (go decided: it works), fog-of-war views | Camera logger, camera inference, fitting human profiles from data (the interface's numbers are still placeholders) |
 | P1b Taxonomy | ◐ | TvZ build clusters with readable rules (`taxonomy/discover.py`) | A reviewed `taxonomy/tvz/v1.yaml`, stability and gold-set reports |
 | P1c Strategy stats | — | | Win-rate table, feature library, guide claims |
-| **P2 Micro** | **◐ (current)** | Fight and command models learned from pro skirmishes; scenario suite from pro replays (`eval/scenarios.py`); first reinforcement learning on scenarios (`train/fight_rl.py`) | Responses within the human band: on home-defense scenarios v0.8 (rules for the basics, an RL-trained command model for the rest) is the best Gary (pro +29, v0.8 −61, v0.7 −100, v0.3 −131, nothing −260) |
+| **P2 Micro** | **◐ (current)** | Fight and command models learned from pro skirmishes; scenario suite from pro replays (`eval/scenarios.py`); first reinforcement learning on scenarios (`train/fight_rl.py`) | Responses within the human band: on home-defense scenarios v0.8 (rules for the basics, an RL-trained command model for the rest) is the best Gary (fuller score: pro +1, v0.8 −91, v0.7 −130, v0.3 −161, nothing −302) |
 | P2b First playable | ◐ | Full games against people, offline, via the bridge; learned macro steered by build style | Build timings within tolerance (≥18/20 unharassed runs); supply blocks and idle production under harass within the human band |
 | P2c Debug viewer | ● | POV viewer with cursor, clicks and every action in words; videos | Trace overlays beyond actions |
 | P3 BC full game | ◐ (early) | Separate imitation models for macro, army movement and fights | One policy with intent and belief heads, Opponent Model, value network |
@@ -80,6 +80,11 @@ quicker way to a playable Gary.
   114 home defenses (−63 vs −61) with 9% fewer actions (77 vs 85 per play; "nothing" 54% of
   decisions vs 23%), reached in 40 rounds instead of 70. Not adopted (no gain in these scenarios,
   which ask little of macro). Continuing v0.8's own model instead (run 5) slid back at once.
+- **A fuller score** (`eval/score.py`, used by scenarios, drills and RL rewards alike): deaths;
+  damage as partial credit (HP lost times value, half weight, less for the regenerating Zerg and
+  for repairable buildings; healing counts back); spellcasters' energy spent; and enemy fighters
+  still near a Terran base at the end, against the Terran (so backing off a defense doesn't pay).
+  Same ranking on the 114 home defenses: pro +1, v0.8 −91, v0.7 −130, v0.3 −161, nothing −302.
 - **Most urgently missing:** holding early pools (macro, placement, walls); terrain in the fight
   model; the screen (SCVs in front of marines).
 

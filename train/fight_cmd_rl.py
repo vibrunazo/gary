@@ -59,8 +59,6 @@ def play_real(args: tuple) -> dict:
     sc, path, draw = args
     r = S.run_one(sc, "gary", 45, "v07free", 1, fight_path=path, sample_seed=draw)
     r["drill"] = "real_" + sc["sha1"][:12]
-    if "error" not in r:
-        r["net"] = r["Z_lost"] - r["T_lost"]
     return r
 
 
@@ -77,9 +75,10 @@ def to_go(deaths: list, t: float, horizon: float) -> float:
 
 
 def events(r: dict, cost: float) -> list:
-    """A play's rewards in time: units dying (+ zerg, - terran), and each command Gary carried out
-    costing a little, so actions go where they matter (as a player's attention does)."""
-    return r["deaths"] + [(int(d["time"] * 1000 / 42) + 1, -cost) for d in r.get("log", []) if d.get("executed")]
+    """A play's rewards in time: its score's events (eval/score.py: deaths, damage, energy, threats
+    left at the base), and each command Gary carried out costing a little, so actions go where they
+    matter (as a player's attention does)."""
+    return r["events"] + [(int(d["time"] * 1000 / 42) + 1, -cost) for d in r.get("log", []) if d.get("executed")]
 
 
 def decisions(rows: list[dict], horizon: float, cost: float = 0.0) -> list[tuple]:

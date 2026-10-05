@@ -42,7 +42,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MAP = REPO_ROOT / "tests" / "fixtures" / "replays" / "stardata_tvz_standard_ozp3w.rep"
 TERRAN_SLOT, ZERG_SLOT = 0, 1
 MEDIC, ZERGLING = 34, 37
-VALUE = {T.MARINE: 50, MEDIC: 75, ZERGLING: 25, T.SCV: 50, T.CC: 400}
 MINERALS = {176, 177, 178}
 CHASE_PX = 12 * 32               # zerglings this close to Terran units go for the nearest one
 SPACING = 20                     # pixels between units in a starting clump
@@ -247,7 +246,9 @@ def run_drill(drill: Drill, controller: str = "gary", fight_path: str | None = N
                 game.act(TERRAN_SLOT, C.select(mine[i:i + 12]))
                 game.act(TERRAN_SLOT, C.targeted_order(C.ORDER_ATTACK_MOVE, int(zx), int(zy)))
         end = game.frame + int(drill.seconds * 1000 / 42)
-        deaths, alive = [], set(start)
+        from eval.score import Score, fighter
+        score = Score(TERRAN_SLOT, ZERG_SLOT)
+        score.note(obs, game)
         while game.frame < end:
             if game.frame % ZERG_EVERY < 2:
                 zerg_script(game, game.observe(), goal)
@@ -256,21 +257,15 @@ def run_drill(drill: Drill, controller: str = "gary", fight_path: str | None = N
                 hi.step(2)
             else:
                 game.step(2)
-            if game.frame % 12 < 2:              # when units die (credit for decisions: RL)
-                for tag in [t for t in alive if game.unit_type_of(t) == -1]:
-                    alive.discard(tag)
-                    owner, kind = start[tag]
-                    deaths.append((game.frame, VALUE.get(kind, 50) * (1 if owner == ZERG_SLOT else -1)))
-        lost = {TERRAN_SLOT: 0, ZERG_SLOT: 0}
+            if game.frame % 12 < 2:              # the score as it goes (credit for decisions: RL)
+                score.note(game.observe(), game)
+        score.finish(game.observe(), game, fighter)
         left = {TERRAN_SLOT: 0, ZERG_SLOT: 0}
         for tag, (owner, kind) in start.items():
-            if game.unit_type_of(tag) == -1:
-                lost[owner] += VALUE.get(kind, 50)
-            else:
+            if game.unit_type_of(tag) != -1:
                 left[owner] += 1
-        row.update(T_lost=lost[TERRAN_SLOT], Z_lost=lost[ZERG_SLOT], T_left=left[TERRAN_SLOT], Z_left=left[ZERG_SLOT],
-                   net=lost[ZERG_SLOT] - lost[TERRAN_SLOT], deaths=deaths,
-                   SCVs_lost=sum(1 for t, (o, k) in start.items() if k == T.SCV and game.unit_type_of(t) == -1),
+        res = score.result()
+        row.update(res, T_left=left[TERRAN_SLOT], Z_left=left[ZERG_SLOT], SCVs_lost=res["T_workers_lost"],
                    **{k: v for k, v in drill.info.items() if k not in ("goal", "minerals")})
         if bot and log:
             row["log"] = bot.rl_log

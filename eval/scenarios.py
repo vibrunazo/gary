@@ -44,6 +44,7 @@ sys.path.insert(0, str(REPO_ROOT / "ingest"))
 
 from inventory import data_root  # noqa: E402
 
+from eval.score import Score, fighter  # noqa: E402
 from gary import terran as T  # noqa: E402
 from gary.policy.army import is_building  # noqa: E402
 
@@ -54,10 +55,6 @@ MIN_FIGHTERS = 3
 CANDIDATES_PER_GAME = 3         # --pick: fights proposed per game...
 CANDIDATE_GAP_S = 30            # ...at least this far apart
 T_HALLS, Z_HALLS, BUNKER = {106}, {131, 132, 133}, 125
-ZERG_COST = {37: (25, 0), 38: (75, 25), 39: (200, 200), 41: (50, 0), 42: (100, 0), 43: (100, 100),
-             45: (100, 100), 46: (50, 150), 47: (12, 38), 103: (125, 125),
-             131: (300, 0), 142: (200, 0), 149: (75, 0), 143: (125, 0), 146: (175, 0), 141: (200, 150),
-             132: (450, 100), 135: (150, 0), 136: (150, 100), 137: (100, 100), 138: (200, 150)}
 CONTROLLERS = ["pro", "gary", "nothing"]
 
 
@@ -65,11 +62,6 @@ def scenarios_path(split: str = "test") -> Path:
     """test: from games held out of training (for scoring); train: from training games (for
     reinforcement learning, train/fight_rl.py)."""
     return data_root() / "interim" / "scenarios" / ("tvz_early.jsonl" if split == "test" else "tvz_early_train.jsonl")
-
-
-def value(unit_type: int) -> int:
-    m, g = T.COST.get(unit_type) or ZERG_COST.get(unit_type) or (0, 0)
-    return m + g
 
 
 # --- picking -----------------------------------------------------------------------------------
@@ -136,38 +128,6 @@ def at_home(obs: dict, slot: int, center: tuple[int, int]) -> bool:
     return near(mine, center) < near(theirs, center) and not rush
 
 
-class Losses:
-    """Every unit either side had during the window, and when the ones that died died."""
-
-    def __init__(self, slots: dict[int, str]):
-        self.slots = slots
-        self.seen: dict[int, tuple[int, int]] = {}        # tag -> (owner, first type)
-        self.died: dict[int, int] = {}                    # tag -> frame it was found dead
-
-    def note(self, obs: dict, game) -> None:
-        here = set()
-        for u in obs["units"]:
-            here.add(u["tag"])
-            if u["owner"] in self.slots and u["tag"] not in self.seen:
-                self.seen[u["tag"]] = (u["owner"], u["type"])
-        for tag in self.seen:                # gone from view: dead, or inside a bunker / refinery
-            if tag not in here and tag not in self.died and game.unit_type_of(tag) == -1:
-                self.died[tag] = obs["frame"]
-
-    def result(self, game) -> dict:
-        out = {f"{race}_lost": 0 for race in self.slots.values()}
-        out.update({f"{race}_workers_lost": 0 for race in self.slots.values()})
-        deaths = []                          # (frame, value: + a zerg loss, - a terran loss)
-        for tag, (owner, kind) in self.seen.items():
-            if game.unit_type_of(tag) == -1:
-                race = self.slots[owner]
-                out[f"{race}_lost"] += value(kind)
-                out[f"{race}_workers_lost"] += kind in (T.SCV, 41)
-                deaths.append((self.died.get(tag, game.frame), value(kind) * (1 if race == "Z" else -1)))
-        out["deaths"] = sorted(deaths)
-        return out
-
-
 _games: OrderedDict = OrderedDict()      # per process: (sha1, frame) -> its game, saved at the takeover
 CACHED_GAMES = 4
 
@@ -202,8 +162,8 @@ def run_one(sc: dict, controller: str, seconds: float, version: str, style: int 
         obs = game.observe()
         slot = sc["terran_slot"]
         zerg = next(p["slot"] for p in obs["players"] if p["slot"] != slot and p["race"] == 0)
-        losses = Losses({slot: "T", zerg: "Z"})
-        losses.note(obs, game)
+        score = Score(slot, zerg)
+        score.note(obs, game)
         if "cx" in sc:                         # (the fight's center, from the data)
             row["home"] = at_home(obs, slot, (sc["cx"], sc["cy"]))
         end = game.frame + int(seconds * 1000 / 42)
@@ -221,8 +181,9 @@ def run_one(sc: dict, controller: str, seconds: float, version: str, style: int 
             else:
                 game.step(2)
             if game.frame % 12 < 2:            # (the interface's own snapshot when it took one)
-                losses.note((hi and hi.latest_observation()) or game.observe(), game)
-        row.update(losses.result(game))
+                score.note((hi and hi.latest_observation()) or game.observe(), game)
+        score.finish(game.observe(), game, fighter)
+        row.update(score.result())
         row["stalled"] = stalled_buildings(game.observe(), slot)
         if bot and getattr(bot, "rl_log", None) is not None:   # (v0.4+ bots)
             row["log"] = bot.rl_log
@@ -319,7 +280,7 @@ def main() -> None:
             jobs = [(sc, c, args.seconds, args.version, args.style) for sc in found for c in ("pro", "nothing")]
             with ProcessPoolExecutor(args.parallel) as pool:
                 res = list(pool.map(_job, jobs, chunksize=2))   # a scenario's plays on one worker
-            net = lambda r: r["Z_lost"] - r["T_lost"] if "error" not in r else None
+            net = lambda r: r["net"] if "error" not in r else None
             kept, games, away = [], set(), 0
             for sc, pro, nothing in zip(found, res[0::2], res[1::2]):
                 if net(pro) is None or net(nothing) is None or sc["sha1"] in games:
@@ -375,7 +336,7 @@ def mean_rows(rows: list[dict]) -> list[dict]:
             out.append(rs[0])
             continue
         out.append({"sha1": sha, "controller": c, **{k: int(round(np.mean([r[k] for r in ok])))
-                                                      for k in ok[0] if k not in ("sha1", "controller", "log", "deaths")}})
+                                                      for k in ok[0] if k not in ("sha1", "controller", "log", "events")}})
     return out
 
 
@@ -397,13 +358,13 @@ def report(scs: list[dict], rows: list[dict], args: argparse.Namespace) -> None:
                 continue
             t = tot[c]
             t[0] += r["T_lost"]; t[1] += r["Z_lost"]; t[2] += r["T_workers_lost"]; t[3] += 1
-            nets[c].append(r["Z_lost"] - r["T_lost"])
+            nets[c].append(r["net"])
             cells.append(f"{r['T_lost']:>6d} /{r['Z_lost']:>5d} ({r['T_workers_lost']:>2d})")
         s = sc["frame"] * 42 // 1000
         print(f"{sc['sha1'][:8]:9s} {s // 60:>2d}:{s % 60:02d} " + " ".join(cells))
     print(f"{'mean':15s} " + " ".join(
         f"{t[0] / max(1, t[3]):>6.0f} /{t[1] / max(1, t[3]):>5.0f} ({t[2] / max(1, t[3]):>4.1f})" for t in tot.values()))
-    print(f"{'net (Z - T)':15s} " + " ".join(f"{np.mean(v) if v else 0:>18.0f}" for v in nets.values()))
+    print(f"{'net (score)':15s} " + " ".join(f"{np.mean(v) if v else 0:>18.0f}" for v in nets.values()))
     errs = [r for r in rows if "error" in r]
     for r in errs[:5]:
         print("error", r["sha1"], r["controller"], r["error"])

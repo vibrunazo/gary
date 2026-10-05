@@ -22,7 +22,7 @@ def _scenario(args: tuple) -> str:
     else:
         r = S.run_one(sc, "gary", 45, "v07free", 1, save=str(Path(out) / f"{name}.rep"),
                       fight_path=None if who == "imitation" else path, sample_seed=0)
-    return f"{name}: net {r.get('Z_lost', 0) - r.get('T_lost', 0)} {r.get('error', '')}"
+    return f"{name}: net {r.get('net')} {r.get('error', '')}"
 
 
 def _drill(args: tuple) -> str:
