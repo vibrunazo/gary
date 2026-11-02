@@ -46,6 +46,22 @@ PRODUCER = {PROBE: NEXUS, ZEALOT: GATEWAY, DRAGOON: GATEWAY, HIGH_TEMPLAR: GATEW
 MERGE = {ARCHON: HIGH_TEMPLAR, DARK_ARCHON: DARK_TEMPLAR}
 # what a unit fires that it builds itself (it is built empty): its ammunition and the minerals of one
 AMMO = {REAVER: (SCARAB, 15), CARRIER: (INTERCEPTOR, 25)}
+# where the pros start each building, per matchup: (until this minute, its shares at the main, the natural and a newer
+# base, its share on that base's mineral side), drawn by the executor (option place); eval/placement.py over 80 modern
+# PvZ games, each building by the base it stands nearest of all the player's by 12:00 (the forge-first wall at the
+# natural before its Nexus: the natural's), windows with 0.1 a game at least
+PLACE = {"PvZ": {
+    PYLON: [(5, (0.52, 0.47, 0.01), 0.18), (8, (0.71, 0.28, 0.0), 0.36), (12, (0.71, 0.16, 0.13), 0.20)],
+    GATEWAY: [(5, (0.16, 0.84, 0.0), 0.03), (8, (0.90, 0.10, 0.0), 0.05), (12, (0.95, 0.04, 0.01), 0.01)],
+    CANNON: [(5, (0.05, 0.92, 0.03), 0.01), (8, (0.28, 0.72, 0.0), 0.35), (12, (0.27, 0.48, 0.25), 0.40)],
+    FORGE: [(5, (0.15, 0.85, 0.0), 0.06), (8, (1.0, 0.0, 0.0), 0.28), (12, (0.82, 0.18, 0.0), 0.18)],
+    CYBER: [(5, (0.74, 0.26, 0.0), 0.26), (8, (0.86, 0.14, 0.0), 0.57)],
+    STARGATE: [(5, (0.88, 0.12, 0.0), 0.12), (8, (0.78, 0.22, 0.0), 0.16)],
+    CITADEL: [(8, (0.94, 0.06, 0.0), 0.27)],
+    TEMPLAR_ARCHIVES: [(8, (0.96, 0.04, 0.0), 0.18), (12, (0.88, 0.12, 0.0), 0.12)],
+    ROBOTICS: [(12, (0.09, 0.91, 0.0), 0.21)],
+    OBSERVATORY: [(12, (0.72, 0.28, 0.0), 0.26)],
+}}
 
 # what must exist (completed) before something can be made (buildings also need a pylon's power)
 REQUIRES = {

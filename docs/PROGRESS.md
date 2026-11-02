@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-02): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.27dev), `gp1dev` (gp0.14dev) and `gz1dev` (gz0.16dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.27dev), `gp1dev` (gp0.15dev) and `gz1dev` (gz0.16dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1690,6 +1690,27 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **Gary-P's buildings placed where the pros place them (2026-11-02, gp0.15dev; #36).** Probes lost to raids at 3-8
+  minutes, re-simulated (a probe per raid on a Nexus: the Zerg's fighters within 8 tiles): the pros 0.9 a game in 60 PvZ
+  games, Gary-P 5.1 in 48 (PD190a 9.9), Zergling raids 0.64 Probes each for the pros and 2.56 for Gary-P, Mutalisk raids
+  1.3 and 2.8. The pros pull Probes against Zerglings (62% of raids) and have a cannon or two at every Nexus by the
+  Mutalisks (none in 6% of the raids; Gary-P's none in 59%). Gary-P builds as many cannons as they do by 12:00, but every
+  one in the main (the shared spot search put every building at the main's front): new, eval/placement.py measures where a
+  race's buildings start, each by the base it stands nearest of all the player's by 12:00 and its side of it. The pros'
+  PvZ opening is the forge-first wall at the natural (before 5:00 there: Forges 85%, Gateways 84%, cannons 92%, Pylons
+  47%; Gary-P's 0), their later cannons at the main, the natural and newer bases (27/48/25% at 8-12 minutes), two in
+  five by the mineral line. Option place (executor.py place, gary/protoss.py PLACE: the pros' table) draws each
+  building's base and side from those shares, as the decoders draw the pros' timings; with it a building at a base with
+  no town hall yet is built by a free Probe already there and its builder goes back to the main's minerals, a 2x2
+  building packs without the walking gap where none with it is left (every powered spot at the natural failed the gap
+  after 8:00), and a cannon finding no power where it was drawn calls the next Pylon there. Judged on fidelity
+  (AGENTS.md), 16 PvZ games on PD190a's seeds (PL197a; PL192a-PL196a were its steps): before 5:00 at
+  the natural Forges 79%, cannons 90%, Gateways 55%; cannons at 8-12 minutes 41/57/1% (PD190a 96/4/0); Probes lost to
+  raids at 3-8 minutes 3.6 a game (9.9), Zergling raids 0.29 Probes each (5.28); Probes at 12:00 38.7 (35.8; without the
+  natural's opening, PL192a, 45.4; the pros 46.2); won 2, ahead at 20:00 in 9 (3 and 5). Left: cannons by the mineral line
+  (10%, the pros 40%) and at newer bases (1%, 25%), so Mutalisk raids still take 4.6 Probes each (the pros 1.3), and the
+  opening's Probes off their work (3 or more at 3:00 in 47% of moments, the pros 11%: a new one walks from the main for
+  most buildings, the pros keep one at the natural).
 - **Where Gary-P's money goes, and a decided building counted as its own (2026-11-02, gt0.27dev, gz0.16dev, gp0.14dev;
   #36).** Gary-P's PvZ economy against the pros' per minute (PY188a, 48 games): it banks less than they do (12:00: 538
   minerals against 952), its Probes mine as much each (8 trips a worker-minute at 4-5 minutes, both, re-simulated), and

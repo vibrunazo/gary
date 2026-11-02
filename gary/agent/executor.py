@@ -12,6 +12,7 @@ gary/agent/terran_executor.py, gary/agent/zerg_executor.py.
 from __future__ import annotations
 
 import math
+import random
 from collections import Counter
 
 from gary import commands as C
@@ -57,6 +58,8 @@ BUSY_ORDERS = {25, 26, 30, 31, 33, 70}   # placing / constructing a building (a 
 BAD_FOR = 60 * 24                     # a spot where a build failed (not for money) isn't tried again for this long
 WIDE_SPOT = 24                  # option widespot: the main's search box this many tiles each way
 HALL_CLEAR = 3                  # option widespot: tiles kept free around the natural's town hall site
+PLACE_NEAR = 8 * 32             # option place: a building this near a town hall stands at its base
+MINING_LANE = 48                # option place: a mineral-side spot this near a town hall's lane to a mineral blocks mining
 LOST_ORDER = 6 * 24                   # a reserved spot with no SCV on its way after this: the order was lost
 RESUME_AFTER = 24                     # an unfinished building nobody has built for a second gets an SCV
 RESUME_RETRY = 24 * 4                 # ...and if that one doesn't arrive either, another after 4 s
@@ -111,6 +114,13 @@ def _to_segment(p: tuple[float, float], a: tuple[float, float], b: tuple[float, 
     t = max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - ay) * dy) / ((dx * dx + dy * dy) or 1)))
     return math.dist(p, (ax + t * dx, ay + t * dy))
 
+def _to_segment(p, a, b) -> float:
+    """The distance from p to the segment a-b."""
+    vx, vy = b[0] - a[0], b[1] - a[1]
+    t = max(0.0, min(1.0, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / (vx * vx + vy * vy or 1)))
+    return math.dist(p, (a[0] + t * vx, a[1] + t * vy))
+
+
 class Executor:
     build_order = C.ORDER_PLACE_BUILDING          # the order a worker places a building with
     builder_retries = 0                           # a build whose worker is lost (died, pulled): another this often
@@ -136,6 +146,8 @@ class Executor:
         self._bases_by_walk: list | None = None       # free_base: the bases by a worker's walk from the natural
         self.why: str | None = None                   # why carry_out's last None or WAIT (no, wait)
         self.wide_spot = False                        # option widespot: spot() widens the main, then the natural
+        self.place_table = False                      # option place: a building's base and side drawn from the pros'
+        self._place_rng: random.Random | None = None  # (its own draws: the macro's dice stay as they were)
         self.train_depth = 1                          # units in a building's own queue Gary trains into (option gamequeue: 2)
         self.sent: list[tuple[str, int, int]] = []    # decisions' production keys given, not yet run: (kind, act, uid)
         # the map's own creep (map knowledge, read now: at the start of a game, before any zerg's)
@@ -392,6 +404,38 @@ class Executor:
         """Bases with one of Gary's finished Command Centers."""
         halls = [u for u in mine if u["type"] in self.g.race.town_halls and u["completed"]]
         return [b for b in self.g.map.bases if any(math.dist(b.center, (h["x"], h["y"])) < 6 * 32 for h in halls)]
+
+    def place(self, uid: int, mine: list[dict]) -> tuple:
+        """Where a building decided now goes (option place): a base and its side drawn from the pros' shares for its
+        kind at this minute in the matchup (the race's PLACE table, eval/placement.py): the main, the natural (its town
+        hall there or not: the pros' forge-first wall stands before it), or the newer base with a town hall and the
+        fewest of its kind. ("main", "front") without one.
+        Gary-P's Photon Cannons all stood at the main's front, the pros' at every base and two in five on its mineral
+        side after 5:00 (none by the Nexus in 59% of the Mutalisk raids on Gary-P at 3-8 minutes, in 6% of the pros'),
+        and its opening all in the main, the pros' Gateways at the natural in 56% before 5:00."""
+        g = self.g
+        rows = getattr(g.race.data, "PLACE", {}).get(g.matchup, {}).get(uid) if self.place_table else None
+        if not rows:
+            return "main", "front"
+        minute = g.hi.frame / 1440
+        _, shares, minerals = next((r for r in rows if minute < r[0]), rows[-1])[:3]
+        halls = [(u["x"], u["y"]) for u in mine if u["type"] in g.race.town_halls]
+        held = lambda b: any(math.dist(b.center, h) < 6 * 32 for h in halls)
+        newer = [b for b in g.map.bases if b is not g.main and b is not g.natural and held(b)]
+        kind_near = lambda b: sum(1 for u in mine if u["type"] == uid and math.dist(b.center, (u["x"], u["y"])) < PLACE_NEAR)
+        where = {"main": "main", "natural": "natural" if g.natural is not None else None,
+                 "newer": min(newer, key=kind_near) if newer else None}
+        opts = [(k, share) for k, share in zip(("main", "natural", "newer"), shares) if where[k] is not None and share > 0]
+        if not opts:
+            return "main", "front"
+        if self._place_rng is None:
+            self._place_rng = random.Random(g.game_seed * 7919 + 17)
+        k = self._place_rng.choices([k for k, _ in opts], weights=[share for _, share in opts])[0]
+        return where[k], "minerals" if self._place_rng.random() < minerals else "front"
+
+    def hall_at(self, base: Base, mine: list[dict]) -> bool:
+        """One of Gary's town halls (finished or not) stands at the base."""
+        return any(u["type"] in self.g.race.town_halls and math.dist(base.center, (u["x"], u["y"])) < 6 * 32 for u in mine)
 
     def mine_base(self, mine: list[dict], at, obs: dict | None = None):
         """The base Gary's workers at `at` should mine at: the nearest it owns, or (balance, an
@@ -724,15 +768,15 @@ class Executor:
 
     # --- placement ------------------------------------------------------------------------------
 
-    def spot(self, unit_type: int, base: Base, builder: int) -> tuple[int, int] | None:
+    def spot(self, unit_type: int, base: Base, builder: int, side: str = "front") -> tuple[int, int] | None:
         """A spot at the base, or at another of Gary's bases when that one is full. With a sim city
         (gary/agent/simcity.py), a spot in the wall first, where one narrows the frontier."""
         if self.g.simcity is not None and (wall := self.g.simcity.spot(unit_type, builder)):
             return wall
-        spot = self._base_spot(unit_type, base, builder)
+        spot = self._base_spot(unit_type, base, builder, side=side)
         if spot is None:
             for other in self.my_bases([u for u in self.g.hi.observe()["units"] if u["owner"] == self.g.slot]):
-                if other is not base and (spot := self._base_spot(unit_type, other, builder)):
+                if other is not base and (spot := self._base_spot(unit_type, other, builder, side=side)):
                     break
         if spot is None and self.wide_spot:
             # (option widespot: the main's box widened, its own ground level first, then the natural's area with no
@@ -748,19 +792,29 @@ class Executor:
 
     def _base_spot(self, unit_type: int, base: Base, builder: int, radius: int = 16,
                    level_of: tuple[int, int] | None = None,
-                   clear: tuple[int, int] | None = None) -> tuple[int, int] | None:
+                   clear: tuple[int, int] | None = None, side: str = "front") -> tuple[int, int] | None:
         """A free spot near the base, on the side away from the minerals, within radius tiles of that side's
         anchor; with level_of, on that point's ground level if any spot there fits; with clear (a town hall's
-        tile), off that town hall's ground and its add-on's, HALL_CLEAR tiles around them."""
+        tile), off that town hall's ground and its add-on's, HALL_CLEAR tiles around them. Side "minerals" (option
+        place): by the mineral line, its anchor halfway from the town hall to its minerals, off the workers' lanes."""
+        if clear is None and self.place_table and base is self.g.natural and not any(
+                u["owner"] == self.g.slot and u["type"] in self.g.race.town_halls and math.dist(base.center, (u["x"], u["y"])) < 6 * 32
+                for u in self.g.hi.observe()["units"]):
+            clear = base.tile                    # (option place: the natural's site kept for its town hall)
         mx = sum(x for x, _ in base.minerals) / len(base.minerals)
         my = sum(y for _, y in base.minerals) / len(base.minerals)
-        ax = base.center[0] + (base.center[0] - mx) * 0.9
-        ay = base.center[1] + (base.center[1] - my) * 0.9
+        k = -0.5 if side == "minerals" else 0.9
+        ax = base.center[0] + (base.center[0] - mx) * k
+        ay = base.center[1] + (base.center[1] - my) * k
         w, h = self.g.race.sizes[unit_type]
         cands = []
         for ty in range(int(ay // 32) - radius, int(ay // 32) + radius):
             for tx in range(int(ax // 32) - radius, int(ax // 32) + radius):
-                cands.append((math.dist((tx * 32 + w * 16, ty * 32 + h * 16), (ax, ay)), tx, ty))
+                c = (tx * 32 + w * 16, ty * 32 + h * 16)
+                if side == "minerals" and any(_to_segment(c, base.center, m) < MINING_LANE + 16 * max(w, h)
+                                              for m in base.minerals):
+                    continue
+                cands.append((math.dist(c, (ax, ay)), tx, ty))
         terrain = self.terrain() if level_of is not None else None
         if terrain is not None:                  # (its level's tiles first, the rest after)
             level = int(terrain[1][int(level_of[1]) // 8, int(level_of[0]) // 8])
@@ -776,15 +830,22 @@ class Executor:
                      if not (tx < bx + hw + 2 + HALL_CLEAR and tx + w > bx - HALL_CLEAR
                              and ty < by + hh + HALL_CLEAR and ty + h > by - HALL_CLEAR)]
         cands = self.spot_order(unit_type, cands)
+        # option place: a 2x2 building packed without the gap where none with it is left at the base, as the pros pack
+        # their cannons against the natural's wall (every powered spot there failed the gap after 8:00, and the cannons
+        # drawn for the natural stood in the main: 68% at 8-12 minutes, the pros' 27%)
+        packed = None
+        pack = self.place_table and (w, h) == (2, 2)
         for _, tx, ty in cands:
             if any(abs(tx - rx) < self.g.race.sizes[rt][0] + 1 and abs(ty - ry) < self.g.race.sizes[rt][1] + 1 for rt, rx, ry in self.g.reserved) \
                     or self._bad(unit_type, tx, ty):
                 continue
             # keep a walkable gap around buildings: the bigger footprint must fit too
-            if self.fits(unit_type, tx, ty, builder) and self.fits(unit_type, tx - 1, ty - 1, builder) and \
-                    self.fits(unit_type, tx + 1, ty + 1, builder):
-                return tx, ty
-        return None
+            if self.fits(unit_type, tx, ty, builder):
+                if self.fits(unit_type, tx - 1, ty - 1, builder) and self.fits(unit_type, tx + 1, ty + 1, builder):
+                    return tx, ty
+                if pack and packed is None:
+                    packed = (tx, ty)
+        return packed
 
     def spot_order(self, unit_type: int, cands: list[tuple[float, int, int]]) -> list[tuple[float, int, int]]:
         """The order a base's candidate spots (distance, tile x, tile y; nearest first) are tried in: this race's
@@ -943,11 +1004,29 @@ class Executor:
             # goes back to mining once the building stands (human game 2: 11-17 of 30-39 SCVs stood idle
             # from 8:00 to 12:00, builders and repairers done, sent back one by one)
             base = g.base(t.where) if t.where in ("main", "natural") or hasattr(t.where, "minerals") else g.main
+            if self.place_table and not self.hall_at(base, mine):
+                # (option place: a wall at the natural before its Nexus, the builder back to the main's minerals, not
+                # idle by the natural's or carrying them back to the main: 3 Probes or more off their work 34-55% of
+                # 2-4 minutes, 19-46% with this, the pros 2-11%; waiting there 20 s for the wall's next building, as the
+                # pros' one Probe, was worse in a test game: the next was rarely that soon)
+                if obs["selection"] == [t.data["worker"]]:
+                    hi.minimap_right_click(*min(g.main.minerals, key=lambda m: math.dist(m, g.main.center)), queued=True)
+                g.task = None
+                return
             fields = [m for m in base.minerals if screen_of(obs, *m)]
             if fields and obs["selection"] == [t.data["worker"]]:
                 hi.right_click(*screen_of(obs, *min(fields, key=lambda m: math.dist(m, base.center))), queued=True)
             g.task = None
             return
+        if t.stage == "start" and self.place_table and "from" not in t.data and t.where != "main":
+            # option place: a building at a base with no town hall of Gary's yet (the natural's wall) by a free worker
+            # already there, the last one's, as the pros' one Probe builds the whole wall, not one walked from the
+            # main for each
+            b = g.base(t.where)
+            if not self.hall_at(b, mine) and any(u["type"] == g.race.worker and u["completed"] and u["order"] not in BUSY_ORDERS
+                                                 and u["tag"] not in g.pulled and math.dist(b.center, (u["x"], u["y"])) < 10 * 32
+                                                 for u in mine):
+                t.data["from"], t.data["from_there"] = t.where, True
         if t.stage == "start":                      # get a worker from the main
             again = next((u for u in mine if u["tag"] == g.retry_with.get(t.unit_type)), None)
             if again is not None and again["order"] not in BUSY_ORDERS and \
@@ -988,6 +1067,9 @@ class Executor:
                 if w is None and skip:                                      # tried them all: again
                     tries.clear()
                     w = self.pick_worker(obs, mine, t.data.get("near"))
+            if not w and t.data.pop("from_there", False):          # (none free there after all: from the main)
+                t.data["from"] = "main"
+                return
             if not w and t.data.get("from", "main") == "main" and \
                     any(u["type"] in g.race.town_halls and math.dist((u["x"], u["y"]), g.natural.center) < 4 * 32 for u in mine):
                 # no free SCV in the main (they mine at the natural, or died there): one from the
@@ -1092,7 +1174,7 @@ class Executor:
                 spot = self.town_hall_spot(base, t.data["worker"]) if t.unit_type == g.race.town_hall else \
                     self.spot_near(t.unit_type, t.data["near"], t.data["worker"], t.data.get("level_at"),
                                    t.data.get("avoid")) if "near" in t.data else \
-                    self.spot(t.unit_type, base, t.data["worker"])
+                    self.spot(t.unit_type, base, t.data["worker"], t.data.get("side", "front"))
                 if not spot:
                     self.fail_build(t, "no spot for it")
                     return

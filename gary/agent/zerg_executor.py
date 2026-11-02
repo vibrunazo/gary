@@ -163,10 +163,10 @@ class ZergExecutor(Executor):
         name = Z.NAMES.get(where, str(where))
         return self.wait(f"its {name} is busy") if any(u["type"] in kinds for u in done) else self.no(f"no {name}")
 
-    def _base_spot(self, unit_type: int, base, builder: int) -> tuple[int, int] | None:
+    def _base_spot(self, unit_type: int, base, builder: int, side: str = "front") -> tuple[int, int] | None:
         """The first spot in rings around the base's hatchery that fits (on its creep, which the game's check
         asks), off the drones' path to the minerals (Gary-Z's rings; the shared spot's gap around the building
-        found no creep wide enough for a Spawning Pool by the first hatchery)."""
+        found no creep wide enough for a Spawning Pool by the first hatchery). (The side: no Zerg table yet.)"""
         g = self.g
         w, h = g.race.sizes[unit_type]
         cx, cy = base.center[0] // 32, base.center[1] // 32

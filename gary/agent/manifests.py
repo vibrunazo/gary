@@ -1034,6 +1034,9 @@ OPTIONS = {
     # executor.py wide_spot: with no spot at Gary's bases, the main's box widened (its own level first), then the
     # natural's area with no town hall yet (a full main on one base dropped 16.8 builds a game in gt1dev; issue #47)
     "widespot": lambda m: m.update(wide_spot=True),
+    # executor.py place: a building's base and side drawn from the pros' shares for its kind and minute (the race's
+    # PLACE table, eval/placement.py), where a race has one (the Protoss in PvZ)
+    "place": lambda m: m.update(place=True),
     # the deployed commit model fine-tuned 2 epochs on army dataset v3, with the hunt's labels (x4) and without (the
     # control): the labels' effect apart from v5's data change (issue #3; FH120a against FC120a -0.078 +- 0.090)
     "cmfthunt": lambda m: m["army"].update(model="runs/commit_exp/TvZ_T_ft_hunt/model.pt"),
@@ -1279,8 +1282,13 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # PvT 4 and 9 (2 and 11); paired +0.005 +- 0.110 and +0.005 +- 0.116
 # gp0.13dev: the fix of 2026-11-02 (as gt0.26dev's): a building placed that never started taken out of its decisions so far
 # gp0.14dev: a building decided and not started yet among its own units (pendown, as gt0.27dev's)
-MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown"),
-                       "version": "gp0.14dev"}
+# gp0.15dev: its buildings placed where the pros place them (place: each one's base and side drawn from the pros' PvZ
+# table, gary/protoss.py PLACE, eval/placement.py), the forge-first wall at the natural and cannons at every base. Judged
+# on fidelity, 16 PvZ games against PD190a's same seeds (PL197a): before 5:00 at the natural Forges 79%, cannons 90% (the
+# pros 85%, 92%; none before); cannons at 8-12 minutes main/natural 41/57% (96/4, the pros 27/48 and 25 at newer bases);
+# Probes lost to raids at 3-8 minutes 3.6 a game (9.9, the pros 0.9); Probes at 12:00 38.7 (35.8, the pros 46.2)
+MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"),
+                       "version": "gp0.15dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:
@@ -1390,6 +1398,7 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
             g.executor.scv_saturation = m.get("scv_saturation", True)
         g.executor.train_depth = m.get("train_depth", 1)
         g.executor.wide_spot = m.get("wide_spot", False)
+        g.executor.place_table = m.get("place", False)
         if hasattr(g.executor, "addon_room"):
             g.executor.addon_room = m.get("addon_room", False)
         g.macro.odds_mass = m["macro"].get("odds_mass")

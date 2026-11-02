@@ -46,6 +46,7 @@ class ProtossExecutor(Executor):
     def __init__(self, g: Gary):
         super().__init__(g)
         self.power_short = -10 ** 9                  # when a powered building last found no powered spot
+        self.power_for: tuple | None = None          # option place: (base, side) a drawn building found no power at
         self.room_only = False                       # (spot: a Pylon's candidates with room only, at every base first)
         g.task_runners["merge"] = self._task_merge
         self.merges: list[dict] = []                 # merges given and not begun yet: their Templar, Archon, key's frame
@@ -72,7 +73,11 @@ class ProtossExecutor(Executor):
             if uid not in UNPOWERED and P.PYLON not in have:
                 return self.wait("no Pylon's power yet: one is coming") if self._pylon_coming(mine) \
                     else self.no("no Pylon's power")
-            return {"kind": "build", "where": "main", "cost": g.race.costs[uid]}
+            where, side = self.place(uid, mine)
+            if uid == P.PYLON and self.power_for is not None and g.hi.frame - self.power_short < POWER_SHORT_FOR:
+                where, side = self.power_for         # (the Pylon where the power was missing; kept for the window, as
+                                                     # carry_out also answers what Gary can do, not only what it does)
+            return {"kind": "build", "where": where, "data": {"side": side}, "cost": g.race.costs[uid]}
         if act == EXPAND and uid == g.race.town_hall:
             base = self.free_base(obs)
             return {"kind": "build", "where": "natural" if base is g.natural else base,
@@ -146,7 +151,7 @@ class ProtossExecutor(Executor):
         g.say(f"merge: 2 {P.NAMES[P.MERGE[d['id']]]} -> {P.NAMES[d['id']]}")
         g.task = None
 
-    def spot(self, unit_type: int, base, builder: int) -> tuple[int, int] | None:
+    def spot(self, unit_type: int, base, builder: int, side: str = "front") -> tuple[int, int] | None:
         """A Pylon at the nearest spot, at its base or another of Gary's, whose field powers ROOM_MIN free buildable
         tiles that no other Pylon (built, warping in, or reserved) powers; else the nearest as before. Nearest alone,
         each Pylon went inside the last ones' fields: 7 within 6 tiles of each other at 7:00 in a PvZ game, the whole
@@ -154,14 +159,20 @@ class ProtossExecutor(Executor):
         no spot for them, in rounds ST186a and SV187a, while it had more Pylons than the pros)."""
         if unit_type == P.PYLON:
             mine = [u for u in self.g.hi.observe()["units"] if u["owner"] == self.g.slot]
-            self.room_only = True
+            self.room_only = side != "minerals"     # (by the mineral line: the cannons' power, as the pros')
             try:
                 for b in [base] + [o for o in self.my_bases(mine) if o is not base]:
-                    if spot := self._base_spot(unit_type, b, builder):
+                    if spot := self._base_spot(unit_type, b, builder, side=side):
                         return spot
             finally:
                 self.room_only = False
-        return super().spot(unit_type, base, builder)
+        if self.place_table and unit_type not in UNPOWERED and base is not self.g.main:
+            if spot := self._base_spot(unit_type, base, builder, side=side):
+                return spot
+            # (option place: no power where it was drawn; elsewhere for now, and the next Pylon there: a cannon by the
+            # mineral line drew one in 2 of 5 after 5:00 and stood there in 1 of 10, at newer bases 1 in 25 of 4)
+            self.power_short, self.power_for = self.g.hi.frame, ("natural" if base is self.g.natural else base, side)
+        return super().spot(unit_type, base, builder, side)
 
     def spot_order(self, unit_type: int, cands: list[tuple[float, int, int]]) -> list[tuple[float, int, int]]:
         if unit_type != P.PYLON or not cands or not self.room_only:
