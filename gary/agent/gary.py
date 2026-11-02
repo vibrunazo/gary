@@ -73,6 +73,7 @@ class Gary:
         self.reserved: list[tuple[int, int, int]] = []   # (unit type, tile x, tile y) about to be built
         self.reserved_at: dict[tuple[int, int, int], int] = {}
         self.builder_of: dict[tuple[int, int, int], int] = {}   # reserved spot -> the SCV ordered to build it
+        self.decision_of: dict[tuple[int, int, int], tuple[int, int]] = {}   # reserved spot -> the macro decision it carries out
         self.bad_spots: dict[tuple[int, int, int], int] = {}    # spot -> frame builds there failed twice
         self.failed_at: dict[tuple[int, int, int], int] = {}    # spot -> frame a build there failed
         self.retry_with: dict[int, int] = {}                    # building type -> the SCV to retry it with

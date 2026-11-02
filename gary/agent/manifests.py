@@ -1168,6 +1168,11 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # gt0.24dev: its macro model trained with every matchup's styles (allstyles: T_all_v2all), so it plays a style in PvT
 # and TvT too. 96 paired TvZ games against gt0.22dev/gt0.23dev (TS169a+TS170b against ZB169a+TB170b, the second half
 # against gz0.11dev): the Terran's score +0.086 +- 0.077, the gap -0.001 [-0.041, +0.040], its styles played as before
+# gt0.26dev: every dev build's fix of 2026-11-02: a building placed that never started (the game refused it at the spot, or its
+# order was lost) taken out of its decisions so far at once, as the replays count only buildings that started (builtcount
+# kept it 60 s, and the model didn't decide it again meanwhile: a Cybernetics Core refused at 3:44 never came, gp0.12dev);
+# a plain fix, adopted on the input check; refused tech buildings decided again after a median 33 s (62 s), 8 PvZ games
+# (RF189a against PY188a's)
 # gt0.25dev: every build's fix of 2026-10-31: decisions that ended without their command (dropped while waiting, their
 # building gone, refused by the game) taken back from its decisions so far, as the replays count the commands given, and a
 # key the hands didn't give (no APM left) given again, not lost; plain fixes, adopted on the input check (#47: 7 Marines
@@ -1175,7 +1180,7 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+widespot+seenall+armyseen+builtcount+unitcount+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles"),
-                       "version": "gt0.25dev"}
+                       "version": "gt0.26dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
@@ -1227,9 +1232,10 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # gz0.14dev: every build's fix of 2026-10-31 (as gt0.25dev's): decisions that ended without their command taken back
 # from its decisions so far; 4 of the input check game's 17 Mutalisk morphs were refused by the game (sent a second
 # after another) and still counted, now none (#47)
+# gz0.15dev: the fix of 2026-11-02 (as gt0.26dev's): a building placed that never started taken out of its decisions so far
 MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allstyles+gaswaits+parkmany"
                                      "+pvzroles+mirrorroles+ownhist+builtcount"),
-                       "version": "gz0.14dev"}
+                       "version": "gz0.15dev"}
 
 # gp0.4dev: gp1 without the stop-gaps over its learned layers (unscripted: the hunt, a Pylon ahead of production) and
 # its army on control groups by type (grouping, as gt1dev's and gz1's): the Protoss's dev build, where its learning is
@@ -1262,7 +1268,8 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # for no spot 914 to 221 in 48 PvZ games (PY188a against ST186a), 692 to 147 in PvT (PT188a against SV187a); Gateways at
 # 20:00 PvZ 7.5 (6.3, the pros 9.1), PvT 8.7 (6.7, 11.6); supply at 20:00 PvZ 183 (209, 182); won 11 lost 1 (5 and 1),
 # PvT 4 and 9 (2 and 11); paired +0.005 +- 0.110 and +0.005 +- 0.116
-MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm"), "version": "gp0.12dev"}
+# gp0.13dev: the fix of 2026-11-02 (as gt0.26dev's): a building placed that never started taken out of its decisions so far
+MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm"), "version": "gp0.13dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

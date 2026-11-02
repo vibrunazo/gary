@@ -683,6 +683,14 @@ class LearnedMacro:
                       f"couldn't be built ({t.data.get('failed', 'see the executor')}): not decided again for 10 s",
                       by="executor")
 
+    def build_released(self, act: int, uid: int) -> None:
+        """A building placed that never started (the game refused it where its worker stood, or the order was lost):
+        with builtcount the decisions so far stop counting it now, as the replays count only the buildings that
+        started. (It stayed counted until PENDING_FOR and the model didn't decide it again meanwhile: a Cybernetics
+        Core refused at 3:44, a Probe walking through its spot, had 0.6% at 4:00 and never came, gp0.12dev.)"""
+        if self.tracker.reconcile:
+            self.tracker.unnote_decision(act, uid)
+
     # --- what Gary has -------------------------------------------------------------------------
 
     def in_production(self, mine: list[dict], first: bool = False) -> Counter:

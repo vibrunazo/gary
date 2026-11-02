@@ -17,9 +17,9 @@ rather than scripted, because the replay pipeline made that the quicker way to a
 Since 2026-10-15 every piece of the self-play loop is being built crude before any is polished: a
 learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the league isn't trained
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
-Where it stands (2026-10-31): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
-(gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.5, crude); learning is trained and judged in `gt1dev`
-(gt0.25dev), `gp1dev` (gp0.7dev) and `gz1dev` (gz0.14dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+Where it stands (2026-11-02): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
+(gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
+(gt0.26dev), `gp1dev` (gp0.13dev) and `gz1dev` (gz0.15dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1690,6 +1690,22 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **Why Gary-P makes so many cannons, and refused buildings taken back (2026-11-02, gt0.26dev, gz0.15dev, gp0.13dev;
+  #36).** Gary-P's PvZ cannons run over the pros' from 4:00 (12:00: 10.4 against 6.1; 20:00: 24.5 against 13.8), every one
+  the dice's draw from the macro model's own odds (0.18 at 10-20 minutes, the pros' share 0.10). The model is calibrated on
+  the pros' held-out states (0.090-0.117 against their 0.096-0.110), and more cannons in its history or its counts don't
+  raise the next one's odds there (no loop as Gary-Z's drones had). So it is Gary's states: its macro inputs saved in three
+  games and swapped group by group for the pros' mean show two causes. Minerals with no gas to spend them on (Backrooms:
+  2,794 banked, 71 gas, one Assimilator 3:00-13:42, as its natural has no geyser and the third base came at 9:00), and a
+  bug: a Cybernetics Core refused by the game at 3:44 (a Probe walking through its spot as the builder arrived) stayed in
+  its decisions so far until builtcount's 60 s timeout, the model gave it 0.6% meanwhile and it never came (Colorless Fate:
+  no Core by 16:00, 3,806 gas banked, only Zealots and cannons possible). A building placed that never started (refused
+  at the spot, or its order lost: 13 a game in gp1dev) now leaves the decisions so far at once, as the replays count only
+  buildings that started (executor.py release_reservations, macro.py build_released; every builtcount build, so the
+  three dev builds). A plain fix, adopted on its check (tests/test_inputs.py, parity unchanged): in 8 PvZ games (RF189a
+  against PY188a's same seed) refused tech buildings decided again after a median 33 s (62 s), others 12 s (21 s); the
+  Colorless Fate game builds its Core at 3:45 and makes Dragoons and Corsairs. Cannons barely moved (20:00: 25.7 against
+  27.3): the rest is the money the macro can't spend, which is next.
 - **Pylons placed for room (2026-11-02, gp0.12dev and gp0.7; docs/RACES.md step 5, #36).** Gary-P built fewer Gateways
   than the pros (PvZ 6.3 at 20:00, the pros 9.1; PvT 6.7, 11.6) with more Pylons (supply 209 at 20:00 in PvZ, the pros
   182) and cannons (20 against 14). The records said why: 17 Gateways and 17 cannons a game dropped, "no spot for it"

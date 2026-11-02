@@ -203,8 +203,11 @@ class Executor:
                 g.say(f"its {g.race.names.get(ut, ut)} order was lost: again")
                 LOG.order(g.hi.side, g.hi.frame, f"{g.race.names.get(ut, ut)} at {(tx, ty)}", "retried",
                           f"no {g.race.names[g.race.worker]} on its way to it: the order was lost", by="executor")
+            if not built and g.macro is not None and (d := g.decision_of.get(r)) is not None:
+                g.macro.build_released(*d)
             g.reserved_at.pop(r, None)
             g.builder_of.pop(r, None)
+            g.decision_of.pop(r, None)
         g.reserved = keep
 
     def _idle(self, u: dict, mine: list[dict]) -> bool:
@@ -1136,6 +1139,8 @@ class Executor:
                 g.reserved.append((t.unit_type, *spot))
                 g.reserved_at[(t.unit_type, *spot)] = hi.frame
                 g.builder_of[(t.unit_type, *spot)] = t.data["worker"]
+                if "decision" in t.data:
+                    g.decision_of[(t.unit_type, *spot)] = t.data["decision"]
                 if getattr(g, "builder_back", False) and t.unit_type != g.race.gas_building:
                     t.stage = "back"            # (a Refinery's builder goes on to gas by itself)
                 else:
