@@ -54,8 +54,8 @@ to it by sha1; `train/select.py` is that join for the trainers.
 Every race has the same set: one macro model per race over every matchup, the matchup an input and every
 matchup's styles (`runs/macro_exp/{T,Z,P}_all_v2all`); army and commit models per matchup-race; a fight role
 model per matchup-race from the pros' units in that matchup (`ingest/response_dataset.py`, `train/roles.py`),
-mirrors included. Left uneven: the critic (`train/value.py`) and the belief model are TvZ only (#62 needs a
-critic per matchup), and the Terran's TvZ role model alone has had RL (rl1). Every model is found by
+mirrors included; the critic (`train/value.py`) and the belief model per matchup and race too (2026-11-01, step 4).
+Left uneven: the Terran's TvZ role model alone has had RL (rl1). Every model is found by
 `manifests.model_for(kind, matchup, race)` or given per matchup in the manifest (`roles_data` keyed by matchup).
 
 ## One agent, three race plugs
