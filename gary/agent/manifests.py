@@ -952,6 +952,9 @@ OPTIONS = {
     # gary/policy/macro.py reconcile: the buildings among the model's decisions so far as the replays count them (every
     # building started, a rule's too; a decided one never started taken back): its looks need seenall
     "builtcount": lambda m: m["macro"].update(built_count=True, look_seen=True),
+    # gary/policy/macro.py pending_own: a building decided and not started yet among the model's own counts, as the
+    # replays count it (a pro's builder walks before the order); with builtcount's pending decisions
+    "pendown": lambda m: m["macro"].update(pending_own=True, built_count=True, look_seen=True),
     # the Protoss macro model with Archon and Dark Archon merges among its decisions (the pros' merge orders, one decision
     # an Archon begun: ingest/macro_dataset.py), carried out by two Templar merged (protoss_executor.py); P_all_v2arch,
     # held out 47.8% top-1 against P_all_v2all's 47.5% on the same samples
@@ -1173,14 +1176,19 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # kept it 60 s, and the model didn't decide it again meanwhile: a Cybernetics Core refused at 3:44 never came, gp0.12dev);
 # a plain fix, adopted on the input check; refused tech buildings decided again after a median 33 s (62 s), 8 PvZ games
 # (RF189a against PY188a's)
+# gt0.27dev: every dev build's fix of 2026-11-02 (later): a building decided and not started yet counted among its own
+# units (pendown), as the replays count it (a pro's builder walks before the order, the building starts with it: a
+# Stargate decided and none in the pros' own in 99 of 25,884 PvZ states at 3-8 minutes); an input fix, adopted on the
+# input check (no new difference). Gary-P's second Stargate 1.5 to 1.2 a game (the pros 1.0), its Corsairs at 12:00
+# 7.4 to 4.2, 16 PvZ games paired on map and seed (PD190a against BL191a)
 # gt0.25dev: every build's fix of 2026-10-31: decisions that ended without their command (dropped while waiting, their
 # building gone, refused by the game) taken back from its decisions so far, as the replays count the commands given, and a
 # key the hands didn't give (no APM left) given again, not lost; plain fixes, adopted on the input check (#47: 7 Marines
 # and 2 SCVs decided over the replay's at 9:00 of its game, now none; the decided block off at 57% of moments, now 5%)
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+widespot+seenall+armyseen+builtcount+unitcount+styleroll+noalarm+gastarget"
-                                     "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles"),
-                       "version": "gt0.26dev"}
+                                     "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+pendown"),
+                       "version": "gt0.27dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
@@ -1233,9 +1241,10 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # from its decisions so far; 4 of the input check game's 17 Mutalisk morphs were refused by the game (sent a second
 # after another) and still counted, now none (#47)
 # gz0.15dev: the fix of 2026-11-02 (as gt0.26dev's): a building placed that never started taken out of its decisions so far
+# gz0.16dev: a building decided and not started yet among its own units, its Drone gone (pendown, as gt0.27dev's)
 MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allstyles+gaswaits+parkmany"
-                                     "+pvzroles+mirrorroles+ownhist+builtcount"),
-                       "version": "gz0.15dev"}
+                                     "+pvzroles+mirrorroles+ownhist+builtcount+pendown"),
+                       "version": "gz0.16dev"}
 
 # gp0.4dev: gp1 without the stop-gaps over its learned layers (unscripted: the hunt, a Pylon ahead of production) and
 # its army on control groups by type (grouping, as gt1dev's and gz1's): the Protoss's dev build, where its learning is
@@ -1269,7 +1278,9 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # 20:00 PvZ 7.5 (6.3, the pros 9.1), PvT 8.7 (6.7, 11.6); supply at 20:00 PvZ 183 (209, 182); won 11 lost 1 (5 and 1),
 # PvT 4 and 9 (2 and 11); paired +0.005 +- 0.110 and +0.005 +- 0.116
 # gp0.13dev: the fix of 2026-11-02 (as gt0.26dev's): a building placed that never started taken out of its decisions so far
-MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm"), "version": "gp0.13dev"}
+# gp0.14dev: a building decided and not started yet among its own units (pendown, as gt0.27dev's)
+MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown"),
+                       "version": "gp0.14dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:
@@ -1389,6 +1400,7 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
         if hasattr(g.macro, "tracker"):
             g.macro.tracker.look_every = 24 if m["macro"].get("look_seen") else 0
             g.macro.tracker.reconcile = bool(m["macro"].get("built_count"))
+            g.macro.tracker.pending_own = bool(m["macro"].get("pending_own"))
             g.macro.count_first = bool(m["macro"].get("unit_count"))
             g.macro.eggs_seen = bool(m["macro"].get("eggs_seen")) and g.race.production_in_sight
         if m["macro"].get("history") == "pro":

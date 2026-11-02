@@ -47,6 +47,7 @@ class Race:
     ammo: dict = field(default_factory=dict)       # unit -> (the ammunition it builds itself, its minerals): Scarabs
     production_in_sight: bool = False    # what it makes shows while made (Zerg: an egg, the morphing building still the
                                          # old one), as the replays count it; Terran and Protoss units in training don't
+    builder_spent: bool = False          # its worker becomes the building it builds (Zerg: a Drone morphs)
     minerals: dict = field(init=False)   # unit -> its mineral cost
 
     def __post_init__(self):
@@ -76,7 +77,7 @@ class Race:
             return Race("Z", Z, Z.DRONE, frozenset(Z.TOWN_HALLS), Z.HATCHERY, Z.OVERLORD, Z.EXTRACTOR, frozenset(Z.PRODUCTION),
                         Z.PRODUCER, Z.COST, Z.SIZE, Z.REQUIRES, Z.RESEARCH, Z.UPGRADE, frozenset(Z.ARMY), Z.NAMES,
                         Z.TECH_NAMES, Z.UPGRADE_NAMES, Z.SUPPLY, Z.SUPPLY_PROVIDED, worker_speed=5.49,
-                        production_in_sight=True)
+                        production_in_sight=True, builder_spent=True)
         if letter == "P":
             return Race("P", P, P.PROBE, frozenset(P.TOWN_HALLS), P.NEXUS, P.PYLON, P.ASSIMILATOR, frozenset(P.PRODUCTION),
                         P.PRODUCER, P.COST, P.SIZE, P.REQUIRES, P.RESEARCH, P.UPGRADE, frozenset(P.ARMY), P.NAMES,

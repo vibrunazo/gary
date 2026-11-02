@@ -69,7 +69,7 @@ dev build where learning is done and judged without the stop-gaps (AGENTS.md):
 | | Terran | Zerg | Protoss |
 |---|---|---|---|
 | Plays | `gt1` gt0.11 | `gz1` gz0.4 | `gp1` gp0.7 (crude) |
-| Dev build | `gt1dev` gt0.26dev | `gz1dev` gz0.15dev | `gp1dev` gp0.13dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
+| Dev build | `gt1dev` gt0.27dev | `gz1dev` gz0.16dev | `gp1dev` gp0.14dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
 
 ## What still differs between the races
 
@@ -113,6 +113,7 @@ The playing builds differ more: `gt1` keeps every stop-gap, `gz1` the pros' deci
    built empty and never fired); Archons merged as a macro decision learned from the pros' merges, at about their rate
    in PvZ (gp0.9dev); its keys laid out as the Protoss pros' (gp0.10dev); Psionic Storms learned from the pros'
    casts (gp0.11dev); Pylons placed where they power new room, so its Gateways stand (gp0.12dev: 17 a game had been
-   dropped with no spot); refused buildings taken out of its decisions so far at once (gp0.13dev). Left: shuttles, its early
-   defense and unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8, from minerals with no gas to spend them on;
-   High Templar two thirds of the pros').
+   dropped with no spot); refused buildings taken out of its decisions so far at once (gp0.13dev); a decided building counted among its own
+   until it starts, as the pros' data counts it (gp0.14dev: its second Stargate, 1.5 a game, now 1.2; the pros 1.0). Left:
+   shuttles, its early defense (Probes lost to small Zergling raids at 4-8 minutes, no Probe pulled, no cannon at the
+   mineral line) and unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros').

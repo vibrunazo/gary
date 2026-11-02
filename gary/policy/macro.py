@@ -22,6 +22,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -280,6 +281,12 @@ class MacroTracker:
         self.building_tags: set = set()       # tags seen as a building (a building's morph keeps its tag)
         self.halls_at: list = []              # the player's town halls' positions (an expansion: away from them)
         self.reconciled = False
+        # option pendown: a building decided and not started yet counted among the player's own (and, a Zerg's, its
+        # Drone gone), as the replays count it: a pro's builder walks before the order and the building starts with it
+        # (25,884 PvZ states of the pros at 3-8 minutes, a Stargate decided and none in their own in 99), while Gary's
+        # walks and waits for its money after the decision; in that state the model gave a second Stargate 0.11 to 0.28
+        # (0.005 with the first among its own), and Gary-P built two in half its games (the pros one)
+        self.pending_own = False
 
     def look(self, obs: dict) -> None:
         """What is in sight now, between the model's queries: the most of each enemy type seen at once, and the
@@ -337,6 +344,21 @@ class MacroTracker:
             i = self.spec.decision_index(p[1], p[2])
             self.decided[i] = max(0, self.decided[i] - 1)
 
+    def _count_pending(self, obs: dict, units: np.ndarray) -> None:
+        """pendown: the pending decisions' buildings into the own totals (not the completed), less those already in sight
+        and not reconciled yet (the next look consumes their decisions)."""
+        from gary.policy.army import is_building
+        from gary.race import Race
+        race = Race.of(self.spec.race)
+        new = Counter(u["type"] for u in obs["units"] if u["owner"] == self.slot and is_building(u["type"])
+                      and (u["tag"], u["type"]) not in self.buildings_seen)
+        for t, n in Counter(p[2] for p in self.pending).items():
+            k = max(0, n - new[t])
+            units[0, t, 0] += k
+            if race.builder_spent:
+                w = min(k, units[0, race.worker, 0])
+                units[0, race.worker] -= (w, min(w, units[0, race.worker, 1]))
+
     def in_gas(self, obs: dict, gas_types) -> list[int]:
         """The player's workers out of sight inside a gas building now: last seen GAS_INSIDE ago at most, beside one
         of its gas buildings (the replays count them; option unitcount)."""
@@ -391,6 +413,8 @@ class MacroTracker:
         for tag in hidden:
             if (t := self.tag_types.get(tag)) is not None:
                 units[0, t] += 1
+        if self.pending_own and self.pending:
+            self._count_pending(obs, units)
         self.seen_max = np.maximum(self.seen_max, seen)
         me = obs["me"]
         eco = np.array([[me["minerals"], me["gas"], me["supply_used"] * 2, me["supply_max"] * 2]], dtype=np.float32)

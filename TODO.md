@@ -70,8 +70,9 @@ closed and its line leaves this file; docs/PROGRESS.md keeps what was done and h
   the Protoss's PvT and PvZ apart (gp0.3), its dev build (gp1dev, docs/RACES.md), the Terran's queue of two (gp0.5dev),
   Reavers and Carriers armed (gp0.8dev: they never fired before), Archons merged as the pros do (gp0.9dev), the pros' key
   layout (gp0.10dev), storms (gp0.11dev), Pylons placed for room (gp0.12dev: its Gateways had no spot), refused buildings
-  taken back (gp0.13dev); left: shuttles, its early defense and unit mix (cannons PvZ 24.5 at 20:00, the pros 13.8, minerals
-  banked with no gas; High Templar two thirds of the pros')
+  taken back (gp0.13dev), a decided building among its own until it starts (gp0.14dev: the second Stargate 1.5 to 1.2); left:
+  shuttles, its early defense (Probes lost to small Zergling raids at 4-8 minutes) and unit mix (cannons PvZ 24.5 at 20:00,
+  the pros 13.8; High Templar two thirds of the pros')
 - [#61](https://github.com/vibrunazo/gary/issues/61) The Terran's modes in PvT (gt0.22dev siege and lay mines): held as long as the
   pros hold them, the pros' mines outside fights, Spider Mines four minutes late
 - [#62](https://github.com/vibrunazo/gary/issues/62) Type gg and leave when the critic's win odds stay under 20% (default;

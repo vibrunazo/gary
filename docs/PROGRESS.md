@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-02): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.26dev), `gp1dev` (gp0.13dev) and `gz1dev` (gz0.15dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.27dev), `gp1dev` (gp0.14dev) and `gz1dev` (gz0.16dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1690,6 +1690,26 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **Where Gary-P's money goes, and a decided building counted as its own (2026-11-02, gt0.27dev, gz0.16dev, gp0.14dev;
+  #36).** Gary-P's PvZ economy against the pros' per minute (PY188a, 48 games): it banks less than they do (12:00: 538
+  minerals against 952), its Probes mine as much each (8 trips a worker-minute at 4-5 minutes, both, re-simulated), and
+  the model's Probe odds in its own states are the pros' (0.15-0.28 against 0.20 at 6-10 minutes). It has fewer Probes
+  (8:00: 36 against 41; 12:00: 40 against 46) for two reasons: its Nexuses idle more while the pros still add Probes
+  (4-6 minutes 0.34 of the time against 0.22, 6-8 0.60 against 0.42), every decision waiting for its minerals, and it
+  loses more (11 by 14:00 against 6.5, a few games' raids: in 52-65% of the deaths no fighter of its own within 8 tiles,
+  in 2-3% a cannon). By style its key timings are the pros' (eval/style_adherence.py), but it built a second Stargate the
+  pros don't (1.3-1.6 a game against 1.0) and Corsairs over theirs. The cause is in the inputs: the model was asked
+  again while the first Stargate's Probe walked and waited for money, its decisions so far holding the Stargate and its
+  own units none, a state the pros' data hardly has (their builder walks before the order and the building starts with
+  it: 99 of 25,884 PvZ states at 3-8 minutes), where the model gave a second Stargate 0.11-0.28 (0.005 with the first
+  among its own). Option pendown (gary/policy/macro.py pending_own) counts a decided building not started yet among its
+  own units (its Drone gone for the Zerg), as the replays do; an input fix, so the three dev builds take it on the input
+  check (gt1dev against gz1dev and gp1dev against gz1dev, no new difference). In 16 PvZ games paired on map and seed
+  against gp0.13dev replayed (PD190a against BL191a): Stargates 1.2 (1.5), Corsairs at 12:00 4.2 (7.4), cannons the same
+  (20:00: 22 against 24). Its Probes were fewer at 8:00 (-5.8, se 2.5), lost to Zergling raids at 4-8 minutes (162
+  against 35 Probes in the 16 games; 6.1 more a game, se 3.8): which games the Zerg's dice raid differs between the
+  runs, and in them four Zerglings at the natural take five Probes while its one Zealot is pulled back, no Probe pulled
+  (no fight rules in gp1dev) and no cannon at that mineral line. Its early defense against raids is next.
 - **Why Gary-P makes so many cannons, and refused buildings taken back (2026-11-02, gt0.26dev, gz0.15dev, gp0.13dev;
   #36).** Gary-P's PvZ cannons run over the pros' from 4:00 (12:00: 10.4 against 6.1; 20:00: 24.5 against 13.8), every one
   the dice's draw from the macro model's own odds (0.18 at 10-20 minutes, the pros' share 0.10). The model is calibrated on
