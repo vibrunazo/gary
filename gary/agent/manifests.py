@@ -339,7 +339,8 @@ MANIFESTS: dict[str, dict] = {
     # gp0.5: every build's fix of 2026-10-31 (as gt0.11's)
     # gp0.6: Reavers and Carriers kept full of Scarabs and Interceptors (the hands, executor.rearm: they are built empty,
     # and every one Gary-P made before never fired)
-    "gp1": {"version": "gp0.6", "race": "P", "posture": "normal", "leases": "enforced", "balance": True, "builder_back": True,
+    # gp0.7: Pylons placed where they power new room (the hands, protoss_executor.py spot; as gp0.12dev's)
+    "gp1": {"version": "gp0.7", "race": "P", "posture": "normal", "leases": "enforced", "balance": True, "builder_back": True,
             "macro": {"provider": "learned", "model": "runs/macro_exp/P_all_v2all/model.pt", "builds": [], "decoder": "dice",
                       "odds_mass": 1.0, "expand_mass": 1.0, "park": True, "supply_ahead": True, "parked_max": 3,
                       "gas_waits": True, "style": "roll", "look_seen": True, "unit_count": True, "history_styles": "v2"},
@@ -1257,7 +1258,11 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # 5.9, 10.9; its High Templar 3.3 and 4.2 at 16 and 20 minutes, the pros' 4.1 and 6.9), the spot's enemy supply 4.7
 # (6.1); PvT against gt1dev (SV187a) 73%, 0.7 and 3.2 (46%, 1.2, 3.5). Paired, no measurable difference: PvZ against
 # ZB184a -0.026 +- 0.066, PvT against KP183a -0.005 +- 0.037
-MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm"), "version": "gp0.11dev"}
+# gp0.12dev: Pylons placed where they power new room (protoss_executor.py spot, a fix of the hands): Gateways dropped
+# for no spot 914 to 221 in 48 PvZ games (PY188a against ST186a), 692 to 147 in PvT (PT188a against SV187a); Gateways at
+# 20:00 PvZ 7.5 (6.3, the pros 9.1), PvT 8.7 (6.7, 11.6); supply at 20:00 PvZ 183 (209, 182); won 11 lost 1 (5 and 1),
+# PvT 4 and 9 (2 and 11); paired +0.005 +- 0.110 and +0.005 +- 0.116
+MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm"), "version": "gp0.12dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

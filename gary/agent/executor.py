@@ -772,6 +772,7 @@ class Executor:
             cands = [(d, tx, ty) for d, tx, ty in cands
                      if not (tx < bx + hw + 2 + HALL_CLEAR and tx + w > bx - HALL_CLEAR
                              and ty < by + hh + HALL_CLEAR and ty + h > by - HALL_CLEAR)]
+        cands = self.spot_order(unit_type, cands)
         for _, tx, ty in cands:
             if any(abs(tx - rx) < self.g.race.sizes[rt][0] + 1 and abs(ty - ry) < self.g.race.sizes[rt][1] + 1 for rt, rx, ry in self.g.reserved) \
                     or self._bad(unit_type, tx, ty):
@@ -781,6 +782,11 @@ class Executor:
                     self.fits(unit_type, tx + 1, ty + 1, builder):
                 return tx, ty
         return None
+
+    def spot_order(self, unit_type: int, cands: list[tuple[float, int, int]]) -> list[tuple[float, int, int]]:
+        """The order a base's candidate spots (distance, tile x, tile y; nearest first) are tried in: this race's
+        preference (Protoss: a Pylon where it powers new room)."""
+        return cands
 
     def spot_near(self, unit_type: int, near: tuple[int, int], builder: int,
                   level_at: tuple[int, int] | None = None, avoid=None) -> tuple[int, int] | None:

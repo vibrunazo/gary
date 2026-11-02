@@ -24,6 +24,20 @@ POWER_SHORT_FOR = 20 * 24                        # a powered build that found no
 MERGING = {105, 106, 183}                        # ArchonWarp, CompletingArchonSummon, DarkArchonMeld: merging already
 MERGE_FOR = 6 * 24                               # a merge not given by then is given up (its decision taken back)
 MERGE_SEEN = 2 * 24                              # a merge's key this long ago shows its Templar merging, or it didn't
+ROOM_MIN = 64                                    # a Pylon's spot powers this many free tiles no other Pylon does (half
+                                                 # its field: at 24, two tiles from the last one passed)
+# the game's power field (OpenBW psi_field_mask: a building's center this far from a Pylon's, in pixels, by quarter)
+FIELD_MASK = ((1, 1, 1, 1, 1, 1, 1, 1), (1, 1, 1, 1, 1, 1, 1, 1), (1, 1, 1, 1, 1, 1, 1, 0), (1, 1, 1, 1, 1, 1, 0, 0),
+              (1, 1, 1, 0, 0, 0, 0, 0))
+
+
+def _in_field(rx: int, ry: int) -> bool:
+    x, y = abs(rx) - (rx < 0), abs(ry) - (ry < 0)
+    return x < 256 and y < 160 and bool(FIELD_MASK[y // 32][x // 32])
+
+
+# the tiles (offsets from a Pylon's top-left tile) whose centers its field powers
+FIELD = [(ox, oy) for oy in range(-6, 8) for ox in range(-9, 11) if _in_field(ox * 32 - 16, oy * 32 - 16)]
 
 
 class ProtossExecutor(Executor):
@@ -32,6 +46,7 @@ class ProtossExecutor(Executor):
     def __init__(self, g: Gary):
         super().__init__(g)
         self.power_short = -10 ** 9                  # when a powered building last found no powered spot
+        self.room_only = False                       # (spot: a Pylon's candidates with room only, at every base first)
         g.task_runners["merge"] = self._task_merge
         self.merges: list[dict] = []                 # merges given and not begun yet: their Templar, Archon, key's frame
 
@@ -130,6 +145,71 @@ class ProtossExecutor(Executor):
         self.merges.append({"tags": list(d["tags"]), "id": d["id"], "at": max(r.land_frame, g.hi.frame)})
         g.say(f"merge: 2 {P.NAMES[P.MERGE[d['id']]]} -> {P.NAMES[d['id']]}")
         g.task = None
+
+    def spot(self, unit_type: int, base, builder: int) -> tuple[int, int] | None:
+        """A Pylon at the nearest spot, at its base or another of Gary's, whose field powers ROOM_MIN free buildable
+        tiles that no other Pylon (built, warping in, or reserved) powers; else the nearest as before. Nearest alone,
+        each Pylon went inside the last ones' fields: 7 within 6 tiles of each other at 7:00 in a PvZ game, the whole
+        map with 18 Gateway spots by the game's check and one with room to walk around it (17 Gateways a game dropped,
+        no spot for them, in rounds ST186a and SV187a, while it had more Pylons than the pros)."""
+        if unit_type == P.PYLON:
+            mine = [u for u in self.g.hi.observe()["units"] if u["owner"] == self.g.slot]
+            self.room_only = True
+            try:
+                for b in [base] + [o for o in self.my_bases(mine) if o is not base]:
+                    if spot := self._base_spot(unit_type, b, builder):
+                        return spot
+            finally:
+                self.room_only = False
+        return super().spot(unit_type, base, builder)
+
+    def spot_order(self, unit_type: int, cands: list[tuple[float, int, int]]) -> list[tuple[float, int, int]]:
+        if unit_type != P.PYLON or not cands or not self.room_only:
+            return cands
+        room, x0, y0 = self.pylon_room(cands)
+        return [c for c in cands if room[c[2] - y0, c[1] - x0] >= ROOM_MIN]
+
+    def pylon_room(self, cands: list[tuple[float, int, int]]):
+        """(room, x0, y0): room[ty - y0, tx - x0] the free buildable tiles a Pylon at (tx, ty) would power that no
+        other Pylon does, over the candidates' box."""
+        import numpy as np
+        g = self.g
+        x0 = min(tx for _, tx, _ in cands) - 10
+        y0 = min(ty for _, _, ty in cands) - 7
+        x1 = max(tx for _, tx, _ in cands) + 12
+        y1 = max(ty for _, _, ty in cands) + 9
+        terrain = self.terrain()
+        if terrain is not None:
+            build = terrain[0]
+            free = np.zeros((y1 - y0, x1 - x0), bool)
+            sy0, sx0 = max(0, y0), max(0, x0)
+            sy1, sx1 = min(build.shape[0], y1), min(build.shape[1], x1)
+            free[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0] = build[sy0:sy1, sx0:sx1]
+        else:
+            free = np.ones((y1 - y0, x1 - x0), bool)
+        pylons = [(tx, ty) for ut, tx, ty in g.reserved if ut == P.PYLON]
+        for u in g.hi.observe()["units"]:
+            size = g.race.sizes.get(u["type"]) if u["owner"] == g.slot else (2, 1) if u["owner"] == 11 and u["type"] != P.GEYSER \
+                else (4, 2) if u["type"] == P.GEYSER else None
+            if size is None:
+                continue
+            bx, by = (u["x"] - size[0] * 16) // 32 - x0, (u["y"] - size[1] * 16) // 32 - y0
+            free[max(0, by):max(0, by + size[1]), max(0, bx):max(0, bx + size[0])] = False
+            if u["type"] == P.PYLON and u["owner"] == g.slot:
+                pylons.append(((u["x"] - 32) // 32, (u["y"] - 32) // 32))
+        hy, hx = free.shape
+        powered = np.zeros_like(free)
+        for px, py in pylons:
+            for ox, oy in FIELD:
+                x, y = px + ox - x0, py + oy - y0
+                if 0 <= x < hx and 0 <= y < hy:
+                    powered[y, x] = True
+        new = (free & ~powered).astype(np.int16)
+        room = np.zeros_like(new)
+        for ox, oy in FIELD:                     # room[y, x]: the new tiles a Pylon at (x, y) would power
+            dst = room[max(0, -oy):hy - max(0, oy), max(0, -ox):hx - max(0, ox)]
+            dst += new[max(0, oy):hy - max(0, -oy), max(0, ox):hx - max(0, -ox)]
+        return room, x0, y0
 
     def _pylon_coming(self, mine: list[dict]) -> bool:
         g = self.g

@@ -1690,6 +1690,23 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **Pylons placed for room (2026-11-02, gp0.12dev and gp0.7; docs/RACES.md step 5, #36).** Gary-P built fewer Gateways
+  than the pros (PvZ 6.3 at 20:00, the pros 9.1; PvT 6.7, 11.6) with more Pylons (supply 209 at 20:00 in PvZ, the pros
+  182) and cannons (20 against 14). The records said why: 17 Gateways and 17 cannons a game dropped, "no spot for it"
+  (rounds ST186a and SV187a), and each dropped decision went back to the dice, more often a cannon or a Pylon. Each
+  Pylon went to the free spot nearest its base's anchor, inside the last ones' fields: in one PvZ game 7 Pylons within
+  6 tiles of each other at 7:00, the map with 18 Gateway spots by the game's check and one with room to walk around it.
+  A Pylon now goes to the nearest spot, at its base or another of Gary's, whose field (OpenBW's psi field mask)
+  powers half a field (64 tiles) of free buildable ground no other Pylon powers; else the nearest as before (24 tiles
+  was too few: two tiles from the last one passed). A fix of the hands, judged on its check, 48 games a matchup:
+  Gateways dropped for no spot 914 to 221 in PvZ (PY188a against ST186a), 692 to 147 in PvT (PT188a against SV187a);
+  Gateways at 20:00 PvZ 7.5, PvT 8.7 (PvT 7.9 at 12:00, the pros 7.2); supply at 20:00 PvZ 183, the pros' 182 (PvT 166,
+  the pros 190); won 11 lost 1 in PvZ (5 and 1), PvT 4 and 9 (2 and 11); paired +0.005 +- 0.110 and +0.005 +- 0.116.
+  What the drops hid shows now: cannons, the model's own odds no longer cut by failures, at 20:00 PvZ 24.5 (20.2, the
+  pros 13.8) and PvT 10.7 (7.5, 7.0); Probes decided fewer without the drops' re-rolls (PvZ 10-15 minutes 8.8 a game,
+  16.6 before; workers at 16:00 PvZ 43.8, the pros 48.4); the PvZ gap at 0-5 minutes further (+0.033 [+0.003,
+  +0.092]), its second Pylon now away from the first. Next in the unit mix: the cannons' odds (the PvZ model gives them
+  0.13-0.22 at 10-20 minutes).
 - **Psionic Storms as the pros cast them (2026-11-01, gp0.11dev, option storm; docs/RACES.md step 5, #4, #36).** Gary-P
   researched Psionic Storm in three quarters of its games and never cast one. A spell is now an entry of a table
   (gary/policy/cast.py SPELLS: the caster, the order, the energy, the area), with two models learned from the pros'
