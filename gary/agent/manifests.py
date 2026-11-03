@@ -1309,8 +1309,14 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # there, every table from 240 pro games. Probes lost to raids at 3-8 minutes in PvZ 4.9 a game, 1.7 with the firsts
 # off on the same draws (PL211a): single games of 13-32 (an undefended main), the table blind to Mutalisks (#65) and
 # the macro's gateway-first openings without units; kept on (AGENTS.md, fidelity before wins)
+# gp0.19dev: the gateway-first opening's hands (16 PvZ games on the same seeds, PL212a and PL213a against PL210a): the
+# natural's Nexus site kept out of a Pylon's room as the spot search keeps it (the natural's first Pylon powered
+# mostly that site, the Gateway found no spot: placed at 2:26, the pros' 1:13), and a decision waiting for a Pylon
+# warping in kept 60 s (dropped at 30 s, 2 s before the power). Gateway-first's Gateway at 1:33-1:35, its first Zealot
+# at 2:28-2:40 (3:27, the pros 1:54); Probes lost to raids at 3-8 minutes 1.3 and 4.2 a game in two rounds of nearly
+# the same code (4.9): 16 games don't measure them
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"),
-                       "version": "gp0.18dev"}
+                       "version": "gp0.19dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

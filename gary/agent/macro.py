@@ -35,7 +35,8 @@ TRAIN, MORPH, BMORPH, BUILD, RESEARCH, UPGRADE, EXPAND = range(7)   # (ACT_NAMES
 TOWN_HALLS = {106, 131, 132, 133, 154}
 WALK_AHEAD = 6                  # seconds: a building's worker sets out this much income before the money is there
 MINING = 1.0                    # minerals a second an SCV mines (about)
-GOAL_TIMEOUT = 24 * 30          # a decision Gary can't afford or do within 30 s is dropped
+GOAL_TIMEOUT = 24 * 30          # a decision Gary can't afford or do within 30 s is dropped (twice that while what it
+                                # waits for is on its way)
 BANK_ESCAPE = 400               # minerals over which the waiting favorite no longer holds the macro (bank_escape)
 DICE_FLOOR = 0.01               # decoder "dice": decisions less likely than this are never rolled
 HOLD_FOR = 30 * 24              # option hold: a roll waited for this long at most
@@ -299,7 +300,7 @@ class LearnedMacro:
                 self.goal["uncapped"] = True
             g.say(f"next: {name} (ahead of production)")
             LOG.decision(g.hi.side, "macro", hi.frame, name, inputs=self._seen(obs, mine, me), by=by)
-        if self.goal and hi.frame - self.goal["since"] > GOAL_TIMEOUT:
+        if self.goal and hi.frame - self.goal["since"] > GOAL_TIMEOUT * (2 if self.goal.get("coming") else 1):
             g.say(f"gives up on {self.goal['name']}")
             LOG.order(g.hi.side, hi.frame, self.goal["name"], "dropped", f"not carried out in {GOAL_TIMEOUT // 24} s", by="macro")
             self.goal = None
@@ -507,6 +508,10 @@ class LearnedMacro:
             self.goal = None
             return
         if plan is WAIT:                    # e.g. the building is still busy: wait for it
+            # (what it waits for on its way, a Pylon warping in: kept twice as long; dropped at 30 s, Gary-P's
+            # gateway-first Gateway, decided at 0:45 as its Pylon was placed, was given up 2 s before the power came
+            # and decided again later: placed at 1:33, the pros' 1:13, round PL212a)
+            goal["coming"] = g.executor.wait_coming
             same = sum(1 for k, _ in self.queued if k == (TRAIN, goal["id"]))
             room = sum(1 for u in mine if u["type"] == g.race.producer.get(goal["id"]) and u["completed"])
             if goal["act"] == TRAIN and same < max(1, room) * self.queue_depth:

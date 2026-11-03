@@ -69,7 +69,7 @@ dev build where learning is done and judged without the stop-gaps (AGENTS.md):
 | | Terran | Zerg | Protoss |
 |---|---|---|---|
 | Plays | `gt1` gt0.11 | `gz1` gz0.4 | `gp1` gp0.7 (crude) |
-| Dev build | `gt1dev` gt0.28dev | `gz1dev` gz0.17dev | `gp1dev` gp0.18dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
+| Dev build | `gt1dev` gt0.28dev | `gz1dev` gz0.17dev | `gp1dev` gp0.19dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
 
 ## What still differs between the races
 
@@ -120,7 +120,8 @@ The playing builds differ more: `gt1` keeps every stop-gap, `gz1` the pros' deci
    the mineral line where the pros' stand and a cannon at every base in each game (gp0.16dev: Probes lost to raids 0.75 a
    game, Mutalisk raids 4.6 Probes each to 0.38; Probes at 12:00 45.9, the pros 46.2); idle Probes sent back at once
    (gp0.17dev: idle at the main 0.46 at a time to 0.22, the pros 0.13); each building's first and second by the pros'
-   shares for its build style, and tables for PvT and PvP (gp0.18dev). Left: shuttles, cannons at newer
+   shares for its build style, and tables for PvT and PvP (gp0.18dev); the gateway-first Gateway on time (gp0.19dev:
+   2:26 to 1:33, the pros 1:13). Left: shuttles, cannons at newer
    bases (its third Nexus later than the pros'), and
    unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'). The placement tables are
    the Protoss's; the other races (turrets, bunkers, colonies) can have theirs from the same script.

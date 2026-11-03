@@ -14,7 +14,7 @@ import math
 
 from gary import commands as C
 from gary import protoss as P
-from gary.agent.executor import Executor
+from gary.agent.executor import HALL_CLEAR, Executor
 from gary.agent.macro import BUILD, EXPAND, RESEARCH, TRAIN, UPGRADE, WAIT
 from gary.agent.gary import Gary, Task
 from gary.agent.intents import Intent
@@ -72,13 +72,13 @@ class ProtossExecutor(Executor):
                 if spot else self.no("no free geyser")
         if act == BUILD and uid in g.race.sizes and uid != g.race.town_hall:
             if uid not in UNPOWERED and P.PYLON not in have:
-                return self.wait("no Pylon's power yet: one is coming") if self._pylon_coming(mine) \
+                return self.wait("no Pylon's power yet: one is coming", coming=True) if self._pylon_coming(mine) \
                     else self.no("no Pylon's power")
             where, side = self.place(uid, mine)
             if self.place_table and uid != P.PYLON and uid not in UNPOWERED and self._power_coming(where, mine):
                 # (option place: drawn for a base whose only Pylons are still warping in, it waits for them rather than
                 # standing at another base, as a wall's Gateway waits for the wall's Pylon)
-                return self.wait("no power at its base yet: a Pylon is coming there")
+                return self.wait("no power at its base yet: a Pylon is coming there", coming=True)
             if uid == P.PYLON and self.power_for is not None and g.hi.frame - self.power_short < POWER_SHORT_FOR:
                 where, side = self.power_for         # (the Pylon where the power was missing; kept for the window, as
                                                      # carry_out also answers what Gary can do, not only what it does)
@@ -210,7 +210,16 @@ class ProtossExecutor(Executor):
         else:
             free = np.ones((y1 - y0, x1 - x0), bool)
         pylons = [(tx, ty) for ut, tx, ty in g.reserved if ut == P.PYLON]
-        for u in g.hi.observe()["units"]:
+        units = g.hi.observe()["units"]
+        if self.place_table and g.natural is not None and not self.hall_at(g.natural, [u for u in units if u["owner"] == g.slot]):
+            # (option place: the natural's site kept for its Nexus, as _base_spot keeps it: counted as room, the
+            # natural's first Pylon powered mostly that site, and the gateway-first Gateway found no spot there, placed
+            # at 2:26 against the pros' 1:13, its first Zealot at 3:27 against their 1:54, round PL210a)
+            hw, hh = g.race.sizes[g.race.town_hall]
+            bx, by = g.natural.tile
+            free[max(0, by - HALL_CLEAR - y0):max(0, by + hh + HALL_CLEAR - y0),
+                 max(0, bx - HALL_CLEAR - x0):max(0, bx + hw + 2 + HALL_CLEAR - x0)] = False
+        for u in units:
             size = g.race.sizes.get(u["type"]) if u["owner"] == g.slot else (2, 1) if u["owner"] == 11 and u["type"] != P.GEYSER \
                 else (4, 2) if u["type"] == P.GEYSER else None
             if size is None:

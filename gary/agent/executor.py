@@ -146,6 +146,7 @@ class Executor:
         self.next_transfer = 0
         self._bases_by_walk: list | None = None       # free_base: the bases by a worker's walk from the natural
         self.why: str | None = None                   # why carry_out's last None or WAIT (no, wait)
+        self.wait_coming = False                      # carry_out's last WAIT is for something on its way
         self.wide_spot = False                        # option widespot: spot() widens the main, then the natural
         self.place_table = False                      # option place: a building's base and side drawn from the pros'
         self._placed: Counter = Counter()        # option place: (building, window, base kind or "minerals") placed so far
@@ -726,9 +727,10 @@ class Executor:
         self.why = why
         return None
 
-    def wait(self, why: str) -> dict:
-        """carry_out will be able to soon: what it waits for, in words."""
-        self.why = why
+    def wait(self, why: str, coming: bool = False) -> dict:
+        """carry_out will be able to soon: what it waits for, in words; coming: what it waits for is on its way (a
+        building warping in), and the macro keeps the decision past its GOAL_TIMEOUT for it."""
+        self.why, self.wait_coming = why, coming
         return WAIT
 
     def count(self, mine: list[dict], unit_type: int) -> int:
