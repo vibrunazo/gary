@@ -49,7 +49,7 @@ AMMO = {REAVER: (SCARAB, 15), CARRIER: (INTERCEPTOR, 25)}
 # where the pros start each building, per matchup: (until this minute, its shares at the main, the natural and a newer
 # base, its share on that base's mineral side), drawn by the executor (option place); eval/placement.py over 80 modern
 # PvZ games, each building by the base it stands nearest of all the player's by 12:00 (the forge-first wall at the
-# natural before its Nexus: the natural's), windows with 0.1 a game at least
+# natural before its Nexus: the natural's), windows with 0.1 a game at least; a stop-gap (AGENTS.md, #65)
 PLACE = {"PvZ": {
     PYLON: [(5, (0.52, 0.47, 0.01), 0.18), (8, (0.71, 0.28, 0.0), 0.36), (12, (0.71, 0.16, 0.13), 0.20)],
     GATEWAY: [(5, (0.16, 0.84, 0.0), 0.03), (8, (0.90, 0.10, 0.0), 0.05), (12, (0.95, 0.04, 0.01), 0.01)],

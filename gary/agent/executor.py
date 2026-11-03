@@ -416,6 +416,7 @@ class Executor:
         one more. Drawn by dice alone, the main went without a cannon in games where the natural had six, and every
         Mutalisk raid that cost Gary-P Probes at 3-8 minutes hit the main (9-16 Probes in three of them, round PL198a);
         weighted by the shortfall, no cannon by the Nexus in 46% of the Mutalisk raids (PL200a), 12% this way (PL201a)."""
+        # STOP-GAP (AGENTS.md): the pros' shares, blind to the game; a learned placement model replaces it (#65)
         g = self.g
         rows = getattr(g.race.data, "PLACE", {}).get(g.matchup, {}).get(uid) if self.place_table else None
         if not rows:

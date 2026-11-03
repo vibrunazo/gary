@@ -247,6 +247,16 @@ odds become a choice: dice, hold, floors), and fixes of plain bugs.
   - *Stim* is not a stop-gap: its decision is the stim model's (`gary/policy/stim.py`, learned from the pros'
     stims); the rule is its decoder (every half second, Stim Packs done, an HP floor). Measure that it stays: stims
     per fight and HP at the stim against the pros'.
+- **Buildings' base and side by the pros' shares** (option `place`, in gp1dev since gp0.15dev; `executor.py` place, the
+  race's PLACE table; #65). A building the macro model decided goes to the main, the natural or a newer base, on its front
+  or its mineral side, by the pros' shares for its kind at that minute in the matchup (eval/placement.py), each game
+  keeping those shares. Scripted because no model decides where a building stands, and Gary-P's cannons all stood at the
+  main's front (Probes lost to raids at 3-8 minutes 9.9 a game, the pros 0.9). It reads nothing of the game: the pros'
+  cannons go by the minerals where Mutalisks were seen or a base was raided, Gary's on schedule. Replace with a placement
+  model (base and side, or the tile, from the enemy units seen, the raids and the buildings at each base), trained on the
+  pros' buildings eval/placement.py reads. Measure: with the model in place of the table, the shares by base and side per
+  minute window against the pros', Probes lost to raids and Mutalisk raids with no cannon by the Nexus (gp0.16dev: 0.75
+  a game, 12%; the pros 0.9, 6%). The fitting on tiles (power, the gap to the workers' lanes, PLACE_LANE) is the hands.
 - **Older rules, to review** (scripted before 2026-10-20; each needs a full entry when next worked on): Gary-Z's
   alarm and the natural colonies; the first producer by a time (`rax_by`); the v0.16 hunt and base scans; the fight
   layer's other rules (the Zerg roles' retreat when outweighed; RoleAhead's hand rules in contact, gt1's whole fight
