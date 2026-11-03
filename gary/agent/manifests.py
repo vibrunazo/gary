@@ -1287,8 +1287,14 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # on fidelity, 16 PvZ games against PD190a's same seeds (PL197a): before 5:00 at the natural Forges 79%, cannons 90% (the
 # pros 85%, 92%; none before); cannons at 8-12 minutes main/natural 41/57% (96/4, the pros 27/48 and 25 at newer bases);
 # Probes lost to raids at 3-8 minutes 3.6 a game (9.9, the pros 0.9); Probes at 12:00 38.7 (35.8, the pros 46.2)
+# gp0.16dev: place's hands (fixes, judged on fidelity, 16 PvZ games on the same seeds, PL201a against PL197a): a
+# mineral-side spot on the mineral side as eval/placement.py tells it and as near the workers' lanes as the pros build
+# there (gary/protoss.py PLACE_LANE), and each game keeping the table's shares (a window's first by dice, each next where
+# its count falls furthest below its share): cannons by the mineral line 38% at 5-12 minutes (10%, the pros 36%), every
+# Mutalisk raid's main with one; Probes lost to raids at 3-8 minutes 0.75 a game (3.6, the pros 0.9), to Mutalisk raids
+# 0.38 each (4.6, the pros 1.3); Probes at 12:00 45.9 (38.7, the pros 46.2)
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"),
-                       "version": "gp0.15dev"}
+                       "version": "gp0.16dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

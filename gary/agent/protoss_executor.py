@@ -159,19 +159,22 @@ class ProtossExecutor(Executor):
         no spot for them, in rounds ST186a and SV187a, while it had more Pylons than the pros)."""
         if unit_type == P.PYLON:
             mine = [u for u in self.g.hi.observe()["units"] if u["owner"] == self.g.slot]
-            self.room_only = side != "minerals"     # (by the mineral line: the cannons' power, as the pros')
             try:
-                for b in [base] + [o for o in self.my_bases(mine) if o is not base]:
-                    if spot := self._base_spot(unit_type, b, builder, side=side):
-                        return spot
+                for s in ([side, "front"] if side == "minerals" else [side]):   # (no room by the minerals: the front)
+                    self.room_only = s != "minerals"     # (by the mineral line: the cannons' power, as the pros')
+                    for b in [base] + [o for o in self.my_bases(mine) if o is not base]:
+                        if spot := self._base_spot(unit_type, b, builder, side=s):
+                            return spot
             finally:
                 self.room_only = False
-        if self.place_table and unit_type not in UNPOWERED and base is not self.g.main:
+        if self.place_table and unit_type not in UNPOWERED and (base is not self.g.main or side == "minerals"):
             if spot := self._base_spot(unit_type, base, builder, side=side):
                 return spot
-            # (option place: no power where it was drawn; elsewhere for now, and the next Pylon there: a cannon by the
-            # mineral line drew one in 2 of 5 after 5:00 and stood there in 1 of 10, at newer bases 1 in 25 of 4)
+            # (option place: no power where it was drawn; at that base's front for now, and the next Pylon there: a
+            # cannon by the mineral line drew one in 2 of 5 after 5:00 and stood there in 1 of 10, at newer bases 1 in
+            # 25 of 4)
             self.power_short, self.power_for = self.g.hi.frame, ("natural" if base is self.g.natural else base, side)
+            side = "front"
         return super().spot(unit_type, base, builder, side)
 
     def spot_order(self, unit_type: int, cands: list[tuple[float, int, int]]) -> list[tuple[float, int, int]]:

@@ -62,6 +62,11 @@ PLACE = {"PvZ": {
     ROBOTICS: [(12, (0.09, 0.91, 0.0), 0.21)],
     OBSERVATORY: [(12, (0.72, 0.28, 0.0), 0.26)],
 }}
+# how near the workers' lanes (a town hall to each of its minerals) the pros start a building on a base's mineral side:
+# the median gap from its footprint, in tiles (eval/placement.py, 60 modern PvZ games): cannons hug the Nexus over the
+# lanes' start, Pylons stand behind the mineral line
+PLACE_LANE = {"PvZ": {PYLON: 0.8, GATEWAY: 0.8, CANNON: -0.5, FORGE: 1.4, CYBER: 0.6, STARGATE: 0.2, CITADEL: 0.7,
+                      TEMPLAR_ARCHIVES: 2.0, ROBOTICS: 1.5}}
 
 # what must exist (completed) before something can be made (buildings also need a pylon's power)
 REQUIRES = {

@@ -1,6 +1,7 @@
 """Where a race's buildings start, Gary's against the modern pros': per building and minute window, the base it
 stands at (by its town hall's order: the main, the natural, a newer base) and its side of that base (the mineral side,
-within MINERAL_TILES of the town hall toward its minerals, or the front). The pros' shares are the race's placement
+within MINERAL_TILES of the town hall toward its minerals, or the front), and how near a mineral-side building stands to
+its workers' lanes (the gap from its footprint to the nearest town hall-to-mineral segment). The pros' shares are the race's placement
 table (gary/protoss.py PLACE, which the executor draws from: executor.py place); Gary's against them are its check.
 Re-simulated, the full game state (not Gary's view).
 
@@ -33,6 +34,7 @@ EVERY = 48                     # frames between looks
 MINERAL_SIDE = 0.3             # cos(building - hall, minerals - hall) over this: the mineral side ...
 MINERAL_TILES = 9              # ... and this near its town hall
 CLASSES = ("main", "natural", "newer")
+LANE_MIN = 10                  # mineral-side starts for a building's gap to the workers' lanes
 
 
 def starts(args: tuple) -> list[dict] | None:
@@ -41,6 +43,7 @@ def starts(args: tuple) -> list[dict] | None:
     natural before its Nexus is the natural's) and side."""
     path, race = args
     from gary.env import Game
+    from gary.agent.executor import _to_segment
     from gary.race import Race
     R = Race.of(race)
     halls, kinds = set(R.town_halls), {t for t in R.sizes if t not in R.town_halls and t != R.gas_building}
@@ -65,7 +68,7 @@ def starts(args: tuple) -> list[dict] | None:
             if u["type"] in halls and u["tag"] not in hall_at:
                 ms = [m for m in units if m["type"] in MINERALS and math.dist((m["x"], m["y"]), (u["x"], u["y"])) < 12 * 32]
                 mc = (sum(m["x"] for m in ms) / len(ms), sum(m["y"] for m in ms) / len(ms)) if ms else None
-                hall_at[u["tag"]] = (min(len(hall_at) + 1, 3), u["x"], u["y"], mc)
+                hall_at[u["tag"]] = (min(len(hall_at) + 1, 3), u["x"], u["y"], mc, [(m["x"], m["y"]) for m in ms])
         for u in mine:
             if u["type"] in kinds and u["tag"] not in seen:
                 seen.add(u["tag"])
@@ -74,14 +77,16 @@ def starts(args: tuple) -> list[dict] | None:
         return None
     rows = []
     for t, minute, x, y in out:
-        k, hx, hy, mc = min(hall_at.values(), key=lambda h: math.dist((h[1], h[2]), (x, y)))
+        k, hx, hy, mc, ms = min(hall_at.values(), key=lambda h: math.dist((h[1], h[2]), (x, y)))
         d = math.dist((hx, hy), (x, y))
-        side = "front"
+        side, lane = "front", None
         if mc is not None and d > 0:
             vx, vy, wx, wy = x - hx, y - hy, mc[0] - hx, mc[1] - hy
             if (vx * wx + vy * wy) / (d * math.hypot(wx, wy) + 1e-9) > MINERAL_SIDE and d < MINERAL_TILES * 32:
                 side = "minerals"
-        rows.append({"type": R.names.get(t, t), "id": t, "t": minute, "base": CLASSES[k - 1], "side": side})
+                lane = (min(_to_segment((x, y), (hx, hy), m) for m in ms) - 16 * max(R.sizes[t])) / 32
+        rows.append({"type": R.names.get(t, t), "id": t, "t": minute, "base": CLASSES[k - 1], "side": side,
+                     "lane": lane, "hall": d / 32})
     return rows
 
 
@@ -101,12 +106,30 @@ def table(games: list[list[dict]]) -> dict:
     return out
 
 
+def lanes(games: list[list[dict]], names: dict) -> dict:
+    """{building: the median gap of its mineral-side starts to the workers' lanes, in tiles}, LANE_MIN starts at least
+    (the race's PLACE_LANE, the executor's limit by the minerals)."""
+    out = {}
+    for t in sorted({b["id"] for g in games for b in g}):
+        gaps = sorted(b["lane"] for g in games for b in g if b["id"] == t and b["lane"] is not None)
+        if len(gaps) >= LANE_MIN:
+            out[names.get(t, t)] = round(gaps[len(gaps) // 2], 1)
+    return out
+
+
 def summary(name: str, games: list[list[dict]], names: dict) -> None:
     print(f"== {name}: {len(games)} games")
     for t, rows in table(games).items():
         print(f"  {names.get(t, t)}: " + " | ".join(f"to {hi}: {n}/game, main/natural/newer "
                                                    f"{'/'.join(f'{s:.0%}' for s in shares)}, mineral side {m:.0%}"
                                                    for hi, shares, m, n in rows))
+        side = sorted((b["lane"], b["hall"]) for g in games for b in g if b["id"] == t and b["lane"] is not None)
+        if len(side) >= 5:
+            q = lambda xs, f: xs[int(f * (len(xs) - 1))]
+            lanes, halls = [a for a, _ in side], sorted(h for _, h in side)
+            print(f"    by the minerals ({len(side)}): gap to the workers' lanes 10/50/90% "
+                  f"{q(lanes, .1):.1f}/{q(lanes, .5):.1f}/{q(lanes, .9):.1f} tiles, from the town hall "
+                  f"{q(halls, .1):.1f}/{q(halls, .5):.1f}/{q(halls, .9):.1f}")
 
 
 def main() -> None:
@@ -142,6 +165,7 @@ def main() -> None:
             summary(name, games, names)
             if name == "pros":
                 print("  the table:", json.dumps({names.get(t, t): rows for t, rows in table(games).items()}))
+                print("  the lanes:", json.dumps(lanes(games, names)))
 
 
 if __name__ == "__main__":

@@ -59,7 +59,10 @@ BAD_FOR = 60 * 24                     # a spot where a build failed (not for mon
 WIDE_SPOT = 24                  # option widespot: the main's search box this many tiles each way
 HALL_CLEAR = 3                  # option widespot: tiles kept free around the natural's town hall site
 PLACE_NEAR = 8 * 32             # option place: a building this near a town hall stands at its base
-MINING_LANE = 48                # option place: a mineral-side spot this near a town hall's lane to a mineral blocks mining
+MINING_LANE = 1.5               # option place: a mineral-side spot's least gap to a town hall's lanes to its minerals, in
+                                # tiles, where the race's PLACE_LANE has none for the building
+MINERAL_SIDE = 0.3              # option place: a mineral-side spot's cos(spot - town hall, minerals - town hall) over this ...
+MINERAL_TILES = 9               # ... and its centre this near the town hall (eval/placement.py's measure)
 LOST_ORDER = 6 * 24                   # a reserved spot with no SCV on its way after this: the order was lost
 RESUME_AFTER = 24                     # an unfinished building nobody has built for a second gets an SCV
 RESUME_RETRY = 24 * 4                 # ...and if that one doesn't arrive either, another after 4 s
@@ -114,12 +117,6 @@ def _to_segment(p: tuple[float, float], a: tuple[float, float], b: tuple[float, 
     t = max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - ay) * dy) / ((dx * dx + dy * dy) or 1)))
     return math.dist(p, (ax + t * dx, ay + t * dy))
 
-def _to_segment(p, a, b) -> float:
-    """The distance from p to the segment a-b."""
-    vx, vy = b[0] - a[0], b[1] - a[1]
-    t = max(0.0, min(1.0, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / (vx * vx + vy * vy or 1)))
-    return math.dist(p, (a[0] + t * vx, a[1] + t * vy))
-
 
 class Executor:
     build_order = C.ORDER_PLACE_BUILDING          # the order a worker places a building with
@@ -147,6 +144,7 @@ class Executor:
         self.why: str | None = None                   # why carry_out's last None or WAIT (no, wait)
         self.wide_spot = False                        # option widespot: spot() widens the main, then the natural
         self.place_table = False                      # option place: a building's base and side drawn from the pros'
+        self._placed: Counter = Counter()        # option place: (building, window, base kind or "minerals") placed so far
         self._place_rng: random.Random | None = None  # (its own draws: the macro's dice stay as they were)
         self.train_depth = 1                          # units in a building's own queue Gary trains into (option gamequeue: 2)
         self.sent: list[tuple[str, int, int]] = []    # decisions' production keys given, not yet run: (kind, act, uid)
@@ -412,13 +410,19 @@ class Executor:
         fewest of its kind. ("main", "front") without one.
         Gary-P's Photon Cannons all stood at the main's front, the pros' at every base and two in five on its mineral
         side after 5:00 (none by the Nexus in 59% of the Mutalisk raids on Gary-P at 3-8 minutes, in 6% of the pros'),
-        and its opening all in the main, the pros' Gateways at the natural in 56% before 5:00."""
+        and its opening all in the main, the pros' Gateways at the natural in 56% before 5:00.
+        Each game keeps the shares itself: a window's first of the building by the pros' dice (the opening's Pylon at
+        the natural in half the games, powering its wall), each next where its count falls furthest below its share of
+        one more. Drawn by dice alone, the main went without a cannon in games where the natural had six, and every
+        Mutalisk raid that cost Gary-P Probes at 3-8 minutes hit the main (9-16 Probes in three of them, round PL198a);
+        weighted by the shortfall, no cannon by the Nexus in 46% of the Mutalisk raids (PL200a), 12% this way (PL201a)."""
         g = self.g
         rows = getattr(g.race.data, "PLACE", {}).get(g.matchup, {}).get(uid) if self.place_table else None
         if not rows:
             return "main", "front"
         minute = g.hi.frame / 1440
-        _, shares, minerals = next((r for r in rows if minute < r[0]), rows[-1])[:3]
+        window = next((i for i, r in enumerate(rows) if minute < r[0]), len(rows) - 1)
+        _, shares, minerals = rows[window][:3]
         halls = [(u["x"], u["y"]) for u in mine if u["type"] in g.race.town_halls]
         held = lambda b: any(math.dist(b.center, h) < 6 * 32 for h in halls)
         newer = [b for b in g.map.bases if b is not g.main and b is not g.natural and held(b)]
@@ -430,8 +434,25 @@ class Executor:
             return "main", "front"
         if self._place_rng is None:
             self._place_rng = random.Random(g.game_seed * 7919 + 17)
-        k = self._place_rng.choices([k for k, _ in opts], weights=[share for _, share in opts])[0]
-        return where[k], "minerals" if self._place_rng.random() < minerals else "front"
+        n = sum(self._placed[uid, window, k] for k, _ in opts) + 1
+        total = sum(share for _, share in opts)
+        if n == 1:
+            k = self._place_rng.choices([k for k, _ in opts], weights=[share for _, share in opts])[0]
+        else:
+            k = max(opts, key=lambda o: (o[1] / total * n - self._placed[uid, window, o[0]], o[1]))[0]
+        n = sum(self._placed[uid, window, k] for k in where) + 1
+        short = minerals * n - self._placed[uid, window, "minerals"]
+        return where[k], "minerals" if (self._place_rng.random() < minerals if n == 1 else short >= 0.5) else "front"
+
+    def note_placed(self, uid: int, where, side: str) -> None:
+        """A building's spot found (option place): counted for place's shares."""
+        rows = getattr(self.g.race.data, "PLACE", {}).get(self.g.matchup, {}).get(uid) if self.place_table else None
+        if not rows:
+            return
+        minute = self.g.hi.frame / 1440
+        window = next((i for i, r in enumerate(rows) if minute < r[0]), len(rows) - 1)
+        self._placed[uid, window, "main" if where == "main" else "natural" if where == "natural" else "newer"] += 1
+        self._placed[uid, window, "minerals"] += side == "minerals"
 
     def hall_at(self, base: Base, mine: list[dict]) -> bool:
         """One of Gary's town halls (finished or not) stands at the base."""
@@ -807,13 +828,23 @@ class Executor:
         ax = base.center[0] + (base.center[0] - mx) * k
         ay = base.center[1] + (base.center[1] - my) * k
         w, h = self.g.race.sizes[unit_type]
+        if side == "minerals":
+            # (on the mineral side as eval/placement.py tells it, as near the workers' lanes as the pros build there:
+            # within 16 tiles of the anchor alone, a cannon drawn by the minerals stood at the front in 9 of 10, and
+            # 1.5 tiles off the lanes kept it from the pros' spot, hugging the Nexus 3 tiles from its centre)
+            lane = getattr(self.g.race.data, "PLACE_LANE", {}).get(self.g.matchup, {}).get(unit_type, MINING_LANE)
+            reach = 16 * max(w, h) + lane * 32
+            vx, vy = mx - base.center[0], my - base.center[1]
         cands = []
         for ty in range(int(ay // 32) - radius, int(ay // 32) + radius):
             for tx in range(int(ax // 32) - radius, int(ax // 32) + radius):
                 c = (tx * 32 + w * 16, ty * 32 + h * 16)
-                if side == "minerals" and any(_to_segment(c, base.center, m) < MINING_LANE + 16 * max(w, h)
-                                              for m in base.minerals):
-                    continue
+                if side == "minerals":
+                    ux, uy = c[0] - base.center[0], c[1] - base.center[1]
+                    d = math.hypot(ux, uy)
+                    if d >= MINERAL_TILES * 32 or ux * vx + uy * vy <= MINERAL_SIDE * d * math.hypot(vx, vy) \
+                            or any(_to_segment(c, base.center, m) < reach for m in base.minerals):
+                        continue
                 cands.append((math.dist(c, (ax, ay)), tx, ty))
         terrain = self.terrain() if level_of is not None else None
         if terrain is not None:                  # (its level's tiles first, the rest after)
@@ -1179,6 +1210,8 @@ class Executor:
                     self.fail_build(t, "no spot for it")
                     return
                 t.data["spot"] = spot
+                if "near" not in t.data and t.unit_type != g.race.town_hall:
+                    self.note_placed(t.unit_type, t.where, t.data.get("side", "front"))
             spot = t.data["spot"]
             w, h = g.race.sizes[t.unit_type]
             p = screen_of(obs, spot[0] * 32 + 16, spot[1] * 32 + 16)

@@ -69,7 +69,7 @@ dev build where learning is done and judged without the stop-gaps (AGENTS.md):
 | | Terran | Zerg | Protoss |
 |---|---|---|---|
 | Plays | `gt1` gt0.11 | `gz1` gz0.4 | `gp1` gp0.7 (crude) |
-| Dev build | `gt1dev` gt0.27dev | `gz1dev` gz0.16dev | `gp1dev` gp0.15dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
+| Dev build | `gt1dev` gt0.27dev | `gz1dev` gz0.16dev | `gp1dev` gp0.16dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
 
 ## What still differs between the races
 
@@ -116,7 +116,9 @@ The playing builds differ more: `gt1` keeps every stop-gap, `gz1` the pros' deci
    dropped with no spot); refused buildings taken out of its decisions so far at once (gp0.13dev); a decided building counted among its own
    until it starts, as the pros' data counts it (gp0.14dev: its second Stargate, 1.5 a game, now 1.2; the pros 1.0); its
    buildings placed where the pros place them, by base and side (gp0.15dev, eval/placement.py: the forge-first wall at
-   the natural, cannons at every base; Probes lost to raids at 3-8 minutes 9.9 a game to 3.6, the pros 0.9). Left:
-   shuttles, cannons by the mineral line and at newer bases (Mutalisk raids), the opening's Probes off their work, and
+   the natural, cannons at every base; Probes lost to raids at 3-8 minutes 9.9 a game to 3.6, the pros 0.9); cannons by
+   the mineral line where the pros' stand and a cannon at every base in each game (gp0.16dev: Probes lost to raids 0.75 a
+   game, Mutalisk raids 4.6 Probes each to 0.38; Probes at 12:00 45.9, the pros 46.2). Left: shuttles, cannons at newer
+   bases (its third Nexus later than the pros'), the opening's Probes off their work, and
    unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'). The placement table is
    PvZ's; the other matchups and races (turrets, bunkers, colonies) can have theirs from the same script.

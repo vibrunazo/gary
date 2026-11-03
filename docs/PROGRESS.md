@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-02): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.27dev), `gp1dev` (gp0.15dev) and `gz1dev` (gz0.16dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.27dev), `gp1dev` (gp0.16dev) and `gz1dev` (gz0.16dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1690,6 +1690,25 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **Gary-P's cannons by the mineral line and at every base (2026-11-02, gp0.16dev; #36).** Mutalisk raids still took
+  4.6 Probes each after gp0.15dev. Two causes in the hands, measured with eval/placement.py (new: how near a mineral-side
+  building stands to the workers' lanes, the town hall to each mineral): a spot drawn for the mineral line was the nearest
+  powered one within 16 tiles of its anchor, so 9 in 10 stood at the front, and its 1.5-tile gap to the lanes kept it from
+  where the pros' cannons stand (hugging the Nexus 3.0 tiles from its centre, a median gap of -0.5 tiles, over the lanes'
+  start; their Pylons by the minerals 0.8). A mineral-side spot is now on the mineral side as the measure tells it, as
+  near the lanes as the pros build each building there (gary/protoss.py PLACE_LANE), and a cannon with no power there
+  stands at that base's front and calls the next Pylon by the minerals. Then every Mutalisk raid that cost Probes hit the
+  main, with no cannon there while the natural had up to six (PL198a): each base drawn by dice, the main went without
+  one in some games. Each game now keeps the table's shares: a window's first building by the pros' dice (always the
+  largest share, the opening's first Pylon was in the main, and the natural wall had no power: Gateways at the natural
+  before 5:00 14%, PL199a), each next where its count falls furthest below its share of one more (weighted by the
+  shortfall, the main still waited: no cannon in 46% of the Mutalisk raids, PL200a). 16 PvZ games on the same seeds
+  (PL201a against PL197a): cannons by the mineral line 38% at 5-12 minutes (10%, the pros 36%); Probes lost to raids at
+  3-8 minutes 0.75 a game (3.6, the pros 0.9), to Mutalisk raids 0.38 each (4.6, the pros 1.3), no cannon by the Nexus in
+  12% of them (50%, the pros 6%); Probes at 12:00 45.9 (38.7, the pros 46.2); before 5:00 at the natural cannons 90%,
+  Forges 73%, Gateways 50% (the pros 92%, 85%, 84%); cannons at 20:00 25.4 (28.1, the pros 13.8). Left: newer bases' cannons
+  (0% at 8-12 minutes, the pros 25%: Gary-P's third Nexus comes later), the opening's Probes off their work, the cannon
+  count.
 - **Gary-P's buildings placed where the pros place them (2026-11-02, gp0.15dev; #36).** Probes lost to raids at 3-8
   minutes, re-simulated (a probe per raid on a Nexus: the Zerg's fighters within 8 tiles): the pros 0.9 a game in 60 PvZ
   games, Gary-P 5.1 in 48 (PD190a 9.9), Zergling raids 0.64 Probes each for the pros and 2.56 for Gary-P, Mutalisk raids
