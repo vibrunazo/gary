@@ -222,8 +222,10 @@ odds become a choice: dice, hold, floors), and fixes of plain bugs.
   model moves clusters, not a unit just out of its Barracks. So none of them can be measured off on a score: off, Gary
   simply never does the thing. Each goes when a learned layer owns its job in play (its output executed, the pipe
   check) and, with the rule off, holds the rule's fidelity measure against the pros. For the other races they are
-  option `fightrules` (pull and reinforce), measured with no difference in TvZ, PvZ or PvT (2026-10-31,
-  docs/PROGRESS.md), so off there.
+  option `fightrules` (pull and reinforce): no difference in the score in TvZ, PvZ or PvT (2026-10-31,
+  docs/PROGRESS.md), but on the pull's own measure Gary-P lost 1.17 Probes a game fewer to raids at 3-8 minutes in
+  PvZ (48 paired games, [-2.31, -0.15]; 2.31 a game, the pros 0.90), so on in gp1dev since gp0.20dev; off for the Zerg,
+  whose raid losses are to be measured the same way.
   - *Pull* (per_enemy 3, ground only, up to 8 enemy supply): workers off the minerals against fighters at a base
     that outweigh the army there, back once calm for 5 s. Replace with worker roles in the role model (the pros' pulls
     in its fight data). Measure: the home defenses against the pros' (where they pull, when, how many, for how long;

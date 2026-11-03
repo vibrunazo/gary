@@ -1315,8 +1315,14 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # warping in kept 60 s (dropped at 30 s, 2 s before the power). Gateway-first's Gateway at 1:33-1:35, its first Zealot
 # at 2:28-2:40 (3:27, the pros 1:54); Probes lost to raids at 3-8 minutes 1.3 and 4.2 a game in two rounds of nearly
 # the same code (4.9): 16 games don't measure them
-MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"),
-                       "version": "gp0.19dev"}
+# gp0.20dev: the Terran's pull and reinforce (fightrules), stop-gaps no learned layer has an output for (AGENTS.md),
+# judged on the pull's own measure: Probes lost to raids at 3-8 minutes in 48 PvZ games paired on map and seed (PL215a
+# against PL214a) 2.31 a game (3.48, the pros 0.90), -1.17 [-2.31, -0.15]; games with 10 or more lost 8% (17%, the
+# pros 2%); Probes pulled in 40% of Zergling raids (14%, the pros 59%), 8.0 at a time (the pros 5.5); Probes at 12:00
+# 48.1 (43.2, the pros 46.2). Off since 2026-10-31 on a score with no difference
+MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
+                                     "+fightrules"),
+                       "version": "gp0.20dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

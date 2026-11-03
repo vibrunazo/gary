@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-03): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.28dev), `gp1dev` (gp0.19dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.28dev), `gp1dev` (gp0.20dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1690,6 +1690,18 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **Gary-P pulls Probes against raids (2026-11-03, gp0.20dev; #36).** 48 PvZ games (PL214a, gp0.19dev, seeds
+  4006-4011, 20 minutes) measured the raids at last: Probes lost at 3-8 minutes 3.48 a game [2.12, 4.92] against the
+  pros' 0.90 [0.50, 1.37] (60 games); both medians 0, Gary-P's tail 17% of games with 10 or more (the pros 2%):
+  2-7 Zerglings or a few Mutalisks in a mineral line for 36-113 s with 1-3 fighters of Gary-P's elsewhere. The commit
+  model saw them (enemies and losses are among its inputs) and kept its commitment at 82-91% for 25 s, then moved the
+  army away (Colorless Fate, seed 4011: 23 Probes); no Probe was pulled (pulled in 14% of Zergling raids, the pros
+  59%). The Terran's pull and reinforce (option fightrules, off for the Protoss since 2026-10-31 on a score with no
+  difference) judged on the pull's own measure, 48 games paired on map and seed (PL215a): 2.31 a game, -1.17 [-2.31,
+  -0.15]; games with 10 or more 8%; Probes pulled in 40% of Zergling raids, 8.0 at a time (the pros 5.5, after 3.0 s;
+  Gary-P's after 1.0); Probes at 12:00 48.1 (43.2, the pros 46.2); won 8 (5), the rest at 20:00. Folded into gp1dev.
+  Left: the commit model's answer to a raid at home (a learned decision: what the pros' commitments are with a few
+  enemies in their main), Mutalisk raids that find no cannon by the Nexus (53%, the pros 6%: #65), and the pull's size.
 - **Gary-P's gateway-first opening on time (2026-11-03, gp0.19dev; #36).** Of PL210a's undefended mains, the
   gateway-first games (style 20) had their Gateway at 2:26 and first Zealot at 3:27 (the pros of that style 1:13 and
   1:54; build orders against the records). The Gateway, decided at 0:45 as the Pylon was placed, was dropped at 30 s, 2 s
