@@ -1299,8 +1299,18 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # Mutalisk raid's main with one; Probes lost to raids at 3-8 minutes 0.75 a game (3.6, the pros 0.9), to Mutalisk raids
 # 0.38 each (4.6, the pros 1.3); Probes at 12:00 45.9 (38.7, the pros 46.2)
 # gp0.17dev: gt0.28dev's fix
+# gp0.18dev: place's draw fixed and the pros' tables for every matchup (judged on fidelity, 16 games a matchup on the
+# same seeds, rounds PL/PT/PP210a): one draw a decision (drawn anew every tick while the macro saved, a build at
+# another base set out earlier and the natural won the race: PvT's Cybernetics Core, 6% at the natural, there in 38%
+# of games), the dice seeded per map and start (by the seed alone every map drew the same: a 16-game round two
+# openings), each building's first and second of the game by the pros' own shares for its build style
+# (PLACE_FIRST_STYLE: PvZ's first Pylon at the natural 100%, the pros 92%; its window's share 47%), PvT and PvP tables
+# (their opening tech in the main 94-100%, the pros 94-99%), a full main or a warping Pylon calling the next Pylon
+# there, every table from 240 pro games. Probes lost to raids at 3-8 minutes in PvZ 4.9 a game, 1.7 with the firsts
+# off on the same draws (PL211a): single games of 13-32 (an undefended main), the table blind to Mutalisks (#65) and
+# the macro's gateway-first openings without units; kept on (AGENTS.md, fidelity before wins)
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"),
-                       "version": "gp0.17dev"}
+                       "version": "gp0.18dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

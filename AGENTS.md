@@ -248,9 +248,9 @@ odds become a choice: dice, hold, floors), and fixes of plain bugs.
     stims); the rule is its decoder (every half second, Stim Packs done, an HP floor). Measure that it stays: stims
     per fight and HP at the stim against the pros'.
 - **Buildings' base and side by the pros' shares** (option `place`, in gp1dev since gp0.15dev; `executor.py` place, the
-  race's PLACE table; #65). A building the macro model decided goes to the main, the natural or a newer base, on its front
-  or its mineral side, by the pros' shares for its kind at that minute in the matchup (eval/placement.py), each game
-  keeping those shares. Scripted because no model decides where a building stands, and Gary-P's cannons all stood at the
+  race's PLACE tables; #65). A building the macro model decided goes to the main, the natural or a newer base, on its
+  front or its mineral side, by the pros' shares for its kind at that minute in the matchup (eval/placement.py), its first
+  and second of the game by their own shares for the build style, each game keeping those shares. Scripted because no model decides where a building stands, and Gary-P's cannons all stood at the
   main's front (Probes lost to raids at 3-8 minutes 9.9 a game, the pros 0.9). It reads nothing of the game: the pros'
   cannons go by the minerals where Mutalisks were seen or a base was raided, Gary's on schedule. Replace with a placement
   model (base and side, or the tile, from the enemy units seen, the raids and the buildings at each base), trained on the

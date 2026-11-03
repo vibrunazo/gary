@@ -69,7 +69,7 @@ dev build where learning is done and judged without the stop-gaps (AGENTS.md):
 | | Terran | Zerg | Protoss |
 |---|---|---|---|
 | Plays | `gt1` gt0.11 | `gz1` gz0.4 | `gp1` gp0.7 (crude) |
-| Dev build | `gt1dev` gt0.28dev | `gz1dev` gz0.17dev | `gp1dev` gp0.17dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
+| Dev build | `gt1dev` gt0.28dev | `gz1dev` gz0.17dev | `gp1dev` gp0.18dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
 
 ## What still differs between the races
 
@@ -83,7 +83,7 @@ tables over time. In the dev builds:
 | Macro decoder | dice, summed odds for expansions, a queue of two in the building, built and unit counts | dice, its own extras: `pace`, `hold`, a tech floor (10%), a wait floor (5%), `hatch_mass`; built counts (gz0.13dev), no unit count | dice, summed odds, a queue of two in the building (gp0.5dev), built (gp0.6dev) and unit counts |
 | Scripted macro | the answers to lurkers and mutalisks (TvZ, AGENTS.md) | the early-pool alarm's builds (the Terran's are off since gt0.18dev) | none |
 | First producer by a time (`rax_by`) | 78 s | 2:45 | none |
-| Fight | TvZ: the RL'd role model and the fight rules (repair, pull, load, detect, stim, reinforce); PvT and TvT: the matchup's role model | its own provider (`zerg_fight.py`: the role model, lurkers, retreat when outweighed) | the matchup's role model, no rules; buildings placed by the pros' table (PvZ); Archons merged as a macro decision (gp0.9dev), Reavers and Carriers kept armed; Psionic Storms when and where the pros cast them (gp0.11dev); no shuttles |
+| Fight | TvZ: the RL'd role model and the fight rules (repair, pull, load, detect, stim, reinforce); PvT and TvT: the matchup's role model | its own provider (`zerg_fight.py`: the role model, lurkers, retreat when outweighed) | the matchup's role model, no rules; buildings placed by the pros' tables; Archons merged as a macro decision (gp0.9dev), Reavers and Carriers kept armed; Psionic Storms when and where the pros cast them (gp0.11dev); no shuttles |
 | Army | the commit model, the hunt as advice, the static-defense nudge, scans | the commit model; overlord posts and mutalisk raid as rules (no model moves those units) | the commit model |
 | Control groups | by type, keys 1-4 (the pros' layout) | by type, keys 1-3 | by type, keys 1-4, production 5-8 (the Protoss pros' layout, gp0.10dev) |
 | Critic | every matchup (2026-11-01) | every matchup | every matchup |
@@ -119,7 +119,8 @@ The playing builds differ more: `gt1` keeps every stop-gap, `gz1` the pros' deci
    the natural, cannons at every base; Probes lost to raids at 3-8 minutes 9.9 a game to 3.6, the pros 0.9); cannons by
    the mineral line where the pros' stand and a cannon at every base in each game (gp0.16dev: Probes lost to raids 0.75 a
    game, Mutalisk raids 4.6 Probes each to 0.38; Probes at 12:00 45.9, the pros 46.2); idle Probes sent back at once
-   (gp0.17dev: idle at the main 0.46 at a time to 0.22, the pros 0.13). Left: shuttles, cannons at newer
+   (gp0.17dev: idle at the main 0.46 at a time to 0.22, the pros 0.13); each building's first and second by the pros'
+   shares for its build style, and tables for PvT and PvP (gp0.18dev). Left: shuttles, cannons at newer
    bases (its third Nexus later than the pros'), and
-   unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'). The placement table is
-   PvZ's; the other matchups and races (turrets, bunkers, colonies) can have theirs from the same script.
+   unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'). The placement tables are
+   the Protoss's; the other races (turrets, bunkers, colonies) can have theirs from the same script.

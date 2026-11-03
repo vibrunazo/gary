@@ -150,6 +150,8 @@ class Executor:
         self.place_table = False                      # option place: a building's base and side drawn from the pros'
         self._placed: Counter = Counter()        # option place: (building, window, base kind or "minerals") placed so far
         self._place_rng: random.Random | None = None  # (its own draws: the macro's dice stay as they were)
+        self._drawn: dict = {}                        # option place: building -> its decision's draw, till placed or failed
+        self._nth: Counter = Counter()                # option place: building -> how many placed this game
         self.train_depth = 1                          # units in a building's own queue Gary trains into (option gamequeue: 2)
         self.sent: list[tuple[str, int, int]] = []    # decisions' production keys given, not yet run: (kind, act, uid)
         # the map's own creep (map knowledge, read now: at the start of a game, before any zerg's)
@@ -423,6 +425,11 @@ class Executor:
         kind at this minute in the matchup (the race's PLACE table, eval/placement.py): the main, the natural (its town
         hall there or not: the pros' forge-first wall stands before it), or the newer base with a town hall and the
         fewest of its kind. ("main", "front") without one.
+        A building's first and second of the game have their own shares (the race's PLACE_FIRST: the pros' first Pylon
+        in PvZ at the natural in 92% of games, the second in the main in 84%; their window's share 47%), its build
+        style's own where it has them (PLACE_FIRST_STYLE: an opening is one plan, and the pros' Forge stands with their
+        first Gateway in a gateway-first PvZ game; drawn from every style's, it stood in the main and the natural walled
+        nothing: 22-24 Probes lost to Zerglings in the main in two games, round PL209a).
         Gary-P's Photon Cannons all stood at the main's front, the pros' at every base and two in five on its mineral
         side after 5:00 (none by the Nexus in 59% of the Mutalisk raids on Gary-P at 3-8 minutes, in 6% of the pros'),
         and its opening all in the main, the pros' Gateways at the natural in 56% before 5:00.
@@ -430,12 +437,22 @@ class Executor:
         the natural in half the games, powering its wall), each next where its count falls furthest below its share of
         one more. Drawn by dice alone, the main went without a cannon in games where the natural had six, and every
         Mutalisk raid that cost Gary-P Probes at 3-8 minutes hit the main (9-16 Probes in three of them, round PL198a);
-        weighted by the shortfall, no cannon by the Nexus in 46% of the Mutalisk raids (PL200a), 12% this way (PL201a)."""
+        weighted by the shortfall, no cannon by the Nexus in 46% of the Mutalisk raids (PL200a), 12% this way (PL201a).
+        One draw a decision, kept until it is placed or fails: the macro asks for the plan every tick while it saves, and
+        a build at another base sets out earlier (its walk counted against the money), so drawn anew each tick the first
+        tick that drew the natural won the race (PvT's Cybernetics Core, 6% at the natural, there in 38% of games, PT204a)."""
         # STOP-GAP (AGENTS.md): the pros' shares, blind to the game; a learned placement model replaces it (#65)
         g = self.g
         rows = getattr(g.race.data, "PLACE", {}).get(g.matchup, {}).get(uid) if self.place_table else None
         if not rows:
             return "main", "front"
+        if uid not in self._drawn:
+            self._drawn[uid] = self._draw(uid, mine, rows)
+        return self._drawn[uid]
+
+    def _draw(self, uid: int, mine: list[dict], rows: list) -> tuple:
+        """place's draw for a decision of this building."""
+        g = self.g
         minute = g.hi.frame / 1440
         window = next((i for i, r in enumerate(rows) if minute < r[0]), len(rows) - 1)
         _, shares, minerals = rows[window][:3]
@@ -449,7 +466,18 @@ class Executor:
         if not opts:
             return "main", "front"
         if self._place_rng is None:
-            self._place_rng = random.Random(g.game_seed * 7919 + 17)
+            # (the map and the start too: by the seed alone every map's game drew the same, a 16-game round two openings)
+            self._place_rng = random.Random(f"place/{g.game_seed}/{g.map.size}/{g.main.center}")
+        style = getattr(getattr(g.macro, "tracker", None), "style", None)
+        first = getattr(g.race.data, "PLACE_FIRST_STYLE", {}).get(g.matchup, {}).get(style, {}).get(uid) \
+            or getattr(g.race.data, "PLACE_FIRST", {}).get(g.matchup, {}).get(uid, [])
+        if self._nth[uid] < len(first):
+            # (its first or second of the game: the pros' shares for it, by dice, where it can stand)
+            shares, minerals = first[self._nth[uid]]
+            opts = [(k, share) for k, share in zip(("main", "natural", "newer"), shares) if where[k] is not None and share > 0]
+            if opts:
+                k = self._place_rng.choices([k for k, _ in opts], weights=[share for _, share in opts])[0]
+                return where[k], "minerals" if self._place_rng.random() < minerals else "front"
         n = sum(self._placed[uid, window, k] for k, _ in opts) + 1
         total = sum(share for _, share in opts)
         if n == 1:
@@ -461,7 +489,9 @@ class Executor:
         return where[k], "minerals" if (self._place_rng.random() < minerals if n == 1 else short >= 0.5) else "front"
 
     def note_placed(self, uid: int, where, side: str) -> None:
-        """A building's spot found (option place): counted for place's shares."""
+        """A building's spot found (option place): counted for place's shares, and the next decision of it drawn anew."""
+        self._drawn.pop(uid, None)
+        self._nth[uid] += 1
         rows = getattr(self.g.race.data, "PLACE", {}).get(self.g.matchup, {}).get(uid) if self.place_table else None
         if not rows:
             return
@@ -1040,6 +1070,7 @@ class Executor:
         """A building Gary decided on couldn't be placed: the macro layer hears of it (and why: the game's
         records, gary/decision_log.py)."""
         t.data["failed"] = why
+        self._drawn.pop(t.unit_type, None)
         if self.g.macro is not None:
             self.g.macro.build_failed(t)
         self.g.task = None

@@ -2,7 +2,8 @@
 stands at (by its town hall's order: the main, the natural, a newer base) and its side of that base (the mineral side,
 within MINERAL_TILES of the town hall toward its minerals, or the front), and how near a mineral-side building stands to
 its workers' lanes (the gap from its footprint to the nearest town hall-to-mineral segment). The pros' shares are the race's placement
-table (gary/protoss.py PLACE, which the executor draws from: executor.py place); Gary's against them are its check.
+table (gary/protoss.py PLACE, which the executor draws from: executor.py place), each building's first and second of the
+game apart (PLACE_FIRST); Gary's against them are its check.
 Re-simulated, the full game state (not Gary's view).
 
     python -m eval.placement --race P --matchup PvZ --pros 60                          # the pros' table
@@ -35,6 +36,9 @@ MINERAL_SIDE = 0.3             # cos(building - hall, minerals - hall) over this
 MINERAL_TILES = 9              # ... and this near its town hall
 CLASSES = ("main", "natural", "newer")
 LANE_MIN = 10                  # mineral-side starts for a building's gap to the workers' lanes
+FIRSTS = 2                     # a building's first and second of the game get their own shares (gary/protoss.py PLACE_FIRST)
+FIRST_MIN = 0.3                # ... where they come in this many games at least
+STYLE_MIN = 20                 # a build style's own firsts from this many of its games (gary/styles.py's labels)
 
 
 def starts(args: tuple) -> list[dict] | None:
@@ -106,6 +110,25 @@ def table(games: list[list[dict]]) -> dict:
     return out
 
 
+def firsts(games: list[list[dict]]) -> dict:
+    """{building id: [((main, natural, newer) shares, mineral side share, games with it)] for its first FIRSTS of the
+    game}: a window's shares mix them, while the pros' first Pylon in PvZ stands at the natural in 92% of games and the
+    second in the main in 84% (the window's share 47%), and the first Gateway with the first Pylon in all 80."""
+    out = {}
+    for t in sorted({b["id"] for g in games for b in g}):
+        rows = []
+        for i in range(FIRSTS):
+            w = [s[i] for g in games if len(s := sorted((b for b in g if b["id"] == t), key=lambda b: b["t"])) > i]
+            if len(w) < FIRST_MIN * len(games):
+                break
+            c = Counter(b["base"] for b in w)
+            rows.append((tuple(round(c[k] / len(w), 2) for k in CLASSES),
+                         round(sum(b["side"] == "minerals" for b in w) / len(w), 2), round(len(w) / len(games), 2)))
+        if rows:
+            out[t] = rows
+    return out
+
+
 def lanes(games: list[list[dict]], names: dict) -> dict:
     """{building: the median gap of its mineral-side starts to the workers' lanes, in tiles}, LANE_MIN starts at least
     (the race's PLACE_LANE, the executor's limit by the minerals)."""
@@ -130,6 +153,10 @@ def summary(name: str, games: list[list[dict]], names: dict) -> None:
             print(f"    by the minerals ({len(side)}): gap to the workers' lanes 10/50/90% "
                   f"{q(lanes, .1):.1f}/{q(lanes, .5):.1f}/{q(lanes, .9):.1f} tiles, from the town hall "
                   f"{q(halls, .1):.1f}/{q(halls, .5):.1f}/{q(halls, .9):.1f}")
+    for t, rows in firsts(games).items():
+        print(f"  {names.get(t, t)}'s firsts: " + " | ".join(
+            f"#{i + 1} in {n:.0%} of games, main/natural/newer {'/'.join(f'{s:.0%}' for s in shares)}, mineral side {m:.0%}"
+            for i, (shares, m, n) in enumerate(rows)))
 
 
 def main() -> None:
@@ -157,15 +184,30 @@ def main() -> None:
                         and r["rel_path"] in clean and r.get("duration_s", 0) >= 480:
                     recs.append(r)
         random.Random(0).shuffle(recs)
-        sets.append(("pros", [str(data_root() / "raw" / r["rel_path"]) for r in recs[:args.pros]]))
+        recs = recs[:args.pros]
+        from gary import styles
+        labels = styles.catalog(args.matchup, args.race)["assignments"]
+        style_of = [labels.get(f"{r['rel_path']}|{r['player']}") for r in recs]
+        sets.append(("pros", [str(data_root() / "raw" / r["rel_path"]) for r in recs]))
     with ProcessPoolExecutor(args.workers) as pool:
         for name, paths in sets:
             jobs = [(p, args.race) for p in paths]
-            games = [g for g in monitor.track(pool.map(starts, jobs), len(jobs), f"replays: {name}") if g is not None]
+            done = list(monitor.track(pool.map(starts, jobs), len(jobs), f"replays: {name}"))
+            games = [g for g in done if g is not None]
             summary(name, games, names)
             if name == "pros":
                 print("  the table:", json.dumps({names.get(t, t): rows for t, rows in table(games).items()}))
                 print("  the lanes:", json.dumps(lanes(games, names)))
+                print("  the firsts:", json.dumps({names.get(t, t): rows for t, rows in firsts(games).items()}))
+                # (an opening is one plan: the pros' Forge stands with their first Gateway in a gateway-first PvZ game,
+                # drawn apart it stood in the main and the natural walled nothing, round PL209a)
+                by = {}
+                for g, st in zip(done, style_of):
+                    if g is not None and st is not None:
+                        by.setdefault(st, []).append(g)
+                print("  the firsts by style:", json.dumps({st: {names.get(t, t): rows for t, rows in firsts(gs).items()}
+                                                            for st, gs in sorted(by.items()) if len(gs) >= STYLE_MIN}))
+                print("  games by style:", json.dumps({st: len(gs) for st, gs in sorted(by.items())}))
 
 
 if __name__ == "__main__":

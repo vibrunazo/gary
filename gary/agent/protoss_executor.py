@@ -21,6 +21,7 @@ from gary.agent.intents import Intent
 
 UNPOWERED = {P.NEXUS, P.PYLON, P.ASSIMILATOR}    # what stands without a Pylon's power
 POWER_SHORT_FOR = 20 * 24                        # a powered build that found no powered spot calls a Pylon this long
+POWER_NEAR = 12 * 32                             # option place: a Pylon this near a base's centre powers that base
 MERGING = {105, 106, 183}                        # ArchonWarp, CompletingArchonSummon, DarkArchonMeld: merging already
 MERGE_FOR = 6 * 24                               # a merge not given by then is given up (its decision taken back)
 MERGE_SEEN = 2 * 24                              # a merge's key this long ago shows its Templar merging, or it didn't
@@ -74,6 +75,10 @@ class ProtossExecutor(Executor):
                 return self.wait("no Pylon's power yet: one is coming") if self._pylon_coming(mine) \
                     else self.no("no Pylon's power")
             where, side = self.place(uid, mine)
+            if self.place_table and uid != P.PYLON and uid not in UNPOWERED and self._power_coming(where, mine):
+                # (option place: drawn for a base whose only Pylons are still warping in, it waits for them rather than
+                # standing at another base, as a wall's Gateway waits for the wall's Pylon)
+                return self.wait("no power at its base yet: a Pylon is coming there")
             if uid == P.PYLON and self.power_for is not None and g.hi.frame - self.power_short < POWER_SHORT_FOR:
                 where, side = self.power_for         # (the Pylon where the power was missing; kept for the window, as
                                                      # carry_out also answers what Gary can do, not only what it does)
@@ -167,13 +172,16 @@ class ProtossExecutor(Executor):
                             return spot
             finally:
                 self.room_only = False
-        if self.place_table and unit_type not in UNPOWERED and (base is not self.g.main or side == "minerals"):
+        if self.place_table and unit_type not in UNPOWERED:
             if spot := self._base_spot(unit_type, base, builder, side=side):
                 return spot
-            # (option place: no power where it was drawn; at that base's front for now, and the next Pylon there: a
-            # cannon by the mineral line drew one in 2 of 5 after 5:00 and stood there in 1 of 10, at newer bases 1 in
-            # 25 of 4)
-            self.power_short, self.power_for = self.g.hi.frame, ("natural" if base is self.g.natural else base, side)
+            # (option place: no power where it was drawn; at that base's front for now, or another base's, and the
+            # next Pylon there: a cannon by the mineral line drew one in 2 of 5 after 5:00 and stood there in 1 of 10,
+            # at newer bases 1 in 25 of 4; a full main sent PvT's opening tech to the natural's Pylon, Robotics
+            # Facilities there 50% before 5:00 and Cybernetics Cores 38%, the pros' 2% and 6%, round PT204a)
+            g = self.g
+            self.power_short = g.hi.frame
+            self.power_for = ("main" if base is g.main else "natural" if base is g.natural else base, side)
             side = "front"
         return super().spot(unit_type, base, builder, side)
 
@@ -224,6 +232,15 @@ class ProtossExecutor(Executor):
             dst = room[max(0, -oy):hy - max(0, oy), max(0, -ox):hx - max(0, ox)]
             dst += new[max(0, oy):hy - max(0, -oy), max(0, ox):hx - max(0, -ox)]
         return room, x0, y0
+
+    def _power_coming(self, where, mine: list[dict]) -> bool:
+        """The base has Pylons on their way (warping in or placed) and none finished."""
+        c = self.g.base(where).center
+        near = lambda x, y: math.dist(c, (x, y)) < POWER_NEAR
+        if any(u["type"] == P.PYLON and u["completed"] and near(u["x"], u["y"]) for u in mine):
+            return False
+        return any(u["type"] == P.PYLON and near(u["x"], u["y"]) for u in mine) or \
+            any(ut == P.PYLON and near(tx * 32 + 32, ty * 32 + 32) for ut, tx, ty in self.g.reserved)
 
     def _pylon_coming(self, mine: list[dict]) -> bool:
         g = self.g

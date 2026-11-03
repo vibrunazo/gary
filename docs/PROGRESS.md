@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-03): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.28dev), `gp1dev` (gp0.17dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.28dev), `gp1dev` (gp0.18dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1690,6 +1690,25 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **Gary-P's placement: one draw a decision, the pros' openings by style, every matchup (2026-11-03, gp0.18dev; #36).**
+  Judged on fidelity (eval/placement.py against the pros), 16 games a matchup on the same seeds (rounds PL/PT/PP210a).
+  Three bugs in place's draw: it was drawn anew every tick while the macro saved for the building, and a build at another
+  base sets out earlier (its walk counted against the money), so the first tick that drew the natural won the race (PvT's
+  Cybernetics Core, 6% at the natural, there in 38% of games, PT204a); its dice were seeded by the game's seed alone, so
+  every map with that seed drew the same and a 16-game round had two openings (the measures of PL197a-PL206a rest on
+  those); and a powered building with no power in the main went to another base without calling the next Pylon there. A
+  window's shares also mix a building's first with its later ones: the pros' first Pylon in PvZ stands at the natural in
+  92% of games and the second in the main in 84%, the window's share 47%, and their first Gateway stands with the first
+  Pylon in all 80 of a sample. Each building's first and second of the game now have the pros' own shares, for its build
+  style where 20 of its games say (gary/protoss.py PLACE_FIRST, PLACE_FIRST_STYLE: an opening is one plan, the forge-first
+  pros build all of it at the natural, the gateway-first ones their Forge in the main in 45% of games); PvT and PvP have
+  tables; every table is from 240 modern games. Gary-P's PvZ first Pylon at the natural 100% (the pros 92%), first Forge
+  88% (the style mix's 81%), first cannon 100% (94%); PvT's Robotics Facility and Cybernetics Core in the main 100% (95%,
+  94%; 50% and 62% before); PvP's first Gateway in the main 100% (91%). Probes at 12:00 in PvZ 48.7 (the pros 46.2).
+  Probes lost to raids at 3-8 minutes in PvZ 4.9 a game, 1.7 with the firsts off on the same draws (PL211a); either is
+  a few games of 13-32 lost in an undefended main, and 16 games don't tell them apart: the table is blind to what Gary
+  saw (Mutalisks found no cannon by the Nexus in 27% of raids, the pros 6%: #65), and some gateway-first openings had no
+  unit and no cannon by 4:45 (the macro's). Kept on, as AGENTS.md's fidelity rule says, while those are worked on.
 - **Idle workers Gary knows of sent back at once (2026-11-03, gt0.28dev, gz0.17dev, gp0.17dev; #36).** Gary-P's
   Probes stood idle at the main 0.46 at a time at 1:40-4:20 (the pros 0.13): the natural wall's builders, walked home
   by the minimap, stood there 15-20 s each (38 Probe-seconds a game), and a third of its new Probes about 7 s (24). A
