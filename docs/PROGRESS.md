@@ -17,9 +17,9 @@ rather than scripted, because the replay pipeline made that the quicker way to a
 Since 2026-10-15 every piece of the self-play loop is being built crude before any is polished: a
 learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the league isn't trained
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
-Where it stands (2026-11-02): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
+Where it stands (2026-11-03): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.27dev), `gp1dev` (gp0.16dev) and `gz1dev` (gz0.16dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.28dev), `gp1dev` (gp0.17dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1690,6 +1690,17 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **Idle workers Gary knows of sent back at once (2026-11-03, gt0.28dev, gz0.17dev, gp0.17dev; #36).** Gary-P's
+  Probes stood idle at the main 0.46 at a time at 1:40-4:20 (the pros 0.13): the natural wall's builders, walked home
+  by the minimap, stood there 15-20 s each (38 Probe-seconds a game), and a third of its new Probes about 7 s (24). A
+  builder walking to another base is hidden from the idle check for the walk (TRAVEL_FOR, 40 s, so a walk isn't taken
+  for idleness), and that held after its building was placed: each was sent to mine just after the 40 s ran out. A
+  plain fix, every build's hands: the hold ends once the building is placed, and a worker Gary knows is due (just
+  made, or a builder walked home) is looked at at once off screen, as a pro looks home for it, not at the 10 s sweep.
+  16 PvZ games on the same seeds (PL203a against PL201a): idle at the main 0.22 at a time (0.46); 3 or more Probes off
+  their work at minute 4 15% (28%, the pros 11%); Probes at 12:00 49.3 (45.9, the pros 46.2). The rest of the Probes
+  "off work" at 2-4 minutes is mostly the measure's labels: a pro's builder walks under its build or gather order, Gary's
+  under a move (to the base, then home by the minimap), with as many trips to the natural (15.6 a game, the pros 14.4).
 - **Gary-P's cannons by the mineral line and at every base (2026-11-02, gp0.16dev; #36).** Mutalisk raids still took
   4.6 Probes each after gp0.15dev. Two causes in the hands, measured with eval/placement.py (new: how near a mineral-side
   building stands to the workers' lanes, the town hall to each mineral): a spot drawn for the mineral line was the nearest

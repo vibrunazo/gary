@@ -1179,6 +1179,10 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # kept it 60 s, and the model didn't decide it again meanwhile: a Cybernetics Core refused at 3:44 never came, gp0.12dev);
 # a plain fix, adopted on the input check; refused tech buildings decided again after a median 33 s (62 s), 8 PvZ games
 # (RF189a against PY188a's)
+# gt0.28dev: the fix of 2026-11-03, every build's hands (executor.py): a placed build's builder no longer hidden from
+# the idle check for its walk's 40 s, and a worker Gary knows is due (just made, or a builder walked home) looked at
+# at once off screen; Gary-P's Probes idle at the main at 1:40-4:20 0.22 at a time (0.46, the pros 0.13), 16 PvZ games
+# on the same seeds (PL203a against PL201a)
 # gt0.27dev: every dev build's fix of 2026-11-02 (later): a building decided and not started yet counted among its own
 # units (pendown), as the replays count it (a pro's builder walks before the order, the building starts with it: a
 # Stargate decided and none in the pros' own in 99 of 25,884 PvZ states at 3-8 minutes); an input fix, adopted on the
@@ -1191,7 +1195,7 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+widespot+seenall+armyseen+builtcount+unitcount+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+pendown"),
-                       "version": "gt0.27dev"}
+                       "version": "gt0.28dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
@@ -1245,9 +1249,10 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # after another) and still counted, now none (#47)
 # gz0.15dev: the fix of 2026-11-02 (as gt0.26dev's): a building placed that never started taken out of its decisions so far
 # gz0.16dev: a building decided and not started yet among its own units, its Drone gone (pendown, as gt0.27dev's)
+# gz0.17dev: gt0.28dev's fix
 MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allstyles+gaswaits+parkmany"
                                      "+pvzroles+mirrorroles+ownhist+builtcount+pendown"),
-                       "version": "gz0.16dev"}
+                       "version": "gz0.17dev"}
 
 # gp0.4dev: gp1 without the stop-gaps over its learned layers (unscripted: the hunt, a Pylon ahead of production) and
 # its army on control groups by type (grouping, as gt1dev's and gz1's): the Protoss's dev build, where its learning is
@@ -1293,8 +1298,9 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # its count falls furthest below its share): cannons by the mineral line 38% at 5-12 minutes (10%, the pros 36%), every
 # Mutalisk raid's main with one; Probes lost to raids at 3-8 minutes 0.75 a game (3.6, the pros 0.9), to Mutalisk raids
 # 0.38 each (4.6, the pros 1.3); Probes at 12:00 45.9 (38.7, the pros 46.2)
+# gp0.17dev: gt0.28dev's fix
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"),
-                       "version": "gp0.16dev"}
+                       "version": "gp0.17dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

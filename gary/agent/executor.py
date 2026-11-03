@@ -68,6 +68,8 @@ RESUME_AFTER = 24                     # an unfinished building nobody has built 
 RESUME_RETRY = 24 * 4                 # ...and if that one doesn't arrive either, another after 4 s
 IDLE = 3                              # order "PlayerGuard": standing around
 MINING_STILL = 87                     # order "MiningMinerals": at its mineral field (lets a build order go)
+SWEEP_DUE = 3 * 24                    # a due worker (idle_sweep) looked at again after this, if still idle off screen
+SENT_HOME = 60 * 24                   # a builder walked home is due once idle within this
 NEW_WORKER = 8 * 24                   # a worker this new still on its rally's move is sent to mine (a rally on a field only
                                       # walks it there: Gary's first command came 5.0 s after one was done, the pros' 0.8 s)
 SPLIT_UNTIL = 10 * 24                 # the game's start: idle workers sent one at a time, each to its own field
@@ -134,6 +136,8 @@ class Executor:
         self.g = g
         self.next_sweep = 0                           # next look for idle workers off screen
         self.born = {}                                # worker tag -> the frame it was first seen done (NEW_WORKER)
+        self.sent_home = {}                           # worker tag -> the frame a builder was walked home by the minimap
+        self.looked_due = {}                          # worker tag -> the frame the sweep last looked at it as due
         self.next_gas_pull = 0
         self.next_rearm = 0
         self._terrain_cache = None                    # see terrain()
@@ -253,13 +257,24 @@ class Executor:
 
     def idle_sweep(self, obs: dict, done: list[dict]) -> bool:
         """Every 10 s, look at an idle worker the camera isn't showing, so the mining routine
-        (which works on what's on screen) can send it back. True if Gary moved the camera."""
+        (which works on what's on screen) can send it back. True if Gary moved the camera.
+        A worker Gary knows is due is looked at at once, as a pro looks home for it: one just made (NEW_WORKER twice),
+        or a builder walked home by the minimap (it stands where the walk ends). Gary-P's wall builders stood 11 s
+        each at the main after the walk and a third of its new Probes 7 s, 62 Probe-seconds a game at 1:40-4:20
+        (idle at the main: 0.46 Probes at a time, the pros 0.13)."""
         g, hi = self.g, self.g.hi
-        if hi.frame < self.next_sweep:
-            return False
         busy = {g.scout} | (g.pulled if not g.home_scvs or g.hi.frame - g.calm_since < FIGHT_CALM else set()) | g.block_units
         away = [u for u in done if u["type"] == g.race.worker and self._idle(u, done) and u["tag"] not in busy
                 and not screen_of(obs, u["x"], u["y"]) and g.ignore_idle_until.get(u["tag"], 0) <= hi.frame]
+        due = [u for u in away if hi.frame - self.looked_due.get(u["tag"], -SWEEP_DUE) >= SWEEP_DUE
+               and (hi.frame - self.born.get(u["tag"], -2 * NEW_WORKER) < 2 * NEW_WORKER
+                    or u["order"] == IDLE and hi.frame - self.sent_home.get(u["tag"], -SENT_HOME) < SENT_HOME)]
+        if due:
+            self.looked_due[due[0]["tag"]] = hi.frame
+            hi.camera_minimap(due[0]["x"], due[0]["y"])
+            return True
+        if hi.frame < self.next_sweep:
+            return False
         self.next_sweep = hi.frame + 24 * 10
         if not away:
             return False
@@ -1043,6 +1058,7 @@ class Executor:
                 # pros' one Probe, was worse in a test game: the next was rarely that soon)
                 if obs["selection"] == [t.data["worker"]]:
                     hi.minimap_right_click(*min(g.main.minerals, key=lambda m: math.dist(m, g.main.center)), queued=True)
+                    self.sent_home[t.data["worker"]] = g.hi.frame
                 g.task = None
                 return
             fields = [m for m in base.minerals if screen_of(obs, *m)]
@@ -1255,6 +1271,9 @@ class Executor:
                 g.reserved.append((t.unit_type, *spot))
                 g.reserved_at[(t.unit_type, *spot)] = hi.frame
                 g.builder_of[(t.unit_type, *spot)] = t.data["worker"]
+                # (its walk is over: idle from now on, it is idle; held to the walk's TRAVEL_FOR, Gary-P's wall
+                # builders walked home stood at the main till it ran out, 15-20 s each, 38 Probe-seconds a game)
+                g.ignore_idle_until.pop(t.data["worker"], None)
                 if "decision" in t.data:
                     g.decision_of[(t.unit_type, *spot)] = t.data["decision"]
                 if getattr(g, "builder_back", False) and t.unit_type != g.race.gas_building:

@@ -75,7 +75,8 @@ closed and its line leaves this file; docs/PROGRESS.md keeps what was done and h
   taken back (gp0.13dev), a decided building among its own until it starts (gp0.14dev: the second Stargate 1.5 to 1.2),
   buildings placed by the pros' table (gp0.15dev: the natural's wall, cannons at every base; Probes lost to raids 9.9 to 3.6),
   cannons by the mineral line and at every base in each game (gp0.16dev: Probes lost to raids 0.75 a game, the pros 0.9);
-  left: shuttles, cannons at newer bases, the opening's Probes off work, unit mix
+  idle Probes sent back at once (gp0.17dev: idle at the main 0.46 at a time to 0.22, the pros 0.13);
+  left: shuttles, cannons at newer bases, unit mix
   (cannons PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'), the placement table for PvT and PvP
 - [#61](https://github.com/vibrunazo/gary/issues/61) The Terran's modes in PvT (gt0.22dev siege and lay mines): held as long as the
   pros hold them, the pros' mines outside fights, Spider Mines four minutes late
