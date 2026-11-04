@@ -549,7 +549,8 @@ class LearnedMacro:
             # building kept as the goal and waiting for it)
             uid = plan["unit"]
             name = describe(g.race, BUILD, uid)
-            g.task = Task("build", uid, plan["where"], data={**plan.get("data", {}), "decision": (BUILD, uid)},
+            g.task = Task("build", uid, plan["where"], data={**plan.get("data", {}), "decision": (BUILD, uid),
+                                                             "decided": goal["since"]},
                           started=hi.frame)
             LOG.decision(g.hi.side, "macro", hi.frame, name, inputs=self._seen(obs, mine, me),
                          by=f"executor: for the {goal['name']} at its base")
@@ -558,7 +559,7 @@ class LearnedMacro:
             goal.update(since=hi.frame, coming=True)
             return
         if plan["kind"] == "build":
-            data = {**plan.get("data", {}), "decision": (goal["act"], goal["id"])}
+            data = {**plan.get("data", {}), "decision": (goal["act"], goal["id"]), "decided": goal["since"]}
             if "near" in goal:                  # a goal that names its base and spot (answers.py turrets)
                 data.update(near=goal["near"], level_at=goal.get("level_at"), avoid=goal.get("avoid"))
             g.task = Task("build", goal["id"], goal.get("where", plan["where"]), data=data, started=hi.frame)
@@ -641,8 +642,10 @@ class LearnedMacro:
                 continue
             minerals, gas = plan["cost"]
             # (a parked build decided after this unit waits its turn: its builder walking held the money of the SCVs
-            # decided before it, 12.7 s of the main Command Center's idle at 2:30-4:00, #55)
-            ahead = sum(g.race.costs[p.unit_type][0] for p in g.parked if p.started > since)
+            # decided before it, 12.7 s of the main Command Center's idle at 2:30-4:00, #55; by its decision's time, not
+            # its task's start, which a resumed walk sets again: Gary-P's first Pylon at the natural, decided at 27 s
+            # and resumed there at 48, gave its money to a Probe decided at 35, and was placed at 60, the pros' at 47)
+            ahead = sum(g.race.costs[p.unit_type][0] for p in g.parked if p.data.get("decided", p.started) > since)
             if me["minerals"] - g.committed() + ahead < minerals or me["gas"] < gas:
                 continue
             g.task = Task(plan["kind"], data=plan, started=g.hi.frame)

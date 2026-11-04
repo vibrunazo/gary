@@ -1748,6 +1748,18 @@ plan and the full log).
   its order (the Gateway's last seconds, then the money and the walk), the Stargate 12.5 s, cannons waiting for the Forge
   32 s (6 decisions), none never ordered. Style 21 played as told 78% (69%), style 20 81% (81%); gap score 0.27 both;
   won 1, lost 1 (1, 0). Adopted for fidelity. Next: a decided building's order lag (money and the walk; the Core's 14 s).
+- **A parked build's turn by its decision (2026-11-04, a bug fix in gp1dev and every race's macro; #16, #55).** The
+  Core's 14 s from decision to placement is the walk-ahead, not a lag: a decided building's worker sets out while its
+  money comes, and the replays time Gary's buildings at the placement as the pros'. The forge-first opening's delay
+  starts at the first Pylon instead: placed at 57 s, the pros 47 (2,499 modern PvZ pros; the first Forge or Gateway 94
+  s, 84), mining only 1-3.5 s behind in the first 50 s (re-simulated, mined minerals' levels). A unit queued for a busy
+  building may take a parked build's money only if the build was decided after it (#55), and that was read from the
+  build task's start, which a resumed walk sets again: Gary-P's Pylon at the natural, decided at 27 s and resumed there
+  at 48, looked newer than a Probe decided at 35, which took its money; the Pylon came at 60. Now by the decision's time
+  (agent/macro.py, the task's data "decided"). Parity unchanged. In PL225a (48 PvZ games, PL224a's seeds): a Probe
+  decided after the first Pylon trained before it in 0 games (39 of 48), the first Pylon at 51 s (58; quartiles 50-53,
+  55-59), the first Forge or Gateway 91 s (94), the forge-first first Corsair 5.80 minutes (5.97), every first
+  Corsair 5.88 (5.98); styles as told 81% and 81% (81%, 78%), gap score 0.28 (0.27).
 - **Gary-P's Corsairs on their own (2026-11-04, gp0.23dev; #16).** The pros see the Spire before any Mutalisk in 72% of
   PvZ games (400 modern games re-simulated: when the Protoss first sees the Spire, 68% of the time a Corsair is by it, at
   the Zerg's main, a median 6:20), Gary-P in 20% (PL219a), its first Corsair's nearest to the Zerg's start a median 70
