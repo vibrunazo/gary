@@ -668,6 +668,14 @@ class LearnedMacro:
             return self._no("an answer to the enemy's plan says no")
         have = {u["type"] for u in done}
         if not g.race.meets(have, uid):
+            # a model that sees how long its buildings have been building (FeatureSpec.coming) decides a unit as what
+            # it needs nears done, as the pros' next decision is then (the Corsair, a Stargate 40-45 s into its 44: 31%
+            # of the states, in 5 s): it waits for it, queued with its money kept, as for a busy producer (the pros
+            # trained the first Corsair within 10 s of the Stargate in 88% of PvZ games, Gary-P in 3%)
+            if act in (TRAIN, MORPH) and self.model.spec.coming and \
+                    g.race.meets(have | {u["type"] for u in mine if not u["completed"]}, uid):
+                self.why_not = "what it needs is being built"
+                return WAIT
             return self._no("what it needs isn't there")
         if getattr(posture, "no_workers", False) and uid == g.race.worker:
             return self._no("the posture: no workers now")

@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.28dev), `gp1dev` (gp0.23dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.28dev), `gp1dev` (gp0.24dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1709,6 +1709,33 @@ plan and the full log).
   mostly, don't cover it, two thirds of the games; 5.4 s when they do), the hands free meanwhile (the arbiter's trace:
   no macro wait). At the Stargate's finish Gary-P has the pros' Probes (30) and less in the bank (138 minerals, the pros
   223). Next: where its minerals go before the Stargate (the parked cannons' money against the pros' spending).
+- **Gary-P saves for its first Corsair: the buildings' times as macro inputs (2026-11-04, gp0.24dev, option coming;
+  #16).** Where its minerals went: while the Stargate builds Gary-P spends on buildings and upgrades what the pros do
+  (452 minerals, the pros 440: each item's first order, Stargate-first plans, PL221a against 1,856 modern pros); after it
+  is done and before the Corsair it spends 242 (the pros 42: Photon Cannons 73, Pylons 52, a Gateway 36), and orders the
+  Corsair a median 20 s after the finish, within 10 s in 3% of the games (the pros 5 s, 88%). The pros save as it nears
+  done: with the Stargate 40-45 s into its 44, their next decision is the Corsair in 31% of the states (in 5 s), 63% at
+  45-50 s, under 1% before 30 s. The model couldn't see that (its counts tell a Stargate building, not how far), and
+  in play a unit whose building isn't done was set aside. An input for it: how long each producer or tech building's
+  longest-building unfinished one has been building (gary/policy/macro.py coming_table and building_times, from the
+  starts and finishes its own counts show in the replays, from its first look at the building in play; train/macro.py
+  --coming), and a unit decided while what it needs is being built waits for it, queued with its money kept as for a
+  busy producer (agent/macro.py plan; only with a model that has the input). Timed first at the build commands, a Gateway
+  placed again after its Probe stopped counted from its first order (69 s where play's had built 14): from the counts,
+  each building's longest time is its build time within 2 s. P_all_v2coming10 (with idle_table's input, 10 epochs): held
+  out 49.99% top-1, 42.0% non-routine (P_all_v2idle10 49.57%, 41.2%); the Corsair's odds by the Stargate's time 0.00 to
+  25 s, 0.16 at 35-40, 0.28 at 40-45, 0.36 at 45-50 (the pros 0.08, 0.37, 0.72; P_all_v2arch 0.11-0.16 throughout), a
+  Zealot's by the first Gateway's as the pros' (0.30 at 30-35 s, 0.29). The inputs test now compares the idle and the
+  new inputs too (their blocks had been left out): 0% off; one game's Pylons (two or three decided within 4 s, placed a
+  builder at a time 5 s apart, counted from the decision by pendown) put own all and decided at 21% off, not in the next
+  game nor the round (bursts of three 0.35 a game, 0.44 before). In play (PL223a against PL221a, 48 PvZ games to 12
+  minutes, the same seeds): the first Corsair within 10 s of the Stargate's finish in 47% of the games (3%), 13 s after
+  it (20), 141 minerals spent in between (242); Stargate to Corsair 57 s (64, the pros 49); the first Zealot trained 50 s
+  after the first Gateway's placement (62). The first Corsair still comes at 6.23 minutes (6.22, the pros 5.47): the
+  forge-first opening's first Gateway later (23 of 48 paired games later, 10 earlier; the first cannon sooner in 24, later
+  in 11), the Core decided 4 s later after it and ordered 14 s after its decision in both rounds. Gap score 0.27 (0.26),
+  styles as told 81% and 69% (81%, 72%), won 1 (0). Adopted for fidelity. Next: the Core's 14 s from decision to order
+  and the forge-first opening's order.
 - **Gary-P's Corsairs on their own (2026-11-04, gp0.23dev; #16).** The pros see the Spire before any Mutalisk in 72% of
   PvZ games (400 modern games re-simulated: when the Protoss first sees the Spire, 68% of the time a Corsair is by it, at
   the Zerg's main, a median 6:20), Gary-P in 20% (PL219a), its first Corsair's nearest to the Zerg's start a median 70

@@ -54,17 +54,19 @@ class FeatureSpec:
     year: bool = False                                # the game's year as an input
     matchups: list[str] = field(default_factory=list)  # one model for the race's matchups: which one (one-hot)
     idle: list = field(default_factory=list)          # [building, [the units it makes]]: its idle count an input
+    coming: list = field(default_factory=list)        # buildings whose longest-building unfinished one's time an input
 
     def __post_init__(self):
         self.decisions = [tuple(d) for d in self.decisions]
         self.idle = [[int(b), [int(u) for u in us]] for b, us in self.idle]
+        self.coming = [int(b) for b in self.coming]
         self._index = {d: i for i, d in enumerate(self.decisions)}
 
     @property
     def size(self) -> int:
         return (7 + 2 * len(self.own_types) + 2 * len(self.seen_types) + len(self.decisions)
                 + len(self.styles) + 1 + (len(self.maps) + 1 if self.maps else 0) + (1 if self.year else 0)
-                + len(self.matchups) + len(self.idle))
+                + len(self.matchups) + len(self.idle) + len(self.coming))
 
     def decision_index(self, act: int, uid: int) -> int:
         return self._index.get((act, uid), self._index[OTHER])
@@ -78,10 +80,12 @@ class FeatureSpec:
 def encode(spec: FeatureSpec, frame: np.ndarray, eco: np.ndarray, units: np.ndarray,
            seen_now: np.ndarray, seen_max: np.ndarray, decided: np.ndarray,
            since_last_s: np.ndarray, style: int | None, map_hash: str | None = None,
-           year: float | np.ndarray | None = None, matchup: str | None = None) -> np.ndarray:
+           year: float | np.ndarray | None = None, matchup: str | None = None,
+           building_s: np.ndarray | None = None) -> np.ndarray:
     """Features for n moments of one player. Shapes: frame (n,), eco (n, 4) [minerals, gas,
     supply used x2, supply max x2], units (n, 228, 2), seen_now / seen_max (n, 228),
-    decided (n, len(spec.decisions)) counts so far, since_last_s (n,)."""
+    decided (n, len(spec.decisions)) counts so far, since_last_s (n,); building_s (n, len(spec.coming)): how long the
+    longest-building unfinished one of each has been building, in seconds (0: none)."""
     n = len(frame)
     used, cap = eco[:, 2] / 400.0, eco[:, 3] / 400.0
     style_onehot = np.zeros((n, len(spec.styles) + 1), dtype=np.float32)
@@ -112,6 +116,8 @@ def encode(spec: FeatureSpec, frame: np.ndarray, eco: np.ndarray, units: np.ndar
     if spec.idle:                                   # finished producers less the units in production they make
         parts.append(np.log1p(np.stack([np.maximum(units[:, b, 1] - sum(units[:, u, 0] - units[:, u, 1] for u in us), 0)
                                         for b, us in spec.idle], axis=1)))
+    if spec.coming:                                 # (a Stargate 40 s into its 44: the pros' next decision is the Corsair)
+        parts.append(np.minimum((np.zeros((n, len(spec.coming))) if building_s is None else building_s) / 60.0, 2))
     x = np.concatenate([p.astype(np.float32) for p in parts], axis=1)
     assert x.shape[1] == spec.size, (x.shape, spec.size)
     return x
@@ -127,6 +133,31 @@ def idle_table(letter: str) -> list:
     for u, b in Race.of(letter).producer.items():
         by.setdefault(b, []).append(u)
     return [[b, sorted(us)] for b, us in sorted(by.items())]
+
+
+def coming_table(letter: str) -> list[int]:
+    """FeatureSpec.coming for a race: the buildings that make units or that a unit needs (a Stargate, a Spire, an
+    Academy): the pros save for what one makes as it nears done."""
+    from gary.race import Race
+    r = Race.of(letter)
+    need = set(r.producer.values()) | {q for u, rs in r.requires.items() if u not in r.sizes for q in rs}
+    return sorted(b for b in need if b in r.sizes)
+
+
+def building_times(spec: FeatureSpec, frames: np.ndarray, units: np.ndarray) -> np.ndarray:
+    """FeatureSpec.coming's inputs from a replay's rows (a row a second from the game's start, units (n, 228, 2)): for
+    each building, how long its longest-building unfinished one has been building at each row (seconds), from the
+    starts its own counts show (all rises) and those finished since (completed rises), the oldest first. (Timed at
+    their commands, a Gateway placed again after its Probe stopped counted from its first order: 69 s where play's
+    had built 14.)"""
+    out = np.zeros((len(frames), len(spec.coming)), np.float32)
+    for j, b in enumerate(spec.coming):
+        rise = np.maximum(np.diff(units[:, b].astype(np.int64), axis=0), 0)
+        starts = np.repeat(frames[1:], rise[:, 0])
+        done = np.concatenate([[0], np.cumsum(rise[:, 1])])
+        on = (units[:, b, 0] > units[:, b, 1]) & (done < len(starts))
+        out[on, j] = (frames[on] - starts[done[on]]) / 24.0
+    return out
 
 
 PLAY_YEAR = 2026.0               # the year in play (the meta Gary plays)
@@ -291,6 +322,7 @@ class MacroTracker:
         self.look_every = 0
         self.last_look = -1 << 30
         self.tag_types: dict[int, int] = {}   # own units' types by tag (one inside a bunker is out of sight)
+        self.started: dict[int, int] = {}     # spec.coming's buildings: tag -> the frame it was first seen unfinished
         self.workers_at: dict[int, tuple] = {}   # own workers last seen: tag -> (frame, x, y) (one in a gas building)
         # option builtcount: the buildings among the decisions so far counted as the replays count them, each building
         # that started (a decision of the model's or a rule's), at its decision's time if it had one: decided Barracks
@@ -319,6 +351,8 @@ class MacroTracker:
                 continue
             if u["owner"] == self.slot:
                 self.tag_types[u["tag"]] = t
+                if not u["completed"] and t in self.spec.coming:
+                    self.started.setdefault(u["tag"], obs["frame"])
                 if t in WORKER_TYPES:
                     self.workers_at[u["tag"]] = (obs["frame"], u["x"], u["y"])
             elif u["owner"] != 11:
@@ -397,7 +431,7 @@ class MacroTracker:
         # tracker's pending, three for a Pylon decided once, each taken back when it didn't start: 2.3 Pylons short)
         c.pending, c.buildings_seen, c.building_tags = [list(p) for p in self.pending], set(self.buildings_seen), \
             set(self.building_tags)
-        c.halls_at, c.workers_at = list(self.halls_at), dict(self.workers_at)
+        c.halls_at, c.workers_at, c.started = list(self.halls_at), dict(self.workers_at), dict(self.started)
         return c
 
     def note_decision(self, act: int, uid: int, frame: int) -> None:
@@ -419,6 +453,7 @@ class MacroTracker:
         them, by the type look() last saw."""
         units = np.zeros((1, 228, 2), dtype=np.float32)
         seen = np.zeros(228, dtype=np.float32)
+        building = np.zeros((1, len(self.spec.coming)), dtype=np.float32)
         for u in obs["units"]:
             t = u["type"]
             if not 0 <= t < 228:
@@ -426,6 +461,10 @@ class MacroTracker:
             if u["owner"] == self.slot:
                 units[0, t, 0] += 1
                 units[0, t, 1] += 1 if u["completed"] else 0
+                if not u["completed"] and t in self.spec.coming:
+                    j = self.spec.coming.index(t)
+                    since = self.started.setdefault(u["tag"], obs["frame"])
+                    building[0, j] = max(building[0, j], (obs["frame"] - since) / 24.0)
             elif u["owner"] != 11:
                 seen[t] += 1
         for t, n in in_production.items():
@@ -455,4 +494,4 @@ class MacroTracker:
                 decided[self.own_keys] = self.decided[self.own_keys]
         return encode(self.spec, frame, eco, units, seen[None], self.seen_max[None], decided[None],
                       np.array([(obs["frame"] - self.last_decision_frame) / 24.0], dtype=np.float32), self.style,
-                      self.map_hash, None, self.matchup)
+                      self.map_hash, None, self.matchup, building)

@@ -644,6 +644,13 @@ OPTIONS = {
     # (P_all_v2arch 47.8%; 10 epochs without the inputs 48.7%). Not adopted: in play (PL222a against PL221a) the Stargate
     # to Corsair 67 s (64), held by money after the decision (docs/PROGRESS.md)
     "idlemacro": lambda m: m["macro"].update(model="runs/macro_exp/P_all_v2idle10/model.pt"),
+    # macro: the Protoss model with how long each producer or tech building unfinished has been building as inputs too
+    # (train/macro.py --coming --idle, 10 epochs), and a unit decided as what it needs nears done waits for it, queued
+    # with its money kept (macro.py plan): with a Stargate 40-45 s into its 44 the pros' next decision is the Corsair in
+    # 31% of the states (this model 26%, P_all_v2idle10 13%), and they trained the first Corsair within 10 s of the
+    # Stargate in 88% of PvZ games, Gary-P in 3% (#16). Held out 49.99% top-1 (P_all_v2idle10 49.57%). In gp1dev since
+    # gp0.24dev
+    "coming": lambda m: m["macro"].update(model="runs/macro_exp/P_all_v2coming10/model.pt"),
     # army.py: no hunt (v0.16's scripted attack once no enemy army was seen for a minute): with commitments the
     # engage choice decides when the army goes for the enemy's buildings. In human game 3 the hunt sent 23
     # marines into three sunkens at "100% sure", one by one, twice
@@ -1354,9 +1361,14 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # seeds, PL221a against PL219a): the first Corsair within 25 tiles of the Zerg's start in 35% of the games (12%, the pros
 # 80%), its nearest 40 tiles (70, the pros 5); the Spire seen before any Mutalisk 22% (20%, the pros 72%); Probes lost to
 # raids at 3-8 minutes 2.23 a game (2.77), -0.54 [-1.73, +0.58]
+# gp0.24dev: coming, the macro model reading how long each producer or tech building has been building, a unit decided as
+# what it needs nears done waiting for it with its money kept (fidelity first, 48 PvZ games to 12 minutes on the same
+# seeds, PL223a against PL221a): the first Corsair within 10 s of the Stargate's finish in 47% of the games (3%, the pros
+# 88%), 13 s after it (20 s, the pros 5 s), 141 minerals spent in between (242, the pros 42); the first Zealot 12 s sooner
+# after the first Gateway; the gap score 0.27 (0.26), the styles played as told 81% and 69% (81%, 72%)
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
-                                     "+fightrules+aircluster"),
-                       "version": "gp0.23dev"}
+                                     "+fightrules+aircluster+coming"),
+                       "version": "gp0.24dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

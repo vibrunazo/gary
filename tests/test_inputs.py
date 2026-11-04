@@ -78,6 +78,12 @@ def _blocks_macro(spec, extras: int = 0) -> list[tuple[str, slice, str, float]]:
         out.append((name, slice(k, k + n), "count", 1.0))
         k += n
     k += len(spec.styles) + 1 + (len(spec.maps) + 1 if spec.maps else 0) + (1 if spec.year else 0) + len(spec.matchups)
+    if spec.idle:
+        out.append(("idle production", slice(k, k + len(spec.idle)), "count", 0.0))
+        k += len(spec.idle)
+    if spec.coming:                             # (seconds / 60: play from the building's first look, the replay its order)
+        out.append(("buildings coming", slice(k, k + len(spec.coming)), "value", 0.05))
+        k += len(spec.coming)
     if extras:
         out.append(("critic extras", slice(k, k + extras), "value", 0.35))
     return out

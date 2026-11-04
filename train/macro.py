@@ -38,7 +38,7 @@ from inventory import data_root  # noqa: E402
 from eval import monitor, priority  # noqa: E402
 from train.select import GameFilter  # noqa: E402
 
-from gary.policy.macro import OTHER, FeatureSpec, MacroModel, MacroNet, encode, idle_table  # noqa: E402
+from gary.policy.macro import OTHER, FeatureSpec, MacroModel, MacroNet, building_times, coming_table, encode, idle_table  # noqa: E402
 from gary.race import Race  # noqa: E402
 
 STRIDE = 3 * 24             # a sample every 3 s of game time
@@ -111,7 +111,7 @@ def game_meta(rows: dict, path: str) -> tuple[str, float]:
 
 
 def build_spec(race: str, jobs: list, workers: int, era_inputs: bool = True, matchups: list[str] | None = None,
-               idle: bool = False) -> FeatureSpec:
+               idle: bool = False, coming: bool = False) -> FeatureSpec:
     own, seen, counts = set(), set(), Counter()
     with ProcessPoolExecutor(workers) as pool:
         for o, s, c in pool.map(scan, [j for j in jobs if not j[3]], chunksize=32):
@@ -127,7 +127,7 @@ def build_spec(race: str, jobs: list, workers: int, era_inputs: bool = True, mat
     return FeatureSpec(race=race, own_types=sorted(own), seen_types=sorted(seen),
                        decisions=decisions, styles=styles, maps=maps, year=era_inputs,
                        matchups=sorted(matchups) if matchups and len(matchups) > 1 else [],
-                       idle=idle_table(race) if idle else [])
+                       idle=idle_table(race) if idle else [], coming=coming_table(race) if coming else [])
 
 
 def max_counts(job: tuple) -> np.ndarray:
@@ -213,8 +213,10 @@ def encode_rows(d, i: int, spec: FeatureSpec, ts: np.ndarray, style: int | None 
     nxt = np.searchsorted(c[:, 0], f, side="right") if len(c) else np.zeros(len(ts), np.int64)   # the next one's
     last = np.where(nxt > 0, c[np.maximum(nxt - 1, 0), 0] if len(c) else 0, 0)
     seen_max = np.maximum.accumulate(d["seen"][:, i].astype(np.float32), axis=0)[ts]
+    building = building_times(spec, frames, d["units"][:, i])[ts] if spec.coming else None
     x = encode(spec, f, d["eco"][ts, i].astype(np.float32), d["units"][ts, i].astype(np.float32),
-               d["seen"][ts, i].astype(np.float32), seen_max, cum[nxt], (f - last) / 24.0, style, map_hash, year, matchup)
+               d["seen"][ts, i].astype(np.float32), seen_max, cum[nxt], (f - last) / 24.0, style, map_hash, year, matchup,
+               building)
     return x, nxt
 
 
@@ -316,6 +318,8 @@ def main() -> None:
     ap.add_argument("--out", help="save the run here instead of runs/macro/<matchup>_<race>_<time> (experiments that must not become the newest model)")
     ap.add_argument("--idle", action="store_true", help="the idle production buildings by type as inputs (gary/policy/macro.py "
                     "idle_table): the pros use a building the moment it is done")
+    ap.add_argument("--coming", action="store_true", help="how long each producer or tech building unfinished has been "
+                    "building as inputs (gary/policy/macro.py coming_table): the pros save for what it makes as it nears done")
     ap.add_argument("--no-era-inputs", action="store_true", help="without the year and map inputs (the models before them)")
     ap.add_argument("--styles", help="the style catalogue's version for every player's style (v2: every game labelled, "
                     "taxonomy/label_all.py; default the macro index's)")
@@ -361,7 +365,7 @@ def main() -> None:
             for p, i, s, h in jobs]
     print(f"{len(jobs)} player-games ({sum(j[3] for j in jobs)} held out; {keep.describe()}"
           f"{'; test era ' + args.test_era if args.test_era else ''}{f'; modern x{args.weight_modern:g}' if args.weight_modern != 1.0 else ''})", flush=True)
-    spec = build_spec(args.race, jobs, args.workers, not args.no_era_inputs, matchups, args.idle)
+    spec = build_spec(args.race, jobs, args.workers, not args.no_era_inputs, matchups, args.idle, args.coming)
     print(f"features {spec.size}, decision classes {len(spec.decisions)}, styles {len(spec.styles)}, maps {len(spec.maps)}, "
           f"year {spec.year}, matchups {spec.matchups}", flush=True)
     data = load_split(jobs, spec, args.workers)
