@@ -21,7 +21,9 @@ from gary.agent.intents import Intent
 
 UNPOWERED = {P.NEXUS, P.PYLON, P.ASSIMILATOR}    # what stands without a Pylon's power
 POWER_SHORT_FOR = 20 * 24                        # a powered build that found no powered spot calls a Pylon this long
-POWER_NEAR = 12 * 32                             # option place: a Pylon this near a base's centre powers that base
+POWER_NEAR = 16 * 32                             # option place: a Pylon this near a base's centre is at it (the spot search's
+                                                 # radius: at 12 tiles the natural's wall Pylon toward its choke wasn't, and its
+                                                 # Forge called a Pylon every 12 s, 7-41 in 14 of round PL217a's 48 games)
 MERGING = {105, 106, 183}                        # ArchonWarp, CompletingArchonSummon, DarkArchonMeld: merging already
 MERGE_FOR = 6 * 24                               # a merge not given by then is given up (its decision taken back)
 MERGE_SEEN = 2 * 24                              # a merge's key this long ago shows its Templar merging, or it didn't
@@ -79,6 +81,15 @@ class ProtossExecutor(Executor):
                 # (option place: drawn for a base whose only Pylons are still warping in, it waits for them rather than
                 # standing at another base, as a wall's Gateway waits for the wall's Pylon)
                 return self.wait("no power at its base yet: a Pylon is coming there", coming=True)
+            if self.place_on and uid != P.PYLON and uid not in UNPOWERED and not self._pylon_at(where, mine):
+                if g.building(P.PYLON):
+                    return self.wait("no Pylon at its base: one is on its way", coming=True)
+                # (option place: drawn for a base with no Pylon of Gary's, a Pylon there first and the building after it,
+                # as the pros' natural Pylon stands before their cannon there: the spot search's fallback stood it at
+                # another base, the first cannon in the main in 23% of games, the pros' 5%, 11 of round PL216a's 48 as
+                # the natural's Nexus warped in with nothing else at the natural)
+                return {"kind": "build", "where": where, "data": {"side": side}, "cost": g.race.costs[P.PYLON],
+                        "unit": P.PYLON, "first": True}
             if uid == P.PYLON and self.power_for is not None and g.hi.frame - self.power_short < POWER_SHORT_FOR:
                 where, side = self.power_for         # (the Pylon where the power was missing; kept for the window, as
                                                      # carry_out also answers what Gary can do, not only what it does)
@@ -250,6 +261,12 @@ class ProtossExecutor(Executor):
             return False
         return any(u["type"] == P.PYLON and near(u["x"], u["y"]) for u in mine) or \
             any(ut == P.PYLON and near(tx * 32 + 32, ty * 32 + 32) for ut, tx, ty in self.g.reserved)
+
+    def _pylon_at(self, where, mine: list[dict]) -> bool:
+        """A Pylon of Gary's at the base: finished, warping in or placed."""
+        c = self.g.base(where).center
+        return any(u["type"] == P.PYLON and math.dist(c, (u["x"], u["y"])) < POWER_NEAR for u in mine) or \
+            any(ut == P.PYLON and math.dist(c, (tx * 32 + 32, ty * 32 + 32)) < POWER_NEAR for ut, tx, ty in self.g.reserved)
 
     def _pylon_coming(self, mine: list[dict]) -> bool:
         g = self.g

@@ -543,6 +543,19 @@ class LearnedMacro:
             return
         if plan["kind"] == "build" and len(g.parked) >= g.parked_max:
             return                          # (parked_max builders walking ahead at a time: the parked builds)
+        if plan.get("first"):
+            # (what the decided building needs at its base first, a Protoss's Pylon where it was placed: built now, the
+            # building kept as the goal and waiting for it)
+            uid = plan["unit"]
+            name = describe(g.race, BUILD, uid)
+            g.task = Task("build", uid, plan["where"], data={**plan.get("data", {}), "decision": (BUILD, uid)},
+                          started=hi.frame)
+            LOG.decision(g.hi.side, "macro", hi.frame, name, inputs=self._seen(obs, mine, me),
+                         by=f"executor: for the {goal['name']} at its base")
+            self.tracker.note_decision(BUILD, uid, obs["frame"])
+            self.decisions.append((hi.frame, name, goal["p"]))
+            goal.update(since=hi.frame, coming=True)
+            return
         if plan["kind"] == "build":
             data = {**plan.get("data", {}), "decision": (goal["act"], goal["id"])}
             if "near" in goal:                  # a goal that names its base and spot (answers.py turrets)

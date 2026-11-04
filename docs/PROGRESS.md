@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.28dev), `gp1dev` (gp0.21dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.28dev), `gp1dev` (gp0.22dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1690,6 +1690,21 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **Gary-P's placement read when it builds (2026-11-04, gp0.22dev; #16).** Gary-P's first cannon stood in the main in
+  23% of PL216a's games (the pros 5%). The model wasn't the cause: in those states (the natural's Nexus up) the pros'
+  first cannon goes to the main in 1%. Two leaks in the hands and the inputs: a cannon drawn for a natural with no
+  Pylon found no power there and the spot search stood it in the main; and the draw was taken once, when the plan was
+  first asked (the macro's odds ask every possible building's), up to a minute before the building, the natural's
+  Nexus not started yet (a state where the pros' go to the main in 8-19%). Now a building drawn for a base with no
+  Pylon gets one there first and waits (a Pylon within 16 tiles counts: at 12 the natural's wall Pylon didn't and a
+  Forge called a Pylon every 12 s, PL217a), and one die a decision is read against the odds of the moment until the
+  builder sets out (the inputs test: the worst minute off 2.26 to 0.42, the read 8 s before the building, 13 s
+  before). 48 PvZ games to 12 minutes on the same seeds: the first cannon in the main 10% (PL219a; 23% with the Pylon
+  fix alone, PL218a), cannons before 5:00 at the natural 90% (the pros 90%), 0-4 Pylons for a building a game. Probes
+  lost to raids at 3-8 minutes 2.77 a game (1.92), +0.85 [-0.02, +1.81], from five games of 12-22 (Mutalisks at mains
+  whose cannons stood away from the Nexus, Zerglings at bases with none), and cannons by the minerals at 7-9 minutes
+  with air seen 0.43 (0.55, the pros 0.54): adopted as an input fix on its own check, the raids to be looked into.
+  Left: a building drawn for a base whose Pylons have no room still stands at another (2 of the 11 main cannons).
 - **A learned placement model for Gary-P (2026-11-04, gp0.21dev; #65).** The pros' Protoss buildings (town
   halls and gas aside) in the modern clean games, re-simulated to 14 minutes (ingest/placement_dataset.py: 223,731 in
   5,467 PvZ games, 165,451 in 4,436 PvT, 284,277 in 5,124 PvP), each against what the player knew as it appeared: per

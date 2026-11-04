@@ -314,7 +314,7 @@ def _place_rows(sides, rep: Path, mac) -> dict:
         X = encode(a["bases"], a["glob"], a["type"], np.full(len(a["type"]), style), a["seen"], a["seen_max"],
                    ex.place_model.types)
         data = {(int(t), int(gl[1])): x for t, gl, x in zip(a["type"], a["glob"], X)}
-        play = {(rd["uid"], rd["started"]): rd["x"] for rd in ex.place_reads}       # (a redraw: its last)
+        play = {k: rd["x"] for k, rd in ex.place_reads.items()}       # (its last read: as its builder set out)
         out[r] = {k: (play[k], data[k]) for k in play if k in data}
     return out
 

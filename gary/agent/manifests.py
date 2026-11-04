@@ -1327,9 +1327,19 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # pros 6%); Probes lost to raids at 3-8 minutes 1.90 a game (2.31, the pros 0.90), -0.42 [-1.88, +1.02]; the shares by
 # base and side per window as near the pros' (0.123 off them, 0.113), the first cannon in the main 23% (10%, the pros
 # 5%); won 5 (8), ahead at 20:00 in 25 (19)
+# gp0.22dev: place's hands and inputs (fixes, judged on their checks, 48 PvZ games to 12 minutes on the same seeds): a
+# building drawn for a base with no Pylon gets one there first and waits for it (spot()'s fallback stood it at another
+# base), a Pylon within 16 tiles of a base at it (12: the natural's wall Pylon wasn't, and a Forge called one every
+# 12 s, round PL217a); one die a decision read against the odds of the moment until its builder sets out, as the
+# dataset reads the pros' state as each building appears (drawn once when first asked, before the natural's Nexus had
+# started: the inputs test's worst minute off 2.26 to 0.42, 13 s to 8 s from the read to the building). The first
+# cannon in the main 10% of games (PL219a; 23% in PL216a and in PL218a with the Pylon alone, the pros 5%), cannons
+# before 5:00 at the natural 90% (the pros 90%); Probes lost to raids at 3-8 minutes 2.77 a game (1.92 in PL218a),
+# +0.85 [-0.02, +1.81], from five games of 12-22 (Mutalisks at mains whose cannons stood away from the Nexus,
+# Zerglings at bases with none): to be looked into
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
                                      "+fightrules"),
-                       "version": "gp0.21dev"}
+                       "version": "gp0.22dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

@@ -152,10 +152,12 @@ class Executor:
         self.wide_spot = False                        # option widespot: spot() widens the main, then the natural
         self.place_on = False                         # option place: a building's base and side by the placement model
         self._place_rng: random.Random | None = None  # (its own draws: the macro's dice stay as they were)
-        self._drawn: dict = {}                        # option place: building -> its decision's draw, till placed or failed
+        self._drawn: dict = {}                        # option place: building -> its decision's die, till placed or failed
+        self._place_now: dict = {}                    # building -> (frame, its choice then)
+        self._place_said: dict = {}                   # building -> the class its last note said
         self.place_model = None                       # option place: the placement model (gary/policy/placement.py)
         self.place_look = None                        # its own units' look (placement.Losses), every LOOK_EVERY frames
-        self.place_reads: list[dict] = []             # its inputs and odds at each draw (tests/test_inputs.py)
+        self.place_reads: dict = {}                   # (building, count started) -> its last inputs and odds (test_inputs)
         self.train_depth = 1                          # units in a building's own queue Gary trains into (option gamequeue: 2)
         self.sent: list[tuple[str, int, int]] = []    # decisions' production keys given, not yet run: (kind, act, uid)
         # the map's own creep (map knowledge, read now: at the start of a game, before any zerg's)
@@ -432,14 +434,21 @@ class Executor:
         It replaced the pros' shares per minute window (a table blind to the game, round PL216a against PL215a): PvZ
         cannons by the minerals at 7-9 minutes with a Spire or Mutalisks seen 0.51 (the table's 0.35, the pros 0.54),
         Mutalisk raids at 3-8 minutes with no cannon by the Nexus 32% (50%, the pros 6%).
-        One draw a decision, kept until it is placed or fails: the macro asks for the plan every tick while it saves, and
-        a build at another base sets out earlier (its walk counted against the money), so drawn anew each tick the first
-        tick that drew the natural won the race (PvT's Cybernetics Core, 6% at the natural, there in 38% of games, PT204a)."""
+        One die a decision, kept until it is placed or fails, read against the odds of the moment until its builder sets
+        out: the pros' buildings are learned with the state just before they appear, and drawn once when first asked
+        (the macro's odds ask every possible building's plan, its saving every tick) the first cannon stood in the main in
+        23% of games, the pros' 5%, drawn at 7-18% before the natural's Nexus had started (round PL218a). Drawn anew
+        each tick instead, the first tick that drew the natural won the race, its build setting out earlier (its walk
+        counted against the money: PvT's Cybernetics Core, 6% at the natural, there in 38% of games, PT204a); with one die
+        the choice changes only where the odds move past it."""
         if self.place_model is None:
             return "main", "front"
         if uid not in self._drawn:
-            self._drawn[uid] = self._model_draw(uid, mine)
-        return self._drawn[uid]
+            self._drawn[uid] = self._rng().random()
+        frame = self.g.hi.frame
+        if self._place_now.get(uid, (None,))[0] != frame:
+            self._place_now[uid] = (frame, self._model_draw(uid, mine, self._drawn[uid]))
+        return self._place_now[uid][1]
 
     def _rng(self) -> random.Random:
         if self._place_rng is None:
@@ -447,8 +456,8 @@ class Executor:
             self._place_rng = random.Random(f"place/{self.g.game_seed}/{self.g.map.size}/{self.g.main.center}")
         return self._place_rng
 
-    def _model_draw(self, uid: int, mine: list[dict]) -> tuple:
-        """place's draw: the model's odds, by dice where the building can stand."""
+    def _model_draw(self, uid: int, mine: list[dict], die: float) -> tuple:
+        """place's choice: the model's odds where the building can stand, read at its die."""
         from gary.policy import placement as PM
         from gary.races import ENEMY
         g, R = self.g, self.g.race
@@ -472,15 +481,23 @@ class Executor:
         where = {"main": "main", "natural": "natural" if g.natural is not None else None,
                  "newer": min(newer, key=kind_near) if newer else None}
         p = self.place_model.odds(X)[0] * np.array([where[b] is not None for b, _ in PM.CLASSES], np.float32)
-        self.place_reads.append({"uid": uid, "started": started, "frame": frame, "x": X[0], "odds": p})
+        self.place_reads[uid, started] = {"uid": uid, "started": started, "frame": frame, "x": X[0], "odds": p}
         if p.sum() <= 0:
             return "main", "front"
-        b, side = PM.CLASSES[self._rng().choices(range(len(p)), weights=p)[0]]
+        k = min(int(np.searchsorted(np.cumsum(p / p.sum()), die, side="right")), len(p) - 1)
+        while p[k] <= 0:                         # (float rounding at the top: the last class it can take)
+            k -= 1
+        b, side = PM.CLASSES[k]
+        if self._place_said.get(uid) != k:
+            self._place_said[uid] = k
+            g.say(f"places {R.names.get(uid, uid)} at the {b} by its {side} ({p[k] / p.sum():.0%}; "
+                  + ", ".join(f"{bb} {s} {q / p.sum():.0%}" for (bb, s), q in zip(PM.CLASSES, p) if q > 0.05 * p.sum()) + ")")
         return where[b], side
 
     def note_placed(self, uid: int) -> None:
         """A building's spot found (option place): the next decision of it drawn anew."""
         self._drawn.pop(uid, None)
+        self._place_now.pop(uid, None)
 
     def hall_at(self, base: Base, mine: list[dict]) -> bool:
         """One of Gary's town halls (finished or not) stands at the base."""
@@ -1054,6 +1071,7 @@ class Executor:
         records, gary/decision_log.py)."""
         t.data["failed"] = why
         self._drawn.pop(t.unit_type, None)
+        self._place_now.pop(t.unit_type, None)
         if self.g.macro is not None:
             self.g.macro.build_failed(t)
         self.g.task = None
