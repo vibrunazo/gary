@@ -1705,6 +1705,14 @@ plan and the full log).
   whose cannons stood away from the Nexus, Zerglings at bases with none), and cannons by the minerals at 7-9 minutes
   with air seen 0.43 (0.55, the pros 0.54): adopted as an input fix on its own check, the raids to be looked into.
   Left: a building drawn for a base whose Pylons have no room still stands at another (2 of the 11 main cannons).
+  The raids looked into: 32 of the 48 games lost as many Probes in both rounds, and two carry most of the difference
+  (Octagon SE 4010, +21: nine Hydralisks and three Zerglings against an army of 6 with 500 of each resource banked,
+  an attack rather than a raid; Odyssey 4007, +12); Mutalisk raids 27 (19), 53 of their 55 Probes lost where no cannon
+  stood by the Nexus. The placement's odds there are the pros' (main minerals 44-61% with Mutalisks in sight, the
+  draws landing on the rest); the cannons come too late. Gary-P sees the Spire before any Mutalisk in 15% of the games
+  with air (PL218a; 17% PL219a), the pros in 69%, a median 1.4 minutes ahead, so by the first Mutalisk seen they have
+  1.45 cannons by the minerals (none in 26%) and Gary-P 1.05 (38%; 0.93 and 44%). What is missing is scouting in the
+  middle game, which no layer does (the worker scout's only trip is the opening's): #16's scouting item.
 - **A learned placement model for Gary-P (2026-11-04, gp0.21dev; #65).** The pros' Protoss buildings (town
   halls and gas aside) in the modern clean games, re-simulated to 14 minutes (ingest/placement_dataset.py: 223,731 in
   5,467 PvZ games, 165,451 in 4,436 PvT, 284,277 in 5,124 PvP), each against what the player knew as it appeared: per
