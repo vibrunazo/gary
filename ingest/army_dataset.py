@@ -20,7 +20,8 @@ kept, so the model also learns when the army stays where it is.
 
 Commitments (v2): orders alone say where a pro sends a group, not when they leave it be. So every
 TICK seconds each of the player's army clusters (Gary's clustering: the densest cell of their army
-and the cells within 2, up to 3 clusters, at least MIN_SUP) is a sample too, labeled by what the
+and the cells within 2, up to 3 clusters, at least MIN_SUP; from v6 the ground army's and its flyers'
+apart) is a sample too, labeled by what the
 player did with it in the next TICK seconds: keep (no order sending a group there 2+ cells: shorter
 orders are fighting or standing in place), engage (an order sending it 2+ cells to a cell next to
 enemy presence the player knew of: enemy army in sight or seen in 30 s, enemy buildings ever seen)
@@ -47,6 +48,15 @@ commitment follows the group on its way. And that order's age. Pros re-decide on
                       a model couldn't tell no building left: the scripted hunt's trigger)
   tick_unseen (256,)  seconds / UNSEEN_PER (gary/policy/army.py) since the player's own units were last in each cell,
                       capped at 255 (the bases not seen lately: the hunt's search) (v5)
+  tick_air            1 for a cluster of fighting flyers (gary/races.py AIR_FIGHTERS: Corsairs, Mutalisks, Wraiths,
+                      ...; not the Shuttles and Observers that go with the army), clustered apart from the ground
+                      army from MIN_AIR (one Corsair); an order is theirs when it sends MIN_AIR of them, the
+                      ground's when it sends MIN_SUP of the rest (both when sent together). A lone Corsair over the
+                      Zerg's main was in no sample, and the pros see the Spire with one in 68% of PvZ games (#16) (v6)
+  tick_flyers (256,)  the own army's fighting flyers by cell (supply x2): where the air clusters stand (v6)
+  tick_ctarget        the cell the cluster's commitment sends it to (its order's target), -1 none: the pros' re-orders
+                      of a Corsair within 10 s go within a cell of the last target 63% of the time, a model that knew
+                      only the commitment's kind and age drew Gary-P's anew, 20% (v6)
 
 Output: data/interim/army/v5/<sha1[:2]>/<sha1>.npz and data/interim/army/v5/index.jsonl. Needs a
 gary_resim whose "gone" events carry the owner and the place (resim/gary_resim.cpp).
@@ -75,9 +85,10 @@ from inventory import data_root
 from eval import monitor, priority
 from macro_dataset import RACES, TOWN_HALLS, run_resim, select
 
-VERSION = "v5"
+VERSION = "v6"
 GRID, CELLS, CHANNELS = 16, 256, 9
 MIN_SUP = 8                  # at least 4 supply (x2) selected
+MIN_AIR = 4                  # an air cluster or order: at least 2 supply (x2) of flyers (one Corsair, Mutalisk, Wraith)
 WINDOW = 48                  # at most one sample per player per 2 s
 RECENT = 30                  # channel 7 remembers enemy army for 30 s
 UNSEEN_PER = 4               # tick_unseen's unit, seconds (gary/policy/army.py UNSEEN_PER)
@@ -124,19 +135,19 @@ def cheb(a: int, b: int) -> int:
     return max(abs(a // GRID - b // GRID), abs(a % GRID - b % GRID))
 
 
-def clusters(army: np.ndarray) -> list[tuple[int, int]]:
+def clusters(army: np.ndarray, least: int = MIN_SUP) -> list[tuple[int, int]]:
     """(center cell, supply x2) of up to CLUSTERS army clusters on one grid row (supply x2 per cell):
     the densest cell and every cell within 2 of it, then again with what's left (gary/agent/army.py)."""
     left = army.astype(np.int64).copy()
     out = []
-    while len(out) < CLUSTERS and left.sum() >= MIN_SUP:
+    while len(out) < CLUSTERS and left.sum() >= least:
         c = int(left.argmax())
         cy, cx = divmod(c, GRID)
         y0, y1, x0, x1 = max(0, cy - 2), min(GRID, cy + 3), max(0, cx - 2), min(GRID, cx + 3)
         sq = left.reshape(GRID, GRID)
         sup = int(sq[y0:y1, x0:x1].sum())
         sq[y0:y1, x0:x1] = 0
-        if sup >= MIN_SUP:
+        if sup >= least:
             out.append((c, sup))
     return out
 
@@ -215,7 +226,7 @@ def build_game(rec: dict) -> dict:
     frames = np.array([s["frame"] for s in snaps], dtype=np.int32)
     per = {}
     for s in slots:
-        per[s] = {"g": np.zeros((T, 6, CELLS), np.uint16), "units": np.zeros((T, 228), np.uint16),
+        per[s] = {"g": np.zeros((T, 7, CELLS), np.uint16), "units": np.zeros((T, 228), np.uint16),
                   "seen": np.zeros((T, 228), np.uint16), "eco": np.zeros((T, 4), np.int32)}
     for t, snap in enumerate(snaps):
         for p in snap["players"]:
@@ -241,10 +252,13 @@ def build_game(rec: dict) -> dict:
         recent = np.zeros_like(g[:, 3])
         for t in range(T):           # enemy army seen in the last RECENT seconds (most at once)
             recent[t] = g[max(0, t - RECENT):t + 1, 3].max(0)
-        orders = [r for r in lines if r["type"] == "army" and r["slot"] == s and r["sup"] >= MIN_SUP
-                  and r["kind"] in KIND and 0 <= r["x"] < mw and 0 <= r["y"] < mh]
+        air_g = g[:, 6]                               # (own fighting flyers: their clusters apart from the ground's, v6)
+        orders = [r for r in lines if r["type"] == "army" and r["slot"] == s and r["kind"] in KIND
+                  and (r["sup"] >= MIN_SUP or r.get("air", 0) >= MIN_AIR) and 0 <= r["x"] < mw and 0 <= r["y"] < mh]
         picked = {}
         for r in orders:              # the last order in each 2-second window
+            if r["sup"] < MIN_SUP:
+                continue
             picked[r["frame"] // WINDOW] = r
         rows = sorted(picked.values(), key=lambda r: r["frame"])
         n = len(rows)
@@ -256,7 +270,7 @@ def build_game(rec: dict) -> dict:
         for j, r in enumerate(rows):
             t = max(0, min(T - 1, int(np.searchsorted(frames, r["frame"], side="right")) - 1))
             tidx[j] = t
-            grid[j, :6] = g[t]
+            grid[j, :6] = g[t, :6]
             grid[j, 6] = seen_bld[t]
             grid[j, 7] = recent[t]
             grid[j, 8, cell_of(r["cx"], r["cy"], mw, mh, fx, fy)] = r["sup"]
@@ -270,22 +284,28 @@ def build_game(rec: dict) -> dict:
         order_t = [max(0, min(T - 1, int(np.searchsorted(frames, r["frame"], side="right")) - 1)) for r in orders]
         labeled = []
         for r, t in zip(orders, order_t):
-            base = np.concatenate([g[t], seen_bld[t][None], recent[t][None]])
+            base = np.concatenate([g[t, :6], seen_bld[t][None], recent[t][None]])
             if cheb(fx_(r), gx_(r)) >= MOVED:          # (shorter: fighting or standing in place, a keep)
-                labeled.append((r["frame"], gx_(r), fx_(r), 1 if engaging(base, fx_(r), gx_(r)) else 2))
+                label = 1 if engaging(base, fx_(r), gx_(r)) else 2
+                # (an order for the air clusters when it sends MIN_AIR of fighting flyers, for the ground's when it
+                # sends MIN_SUP of the rest: both, a Corsair sent with the army)
+                for air, part in ((False, r["sup"] - r.get("air", 0)), (True, r.get("air", 0))):
+                    if part >= (MIN_AIR if air else MIN_SUP):
+                        labeled.append((r["frame"], gx_(r), fx_(r), label, air))
         k = 0
-        tk: dict[str, list] = {n: [] for n in ("grid", "t", "label", "target", "commit", "age")}
+        tk: dict[str, list] = {n: [] for n in ("grid", "t", "label", "target", "commit", "age", "air", "ctarget")}
         for t in range(0, T, TICK):
             f0, f1 = frames[t], frames[t] + TICK * 24
             while k < len(labeled) and labeled[k][0] < f0:
                 known.append(labeled[k])
                 k += 1
             nxt = [o for o in labeled[k:] if o[0] < f1]
-            for c, csup in clusters(g[t, 0]):      # (not `sup`: that is the orders' array, saved below)
-                mine = [o for o in nxt if cheb(o[1], c) <= 2]
-                past = [o for o in known if path_dist(c, o[1], o[2]) <= 2 and f0 - o[0] <= COMMIT_S * 24]
+            ground = g[t, 0].astype(np.int64) - air_g[t]
+            for air, (c, csup) in [(False, x) for x in clusters(ground)] + [(True, x) for x in clusters(air_g[t], MIN_AIR)]:
+                mine = [o for o in nxt if o[4] == air and cheb(o[1], c) <= 2]
+                past = [o for o in known if o[4] == air and path_dist(c, o[1], o[2]) <= 2 and f0 - o[0] <= COMMIT_S * 24]
                 at = np.zeros((CHANNELS, CELLS), np.uint16)
-                at[:6] = g[t]
+                at[:6] = g[t, :6]
                 at[6] = seen_bld[t]
                 at[7] = recent[t]
                 at[8, c] = csup
@@ -295,6 +315,8 @@ def build_game(rec: dict) -> dict:
                 tk["target"].append(mine[0][2] if mine else -1)
                 tk["commit"].append(past[-1][3] if past else 0)
                 tk["age"].append((f0 - past[-1][0]) / 24 if past else COMMIT_S)
+                tk["air"].append(air)
+                tk["ctarget"].append(past[-1][2] if past else -1)
         # own losses: each death of this player's units in the LOSS_S before the tick, at its place
         deaths = [(r["frame"], cell_of(r["x"], r["y"], mw, mh, fx, fy), loss_value(r["unit"])) for r in lines
                   if r["type"] == "event" and r["ev"] == "gone" and r.get("slot") == s and "x" in r
@@ -353,6 +375,9 @@ def build_game(rec: dict) -> dict:
         out[f"p{i}_tick_target"] = np.array(tk["target"], np.int16)
         out[f"p{i}_tick_commit"] = np.array(tk["commit"], np.int8)
         out[f"p{i}_tick_age"] = np.array(tk["age"], np.float32)
+        out[f"p{i}_tick_air"] = np.array(tk["air"], np.int8)
+        out[f"p{i}_tick_ctarget"] = np.array(tk["ctarget"], np.int16)
+        out[f"p{i}_tick_flyers"] = np.minimum(air_g[ti], 255).astype(np.uint8) if len(ti) else np.zeros((0, CELLS), np.uint8)
         out[f"p{i}_grid"] = np.minimum(grid, 255).astype(np.uint8)
         out[f"p{i}_frame"] = frames[tidx]
         out[f"p{i}_units"] = d["units"][tidx]

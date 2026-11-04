@@ -44,6 +44,9 @@ INTENDED = {
     ("*", "critic", "decided, the pros' history"): "as the macro's",
     ("*", "army", "grid: own losses"): "play knows a unit lost once it's out of sight GONE_AFTER, the replay at its death",
     ("*", "army", "grid: enemy army seen 30 s"): "its memory's window starts at play's look, the replay's at each second",
+    ("*", "place", "enemy in sight"): "play reads as it decides the building, the replay as the building appears, 8-10 s "
+                                      "on: units over the enemy's base (a Corsair, option aircluster) see its drones, "
+                                      "eggs and zerglings come and go in between (15% of the moments off without it, 48%)",
 }
 # (side, model, block) -> the issue of a known fault, not fixed yet
 KNOWN = {
@@ -82,10 +85,11 @@ def _blocks_army(spec) -> tuple[list, list]:
     names = ["own army", "own workers", "own buildings", "enemy army", "enemy workers", "enemy buildings",
              "enemy buildings ever", "enemy army seen 30 s", "group"]
     extra = {"losses": "own losses", "static": "enemy static defense", "known": "enemy buildings known",
-             "unseen": "cells unvisited"}
+             "unseen": "cells unvisited", "flyers": "own fighting flyers"}
     grid = [(n, c) for c, n in enumerate(names) if n != "group"]
     for c, e in enumerate(spec._extra(), len(names)):
-        grid.append((extra.get(e, e), c))
+        if e != "ctarget":                          # (the group's own commitment, as channel 8: not compared)
+            grid.append((extra.get(e, e), c))
     no, ns = len(spec.own_types), len(spec.seen_types)
     k = 8
     nums = [("time", slice(0, 1), "value", 1e-4), ("minerals and gas", slice(1, 3), "value", 0.016),
@@ -268,8 +272,8 @@ def _replay_rows(m, sides, reads, tmp: Path):
             if len(j):
                 j = int(j[0])
                 grid = arm[f"p{ia}_tick_grid"][j].astype(np.float32)
-                extra = [arm[f"p{ia}_tick_{n}"][j].astype(np.float32)[None] for n in ("loss", "static", "known", "unseen")
-                         if (n == "loss" and aspec.losses) or (n != "loss" and getattr(aspec, n))]
+                extra = [arm[f"p{ia}_tick_{ {'losses': 'loss'}.get(n, n)}"][j].astype(np.float32)[None] if n != "ctarget"
+                         else np.zeros((1, grid.shape[1]), np.float32) for n in aspec._extra()]
                 seen_mem = seen_all[max(0, k - MEMORY_S):k + 1].max(0)
                 glob = encode_global(aspec, np.array([f], np.float32), arm[f"p{ia}_tick_eco"][j:j + 1].astype(np.float32),
                                      np.zeros(1, np.float32), arm[f"p{ia}_tick_units"][j:j + 1].astype(np.float32),

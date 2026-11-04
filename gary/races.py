@@ -37,6 +37,10 @@ ENEMY = {
 FLYERS = frozenset({Z.MUTALISK, Z.SCOURGE, Z.GUARDIAN, Z.DEVOURER, Z.QUEEN, Z.OVERLORD, Z.COCOON,
                     T.WRAITH, T.VALKYRIE, T.BC, T.VESSEL, T.DROPSHIP,
                     P.CORSAIR, P.SCOUT, P.ARBITER, P.CARRIER, P.SHUTTLE, P.OBSERVER})
+# the flyers that fight, sent on their own: the army's air clusters (army dataset v6, resim/gary_resim.cpp air_fighter);
+# the Shuttles, Observers, Dropships, Vessels and Queens go with the ground army
+AIR_FIGHTERS = frozenset({T.WRAITH, T.BC, T.VALKYRIE, Z.MUTALISK, Z.GUARDIAN, Z.SCOURGE, Z.DEVOURER,
+                          P.CORSAIR, P.SCOUT, P.ARBITER, P.CARRIER})
 
 
 def enemy_of(matchup: str, race: str) -> Enemy:

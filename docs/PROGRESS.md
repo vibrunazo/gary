@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.28dev), `gp1dev` (gp0.22dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.28dev), `gp1dev` (gp0.23dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1690,6 +1690,27 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **Gary-P's Corsairs on their own (2026-11-04, gp0.23dev; #16).** The pros see the Spire before any Mutalisk in 72% of
+  PvZ games (400 modern games re-simulated: when the Protoss first sees the Spire, 68% of the time a Corsair is by it, at
+  the Zerg's main, a median 6:20), Gary-P in 20% (PL219a), its first Corsair's nearest to the Zerg's start a median 70
+  tiles (the pros 5). No sample had taught it: the army dataset clustered the army at 4 supply or more, ground and air
+  together, so a lone Corsair over the Zerg's main was never a sample. Army dataset v6 (PvZ, 2,820 games): the
+  re-simulator gives each army order its fighting flyers' supply and a grid channel of them (resim/gary_resim.cpp
+  air_fighter: Corsairs, Scouts, Carriers, Arbiters, Mutalisks, Scourge, Guardians, Devourers, Wraiths, Valkyries,
+  Battlecruisers; the Shuttles and Observers go with the ground army); their clusters stand apart from the ground's from
+  one Corsair, an order theirs when it sends 2 supply of them (both kinds' when sent together); and each sample has the
+  cell its cluster's commitment sends it to. A commit model trained on it (train/commit.py --air --ctarget, gary/policy/
+  army.py ArmySpec air, ctarget): the air clusters' orders against keeps, AUC 0.792 on held-out games, their orders a
+  minute by minute the pros' (5.2 at 4-5 minutes, the pros 5.0-5.2), engage among them 0.51 (0.50); the order's cell in
+  the five likeliest 0.338 (0.295 without the target, the ground's AUC 0.800 against the deployed model's 0.795). In
+  play (gary/agent/army.py) the flyers are clustered apart for such a model, their commitments kept apart. Without the
+  target the Corsair drew each order anew and wandered (PL220a: the Spire first seen 15%, within 25 tiles of the start
+  7%); with it, 48 PvZ games to 12 minutes on the same seeds (PL221a against PL219a): the first Corsair within 25 tiles
+  of the Zerg's start in 35% of the games (12%, the pros 80%), its nearest 40 tiles (70), the Spire seen first 22%
+  (20%), Probes lost to raids at 3-8 minutes 2.23 a game (2.77), -0.54 [-1.73, +0.58]. Left: the macro's first Corsair
+  (before the first air seen in 54% of the games, the pros 74%, a median 6:22 against 5:52), the model's leaving home
+  (a new Corsair at home ordered out at 19% of the ticks, the pros 32%), its re-orders within 10 s within a cell of the
+  last 15% (the pros' raw orders 63%, their tick samples 29%), and the other matchups' datasets (v6 for PvZ only).
 - **Gary-P's placement read when it builds (2026-11-04, gp0.22dev; #16).** Gary-P's first cannon stood in the main in
   23% of PL216a's games (the pros 5%). The model wasn't the cause: in those states (the natural's Nexus up) the pros'
   first cannon goes to the main in 1%. Two leaks in the hands and the inputs: a cannon drawn for a natural with no

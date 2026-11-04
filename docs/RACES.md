@@ -124,7 +124,9 @@ The playing builds differ more: `gt1` keeps every stop-gap, `gz1` the pros' deci
    2:26 to 1:33, the pros 1:13); Probes pulled against raids (gp0.20dev: lost at 3-8 minutes 3.48 a game to
    2.31 in 48 paired games, the pros 0.90); a building's base and side by a learned placement model in place of the
    pros' table (gp0.21dev, #65: cannons by the minerals once a Spire or Mutalisks are seen, 0.51 at 7-9 minutes, the
-   table's 0.35, the pros 0.54; Mutalisk raids with no cannon by the Nexus 50% to 32%, the pros 6%). Left: the commit
+   table's 0.35, the pros 0.54; Mutalisk raids with no cannon by the Nexus 50% to 32%, the pros 6%); its Corsairs
+   clustered apart from the ground army by a commit model that learned the pros' air clusters (gp0.23dev, army dataset
+   v6: the first Corsair within 25 tiles of the Zerg's start in 35% of PvZ games, 12% before, the pros 80%). Left: the commit
    model's answer to raids at home, shuttles, cannons at newer bases (its third Nexus later than the pros'), and
    unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'). The placement model is
    the Protoss's; the other races (turrets, bunkers, colonies) can have theirs from the same dataset builder.

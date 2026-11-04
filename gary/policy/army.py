@@ -27,6 +27,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from gary.races import AIR_FIGHTERS
+
 GRID, CELLS, CHANNELS = 16, 256, 9
 RECENT_S = 30
 MEMORY_S = 180                # how long enemy units count as "seen" in the numbers
@@ -45,16 +47,20 @@ class ArmySpec:
     static: bool = False          # a map channel after the losses': the enemy's ground static defense known (STATIC_SUPPLY)
     known: bool = False           # then: the enemy buildings known still standing (channel 6 never forgets one)
     unseen: bool = False          # then: seconds / UNSEEN_PER since own units were last in each cell (bases not seen lately)
+    air: bool = False             # fighting flyers clustered apart from the ground army (army dataset v6): then a map
+                                  # channel, own AIR_FIGHTERS by cell (supply x2), and a number, 1 for a cluster of them
+    ctarget: bool = False         # then a map channel: 1 at the cell the cluster's commitment sends it to (army dataset v6:
+                                  # the pros' re-orders keep their course, a model without it drew each one anew)
 
     def _extra(self) -> list[str]:
-        return [n for n in ("losses", "static", "known", "unseen") if getattr(self, n)]
+        return [n for n in ("losses", "static", "known", "unseen") if getattr(self, n)] + (["flyers"] if self.air else []) +             (["ctarget"] if self.ctarget else [])
 
     @property
     def channels(self) -> int:
         return CHANNELS + len(self._extra())
 
     def channel(self, name: str) -> int:
-        """The index of an optional map channel (losses, static, known, unseen), in that order after the 9."""
+        """The index of an optional map channel (losses, static, known, unseen, flyers, ctarget), in that order after the 9."""
         return CHANNELS + self._extra().index(name)
 
     @property
@@ -64,7 +70,7 @@ class ArmySpec:
     @property
     def n_global(self) -> int:
         return 8 + len(self.own_types) + 2 * len(self.seen_types) + (COMMIT_INPUTS if self.commit else 0) + \
-            (OTHER_INPUTS if self.others else 0)
+            (OTHER_INPUTS if self.others else 0) + (1 if self.air else 0)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -129,11 +135,11 @@ def others_inputs(centers: list[int], sups: list[float], commits: list[int], arm
 def encode_global(spec: ArmySpec, frame: np.ndarray, eco: np.ndarray, group_sup: np.ndarray,
                   units: np.ndarray, seen: np.ndarray, seen_mem: np.ndarray, own_army: np.ndarray,
                   enemy_army_mem: np.ndarray, commit: np.ndarray | None = None,
-                  others: np.ndarray | None = None) -> np.ndarray:
+                  others: np.ndarray | None = None, air: np.ndarray | None = None) -> np.ndarray:
     """(n, n_global) numbers. eco: minerals, gas, supply used x2, supply max x2; group_sup x2;
     units / seen / seen_mem: (n, 228) counts (seen_mem: the most seen at once in MEMORY_S);
     own_army, enemy_army_mem: army supply x2 (enemy: of seen_mem); commit: (n, COMMIT_INPUTS) when
-    spec.commit (commit_inputs)."""
+    spec.commit (commit_inputs); air: (n,) 1 for a cluster of fighting flyers, when spec.air."""
     parts = [(frame / (24 * 60 * 20.0))[:, None], np.minimum(eco[:, 0] / 1000.0, 5)[:, None],
              np.minimum(eco[:, 1] / 1000.0, 5)[:, None], (eco[:, 2] / 400.0)[:, None],
              (eco[:, 3] / 400.0)[:, None], (group_sup / 400.0)[:, None],
@@ -144,6 +150,8 @@ def encode_global(spec: ArmySpec, frame: np.ndarray, eco: np.ndarray, group_sup:
         parts.append(commit if commit is not None else np.zeros((len(frame), COMMIT_INPUTS), np.float32))
     if spec.others:
         parts.append(others if others is not None else np.tile(np.array([[0, 0, 1, 0]], np.float32), (len(frame), 1)))
+    if spec.air:
+        parts.append((air if air is not None else np.zeros(len(frame), np.float32)).reshape(-1, 1))
     return np.concatenate([p.astype(np.float32) for p in parts], axis=1)
 
 
@@ -347,9 +355,11 @@ class ArmyTracker:
                 if tag not in now and any(math.dist((x, y), q) < STATIC_GONE_PX for q in at):
                     del memory[tag]
 
-    def inputs(self, obs: dict, group: list[dict], commit: tuple[int, float] | None = None) -> tuple[np.ndarray, np.ndarray]:
+    def inputs(self, obs: dict, group: list[dict], commit: tuple[int, float] | None = None,
+               target: int = -1) -> tuple[np.ndarray, np.ndarray]:
         """grid (9, 256) and numbers for ordering `group` (own units) now; commit: the group's commitment
-        (0 none, 1 engage, 2 move) and its age in seconds, for a model with spec.commit."""
+        (0 none, 1 engage, 2 move) and its age in seconds, for a model with spec.commit; target: the cell that
+        commitment sends it to (-1 none), for spec.ctarget."""
         self.remember(obs)
         g, units, seen = self._now(obs)
         if self.extra_units is not None:
@@ -369,6 +379,12 @@ class ArmyTracker:
                 g[self.spec.channel("known"), self.cell(x, y)] += 1
         if self.spec.unseen:
             g[self.spec.channel("unseen")] = (obs["frame"] - self.visited) / (24 * UNSEEN_PER)
+        if self.spec.air:                      # (own fighting flyers by cell, as the replays' grid channel 6: v6)
+            for u in obs["units"]:
+                if u["owner"] == self.slot and u["type"] in AIR_FIGHTERS:
+                    g[self.spec.channel("flyers"), self.cell(u["x"], u["y"])] += supply_x2(u["type"])
+        if self.spec.ctarget and target >= 0:
+            g[self.spec.channel("ctarget"), target] = 1
         group_sup = 0
         for u in group:
             s = supply_x2(u["type"])
@@ -383,7 +399,8 @@ class ArmyTracker:
                              np.array([units @ ARMY_SUPPLY], np.float32),
                              np.array([seen_mem @ ARMY_SUPPLY], np.float32),
                              commit_inputs(np.array([commit[0] if commit else 0]),
-                                           np.array([commit[1] if commit else COMMIT_AGE_S])) if self.spec.commit else None)
+                                           np.array([commit[1] if commit else COMMIT_AGE_S])) if self.spec.commit else None,
+                             air=np.array([float(bool(group) and all(u["type"] in AIR_FIGHTERS for u in group))], np.float32))
         return g[None], glob
 
 

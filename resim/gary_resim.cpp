@@ -24,7 +24,8 @@
 // type -> count, i.e. through the fog of war), and how many replay actions the engine accepted or
 // rejected since the previous snapshot. "g" places units on a 16x16 grid over the map, as flat
 // pairs (channel * 256 + cell, value): channels 0-2 own army supply x2 / workers / buildings,
-// 3-5 the same for other players' units this player can see; cell = row * 16 + column.
+// 3-5 the same for other players' units this player can see, 6 the own army's fighting flyers (supply x2,
+// in channel 0 too: air_fighter); cell = row * 16 + column.
 // {"type":"army",...} lines are accepted orders given to army units (print_army_command).
 // Rejected actions have a low baseline from spam; a sustained spike is the main desync signal
 // (the replay's commands stop making sense in the simulated state).
@@ -53,6 +54,16 @@
 using namespace bwgame;
 
 namespace {
+
+// The flyers that fight, sent on their own (gary/races.py AIR_FIGHTERS): Wraith, Battlecruiser, Valkyrie, Mutalisk,
+// Guardian, Scourge, Devourer, Corsair, Scout, Arbiter, Carrier; not the Shuttles, Observers, Dropships, Vessels,
+// Queens and Overlords that go with the army.
+bool air_fighter(int id) {
+	switch (id) {
+	case 8: case 12: case 58: case 43: case 44: case 47: case 62: case 60: case 70: case 71: case 72: return true;
+	default: return false;
+	}
+}
 
 bool file_exists(const std::string& path) {
 	std::ifstream f(path, std::ios::binary);
@@ -145,7 +156,8 @@ struct counting_replay_functions : scr_replay<replay_functions> {
 	// Accepted orders given to army units (the selection holds fighting units: not workers,
 	// buildings, overlords or larvae), for training data: where the player sent the army, how.
 	//   {"type":"army","frame":F,"slot":P,"kind":"move|amove|attack|patrol|other","x":X,"y":Y,
-	//    "n":units,"sup":supply x2,"cx":CX,"cy":CY}   (x, y: target; cx, cy: the selection's center)
+	//    "n":units,"sup":supply x2,"air":its fighting flyers' supply x2 (air_fighter),"cx":CX,"cy":CY}   (x, y:
+	//    target; cx, cy: the selection's center)
 	void print_army_command(int owner, int action_id, const uint8_t* cmd, const uint8_t* end) {
 		auto u16 = [&](int at) { return cmd + at + 1 < end ? (int)(cmd[at] | cmd[at + 1] << 8) : -1; };
 		auto u8 = [&](int at) { return cmd + at < end ? (int)cmd[at] : -1; };
@@ -157,13 +169,14 @@ struct counting_replay_functions : scr_replay<replay_functions> {
 		case 0x61: x = u16(2); y = u16(4); target = translate_unit_id((uint16_t)u16(6)); order = u8(12); break;
 		default: return;
 		}
-		int n = 0, sup = 0;
+		int n = 0, sup = 0, air = 0;
 		long sx = 0, sy = 0;
 		for (unit_t* u : action_st.selection.at(owner)) {
 			if (!u || u->owner != owner || ut_building(u->unit_type) || ut_worker(u->unit_type)) continue;
 			if (u->unit_type->supply_required.raw_value <= 0) continue;
 			++n;
 			sup += u->unit_type->supply_required.raw_value;
+			if (air_fighter((int)u->unit_type->id)) air += u->unit_type->supply_required.raw_value;
 			sx += u->sprite->position.x;
 			sy += u->sprite->position.y;
 		}
@@ -176,8 +189,8 @@ struct counting_replay_functions : scr_replay<replay_functions> {
 		else if (order == 10 || order == 11) kind = "attack";
 		else if (order == 6) kind = "move";
 		else if (order == 152) kind = "patrol";
-		printf("{\"type\":\"army\",\"frame\":%d,\"slot\":%d,\"kind\":\"%s\",\"x\":%d,\"y\":%d,\"n\":%d,\"sup\":%d,\"cx\":%ld,\"cy\":%ld}\n",
-		       st.current_frame, owner, kind, x, y, n, sup, sx / n, sy / n);
+		printf("{\"type\":\"army\",\"frame\":%d,\"slot\":%d,\"kind\":\"%s\",\"x\":%d,\"y\":%d,\"n\":%d,\"sup\":%d,\"air\":%d,\"cx\":%ld,\"cy\":%ld}\n",
+		       st.current_frame, owner, kind, x, y, n, sup, air, sx / n, sy / n);
 	}
 
 	// --- fights (--fights SECONDS), for training data on unit control ---------------------------
@@ -471,7 +484,7 @@ bool is_player(const state& st, int i) {
 	       st.players[i].controller == player_t::controller_computer_game;
 }
 
-constexpr int GRID = 16, GRID_CELLS = GRID * GRID, GRID_CHANNELS = 6;
+constexpr int GRID = 16, GRID_CELLS = GRID * GRID, GRID_CHANNELS = 7;
 
 void print_snapshot(const state& st, const replay_state& rst, counting_replay_functions& f) {
 	// What each player can see of everyone else's units right now (fog of war).
@@ -485,7 +498,7 @@ void print_snapshot(const state& st, const replay_state& rst, counting_replay_fu
 		}
 	}
 	// Where things are, per player, on a 16x16 grid over the map: own army supply (x2), workers,
-	// buildings; then the same for other players' units this player can see.
+	// buildings; then the same for other players' units this player can see; then the own army's fighting flyers.
 	std::vector<int> grid(8 * GRID_CHANNELS * GRID_CELLS, 0);
 	int mw = std::max(1, (int)f.game_st.map_width), mh = std::max(1, (int)f.game_st.map_height);
 	for (int o = 0; o != 8; ++o) {
@@ -500,6 +513,7 @@ void print_snapshot(const state& st, const replay_state& rst, counting_replay_fu
 			int gy = std::min(GRID - 1, std::max(0, u->sprite->position.y * GRID / mh));
 			int cell = gy * GRID + gx;
 			grid[(o * GRID_CHANNELS + cat) * GRID_CELLS + cell] += val;
+			if (cat == 0 && air_fighter((int)u->unit_type->id)) grid[(o * GRID_CHANNELS + 6) * GRID_CELLS + cell] += val;
 			for (int p = 0; p != 8; ++p) {
 				if (p != o && (u->sprite->visibility_flags & (1 << p)))
 					grid[(p * GRID_CHANNELS + 3 + cat) * GRID_CELLS + cell] += val;

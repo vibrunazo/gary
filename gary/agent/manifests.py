@@ -632,6 +632,12 @@ OPTIONS = {
     # In play the likeliest of keep / engage / move and the likeliest cell; drawn only with +draw (the league's
     # training): human game 3 was played drawn, and the two retreats that threw it were 4.8% and 5.1% draws
     "commit": lambda m: m["army"].update(commit=True, model="commit/latest"),
+    # army.py: the fighting flyers clustered apart (Corsairs, Mutalisks, Wraiths: gary/races.py AIR_FIGHTERS), each of
+    # their clusters asked as the ground army's are, by a commit model trained on army dataset v6 (its air clusters,
+    # train/commit.py --air): a lone Corsair was in no sample of v5's, and the pros see the Spire with one in 68% of
+    # PvZ games, Gary-P in 1 of 41 (#16). PvZ's for now; the other matchups keep their commit models
+    "aircluster": lambda m: m["army"].update(model={"PvZ": "runs/commit_exp/PvZ_P_airct/model.pt",
+                                                    "*": m["army"].get("model", "commit/latest")}),
     # army.py: no hunt (v0.16's scripted attack once no enemy army was seen for a minute): with commitments the
     # engage choice decides when the army goes for the enemy's buildings. In human game 3 the hunt sent 23
     # marines into three sunkens at "100% sure", one by one, twice
@@ -1336,10 +1342,15 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # cannon in the main 10% of games (PL219a; 23% in PL216a and in PL218a with the Pylon alone, the pros 5%), cannons
 # before 5:00 at the natural 90% (the pros 90%); Probes lost to raids at 3-8 minutes 2.77 a game (1.92 in PL218a),
 # +0.85 [-0.02, +1.81], from five games of 12-22 (Mutalisks at mains whose cannons stood away from the Nexus,
-# Zerglings at bases with none): to be looked into
+# Zerglings at bases with none): looked into, a scouting gap (docs/PROGRESS.md)
+# gp0.23dev: aircluster, the fighting flyers clustered apart, by a PvZ commit model trained on army dataset v6 (its air
+# clusters, own flyers and the commitment's target as inputs; fidelity first, 48 PvZ games to 12 minutes on the same
+# seeds, PL221a against PL219a): the first Corsair within 25 tiles of the Zerg's start in 35% of the games (12%, the pros
+# 80%), its nearest 40 tiles (70, the pros 5); the Spire seen before any Mutalisk 22% (20%, the pros 72%); Probes lost to
+# raids at 3-8 minutes 2.23 a game (2.77), -0.54 [-1.73, +0.58]
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
-                                     "+fightrules"),
-                       "version": "gp0.22dev"}
+                                     "+fightrules+aircluster"),
+                       "version": "gp0.23dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

@@ -111,11 +111,19 @@ def load_player(args: tuple) -> tuple:
     for name in ("static", "known", "unseen"):          # (then the optional channels, in ArmySpec's order: v4, v5)
         if getattr(spec, name):
             grid = np.concatenate([grid, d[f"p{i}_tick_{name}"][idx][:, None]], 1)
+    if spec.air:                                        # (own flyers by cell, then whether the cluster is theirs: v6)
+        grid = np.concatenate([grid, d[f"p{i}_tick_flyers"][idx][:, None]], 1)
+    if spec.ctarget:                                    # (1 at the commitment's target cell: v6)
+        ct = d[f"p{i}_tick_ctarget"][idx].astype(np.int64)
+        one = np.zeros((len(idx), 1, grid.shape[2]), grid.dtype)
+        one[np.nonzero(ct >= 0)[0], 0, ct[ct >= 0]] = 1
+        grid = np.concatenate([grid, one], 1)
     commit = d[f"p{i}_tick_commit"][idx]
     glob = encode_global(spec, frames.astype(np.float32), d[f"p{i}_tick_eco"][idx].astype(np.float32),
                          grid[:, 8].sum(1).astype(np.float32), d[f"p{i}_tick_units"][idx].astype(np.float32),
                          d[f"p{i}_tick_seen"][idx].astype(np.float32), seen_mem, own_sup[t], seen_mem @ ARMY_SUPPLY,
-                         commit_inputs(commit, d[f"p{i}_tick_age"][idx]), others[idx] if others is not None else None)
+                         commit_inputs(commit, d[f"p{i}_tick_age"][idx]), others[idx] if others is not None else None,
+                         d[f"p{i}_tick_air"][idx].astype(np.float32) if spec.air else None)
     return (grid, glob.astype(np.float16), d[f"p{i}_tick_label"][idx].astype(np.int64),
             d[f"p{i}_tick_target"][idx].astype(np.int64), commit.astype(np.int64), frames)
 
@@ -162,6 +170,11 @@ def main() -> None:
                     help="the enemy buildings known still standing as a map channel (ArmySpec.known; army dataset v5)")
     ap.add_argument("--unseen", action="store_true",
                     help="seconds since own units were in each cell as a map channel (ArmySpec.unseen; army dataset v5)")
+    ap.add_argument("--air", action="store_true",
+                    help="flyers' clusters apart, their grid a map channel and the cluster's kind a number (ArmySpec.air; "
+                         "army dataset v6)")
+    ap.add_argument("--ctarget", action="store_true",
+                    help="the cell the cluster's commitment sends it to as a map channel (ArmySpec.ctarget; army dataset v6)")
     ap.add_argument("--max-ticks", type=int, default=MAX_TICKS,
                     help="samples per player-game (all of army dataset v5's 16,549 TvZ games fit at 60)")
     ap.add_argument("--rule-labels", nargs="+", default=[],
@@ -182,7 +195,8 @@ def main() -> None:
     start = sorted((REPO / "runs" / "army").glob(f"{args.matchup}_{args.race}_*/model.pt"))[-1]
     base = ArmyModel.load(start)
     spec = ArmySpec(base.spec.race, base.spec.own_types, base.spec.seen_types, commit=True, losses=True, others=args.others,
-                    static=args.static, known=args.known, unseen=args.unseen)
+                    static=args.static, known=args.known, unseen=args.unseen, air=args.air,
+                    ctarget=args.ctarget)
     if args.eval:
         evaluated = ArmyModel.load(args.eval)
         spec = evaluated.spec
@@ -236,6 +250,17 @@ def main() -> None:
         out["hysteresis"] = {name: [round(float((tl[tc == c] == ENGAGE).mean()), 3), round(float(p[tc == c, ENGAGE].mean()), 3)]
                              for c, name in ((1, "committed engage"), (2, "committed move"), (0, "none")) if (tc == c).any()}
         out["where_top5"] = round(float((w5[o] == tt[o, None]).any(1).mean()), 3) if o.any() else None
+        if spec.air:                                         # (the flyers' clusters alone: v6)
+            a = tglob[:, -1] > 0.5
+            if a.any() and order[a].any() and not order[a].all():
+                oa = o & a
+                out["air"] = {"n": int(a.sum()), "auc_order": round(float(roc_auc_score(order[a], 1 - p[a, KEEP])), 3),
+                              "rate": {int(m): [round(float(order[a & (minute == m)].mean() * 12), 2),
+                                                round(float((1 - p[a & (minute == m), KEEP]).mean() * 12), 2)]
+                                       for m in range(4, 16) if (a & (minute == m)).sum() > 100},
+                              "engage_share": [round(float((tl[oa] == ENGAGE).mean()), 3),
+                                               round(float((p[oa, ENGAGE] / (p[oa, ENGAGE] + p[oa, MOVE])).mean()), 3)],
+                              "where_top5": round(float((w5[oa] == tt[oa, None]).any(1).mean()), 3) if oa.any() else None}
         if rule is not None and len(rule["test"][2]):        # (where the rule acts: does the model do as it does?)
             rg, rx, _, rt, _, _ = rule["test"]
             rp, rw5 = predict(rg, rx)

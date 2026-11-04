@@ -37,6 +37,7 @@ from gary.agent.intents import Intent
 from gary.policy.attribution import explain_army
 from gary.policy.army import GRID, STATIC_SUPPLY, ArmyModel, ArmyTracker, is_building, supply_x2
 from gary.policy.belief import ARMY_SUPPLY
+from gary.races import AIR_FIGHTERS
 
 WAVE = 16
 ASK_EVERY = 24 * 2                  # how often Gary asks the model about its army
@@ -47,6 +48,7 @@ HAZARD_AGE = 50.0
 UNIT_COMMIT_S = 30                # option unitcommits: a unit's commitment shields it from other clusters' orders this long
 SCOUT_RETRY = 24 * 3               # a scout's worker not picked: asked again this much later
 COMMIT_TICK = 24 * 5                # commit: each cluster asked this often (the pros' data: ingest/army_dataset.py TICK)
+AIR_MIN = 4                         # (supply x2) a cluster of fighting flyers asked: one Corsair (ingest/army_dataset.py MIN_AIR)
 MOVE_CELLS = 2                      # destinations closer than this are "stay"
 MOVE_P = 0.5                        # move when the model puts more belief than this away from here
 PRO_MOVES = {4: 1.0, 5: 2.2, 6: 3.2, 7: 3.5, 8: 4.0, 9: 4.3, 10: 4.4, 11: 5.0, 12: 5.4, 13: 5.3, 14: 6.3, 15: 6.0}
@@ -176,7 +178,8 @@ class LearnedArmy:
                                         # three (which is keep most ticks: Gary-T won 7 of 24 against Gary-Z with 17
                                         # at time, drawn 13 and 11). 0.41 is where the deterministic rate matches
                                         # the drawn one (the pros') over human game 3 and round c10
-        self.commitments: list[tuple[int, int, int, int]] = []   # (frame, from cell, to cell, 1 engage / 2 move)
+        self.commitments: list[tuple[int, int, int, int, bool]] = []   # (frame, from cell, to cell, 1 engage / 2 move,
+                                        # a cluster of fighting flyers: theirs and the ground's apart, as the data's v6)
         self.force_commit: int | None = None   # a paired episode's arm: its first decision forced
         self.lock_forced = False
         # option engagebias: the commit model's engage odds times exp(this) against move's (learned from the locked
@@ -276,7 +279,16 @@ class LearnedArmy:
 
     def _clusters(self, army: list[dict]) -> list[list[dict]]:
         """The army split by where it stands: up to 3 clusters (the main army, reinforcements on
-        their way, ...), biggest first. Units within 2 grid cells of a cluster's center join it."""
+        their way, ...), biggest first. Units within 2 grid cells of a cluster's center join it. With a
+        model of spec.air (army dataset v6) the fighting flyers are clustered apart, up to 3 more, each of
+        at least AIR_MIN as in the data (a lone Corsair is one)."""
+        if not self.model.spec.air:
+            return self._split(army)
+        flyers = [u for u in army if u["type"] in AIR_FIGHTERS]
+        ground = [u for u in army if u["type"] not in AIR_FIGHTERS]
+        return self._split(ground) + [c for c in self._split(flyers) if sum(supply_x2(u["type"]) for u in c) >= AIR_MIN]
+
+    def _split(self, army: list[dict]) -> list[list[dict]]:
         left, out = list(army), []
         while left and len(out) < 3:
             cells = [self.tracker.cell(u["x"], u["y"]) for u in left]
@@ -514,23 +526,23 @@ class LearnedArmy:
                               "fight": 0.0, "done": [], "boxes": 0}, "army"))
         return "army"
 
-    def _commitment_entry(self, here: int) -> tuple | None:
-        """The cluster's commitment as stored (frame, from cell, to cell, kind), or None (as _commitment finds it)."""
+    def _commitment_entry(self, here: int, air: bool = False) -> tuple | None:
+        """The cluster's commitment as stored (frame, from cell, to cell, kind, air), or None (as _commitment finds it)."""
         from gary.policy.army import COMMIT_AGE_S, path_dist
         f = self.g.hi.frame
         for c in reversed(self.commitments):
-            if f - c[0] <= COMMIT_AGE_S * 24 and path_dist(here, c[1], c[2]) <= 2:
+            if f - c[0] <= COMMIT_AGE_S * 24 and c[4] == air and path_dist(here, c[1], c[2]) <= 2:
                 return c
         return None
 
-    def _commitment(self, here: int) -> tuple[int, float]:
+    def _commitment(self, here: int, air: bool = False) -> tuple[int, float]:
         """The cluster's commitment: its last order whose path passes within 2 cells (1 engage, 2 move; 0
-        none in COMMIT_AGE_S) and its age in seconds."""
+        none in COMMIT_AGE_S) and its age in seconds; a cluster of fighting flyers', theirs (air)."""
         from gary.policy.army import COMMIT_AGE_S, path_dist
         f = self.g.hi.frame
         self.commitments = [c for c in self.commitments if f - c[0] <= COMMIT_AGE_S * 24]
-        for at, a, b, k in reversed(self.commitments):
-            if path_dist(here, a, b) <= 2:
+        for at, a, b, k, kind_air in reversed(self.commitments):
+            if kind_air == air and path_dist(here, a, b) <= 2:
                 return k, (f - at) / 24
         return 0, float(COMMIT_AGE_S)
 
@@ -543,7 +555,8 @@ class LearnedArmy:
         cx = sum(u["x"] for u in group) / len(group)
         cy = sum(u["y"] for u in group) / len(group)
         here = self.tracker.cell(cx, cy)
-        held, age = self._commitment(here)
+        air = self.model.spec.air and all(u["type"] in AIR_FIGHTERS for u in group)
+        held, age = self._commitment(here, air)
         if self.locked is not None and self.force_commit is None:
             c, rolled = self.locked
             from gary.policy.army import path_dist
@@ -560,7 +573,8 @@ class LearnedArmy:
                 self.locked = None             # (reversed at the pros' chance: the model decides from now on)
             elif c not in self.commitments:
                 self.locked = None
-        grid, glob = self.tracker.inputs(obs, group, (held, age))
+        current = self._commitment_entry(here, air)
+        grid, glob = self.tracker.inputs(obs, group, (held, age), current[2] if current is not None else -1)
         where, kind = self.model.predict(grid, glob)
         q = kind[0].astype(np.float64)
         if self.engage_bias:                   # (between engage and move only: keep's odds, so the order rate, as they were)
@@ -588,7 +602,7 @@ class LearnedArmy:
             self.rng, self.then_rng = self.then_rng, None
         names = ["keep", "engage", "move"]
         self._seen = {"units": len(group), "at": self._cell_name(here),
-                      "commitment": f"{names[held] if held else 'none'}, {age:.0f} s"}
+                      "commitment": f"{names[held] if held else 'none'}, {age:.0f} s"} | ({"air": True} if air else {})
         options = [[n, round(float(q[i]), 3)] for i, n in enumerate(names)]
         why = explain_army(self.model, grid, glob, lambda w, kd: kd[:, k])
         item = dict(frame=hi.frame, grid=grid[0].astype(np.float16), glob=glob[0].astype(np.float16), choice=k,
@@ -625,14 +639,14 @@ class LearnedArmy:
             pf = np.zeros_like(p)
             pf[keep_cells] = p[keep_cells]
             p = pf
-        entry = self._commitment_entry(here) if self.hold_target and k == held and not by.startswith("forced") else None
+        entry = self._commitment_entry(here, air) if self.hold_target and k == held and not by.startswith("forced") else None
         if entry is not None and p[entry[2]] > 0 and p[entry[2]] >= np.sort(p)[-5]:
             best = entry[2]                     # (the same commitment again: its destination held)
             by = f"{by}, its destination held"
         else:
             best = int(self.rng.choice(len(p), p=p / p.sum())) if self.draw else int(p.argmax())
         if self.unit_commits_on:
-            own = self._commitment_entry(here)
+            own = self._commitment_entry(here, air)
             free = []
             for u in group:
                 c = self.unit_commit.get(u["tag"])
@@ -644,7 +658,7 @@ class LearnedArmy:
                              self._seen, by, then="its units are on other commitments", rl=rl, why=why)
                 return None
             group = free
-        self.commitments.append((hi.frame, here, best, k))
+        self.commitments.append((hi.frame, here, best, k, air))
         if self.unit_commits_on:
             for u in group:
                 self.unit_commit[u["tag"]] = self.commitments[-1]
