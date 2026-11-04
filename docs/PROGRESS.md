@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.28dev), `gp1dev` (gp0.24dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.28dev), `gp1dev` (gp0.25dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1736,6 +1736,18 @@ plan and the full log).
   in 11), the Core decided 4 s later after it and ordered 14 s after its decision in both rounds. Gap score 0.27 (0.26),
   styles as told 81% and 69% (81%, 72%), won 1 (0). Adopted for fidelity. Next: the Core's 14 s from decision to order
   and the forge-first opening's order.
+- **A building waits for what it needs too (2026-11-04, gp0.25dev, option comingbuild; #16).** In the forge-first,
+  Stargate-first opening (PvZ) Gary-P ordered its Cybernetics Core 33 s after its first Gateway's finish, the pros 12 s
+  (each step's first order, 990 modern pros against PL223a: Forge 1.56 minutes, the pros 1.52; Nexus 2.43, 2.25; cannon
+  2.65, 2.37; Gateway 3.12, 2.75; Assimilator 3.43, 3.12; Core 4.35, 3.59; Stargate 5.28, 4.35; Corsair 6.10, 5.18). The
+  model has the pros' timing (the Core's odds 35-40 s into the Gateway's 38: 0.22, the pros' share 0.23), but a
+  building whose requirement wasn't done was set aside, as units were before coming. With comingbuild it is held as the
+  macro's goal until that is done (macro.py plan). In play (PL224a against PL223a, 48 PvZ games to 12 minutes, the same
+  seeds): the forge-first Gateway to Core 56 s (74, the pros 50), Core to Stargate 52 s (60, the pros 45), the Stargate
+  5.00 minutes (5.31), the first Corsair 5.98 (6.23, the pros 5.47); held: the Core a median 21.5 s from its decision to
+  its order (the Gateway's last seconds, then the money and the walk), the Stargate 12.5 s, cannons waiting for the Forge
+  32 s (6 decisions), none never ordered. Style 21 played as told 78% (69%), style 20 81% (81%); gap score 0.27 both;
+  won 1, lost 1 (1, 0). Adopted for fidelity. Next: a decided building's order lag (money and the walk; the Core's 14 s).
 - **Gary-P's Corsairs on their own (2026-11-04, gp0.23dev; #16).** The pros see the Spire before any Mutalisk in 72% of
   PvZ games (400 modern games re-simulated: when the Protoss first sees the Spire, 68% of the time a Corsair is by it, at
   the Zerg's main, a median 6:20), Gary-P in 20% (PL219a), its first Corsair's nearest to the Zerg's start a median 70

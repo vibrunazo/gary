@@ -651,6 +651,11 @@ OPTIONS = {
     # Stargate in 88% of PvZ games, Gary-P in 3% (#16). Held out 49.99% top-1 (P_all_v2idle10 49.57%). In gp1dev since
     # gp0.24dev
     "coming": lambda m: m["macro"].update(model="runs/macro_exp/P_all_v2coming10/model.pt"),
+    # macro.py plan: with coming's model, a building decided while what it needs is being built waits for it too, held
+    # as the goal (the Cybernetics Core as its Gateway nears done: the pros' next decision in 23% of the states 35-40 s
+    # into its 38, the model's 22%; Gary-P ordered it 33 s after the Gateway's finish in the forge-first opening, the
+    # pros 12 s; #16). In gp1dev since gp0.25dev
+    "comingbuild": lambda m: m["macro"].update(wait_builds=True),
     # army.py: no hunt (v0.16's scripted attack once no enemy army was seen for a minute): with commitments the
     # engage choice decides when the army goes for the enemy's buildings. In human game 3 the hunt sent 23
     # marines into three sunkens at "100% sure", one by one, twice
@@ -1366,9 +1371,13 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # seeds, PL223a against PL221a): the first Corsair within 10 s of the Stargate's finish in 47% of the games (3%, the pros
 # 88%), 13 s after it (20 s, the pros 5 s), 141 minerals spent in between (242, the pros 42); the first Zealot 12 s sooner
 # after the first Gateway; the gap score 0.27 (0.26), the styles played as told 81% and 69% (81%, 72%)
+# gp0.25dev: comingbuild, a building decided while what it needs is being built held as the goal until it is done (fidelity
+# first, PL224a against PL223a, the same seeds): the forge-first opening's Gateway to Cybernetics Core 56 s (74 s, the
+# pros 50), its Stargate 5.03 minutes (5.28, the pros 4.35); the first Corsair 5.98 minutes (6.23, the pros 5.47); style
+# 21 played as told 78% (69%), style 20 81% (81%); the gap score 0.27 both
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
-                                     "+fightrules+aircluster+coming"),
-                       "version": "gp0.24dev"}
+                                     "+fightrules+aircluster+coming+comingbuild"),
+                       "version": "gp0.25dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:
@@ -1472,6 +1481,7 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
         g.macro.bank_escape = m["macro"].get("bank_escape", True)
         g.macro.queue_depth = m["macro"].get("queue_depth", 1)
         g.macro.rethink = m["macro"].get("rethink", False)
+        g.macro.wait_builds = m["macro"].get("wait_builds", False)
         g.macro.nosave = m["macro"].get("nosave", False)
         g.macro.dice_t = m["macro"].get("dice_t", 1.0)
         if hasattr(g.executor, "scv_saturation"):

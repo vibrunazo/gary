@@ -127,6 +127,7 @@ class LearnedMacro:
         # at 10-20 minutes; removed 2026-10-23: rounds Q60a against B60a, the same results and gap without it)
         self.queued: list[tuple[tuple[int, int], int]] = []
         self.queue_depth = 1                  # the model's waiting units queued per producer (option qdepth2: 2)
+        self.wait_builds = False              # option comingbuild: a building waits for what it needs being built too
         # option rethink: a unit decided whose producers' queues are full isn't held as the goal (the model wasn't
         # asked again while it waited, so it never added production with the bank: the bank escape covered for that);
         # the model is asked again at its next look
@@ -671,10 +672,14 @@ class LearnedMacro:
             # a model that sees how long its buildings have been building (FeatureSpec.coming) decides a unit as what
             # it needs nears done, as the pros' next decision is then (the Corsair, a Stargate 40-45 s into its 44: 31%
             # of the states, in 5 s): it waits for it, queued with its money kept, as for a busy producer (the pros
-            # trained the first Corsair within 10 s of the Stargate in 88% of PvZ games, Gary-P in 3%)
-            if act in (TRAIN, MORPH) and self.model.spec.coming and \
+            # trained the first Corsair within 10 s of the Stargate in 88% of PvZ games, Gary-P in 3%); option
+            # comingbuild: a building too, held as the goal (the Cybernetics Core, a Gateway 35-40 s into its 38: the
+            # pros' next decision in 23% of the states, the model's 22%; Gary-P ordered it 33 s after the Gateway's
+            # finish, the pros 12 s)
+            if (act in (TRAIN, MORPH) or act == BUILD and self.wait_builds) and self.model.spec.coming and \
                     g.race.meets(have | {u["type"] for u in mine if not u["completed"]}, uid):
                 self.why_not = "what it needs is being built"
+                g.executor.wait_coming = True       # (on its way: the goal's timeout doubled, as for a Pylon warping in)
                 return WAIT
             return self._no("what it needs isn't there")
         if getattr(posture, "no_workers", False) and uid == g.race.worker:
