@@ -47,6 +47,9 @@ INTENDED = {
     ("*", "place", "enemy in sight"): "play reads as it decides the building, the replay as the building appears, 8-10 s "
                                       "on: units over the enemy's base (a Corsair, option aircluster) see its drones, "
                                       "eggs and zerglings come and go in between (15% of the moments off without it, 48%)",
+    ("*", "place", "enemy most seen"): "as enemy in sight: what is first seen in those 8-10 s raises the replay's (21% "
+                                       "of 24 with option idlemacro: 5 of the 6 the replay's above play's, one a unit "
+                                       "counted under another type)",
 }
 # (side, model, block) -> the issue of a known fault, not fixed yet
 KNOWN = {

@@ -11,7 +11,10 @@ Inputs (all from the player's own point of view):
   the player's build style (taxonomy cluster), when known, for steering;
   the game's year and map (the map's data hash, one of the maps with enough games, else unknown), when
   the spec has them: the meta moved between the 1.16 era and Remastered (docs/DATA_ERAS.md), and
-  builds differ by map. In play the year is now and the map is the game's (MapInfo.hash).
+  builds differ by map. In play the year is now and the map is the game's (MapInfo.hash);
+  when the spec has them, the idle production buildings by type (finished ones less the units in production
+  that they make), counted from the same unit counts: the pros use a building the moment it is done (a
+  Stargate's first Corsair at 41% of their decisions then, which the models without it put at 18-23%).
 
 One model per race. The feature layout (FeatureSpec) is saved with the weights, so a checkpoint
 encodes states the same way in training and in play.
@@ -50,16 +53,18 @@ class FeatureSpec:
     maps: list[str] = field(default_factory=list)     # map data hashes with their own slot (unknown = extra)
     year: bool = False                                # the game's year as an input
     matchups: list[str] = field(default_factory=list)  # one model for the race's matchups: which one (one-hot)
+    idle: list = field(default_factory=list)          # [building, [the units it makes]]: its idle count an input
 
     def __post_init__(self):
         self.decisions = [tuple(d) for d in self.decisions]
+        self.idle = [[int(b), [int(u) for u in us]] for b, us in self.idle]
         self._index = {d: i for i, d in enumerate(self.decisions)}
 
     @property
     def size(self) -> int:
         return (7 + 2 * len(self.own_types) + 2 * len(self.seen_types) + len(self.decisions)
                 + len(self.styles) + 1 + (len(self.maps) + 1 if self.maps else 0) + (1 if self.year else 0)
-                + len(self.matchups))
+                + len(self.matchups) + len(self.idle))
 
     def decision_index(self, act: int, uid: int) -> int:
         return self._index.get((act, uid), self._index[OTHER])
@@ -104,9 +109,24 @@ def encode(spec: FeatureSpec, frame: np.ndarray, eco: np.ndarray, units: np.ndar
         if matchup in spec.matchups:
             mu_onehot[:, spec.matchups.index(matchup)] = 1
         parts.append(mu_onehot)
+    if spec.idle:                                   # finished producers less the units in production they make
+        parts.append(np.log1p(np.stack([np.maximum(units[:, b, 1] - sum(units[:, u, 0] - units[:, u, 1] for u in us), 0)
+                                        for b, us in spec.idle], axis=1)))
     x = np.concatenate([p.astype(np.float32) for p in parts], axis=1)
     assert x.shape[1] == spec.size, (x.shape, spec.size)
     return x
+
+
+def idle_table(letter: str) -> list:
+    """FeatureSpec.idle for a race: each building that trains units one at a time, with the units it makes (the race's
+    producer table); none for the Zerg, whose larvae are counted already."""
+    if letter == "Z":
+        return []
+    from gary.race import Race
+    by = {}
+    for u, b in Race.of(letter).producer.items():
+        by.setdefault(b, []).append(u)
+    return [[b, sorted(us)] for b, us in sorted(by.items())]
 
 
 PLAY_YEAR = 2026.0               # the year in play (the meta Gary plays)

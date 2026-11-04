@@ -638,6 +638,12 @@ OPTIONS = {
     # PvZ games, Gary-P in 1 of 41 (#16). PvZ's for now; the other matchups keep their commit models
     "aircluster": lambda m: m["army"].update(model={"PvZ": "runs/commit_exp/PvZ_P_airct/model.pt",
                                                     "*": m["army"].get("model", "commit/latest")}),
+    # macro: the Protoss model with the idle production buildings as inputs (train/macro.py --idle, 10 epochs): with a
+    # Stargate done and no Corsair yet the pros take one at 41% of their decisions, P_all_v2arch gave it 22% (this one
+    # 33%), and Gary-P's first Corsair came 15 s later after its Stargate than the pros' (#16). Held out 49.6% top-1
+    # (P_all_v2arch 47.8%; 10 epochs without the inputs 48.7%). Not adopted: in play (PL222a against PL221a) the Stargate
+    # to Corsair 67 s (64), held by money after the decision (docs/PROGRESS.md)
+    "idlemacro": lambda m: m["macro"].update(model="runs/macro_exp/P_all_v2idle10/model.pt"),
     # army.py: no hunt (v0.16's scripted attack once no enemy army was seen for a minute): with commitments the
     # engage choice decides when the army goes for the enemy's buildings. In human game 3 the hunt sent 23
     # marines into three sunkens at "100% sure", one by one, twice

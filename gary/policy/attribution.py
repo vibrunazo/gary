@@ -45,7 +45,8 @@ def macro_groups(spec) -> list[tuple[str, np.ndarray]]:
     o += 2 * n_seen
     groups.append(("its decisions so far", list(range(o, o + n_dec))))
     o += n_dec
-    groups.append(("its build style", list(range(o, spec.size))))
+    groups.append(("its build style", list(range(o, spec.size - len(spec.idle)))))
+    groups.append(("its idle production", list(range(spec.size - len(spec.idle), spec.size))))
     return [(name, np.array(idx, int)) for name, idx in groups if idx]
 
 

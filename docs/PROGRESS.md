@@ -1690,6 +1690,25 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **Gary-P's first Corsair: idle production as macro inputs (2026-11-04, option idlemacro, not adopted; #16).** Gary-P's
+  first Corsair is ordered 0.75 minutes after the pros' (PvZ, PL221a against 1,856 modern pros of the Stargate-first
+  plans on the ladder maps; each item's first order): Cybernetics Core to Stargate 59 s (the pros 45), Stargate to Corsair
+  64 s (49: the pros train it within 5 s of the Stargate's 44). The Stargate was rarely blocked (a spot not found in 4
+  of 48 games). The macro model underrated the moment: with a Stargate finished and no Corsair, the pros take one at 41%
+  of their decisions (held-out modern games, 362 decisions), P_all_v2arch gave it 22% (the PvZ model 18%; 33% against
+  23% on its training games, so underfit, not era). An input for it, the idle production buildings by type (finished
+  ones less the units in production that they make, from the unit counts the model reads: gary/policy/macro.py
+  idle_table, train/macro.py --idle; none for the Zerg), with 10 epochs: held out 49.6% top-1, 41.2% non-routine
+  (P_all_v2arch 47.8%, 38.9%; 10 epochs without the input 48.7%, 40.2%), the first Corsair 33% (28% without). The
+  inputs test holds (the placement's enemy most seen joins enemy in sight as intended: read 8-10 s later, the replay's
+  above play's in 5 of its 6 moments off). In play (PL222a against PL221a, 48 PvZ games to 12 minutes) its odds there
+  rose (a mean 0.31, 0.26) but the gap didn't close: Stargate to Corsair 67 s (64), the first Corsair 6.03 minutes
+  (6.22); the gap score 0.26 both; plays its style as told 69% and 62% (81%, 72%; 16 and 32 games). What holds it is
+  after the decision: 2-3 macro decisions after the Stargate is done, then the Corsair decided waits a median 7.3 s
+  for its order, mostly for money (10.5 s when the minerals less what is kept for parked builds, a Photon Cannon's
+  mostly, don't cover it, two thirds of the games; 5.4 s when they do), the hands free meanwhile (the arbiter's trace:
+  no macro wait). At the Stargate's finish Gary-P has the pros' Probes (30) and less in the bank (138 minerals, the pros
+  223). Next: where its minerals go before the Stargate (the parked cannons' money against the pros' spending).
 - **Gary-P's Corsairs on their own (2026-11-04, gp0.23dev; #16).** The pros see the Spire before any Mutalisk in 72% of
   PvZ games (400 modern games re-simulated: when the Protoss first sees the Spire, 68% of the time a Corsair is by it, at
   the Zerg's main, a median 6:20), Gary-P in 20% (PL219a), its first Corsair's nearest to the Zerg's start a median 70
