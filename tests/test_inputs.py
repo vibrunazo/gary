@@ -8,7 +8,9 @@ and the same moments compared, block by block.
 A block fails when it is off by more than its tolerance at more than FAIL_SHARE of the moments: what play feeds the
 model is not what it learned from. Six such faults were found by hand on 2026-10-25 (the macro model's enemy history
 empty, units inside bunkers missing from two models, the Zerg's eggs counted twice, the critic's style column, the
-build placement), each of which had cost games or misread a round. Intended differences are listed (INTENDED) and
+build placement), each of which had cost games or misread a round. A side with the learned placement model (option
+placemodel) has its inputs at each building decided paired with the placement dataset's for the same building
+(ingest/placement_dataset.py on the replay: the building's type and its count started). Intended differences are listed (INTENDED) and
 skipped; known faults not fixed yet (KNOWN, each with its issue) are reported and expected; one that
 doesn't show in the game is reported, so the list can be kept true. Needs the game data and the models (skips without them).
 
@@ -117,6 +119,7 @@ def _labels(g, model: str, name: str) -> list[str] | None:
 
 
 ROLE_READS: dict[str, list] = {}           # side -> [(rows, extra)] the role model was fed
+PLACE_ROWS: dict[str, dict] = {}           # side -> the placement model's inputs paired (_place_rows)
 
 
 def _capture(model, out: list) -> None:
@@ -235,6 +238,7 @@ def _replay_rows(m, sides, reads, tmp: Path):
     m.game.close()
     lines = M.run_resim(str(rep))
     mac = M.game_arrays(lines)
+    PLACE_ROWS.update(_place_rows(sides, rep, mac))
     row = A.build_game({"sha1": "inputs-test", "rel_path": str(rep), "matchup": m.gary.matchup,
                         "out": str(tmp / "army.npz")})
     assert row.get("ok"), row
@@ -274,6 +278,61 @@ def _replay_rows(m, sides, reads, tmp: Path):
                 entry.update(grid=np.concatenate([grid] + extra, 0), glob=glob)
             out[r][f] = entry
     return out
+
+
+# the placement model's blocks (gary/policy/placement.py encode): (name, columns, kind, tolerance). Play reads them as it
+# decides a building, the replay as the building appears (the state of the look before): the builder's walk and its
+# wait for the money come between, so the minute, the workers and the buildings get room
+PLACE_MIN = 8                   # buildings paired, at least, for a side with the model
+_BF = 7
+
+
+def _blocks_place(n_types: int) -> list[tuple[str, list, str, float]]:
+    tol = {"hall": 0, "buildings": 2, "same": 1, "static": 1, "workers": 4, "workers_lost": 1, "buildings_lost": 1}
+    from gary.policy.placement import BASE_FEATURES
+    out = [(f"bases: {f}", [b * _BF + j for b in range(3)], "value", tol[f]) for j, f in enumerate(BASE_FEATURES)]
+    k = 3 * _BF
+    out += [("minute", [k], "value", 0.75), ("started", [k + 1], "value", 0), ("bases held", [k + 2], "value", 0),
+            ("type", [k + 3], "value", 0), ("style", [k + 4], "value", 0),
+            ("enemy in sight", list(range(k + 5, k + 5 + n_types)), "count", 2.0),
+            ("enemy most seen", list(range(k + 5 + n_types, k + 5 + 2 * n_types)), "count", 1.0)]
+    return out
+
+
+def _place_rows(sides, rep: Path, mac) -> dict:
+    """Per side with the placement model: (building, its count started) -> (play's inputs, the replay's)."""
+    from gary.policy.placement import encode
+    from ingest.placement_dataset import game_samples
+    out = {}
+    for r, g in sides.items():
+        ex = g.executor
+        if getattr(ex, "place_model", None) is None:
+            continue
+        i = mac["slots"].index(g.slot)
+        a = game_samples(str(rep), g.race.letter, [g.slot], mac["frames"], [mac["seen"][:, i]])[0]
+        style = g.macro.tracker.style if g.macro.tracker.style is not None else -1
+        X = encode(a["bases"], a["glob"], a["type"], np.full(len(a["type"]), style), a["seen"], a["seen_max"],
+                   ex.place_model.types)
+        data = {(int(t), int(gl[1])): x for t, gl, x in zip(a["type"], a["glob"], X)}
+        play = {(rd["uid"], rd["started"]): rd["x"] for rd in ex.place_reads}       # (a redraw: its last)
+        out[r] = {k: (play[k], data[k]) for k in play if k in data}
+    return out
+
+
+def compare_place(sides, prow) -> tuple[list[str], list[str], set]:
+    report, fails, seen_known = [], [], set()
+    for r, pairs in prow.items():
+        g = sides[r]
+        if len(pairs) < PLACE_MIN:
+            fails.append(f"{r} placement: {len(pairs)} buildings paired (fewer than {PLACE_MIN})")
+            continue
+        for name, cols, kind, tol in _blocks_place(len(g.executor.place_model.types)):
+            offs = np.array([_off(a[cols], b[cols], kind)[0] for a, b in pairs.values()])
+            _verdict(r, "place", name, float(np.mean(offs > tol)), float(offs.max()), len(offs), report, fails,
+                     seen_known, race=g.race.letter)
+        lag = np.median([b[3 * _BF] - a[3 * _BF] for a, b in pairs.values()]) * 60
+        report.append(f"  {r} place  the decision to its building's appearance: {lag:.0f} s (median)")
+    return report, fails, seen_known
 
 
 def compare(sides, reads, rows) -> tuple[list[str], list[str], list[str]]:
@@ -347,8 +406,9 @@ def test_inputs_match_training_data():
         rows = _replay_rows(m, sides, reads, Path(tmp))
     report, fails, gone = compare(sides, reads, rows)
     r2, f2, seen2 = compare_roles(sides)
-    report, fails = report + r2, fails + f2
-    gone = [x for x in gone if not any(x.startswith(f"{k}:") for k in seen2)]
+    r3, f3, seen3 = compare_place(sides, PLACE_ROWS)
+    report, fails = report + r2 + r3, fails + f2 + f3
+    gone = [x for x in gone if not any(x.startswith(f"{k}:") for k in seen2 | seen3)]
     print("\n".join(report))
     few = {r: len(v) for r, v in rows.items() if len(v) < MIN_MOMENTS}
     assert not few, f"too few moments compared (a side's looks missed the ticks?): {few}"

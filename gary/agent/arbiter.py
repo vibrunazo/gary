@@ -44,6 +44,7 @@ from gary.decision_log import LOG
 from gary.agent.fight import FIGHT_TASKS, INTERRUPTIBLE
 from gary.agent.gary import Gary, Task
 from gary.agent.sightings import Sightings
+from gary.policy.placement import LOOK_EVERY
 
 
 WAIT_MIN = 24                        # waits shorter than a second aren't traced
@@ -79,6 +80,10 @@ class FixedPriority:
         tracker = getattr(self.g.macro, "tracker", None)
         if tracker is not None and tracker.look_every and self.g.hi.frame - tracker.last_look >= tracker.look_every:
             tracker.look(self.g.hi.observe())    # (option seenall: the macro model's view between its queries)
+        look = getattr(self.g.executor, "place_look", None)
+        if look is not None and self.g.hi.frame - look.last >= LOOK_EVERY:
+            obs = self.g.hi.observe()            # (option placemodel: its own units and losses, as its dataset looks)
+            look.look(obs["frame"], {u["tag"]: u for u in obs["units"] if u["owner"] == self.g.slot})
 
     def _act(self) -> str | None:
         """One turn; who got the hands (or acted without a task), or None. (LOG.owner: who is acting, stamped

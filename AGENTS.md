@@ -259,6 +259,8 @@ odds become a choice: dice, hold, floors), and fixes of plain bugs.
   pros' buildings eval/placement.py reads. Measure: with the model in place of the table, the shares by base and side per
   minute window against the pros', Probes lost to raids and Mutalisk raids with no cannon by the Nexus (gp0.16dev: 0.75
   a game, 12%; the pros 0.9, 6%). The fitting on tiles (power, the gap to the workers' lanes, PLACE_LANE) is the hands.
+  Its replacement is trained, option `placemodel` (gary/policy/placement.py, train/placement.py: log-loss 0.78 to the
+  table's 1.10 on the pros' PvZ buildings, their cannons' answer to air; docs/PROGRESS.md), to be judged on this measure.
 - **Older rules, to review** (scripted before 2026-10-20; each needs a full entry when next worked on): Gary-Z's
   alarm and the natural colonies; the first producer by a time (`rax_by`); the v0.16 hunt and base scans; the fight
   layer's other rules (the Zerg roles' retreat when outweighed; RoleAhead's hand rules in contact, gt1's whole fight

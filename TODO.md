@@ -63,7 +63,7 @@ closed and its line leaves this file; docs/PROGRESS.md keeps what was done and h
 - [#38](https://github.com/vibrunazo/gary/issues/38) Map mechanics on the current ladder maps: neutral units and per-map priors
 - [#16](https://github.com/vibrunazo/gary/issues/16) Learn building placement and scouting from replays (placement's first
   step: [#65](https://github.com/vibrunazo/gary/issues/65), a learned model of a building's base and side in place of
-  the pros' table, option `place`, a stop-gap)
+  the pros' table, option `place`, a stop-gap: trained for the Protoss, option `placemodel`, to be judged in rounds)
 - [#25](https://github.com/vibrunazo/gary/issues/25) Walls: copy the pros' walls per map and start location
 - [#23](https://github.com/vibrunazo/gary/issues/23) Map analysis: split maps at their chokes
 - [#36](https://github.com/vibrunazo/gary/issues/36) Protoss: the executor (refactor Phase 4) begun, `gp1` plays every matchup

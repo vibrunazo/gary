@@ -1037,6 +1037,9 @@ OPTIONS = {
     # executor.py place: a building's base and side drawn from the pros' shares for its kind and minute (the race's
     # PLACE table, eval/placement.py), where a race has one (the Protoss in PvZ)
     "place": lambda m: m.update(place=True),
+    # executor.py _model_draw: option place's base and side drawn from the learned placement model's odds (the pros'
+    # buildings against what they knew: gary/policy/placement.py, #65) in place of the table, where the matchup has one
+    "placemodel": lambda m: m.update(place=True, place_model=True),
     # the deployed commit model fine-tuned 2 epochs on army dataset v3, with the hunt's labels (x4) and without (the
     # control): the labels' effect apart from v5's data change (issue #3; FH120a against FC120a -0.078 +- 0.090)
     "cmfthunt": lambda m: m["army"].update(model="runs/commit_exp/TvZ_T_ft_hunt/model.pt"),
@@ -1433,6 +1436,10 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
         g.executor.train_depth = m.get("train_depth", 1)
         g.executor.wide_spot = m.get("wide_spot", False)
         g.executor.place_table = m.get("place", False)
+        if m.get("place_model"):
+            from gary.policy.placement import Losses, PlacementModel
+            g.executor.place_model = PlacementModel.find(g.matchup, g.race.letter)
+            g.executor.place_look = Losses(g.race) if g.executor.place_model is not None else None
         if hasattr(g.executor, "addon_room"):
             g.executor.addon_room = m.get("addon_room", False)
         g.macro.odds_mass = m["macro"].get("odds_mass")

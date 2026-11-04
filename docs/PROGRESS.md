@@ -1690,6 +1690,21 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
+- **A learned placement model for Gary-P (2026-11-03, option placemodel; #65).** The pros' Protoss buildings (town
+  halls and gas aside) in the modern clean games, re-simulated to 14 minutes (ingest/placement_dataset.py: 223,731 in
+  5,467 PvZ games, 165,451 in 4,436 PvT, 284,277 in 5,124 PvP), each against what the player knew as it appeared: per
+  base (the main, the natural, the newer ones) its town hall, buildings, of this type, static defense, workers and
+  losses in the last minute, the building's type and count started, the minute, the bases held, the style, the enemy in
+  sight and the most of each seen. Gradient-boosted trees for its base and side (train/placement.py, 150 rounds: more
+  overfit, the games' samples alike), judged on held-out games against the table (option place's draws): log-loss
+  0.782 against 1.103 in PvZ (the prior 1.406), 0.889 against 1.059 in PvT, 0.779 against 0.954 in PvP; the base right
+  84% (72%), 77% (70%), 80% (76%). It answers air as the pros do: PvZ cannons by the minerals at 7-9 minutes with a Spire
+  or Mutalisks seen 0.48 (the pros 0.54, the table 0.35), without 0.28 (0.24, 0.33); at 4-7 minutes 0.53 (0.57, 0.29)
+  and 0.21 (0.18, 0.24). In play (executor.py _model_draw) the same features (gary/policy/placement.py, shared with the
+  dataset: the rebuild matches it sample for sample), one draw by dice a decision; tests/test_inputs.py pairs play's
+  inputs with the dataset's for the same building (19 in 9 minutes, every block within its tolerance; 13 s from the
+  decision to the building, median). Not adopted yet: judged on the table's measures (the shares by base and side per
+  window against the pros', Probes lost to raids, Mutalisk raids with no cannon by the Nexus).
 - **Gary-P pulls Probes against raids (2026-11-03, gp0.20dev; #36).** 48 PvZ games (PL214a, gp0.19dev, seeds
   4006-4011, 20 minutes) measured the raids at last: Probes lost at 3-8 minutes 3.48 a game [2.12, 4.92] against the
   pros' 0.90 [0.50, 1.37] (60 games); both medians 0, Gary-P's tail 17% of games with 10 or more (the pros 2%):

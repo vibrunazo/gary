@@ -15,6 +15,8 @@ import math
 import random
 from collections import Counter
 
+import numpy as np
+
 from gary import commands as C
 from gary import orders as O
 from gary.agent.gary import LOC_NATURAL, Gary, Task
@@ -153,6 +155,9 @@ class Executor:
         self._place_rng: random.Random | None = None  # (its own draws: the macro's dice stay as they were)
         self._drawn: dict = {}                        # option place: building -> its decision's draw, till placed or failed
         self._nth: Counter = Counter()                # option place: building -> how many placed this game
+        self.place_model = None                       # option placemodel: the learned placement (gary/policy/placement.py)
+        self.place_look = None                        # its own units' look (placement.Losses), every LOOK_EVERY frames
+        self.place_reads: list[dict] = []             # its inputs and odds at each draw (tests/test_inputs.py)
         self.train_depth = 1                          # units in a building's own queue Gary trains into (option gamequeue: 2)
         self.sent: list[tuple[str, int, int]] = []    # decisions' production keys given, not yet run: (kind, act, uid)
         # the map's own creep (map knowledge, read now: at the start of a game, before any zerg's)
@@ -444,12 +449,55 @@ class Executor:
         tick that drew the natural won the race (PvT's Cybernetics Core, 6% at the natural, there in 38% of games, PT204a)."""
         # STOP-GAP (AGENTS.md): the pros' shares, blind to the game; a learned placement model replaces it (#65)
         g = self.g
+        if self.place_table and self.place_model is not None:
+            if uid not in self._drawn:
+                self._drawn[uid] = self._model_draw(uid, mine)
+            return self._drawn[uid]
         rows = getattr(g.race.data, "PLACE", {}).get(g.matchup, {}).get(uid) if self.place_table else None
         if not rows:
             return "main", "front"
         if uid not in self._drawn:
             self._drawn[uid] = self._draw(uid, mine, rows)
         return self._drawn[uid]
+
+    def _rng(self) -> random.Random:
+        if self._place_rng is None:
+            # (the map and the start too: by the seed alone every map's game drew the same, a 16-game round two openings)
+            self._place_rng = random.Random(f"place/{self.g.game_seed}/{self.g.map.size}/{self.g.main.center}")
+        return self._place_rng
+
+    def _model_draw(self, uid: int, mine: list[dict]) -> tuple:
+        """place's draw by the learned placement model (option placemodel, #65): its odds of the base and side on what
+        Gary knows now, the dataset's inputs (gary/policy/placement.py: its bases, the building's count started, the
+        enemy in sight and the most seen, its style), by dice where the building can stand."""
+        from gary.policy import placement as PM
+        from gary.races import ENEMY
+        g, R = self.g, self.g.race
+        obs = g.hi.observe()
+        frame = obs["frame"]
+        tracker = getattr(g.macro, "tracker", None)
+        newer = PM.newer_bases(g.map.bases, g.main, g.natural, mine, R)
+        bases = PM.base_features(mine, uid, g.main, g.natural, newer, R, ENEMY[R.letter].static,
+                                 self.place_look.recent(frame))
+        started = self.place_look.started(uid, mine)
+        glob = [frame / 1440, started, len(newer) + 2, PM.kinds(R).index(uid)]
+        seen = np.zeros(228, np.float32)
+        for u in obs["units"]:
+            if u["owner"] not in (g.slot, 11) and 0 <= u["type"] < 228:
+                seen[u["type"]] += 1
+        seen_max = np.maximum(tracker.seen_max, seen) if tracker is not None else seen
+        style = tracker.style if tracker is not None and tracker.style is not None else -1
+        X = PM.encode(np.array([bases], np.float32), np.array([glob], np.float32), None, np.array([style]), seen[None],
+                      seen_max[None], self.place_model.types)
+        kind_near = lambda b: sum(1 for u in mine if u["type"] == uid and math.dist(b.center, (u["x"], u["y"])) < PLACE_NEAR)
+        where = {"main": "main", "natural": "natural" if g.natural is not None else None,
+                 "newer": min(newer, key=kind_near) if newer else None}
+        p = self.place_model.odds(X)[0] * np.array([where[b] is not None for b, _ in PM.CLASSES], np.float32)
+        self.place_reads.append({"uid": uid, "started": started, "frame": frame, "x": X[0], "odds": p})
+        if p.sum() <= 0:
+            return "main", "front"
+        b, side = PM.CLASSES[self._rng().choices(range(len(p)), weights=p)[0]]
+        return where[b], side
 
     def _draw(self, uid: int, mine: list[dict], rows: list) -> tuple:
         """place's draw for a decision of this building."""
@@ -466,9 +514,6 @@ class Executor:
         opts = [(k, share) for k, share in zip(("main", "natural", "newer"), shares) if where[k] is not None and share > 0]
         if not opts:
             return "main", "front"
-        if self._place_rng is None:
-            # (the map and the start too: by the seed alone every map's game drew the same, a 16-game round two openings)
-            self._place_rng = random.Random(f"place/{g.game_seed}/{g.map.size}/{g.main.center}")
         style = getattr(getattr(g.macro, "tracker", None), "style", None)
         first = getattr(g.race.data, "PLACE_FIRST_STYLE", {}).get(g.matchup, {}).get(style, {}).get(uid) \
             or getattr(g.race.data, "PLACE_FIRST", {}).get(g.matchup, {}).get(uid, [])
@@ -477,17 +522,17 @@ class Executor:
             shares, minerals = first[self._nth[uid]]
             opts = [(k, share) for k, share in zip(("main", "natural", "newer"), shares) if where[k] is not None and share > 0]
             if opts:
-                k = self._place_rng.choices([k for k, _ in opts], weights=[share for _, share in opts])[0]
-                return where[k], "minerals" if self._place_rng.random() < minerals else "front"
+                k = self._rng().choices([k for k, _ in opts], weights=[share for _, share in opts])[0]
+                return where[k], "minerals" if self._rng().random() < minerals else "front"
         n = sum(self._placed[uid, window, k] for k, _ in opts) + 1
         total = sum(share for _, share in opts)
         if n == 1:
-            k = self._place_rng.choices([k for k, _ in opts], weights=[share for _, share in opts])[0]
+            k = self._rng().choices([k for k, _ in opts], weights=[share for _, share in opts])[0]
         else:
             k = max(opts, key=lambda o: (o[1] / total * n - self._placed[uid, window, o[0]], o[1]))[0]
         n = sum(self._placed[uid, window, k] for k in where) + 1
         short = minerals * n - self._placed[uid, window, "minerals"]
-        return where[k], "minerals" if (self._place_rng.random() < minerals if n == 1 else short >= 0.5) else "front"
+        return where[k], "minerals" if (self._rng().random() < minerals if n == 1 else short >= 0.5) else "front"
 
     def note_placed(self, uid: int, where, side: str) -> None:
         """A building's spot found (option place): counted for place's shares, and the next decision of it drawn anew."""
