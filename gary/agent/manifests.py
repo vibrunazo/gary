@@ -1034,12 +1034,9 @@ OPTIONS = {
     # executor.py wide_spot: with no spot at Gary's bases, the main's box widened (its own level first), then the
     # natural's area with no town hall yet (a full main on one base dropped 16.8 builds a game in gt1dev; issue #47)
     "widespot": lambda m: m.update(wide_spot=True),
-    # executor.py place: a building's base and side drawn from the pros' shares for its kind and minute (the race's
-    # PLACE table, eval/placement.py), where a race has one (the Protoss in PvZ)
+    # executor.py place: a building's base and side drawn from the placement model's odds (the pros' buildings against
+    # what they knew: gary/policy/placement.py, #65), where the matchup's race has one (the Protoss)
     "place": lambda m: m.update(place=True),
-    # executor.py _model_draw: option place's base and side drawn from the learned placement model's odds (the pros'
-    # buildings against what they knew: gary/policy/placement.py, #65) in place of the table, where the matchup has one
-    "placemodel": lambda m: m.update(place=True, place_model=True),
     # the deployed commit model fine-tuned 2 epochs on army dataset v3, with the hunt's labels (x4) and without (the
     # control): the labels' effect apart from v5's data change (issue #3; FH120a against FC120a -0.078 +- 0.090)
     "cmfthunt": lambda m: m["army"].update(model="runs/commit_exp/TvZ_T_ft_hunt/model.pt"),
@@ -1323,9 +1320,16 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # against PL214a) 2.31 a game (3.48, the pros 0.90), -1.17 [-2.31, -0.15]; games with 10 or more lost 8% (17%, the
 # pros 2%); Probes pulled in 40% of Zergling raids (14%, the pros 59%), 8.0 at a time (the pros 5.5); Probes at 12:00
 # 48.1 (43.2, the pros 46.2). Off since 2026-10-31 on a score with no difference
+# gp0.21dev: place's base and side by the learned placement model in place of the pros' table (#65: the stop-gap gone),
+# judged on the table's measures, 48 PvZ games paired on map and seed (PL216a against PL215a): cannons by the minerals
+# at 7-9 minutes with a Spire or Mutalisks seen 0.51 (0.35, the pros 0.54), without 0.21 (0.31, the pros 0.24), at
+# 9-12 minutes with 0.39 (0.30, the pros 0.46); Mutalisk raids at 3-8 minutes with no cannon by the Nexus 32% (50%, the
+# pros 6%); Probes lost to raids at 3-8 minutes 1.90 a game (2.31, the pros 0.90), -0.42 [-1.88, +1.02]; the shares by
+# base and side per window as near the pros' (0.123 off them, 0.113), the first cannon in the main 23% (10%, the pros
+# 5%); won 5 (8), ahead at 20:00 in 25 (19)
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
                                      "+fightrules"),
-                       "version": "gp0.20dev"}
+                       "version": "gp0.21dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:
@@ -1435,8 +1439,8 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
             g.executor.scv_saturation = m.get("scv_saturation", True)
         g.executor.train_depth = m.get("train_depth", 1)
         g.executor.wide_spot = m.get("wide_spot", False)
-        g.executor.place_table = m.get("place", False)
-        if m.get("place_model"):
+        g.executor.place_on = m.get("place", False)
+        if g.executor.place_on:
             from gary.policy.placement import Losses, PlacementModel
             g.executor.place_model = PlacementModel.find(g.matchup, g.race.letter)
             g.executor.place_look = Losses(g.race) if g.executor.place_model is not None else None

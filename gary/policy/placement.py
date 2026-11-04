@@ -1,7 +1,7 @@
 """Where a building decided now stands: its base (the main, the natural, a newer base) and its side of it (the front,
 or by the minerals), learned from the pros' buildings (ingest/placement_dataset.py, train/placement.py; #65). It
-replaces the pros' placement table (gary/protoss.py PLACE, a stop-gap blind to the game): the pros' cannons go by a
-mineral line once they have seen a Spire or Mutalisks, the table's on schedule.
+replaced the pros' placement table (a stop-gap blind to the game, gp0.21dev): the pros' cannons go by a mineral line
+once they have seen a Spire or Mutalisks, the table's went on schedule.
 
 The inputs, the dataset's: per base its town hall, buildings, of this type, static defense, workers and recent losses
 (BASE_FEATURES); the minute, how many of this type the player had started, the bases held; the building type and the

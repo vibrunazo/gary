@@ -82,7 +82,7 @@ class FixedPriority:
             tracker.look(self.g.hi.observe())    # (option seenall: the macro model's view between its queries)
         look = getattr(self.g.executor, "place_look", None)
         if look is not None and self.g.hi.frame - look.last >= LOOK_EVERY:
-            obs = self.g.hi.observe()            # (option placemodel: its own units and losses, as its dataset looks)
+            obs = self.g.hi.observe()            # (option place: its own units and losses, as its dataset looks)
             look.look(obs["frame"], {u["tag"]: u for u in obs["units"] if u["owner"] == self.g.slot})
 
     def _act(self) -> str | None:

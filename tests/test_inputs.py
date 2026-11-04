@@ -9,7 +9,7 @@ A block fails when it is off by more than its tolerance at more than FAIL_SHARE 
 model is not what it learned from. Six such faults were found by hand on 2026-10-25 (the macro model's enemy history
 empty, units inside bunkers missing from two models, the Zerg's eggs counted twice, the critic's style column, the
 build placement), each of which had cost games or misread a round. A side with the learned placement model (option
-placemodel) has its inputs at each building decided paired with the placement dataset's for the same building
+place) has its inputs at each building decided paired with the placement dataset's for the same building
 (ingest/placement_dataset.py on the replay: the building's type and its count started). Intended differences are listed (INTENDED) and
 skipped; known faults not fixed yet (KNOWN, each with its issue) are reported and expected; one that
 doesn't show in the game is reported, so the list can be kept true. Needs the game data and the models (skips without them).

@@ -1,12 +1,12 @@
 """Where a race's buildings start, Gary's against the modern pros': per building and minute window, the base it
 stands at (by its town hall's order: the main, the natural, a newer base) and its side of that base (the mineral side,
 within MINERAL_TILES of the town hall toward its minerals, or the front), and how near a mineral-side building stands to
-its workers' lanes (the gap from its footprint to the nearest town hall-to-mineral segment). The pros' shares are the race's placement
-table (gary/protoss.py PLACE, which the executor draws from: executor.py place), each building's first and second of the
-game apart (PLACE_FIRST); Gary's against them are its check.
+its workers' lanes (the gap from its footprint to the nearest town hall-to-mineral segment: gary/protoss.py PLACE_LANE).
+The pros' shares, each building's first and second of the game apart, are Gary's check (the learned placement model,
+gary/policy/placement.py, replaced the table they were drawn from in gp0.21dev).
 Re-simulated, the full game state (not Gary's view).
 
-    python -m eval.placement --race P --matchup PvZ --pros 60                          # the pros' table
+    python -m eval.placement --race P --matchup PvZ --pros 60                          # the pros' shares
     python -m eval.placement --race P --matchup PvZ --gary "runs/league/BL191a/*/*.rep"   # Gary's, against it
 """
 
@@ -36,7 +36,7 @@ MINERAL_SIDE = 0.3             # cos(building - hall, minerals - hall) over this
 MINERAL_TILES = 9              # ... and this near its town hall
 CLASSES = ("main", "natural", "newer")
 LANE_MIN = 10                  # mineral-side starts for a building's gap to the workers' lanes
-FIRSTS = 2                     # a building's first and second of the game get their own shares (gary/protoss.py PLACE_FIRST)
+FIRSTS = 2                     # a building's first and second of the game get their own shares
 FIRST_MIN = 0.3                # ... where they come in this many games at least
 STYLE_MIN = 20                 # a build style's own firsts from this many of its games (gary/styles.py's labels)
 

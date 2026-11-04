@@ -61,9 +61,8 @@ closed and its line leaves this file; docs/PROGRESS.md keeps what was done and h
 - [#37](https://github.com/vibrunazo/gary/issues/37) Human game 4's failure list
 - [#43](https://github.com/vibrunazo/gary/issues/43) Scattered fighters back into the main group
 - [#38](https://github.com/vibrunazo/gary/issues/38) Map mechanics on the current ladder maps: neutral units and per-map priors
-- [#16](https://github.com/vibrunazo/gary/issues/16) Learn building placement and scouting from replays (placement's first
-  step: [#65](https://github.com/vibrunazo/gary/issues/65), a learned model of a building's base and side in place of
-  the pros' table, option `place`, a stop-gap: trained for the Protoss, option `placemodel`, to be judged in rounds)
+- [#16](https://github.com/vibrunazo/gary/issues/16) Learn building placement and scouting from replays (a building's base
+  and side learned for the Protoss, gp0.21dev; next the tile, the other races, scouting)
 - [#25](https://github.com/vibrunazo/gary/issues/25) Walls: copy the pros' walls per map and start location
 - [#23](https://github.com/vibrunazo/gary/issues/23) Map analysis: split maps at their chokes
 - [#36](https://github.com/vibrunazo/gary/issues/36) Protoss: the executor (refactor Phase 4) begun, `gp1` plays every matchup
@@ -78,7 +77,7 @@ closed and its line leaves this file; docs/PROGRESS.md keeps what was done and h
   idle Probes sent back at once (gp0.17dev: idle at the main 0.46 at a time to 0.22, the pros 0.13), the openings'
   buildings by the pros' shares per style and every matchup's tables (gp0.18dev), the gateway-first Gateway on time
   (gp0.19dev), Probes pulled against raids (gp0.20dev: lost to raids 3.48 a game to 2.31, the pros 0.90); left: the
-  commit model's answer to raids at home, Mutalisk raids with no cannon by the Nexus (53%, the pros 6%: #65), shuttles, cannons at newer bases, unit mix
+  commit model's answer to raids at home, Mutalisk raids with no cannon by the Nexus (32%, the pros 6%), shuttles, cannons at newer bases, unit mix
   (cannons PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros')
 - [#61](https://github.com/vibrunazo/gary/issues/61) The Terran's modes in PvT (gt0.22dev siege and lay mines): held as long as the
   pros hold them, the pros' mines outside fights, Spider Mines four minutes late

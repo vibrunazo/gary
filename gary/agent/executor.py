@@ -150,12 +150,10 @@ class Executor:
         self.why: str | None = None                   # why carry_out's last None or WAIT (no, wait)
         self.wait_coming = False                      # carry_out's last WAIT is for something on its way
         self.wide_spot = False                        # option widespot: spot() widens the main, then the natural
-        self.place_table = False                      # option place: a building's base and side drawn from the pros'
-        self._placed: Counter = Counter()        # option place: (building, window, base kind or "minerals") placed so far
+        self.place_on = False                         # option place: a building's base and side by the placement model
         self._place_rng: random.Random | None = None  # (its own draws: the macro's dice stay as they were)
         self._drawn: dict = {}                        # option place: building -> its decision's draw, till placed or failed
-        self._nth: Counter = Counter()                # option place: building -> how many placed this game
-        self.place_model = None                       # option placemodel: the learned placement (gary/policy/placement.py)
+        self.place_model = None                       # option place: the placement model (gary/policy/placement.py)
         self.place_look = None                        # its own units' look (placement.Losses), every LOOK_EVERY frames
         self.place_reads: list[dict] = []             # its inputs and odds at each draw (tests/test_inputs.py)
         self.train_depth = 1                          # units in a building's own queue Gary trains into (option gamequeue: 2)
@@ -427,37 +425,20 @@ class Executor:
         return [b for b in self.g.map.bases if any(math.dist(b.center, (h["x"], h["y"])) < 6 * 32 for h in halls)]
 
     def place(self, uid: int, mine: list[dict]) -> tuple:
-        """Where a building decided now goes (option place): a base and its side drawn from the pros' shares for its
-        kind at this minute in the matchup (the race's PLACE table, eval/placement.py): the main, the natural (its town
-        hall there or not: the pros' forge-first wall stands before it), or the newer base with a town hall and the
-        fewest of its kind. ("main", "front") without one.
-        A building's first and second of the game have their own shares (the race's PLACE_FIRST: the pros' first Pylon
-        in PvZ at the natural in 92% of games, the second in the main in 84%; their window's share 47%), its build
-        style's own where it has them (PLACE_FIRST_STYLE: an opening is one plan, and the pros' Forge stands with their
-        first Gateway in a gateway-first PvZ game; drawn from every style's, it stood in the main and the natural walled
-        nothing: 22-24 Probes lost to Zerglings in the main in two games, round PL209a).
-        Gary-P's Photon Cannons all stood at the main's front, the pros' at every base and two in five on its mineral
-        side after 5:00 (none by the Nexus in 59% of the Mutalisk raids on Gary-P at 3-8 minutes, in 6% of the pros'),
-        and its opening all in the main, the pros' Gateways at the natural in 56% before 5:00.
-        Each game keeps the shares itself: a window's first of the building by the pros' dice (the opening's Pylon at
-        the natural in half the games, powering its wall), each next where its count falls furthest below its share of
-        one more. Drawn by dice alone, the main went without a cannon in games where the natural had six, and every
-        Mutalisk raid that cost Gary-P Probes at 3-8 minutes hit the main (9-16 Probes in three of them, round PL198a);
-        weighted by the shortfall, no cannon by the Nexus in 46% of the Mutalisk raids (PL200a), 12% this way (PL201a).
+        """Where a building decided now goes (option place): a base (the main, the natural, the newer base with a town
+        hall and the fewest of its kind) and its side (the front, or by the minerals), drawn by dice from the learned
+        placement model's odds on what Gary knows now (#65: gary/policy/placement.py, the dataset's inputs: its bases,
+        the building's count started, the enemy in sight and the most seen, its style). ("main", "front") without one.
+        It replaced the pros' shares per minute window (a table blind to the game, round PL216a against PL215a): PvZ
+        cannons by the minerals at 7-9 minutes with a Spire or Mutalisks seen 0.51 (the table's 0.35, the pros 0.54),
+        Mutalisk raids at 3-8 minutes with no cannon by the Nexus 32% (50%, the pros 6%).
         One draw a decision, kept until it is placed or fails: the macro asks for the plan every tick while it saves, and
         a build at another base sets out earlier (its walk counted against the money), so drawn anew each tick the first
         tick that drew the natural won the race (PvT's Cybernetics Core, 6% at the natural, there in 38% of games, PT204a)."""
-        # STOP-GAP (AGENTS.md): the pros' shares, blind to the game; a learned placement model replaces it (#65)
-        g = self.g
-        if self.place_table and self.place_model is not None:
-            if uid not in self._drawn:
-                self._drawn[uid] = self._model_draw(uid, mine)
-            return self._drawn[uid]
-        rows = getattr(g.race.data, "PLACE", {}).get(g.matchup, {}).get(uid) if self.place_table else None
-        if not rows:
+        if self.place_model is None:
             return "main", "front"
         if uid not in self._drawn:
-            self._drawn[uid] = self._draw(uid, mine, rows)
+            self._drawn[uid] = self._model_draw(uid, mine)
         return self._drawn[uid]
 
     def _rng(self) -> random.Random:
@@ -467,9 +448,7 @@ class Executor:
         return self._place_rng
 
     def _model_draw(self, uid: int, mine: list[dict]) -> tuple:
-        """place's draw by the learned placement model (option placemodel, #65): its odds of the base and side on what
-        Gary knows now, the dataset's inputs (gary/policy/placement.py: its bases, the building's count started, the
-        enemy in sight and the most seen, its style), by dice where the building can stand."""
+        """place's draw: the model's odds, by dice where the building can stand."""
         from gary.policy import placement as PM
         from gary.races import ENEMY
         g, R = self.g, self.g.race
@@ -499,52 +478,9 @@ class Executor:
         b, side = PM.CLASSES[self._rng().choices(range(len(p)), weights=p)[0]]
         return where[b], side
 
-    def _draw(self, uid: int, mine: list[dict], rows: list) -> tuple:
-        """place's draw for a decision of this building."""
-        g = self.g
-        minute = g.hi.frame / 1440
-        window = next((i for i, r in enumerate(rows) if minute < r[0]), len(rows) - 1)
-        _, shares, minerals = rows[window][:3]
-        halls = [(u["x"], u["y"]) for u in mine if u["type"] in g.race.town_halls]
-        held = lambda b: any(math.dist(b.center, h) < 6 * 32 for h in halls)
-        newer = [b for b in g.map.bases if b is not g.main and b is not g.natural and held(b)]
-        kind_near = lambda b: sum(1 for u in mine if u["type"] == uid and math.dist(b.center, (u["x"], u["y"])) < PLACE_NEAR)
-        where = {"main": "main", "natural": "natural" if g.natural is not None else None,
-                 "newer": min(newer, key=kind_near) if newer else None}
-        opts = [(k, share) for k, share in zip(("main", "natural", "newer"), shares) if where[k] is not None and share > 0]
-        if not opts:
-            return "main", "front"
-        style = getattr(getattr(g.macro, "tracker", None), "style", None)
-        first = getattr(g.race.data, "PLACE_FIRST_STYLE", {}).get(g.matchup, {}).get(style, {}).get(uid) \
-            or getattr(g.race.data, "PLACE_FIRST", {}).get(g.matchup, {}).get(uid, [])
-        if self._nth[uid] < len(first):
-            # (its first or second of the game: the pros' shares for it, by dice, where it can stand)
-            shares, minerals = first[self._nth[uid]]
-            opts = [(k, share) for k, share in zip(("main", "natural", "newer"), shares) if where[k] is not None and share > 0]
-            if opts:
-                k = self._rng().choices([k for k, _ in opts], weights=[share for _, share in opts])[0]
-                return where[k], "minerals" if self._rng().random() < minerals else "front"
-        n = sum(self._placed[uid, window, k] for k, _ in opts) + 1
-        total = sum(share for _, share in opts)
-        if n == 1:
-            k = self._rng().choices([k for k, _ in opts], weights=[share for _, share in opts])[0]
-        else:
-            k = max(opts, key=lambda o: (o[1] / total * n - self._placed[uid, window, o[0]], o[1]))[0]
-        n = sum(self._placed[uid, window, k] for k in where) + 1
-        short = minerals * n - self._placed[uid, window, "minerals"]
-        return where[k], "minerals" if (self._rng().random() < minerals if n == 1 else short >= 0.5) else "front"
-
-    def note_placed(self, uid: int, where, side: str) -> None:
-        """A building's spot found (option place): counted for place's shares, and the next decision of it drawn anew."""
+    def note_placed(self, uid: int) -> None:
+        """A building's spot found (option place): the next decision of it drawn anew."""
         self._drawn.pop(uid, None)
-        self._nth[uid] += 1
-        rows = getattr(self.g.race.data, "PLACE", {}).get(self.g.matchup, {}).get(uid) if self.place_table else None
-        if not rows:
-            return
-        minute = self.g.hi.frame / 1440
-        window = next((i for i, r in enumerate(rows) if minute < r[0]), len(rows) - 1)
-        self._placed[uid, window, "main" if where == "main" else "natural" if where == "natural" else "newer"] += 1
-        self._placed[uid, window, "minerals"] += side == "minerals"
 
     def hall_at(self, base: Base, mine: list[dict]) -> bool:
         """One of Gary's town halls (finished or not) stands at the base."""
@@ -911,7 +847,7 @@ class Executor:
         anchor; with level_of, on that point's ground level if any spot there fits; with clear (a town hall's
         tile), off that town hall's ground and its add-on's, HALL_CLEAR tiles around them. Side "minerals" (option
         place): by the mineral line, its anchor halfway from the town hall to its minerals, off the workers' lanes."""
-        if clear is None and self.place_table and base is self.g.natural and not any(
+        if clear is None and self.place_on and base is self.g.natural and not any(
                 u["owner"] == self.g.slot and u["type"] in self.g.race.town_halls and math.dist(base.center, (u["x"], u["y"])) < 6 * 32
                 for u in self.g.hi.observe()["units"]):
             clear = base.tile                    # (option place: the natural's site kept for its town hall)
@@ -958,7 +894,7 @@ class Executor:
         # their cannons against the natural's wall (every powered spot there failed the gap after 8:00, and the cannons
         # drawn for the natural stood in the main: 68% at 8-12 minutes, the pros' 27%)
         packed = None
-        pack = self.place_table and (w, h) == (2, 2)
+        pack = self.place_on and (w, h) == (2, 2)
         for _, tx, ty in cands:
             if any(abs(tx - rx) < self.g.race.sizes[rt][0] + 1 and abs(ty - ry) < self.g.race.sizes[rt][1] + 1 for rt, rx, ry in self.g.reserved) \
                     or self._bad(unit_type, tx, ty):
@@ -1129,7 +1065,7 @@ class Executor:
             # goes back to mining once the building stands (human game 2: 11-17 of 30-39 SCVs stood idle
             # from 8:00 to 12:00, builders and repairers done, sent back one by one)
             base = g.base(t.where) if t.where in ("main", "natural") or hasattr(t.where, "minerals") else g.main
-            if self.place_table and not self.hall_at(base, mine):
+            if self.place_on and not self.hall_at(base, mine):
                 # (option place: a wall at the natural before its Nexus, the builder back to the main's minerals, not
                 # idle by the natural's or carrying them back to the main: 3 Probes or more off their work 34-55% of
                 # 2-4 minutes, 19-46% with this, the pros 2-11%; waiting there 20 s for the wall's next building, as the
@@ -1144,7 +1080,7 @@ class Executor:
                 hi.right_click(*screen_of(obs, *min(fields, key=lambda m: math.dist(m, base.center))), queued=True)
             g.task = None
             return
-        if t.stage == "start" and self.place_table and "from" not in t.data and t.where != "main":
+        if t.stage == "start" and self.place_on and "from" not in t.data and t.where != "main":
             # option place: a building at a base with no town hall of Gary's yet (the natural's wall) by a free worker
             # already there, the last one's, as the pros' one Probe builds the whole wall, not one walked from the
             # main for each
@@ -1306,7 +1242,7 @@ class Executor:
                     return
                 t.data["spot"] = spot
                 if "near" not in t.data and t.unit_type != g.race.town_hall:
-                    self.note_placed(t.unit_type, t.where, t.data.get("side", "front"))
+                    self.note_placed(t.unit_type)
             spot = t.data["spot"]
             w, h = g.race.sizes[t.unit_type]
             p = screen_of(obs, spot[0] * 32 + 16, spot[1] * 32 + 16)

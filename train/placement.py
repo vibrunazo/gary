@@ -2,9 +2,9 @@
 
 Gradient-boosted trees on what the player knew when a building was decided -> P(its base and side): six classes,
 the main, the natural or a newer base, each by the front or the minerals. Split by game (train/macro.py's is_test).
-Judged on the held-out games against the table it replaces (the race's PLACE, PLACE_FIRST and PLACE_FIRST_STYLE, as
-executor.py's place draws them, its mineral share on the base drawn): log-loss, the base's and the side's accuracy,
-and the answer to air (PvZ: a Protoss cannon's mineral side with a Spire or Mutalisks seen and without, by minute).
+Judged on the held-out games: log-loss against the classes' prior, the base's accuracy, and the answer to air (PvZ: a
+Protoss cannon's mineral side with a Spire or Mutalisks seen and without, by minute). The pros' table it replaced
+(gp0.21dev) scored 1.103, 1.059 and 0.954 in PvZ, PvT and PvP (the model 0.782, 0.889, 0.779; docs/PROGRESS.md).
 
     python -m train.placement --matchup PvZ --race P
 Output: runs/placement/<matchup>_<race>_<time>/model.pkl and report.json
@@ -50,30 +50,6 @@ def load(matchup: str, race: str) -> dict:
     return {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
 
 
-def table_odds(d: dict, matchup: str, race: str) -> np.ndarray:
-    """(n, 6) the table's odds for each sample, as place() draws them: its firsts by style, else its window's shares
-    (the newer base's share only where the player held one), the side by the mineral share."""
-    from gary.race import Race
-    data = Race.of(race).data
-    place, first, by_style = (getattr(data, k, {}).get(matchup, {}) for k in ("PLACE", "PLACE_FIRST", "PLACE_FIRST_STYLE"))
-    out = np.full((len(d["type"]), 6), 1 / 6, np.float32)
-    for i in range(len(out)):
-        t, minute, nth, held = int(d["type"][i]), d["glob"][i, 0], int(d["glob"][i, 1]), d["glob"][i, 2]
-        rows = by_style.get(int(d["style"][i]), {}).get(t) or first.get(t, [])
-        if nth < len(rows):
-            shares, minerals = rows[nth]
-        elif t in place:
-            w = next((r for r in place[t] if minute < r[0]), place[t][-1])
-            shares, minerals = w[1], w[2]
-        else:
-            shares, minerals = (1.0, 0.0, 0.0), 0.0
-        s = np.array(shares, np.float32) * np.array([1, 1, held > 2], np.float32)
-        s = s / s.sum() if s.sum() > 0 else np.array([1, 0, 0], np.float32)
-        for b in range(3):
-            out[i, 2 * b], out[i, 2 * b + 1] = s[b] * (1 - minerals), s[b] * minerals
-    return out
-
-
 def logloss(p: np.ndarray, y: np.ndarray) -> float:
     return float(-np.log(np.clip(p[np.arange(len(y)), y], 1e-4, 1)).mean())
 
@@ -101,13 +77,11 @@ def main() -> None:
     clf.fit(X[~test], y[~test])
     p = np.zeros((test.sum(), 6), np.float32)
     p[:, clf.classes_] = clf.predict_proba(X[test])
-    tab = table_odds({k: v[test] for k, v in d.items()}, args.matchup, args.race)
     yt = y[test]
     report = {"samples": int(len(y)), "test": int(test.sum()), "seconds": round(time.time() - t0), "iterations": int(clf.n_iter_),
-              "logloss": {"model": logloss(p, yt), "table": logloss(tab, yt),
+              "logloss": {"model": logloss(p, yt),
                           "prior": logloss(np.tile(np.bincount(y[~test], minlength=6) / (~test).sum(), (len(yt), 1)), yt)},
-              "base_acc": {"model": float((p.reshape(-1, 3, 2).sum(2).argmax(1) == yt // 2).mean()),
-                           "table": float((tab.reshape(-1, 3, 2).sum(2).argmax(1) == yt // 2).mean())}}
+              "base_acc": float((p.reshape(-1, 3, 2).sum(2).argmax(1) == yt // 2).mean())}
     if args.race == "P" and args.matchup == "PvZ":
         from gary import protoss as P
         dt = {k: v[test] for k, v in d.items()}
@@ -121,7 +95,7 @@ def main() -> None:
                 if m.sum() >= 10:
                     rows[f"{lo}-{hi} {'air' if a else 'no air'}"] = {
                         "n": int(m.sum()), "pros": float((yt[m] % 2).mean()),
-                        "model": float(p[m][:, 1::2].sum(1).mean()), "table": float(tab[m][:, 1::2].sum(1).mean())}
+                        "model": float(p[m][:, 1::2].sum(1).mean())}
         report["cannons_by_the_minerals"] = rows
     print(json.dumps(report, indent=1))
     out = Path(args.out) / f"{args.matchup}_{args.race}_{time.strftime('%Y%m%d-%H%M%S')}"

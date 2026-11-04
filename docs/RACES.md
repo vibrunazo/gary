@@ -122,7 +122,9 @@ The playing builds differ more: `gt1` keeps every stop-gap, `gz1` the pros' deci
    (gp0.17dev: idle at the main 0.46 at a time to 0.22, the pros 0.13); each building's first and second by the pros'
    shares for its build style, and tables for PvT and PvP (gp0.18dev); the gateway-first Gateway on time (gp0.19dev:
    2:26 to 1:33, the pros 1:13); Probes pulled against raids (gp0.20dev: lost at 3-8 minutes 3.48 a game to
-   2.31 in 48 paired games, the pros 0.90). Left: the commit model's answer to raids at home, shuttles, cannons at newer
-   bases (its third Nexus later than the pros'), and
-   unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'). The placement tables are
-   the Protoss's; the other races (turrets, bunkers, colonies) can have theirs from the same script.
+   2.31 in 48 paired games, the pros 0.90); a building's base and side by a learned placement model in place of the
+   pros' table (gp0.21dev, #65: cannons by the minerals once a Spire or Mutalisks are seen, 0.51 at 7-9 minutes, the
+   table's 0.35, the pros 0.54; Mutalisk raids with no cannon by the Nexus 50% to 32%, the pros 6%). Left: the commit
+   model's answer to raids at home, shuttles, cannons at newer bases (its third Nexus later than the pros'), and
+   unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'). The placement model is
+   the Protoss's; the other races (turrets, bunkers, colonies) can have theirs from the same dataset builder.

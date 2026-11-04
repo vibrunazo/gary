@@ -17,9 +17,9 @@ rather than scripted, because the replay pipeline made that the quicker way to a
 Since 2026-10-15 every piece of the self-play loop is being built crude before any is polished: a
 learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the league isn't trained
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
-Where it stands (2026-11-03): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
+Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.28dev), `gp1dev` (gp0.20dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.28dev), `gp1dev` (gp0.21dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1690,7 +1690,7 @@ plan and the full log).
   +- 0.092, the macro gap -0.022 [-0.142, +0.094] (10-15 minutes +0.051 [+0.013, +0.081] further, 20-30 nearer). The
   loop didn't come back: gz1dev reads its own history (gz0.12dev), and ownbuilds, its exception, went with it. gz1 keeps
   it until gz1dev replaces it; no training fix (noised or dropped history) needed now.
-- **A learned placement model for Gary-P (2026-11-03, option placemodel; #65).** The pros' Protoss buildings (town
+- **A learned placement model for Gary-P (2026-11-04, gp0.21dev; #65).** The pros' Protoss buildings (town
   halls and gas aside) in the modern clean games, re-simulated to 14 minutes (ingest/placement_dataset.py: 223,731 in
   5,467 PvZ games, 165,451 in 4,436 PvT, 284,277 in 5,124 PvP), each against what the player knew as it appeared: per
   base (the main, the natural, the newer ones) its town hall, buildings, of this type, static defense, workers and
@@ -1703,8 +1703,14 @@ plan and the full log).
   and 0.21 (0.18, 0.24). In play (executor.py _model_draw) the same features (gary/policy/placement.py, shared with the
   dataset: the rebuild matches it sample for sample), one draw by dice a decision; tests/test_inputs.py pairs play's
   inputs with the dataset's for the same building (19 in 9 minutes, every block within its tolerance; 13 s from the
-  decision to the building, median). Not adopted yet: judged on the table's measures (the shares by base and side per
-  window against the pros', Probes lost to raids, Mutalisk raids with no cannon by the Nexus).
+  decision to the building, median). Judged on the table's measures, 48 PvZ games paired on map and seed (PL216a against
+  PL215a): cannons by the minerals at 7-9 minutes with air seen 0.51 (the table 0.35, the pros 0.54), without 0.21
+  (0.31, 0.24), at 9-12 minutes with 0.39 (0.30, 0.46); Mutalisk raids at 3-8 minutes with no cannon by the Nexus 32%
+  (50%, the pros 6%); Probes lost to raids 1.90 a game (2.31, the pros 0.90), -0.42 [-1.88, +1.02]; the shares by base
+  and side per window as near the pros' (0.123 off them, weighted by their count, against 0.113): early Pylons by the
+  minerals 17% (29%, the pros 19%), the Cybernetics Core in the main 68% (82%, 72%), but the first cannon in the main
+  23% (10%, the pros 5%), behind Gary's own Forge there; won 5 (8), ahead at 20:00 in 25 (19). The learned layer
+  holds, so the table and its stop-gap entry went: option place draws from the model (gp0.21dev).
 - **Gary-P pulls Probes against raids (2026-11-03, gp0.20dev; #36).** 48 PvZ games (PL214a, gp0.19dev, seeds
   4006-4011, 20 minutes) measured the raids at last: Probes lost at 3-8 minutes 3.48 a game [2.12, 4.92] against the
   pros' 0.90 [0.50, 1.37] (60 games); both medians 0, Gary-P's tail 17% of games with 10 or more (the pros 2%):
