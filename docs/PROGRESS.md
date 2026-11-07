@@ -1773,8 +1773,14 @@ plan and the full log).
   calibrated there (held-out pros' states after the Forge, one Pylon: the Pylon next 0.049, its odds 0.039), but on
   Gary-P's states it gives the Pylon 0.072: it is asked again a moment after each decision, its seconds-since-the-last-
   decision input 0 (the pros' states 7.6 s), and with that input and the decisions so far set to the pros' means the
-  odds are 0.055 and 0.056. Next: the next look when the timing head says the pros' next decision comes (pace, untried
-  alone for the Protoss).
+  odds are 0.055 and 0.056. Pace alone (option pace: the next look when the timing head says the pros' next decision
+  comes; PL227a, the same seeds) made it worse: the second Pylon before the Nexus in 65% (46%), the Nexus at 2.58
+  minutes (2.48), the bank at 10:00 409 minerals (220, the pros 616), Probes 40.3 (41.2, the pros 44.7); not adopted.
+  The seconds-since input was not the cause: over the rolls between the first Pylon and the expand (6.7 a game) the
+  Pylon's odds sum to 0.20 (from the records' top five), the pros' share 0.15, so most early Pylons are the model's own
+  draws. Of the 14 second Pylons before the Nexus in PL226a, 9 were drawn at 92-103 s at 11-12/17 supply, 4 were made
+  by the executor for a Forge at a base with no Pylon (each building's base is its own die: the first Pylon drawn at the
+  main at 5-27% and the Forge at the natural at 80%, or the Forge at the main at 1%), 1 came after the expand.
 - **Gary-P's Corsairs on their own (2026-11-04, gp0.23dev; #16).** The pros see the Spire before any Mutalisk in 72% of
   PvZ games (400 modern games re-simulated: when the Protoss first sees the Spire, 68% of the time a Corsair is by it, at
   the Zerg's main, a median 6:20), Gary-P in 20% (PL219a), its first Corsair's nearest to the Zerg's start a median 70

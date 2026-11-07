@@ -895,6 +895,10 @@ OPTIONS = {
     # 10-20 minutes, 1,834), the army down: the pros' wait to their next decision is a larva burst's for the Zerg, one
     # unit's otherwise. So the two apart: pace alone, and holdwait (hold and the 5% floor)
     "zdecoder": lambda m: m["macro"].update(pace=True, hold=True, wait_min_p=0.05),
+    # pace alone (macro.py): the next look at the model when its timing head says the pros' next decision comes, not a
+    # moment after each decision (Gary-P's seconds-since-the-last-decision input 0 at 85-120 s, the pros' states 7.6 s;
+    # its second Pylon before the forge-first Nexus in 46% of PvZ games, the pros 15%, #16)
+    "pace": lambda m: m["macro"].update(pace=True),
     # holdwait (HP175a+b, HT175a+b): PvZ -0.055 +- 0.065, TvZ +0.070 +- 0.095, the macro gap further at 5-10 minutes in
     # both (+0.062 [+0.035, +0.083], +0.071 [+0.046, +0.085]): the Protoss's 26 workers there (31 without, pros 36), the
     # 5% taken while a Probe waited for its Nexus; the under-half rule keeps a busy building's favorite, the 5% floor is
