@@ -69,7 +69,7 @@ dev build where learning is done and judged without the stop-gaps (AGENTS.md):
 | | Terran | Zerg | Protoss |
 |---|---|---|---|
 | Plays | `gt1` gt0.11 | `gz1` gz0.4 | `gp1` gp0.7 (crude) |
-| Dev build | `gt1dev` gt0.28dev | `gz1dev` gz0.17dev | `gp1dev` gp0.20dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
+| Dev build | `gt1dev` gt0.28dev | `gz1dev` gz0.17dev | `gp1dev` gp0.27dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
 
 ## What still differs between the races
 
@@ -128,7 +128,8 @@ The playing builds differ more: `gt1` keeps every stop-gap, `gz1` the pros' deci
    clustered apart from the ground army by a commit model that learned the pros' air clusters (gp0.23dev, army dataset
    v6: the first Corsair within 25 tiles of the Zerg's start in 35% of PvZ games, 12% before, the pros 80%); the macro
    model saving for what a building nearing done makes (gp0.24dev and gp0.25dev: the first Corsair within 10 s of the Stargate in 47%
-   of PvZ games, 3% before, the pros 88%). Left: the commit
+   of PvZ games, 3% before, the pros 88%); its buildings on the tiles of one pro's layout of the map and start
+   (gp0.27dev, ingest/build_tiles.py: on a tile a pro used there 97%, 36% before, the pros 81%). Left: the commit
    model's answer to raids at home, shuttles, cannons at newer bases (its third Nexus later than the pros'), and
    unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'). The placement model is
    the Protoss's; the other races (turrets, bunkers, colonies) can have theirs from the same dataset builder.

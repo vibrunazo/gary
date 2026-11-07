@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.28dev), `gp1dev` (gp0.26dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.28dev), `gp1dev` (gp0.27dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1793,6 +1793,19 @@ plan and the full log).
   units waiting for a busy producer with money for both), units decided to trained a median 6.1 s (6.4), the first
   Corsair 8.9 s (9.1); 24 of the 32 forge-first Stargates placed at the same moment, the other 8 moved -62 to +58 s
   (mean +2 s); gap score 0.29 (0.27), graded alike (won 1).
+- **Buildings on the pros' tiles (2026-11-07, gp0.27dev, option tiles; #16).** The placement model draws a building's
+  base and side; the tile was the spot search's, the nearest free one to an anchor. On the ladder maps 36% of Gary-P's
+  buildings to 12:00 stood on a tile some pro had used for that building at that base from the same start (PL230a), its
+  forge-first Forge never; the pros against each other 81% (eval/tiles.py, 400 games left out one at a time). The pros'
+  tiles come from their build commands (ingest/build_tiles.py: 2,512 PvZ Protoss layouts on the 8 ladder maps, 22-132
+  a start; the main is the base of the first gas). In play each base is laid out as one pro's game on the map and start,
+  drawn once a base (of Gary's build style where 5 games are), the how-manieth of its type Gary's building is taking that
+  pro's own tile first, then the commonest pros' tiles there that fit; the search as before where none does
+  (executor.py _pro_tile; for every race once its table is built). 48 PvZ games on PL230a's seeds (PL231a): on a pro's
+  tile 97%, every type 90% or more, the Forge 100%; the first Gateway at the natural 94% (67%, the pros 91%); builds
+  dropped for no spot 12 (26); the forge-first Stargate 4.83 minutes (4.97, the pros 4.35), Corsair 5.81 (5.85); ahead or
+  won at 12:00 42 of 48 (35), the gap score 0.28 (0.29). Left: the second Pylon in the main 62% (the pros 85%), the
+  placement model's base; the table for PvT, PvP and the other races.
 - **A building's gap on its sides when its corners can't have one (2026-11-07, a fix of the hands in every race's
   executor; #16).** Gary-P's Gateways were given up for no spot 64 times in 48 PvZ games (PL228a; 76 builds in all), 13
   times in one game, its Gateway decided at 2:39 still failing at 4:20. Re-simulated there, the game took a Gateway at

@@ -11,7 +11,7 @@ and its line removed; a new one gets an issue and a line).
   race data (`gary/terran.py`, `zerg.py`, `protoss.py`, `race.py`), the learned models (`gary/policy`), the
   interface (human-like hands) and the game environment.
 - `eval/`: the launcher (`match.py`), league rounds (`league.py`, which keeps each round's feature rows), measures
-  against the pros (`humanlike.py`, `attacks.py`, `style_adherence.py`: the build per style; `placement.py`: where the buildings stand against the pros'), two versions compared game against game per time window with a
+  against the pros (`humanlike.py`, `attacks.py`, `style_adherence.py`: the build per style; `placement.py`: where the buildings stand against the pros', `tiles.py`: on which tiles), two versions compared game against game per time window with a
   bootstrap spread (`gap_windows.py`), the records' queries (`why.py`), the critic's calibration and would-gg games (`critic_gg.py`), the run monitor (`monitor.py`,
   `priority.py`).
 - `train/`, `ingest/`, `resim/`: models, datasets from replays, the replay re-simulator.

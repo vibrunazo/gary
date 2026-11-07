@@ -62,6 +62,8 @@ WIDE_SPOT = 24                  # option widespot: the main's search box this ma
 HALL_CLEAR = 3                  # option widespot: tiles kept free around the natural's town hall site
 PLACE_NEAR = 8 * 32             # option place: a building this near a town hall stands at its base
 VESPENE_GEYSER = 188            # the neutral geyser (4x2 tiles)
+TILE_TRIES = 40                 # option tiles: the commonest pros' tiles tried after the drawn pro's own
+TILE_STYLE_MIN = 5              # ... the drawn pro of Gary's style where this many of the games there are
 MINING_LANE = 1.5               # option place: a mineral-side spot's least gap to a town hall's lanes to its minerals, in
                                 # tiles, where the race's PLACE_LANE has none for the building
 MINERAL_SIDE = 0.3              # option place: a mineral-side spot's cos(spot - town hall, minerals - town hall) over this ...
@@ -159,6 +161,8 @@ class Executor:
         self.place_model = None                       # option place: the placement model (gary/policy/placement.py)
         self.place_look = None                        # its own units' look (placement.Losses), every LOOK_EVERY frames
         self.place_reads: dict = {}                   # (building, count started) -> its last inputs and odds (test_inputs)
+        self.tiles = None                             # option tiles: the pros' tiles on this map and start (ProTiles)
+        self._layout: dict = {}                       # base tile -> the pro game whose layout it follows (or None)
         self.train_depth = 1                          # units in a building's own queue Gary trains into (option gamequeue: 2)
         self.sent: list[tuple[str, int, int]] = []    # decisions' production keys given, not yet run: (kind, act, uid)
         # the map's own creep (map knowledge, read now: at the start of a game, before any zerg's)
@@ -873,6 +877,9 @@ class Executor:
                 u["owner"] == self.g.slot and u["type"] in self.g.race.town_halls and math.dist(base.center, (u["x"], u["y"])) < 6 * 32
                 for u in self.g.hi.observe()["units"]):
             clear = base.tile                    # (option place: the natural's site kept for its town hall)
+        if self.tiles is not None and radius == 16 and level_of is None and \
+                (spot := self._pro_tile(unit_type, base, builder, side, clear)):
+            return spot
         mx = sum(x for x, _ in base.minerals) / len(base.minerals)
         my = sum(y for _, y in base.minerals) / len(base.minerals)
         k = -0.5 if side == "minerals" else 0.9
@@ -936,6 +943,57 @@ class Executor:
         # Pylons had 11-18 spots the game took for a Gateway and none whose corners were free too, so its Gateway was
         # dropped for no spot 13 times in one game, the pros' wall packed there; #16)
         return packed or sides
+
+    def _pro_tile(self, unit_type: int, base: Base, builder: int, side: str,
+                  clear: tuple[int, int] | None) -> tuple[int, int] | None:
+        """Option tiles: the building on a pro's tile at this base and side, from one pro's game on this map and start
+        (its layout, drawn once a base: ingest/build_tiles.py), the how-manieth of its type Gary's is first; else the
+        tile the most pros used there that fits. None when none fits (the search around the side's anchor then)."""
+        g, R = self.g, self.g.race
+        key = (unit_type, tuple(base.tile), 1 if side == "minerals" else 0)
+        w, h = R.sizes[unit_type]
+        units = g.hi.observe()["units"]
+        k = sum(1 for u in units if u["owner"] == g.slot and u["type"] == unit_type
+                and math.dist(base.center, (u["x"], u["y"])) < 16 * 32) + \
+            sum(1 for ut, rx, ry in g.reserved if ut == unit_type
+                and math.dist(base.center, (rx * 32 + w * 16, ry * 32 + h * 16)) < 16 * 32)
+        own = self._layout_of(base)
+        tries = []
+        if own is not None:
+            spots = self.tiles.games[own].get(key, [])
+            tries = [(tx, ty) for tx, ty, n in sorted(spots, key=lambda s: (s[2] < k, abs(s[2] - k)))]
+        tries += self.tiles.common.get(key, [])[:TILE_TRIES]
+        hw, hh = R.sizes[R.town_hall]
+        halls = [clear] if clear is not None else []
+        seen = set()
+        for tx, ty in tries:
+            if (tx, ty) in seen:
+                continue
+            seen.add((tx, ty))
+            if any(tx < rx + R.sizes[rt][0] and rx < tx + w and ty < ry + R.sizes[rt][1] and ry < ty + h
+                   for rt, rx, ry in g.reserved) \
+                    or self._bad(unit_type, tx, ty) \
+                    or any(tx < bx + hw + 2 and tx + w > bx and ty < by + hh and ty + h > by for bx, by in halls):
+                continue
+            if self.fits(unit_type, tx, ty, builder):
+                return tx, ty
+        return None
+
+    def _layout_of(self, base: Base) -> int | None:
+        """The pro game whose layout a base follows, drawn once a base among the games with buildings there, of Gary's
+        build style where TILE_STYLE_MIN of them are."""
+        bt = tuple(base.tile)
+        if bt not in self._layout:
+            games = self.tiles.at_base(bt)
+            tracker = getattr(self.g.macro, "tracker", None)
+            style = getattr(tracker, "style", None)
+            same = [i for i in games if style is not None and self.tiles.styles[i] == style]
+            pool = same if len(same) >= TILE_STYLE_MIN else games
+            rng = random.Random(f"tiles/{self.g.game_seed}/{self.g.map.size}/{self.g.main.center}/{bt}")
+            self._layout[bt] = rng.choice(pool) if pool else None
+            if pool:
+                self.g.say(f"lays out its base at {bt} as a pro did ({len(pool)} pros' games there)")
+        return self._layout[bt]
 
     def _taken(self) -> set[tuple[int, int]]:
         """The tiles under Gary's buildings, the resources and the spots reserved for buildings."""

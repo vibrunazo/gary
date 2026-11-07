@@ -131,3 +131,42 @@ class PlacementModel:
         """The newest model of the matchup's race (train/placement.py), or None."""
         runs = sorted(Path(root).glob(f"{matchup}_{race}_*/model.pkl"))
         return PlacementModel(runs[-1]) if runs else None
+
+
+class ProTiles:
+    """The pros' building tiles on one map from one start (ingest/build_tiles.py): per pro game, its builds by
+    (building, base tile, side) as [(tile x, tile y, the how-manieth of its type at that base)], and each game's style."""
+
+    def __init__(self, games: list[dict]):
+        self.games = []
+        self.styles = []
+        for gm in games:
+            by = {}
+            for uid, bx, by_, side, tx, ty, _, k in gm["builds"]:
+                by.setdefault((uid, (bx, by_), side), []).append((tx, ty, k))
+            self.games.append(by)
+            self.styles.append(gm.get("style", -1))
+        common: dict = {}
+        for by in self.games:
+            for key, spots in by.items():
+                for tx, ty, _ in spots:
+                    common.setdefault(key, {}).setdefault((tx, ty), 0)
+                    common[key][tx, ty] += 1
+        # (every game's tiles of a key, the commonest first: where the drawn pro's own are taken or don't fit)
+        self.common = {key: sorted(c, key=lambda t: -c[t]) for key, c in common.items()}
+
+    def at_base(self, base_tile: tuple[int, int]) -> list[int]:
+        """The games with a building at this base."""
+        return [i for i, by in enumerate(self.games) if any(key[1] == base_tile for key in by)]
+
+    @staticmethod
+    def find(matchup: str, race: str, map_hash: str | None, main_tile: tuple[int, int],
+             root: Path = Path(__file__).resolve().parents[2] / "runs" / "tiles") -> "ProTiles | None":
+        """The newest table of the matchup's race, its games on this map from this start, or None."""
+        import json
+        runs = sorted(Path(root).glob(f"{matchup}_{race}_*/tiles.json"))
+        if not runs or map_hash is None:
+            return None
+        m = json.loads(runs[-1].read_text(encoding="utf-8")).get(map_hash)
+        games = [gm for gm in (m or {}).get("games", []) if tuple(gm["main"]) == tuple(main_tile)]
+        return ProTiles(games) if games else None

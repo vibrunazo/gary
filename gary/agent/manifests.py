@@ -1066,6 +1066,9 @@ OPTIONS = {
     # executor.py wide_spot: with no spot at Gary's bases, the main's box widened (its own level first), then the
     # natural's area with no town hall yet (a full main on one base dropped 16.8 builds a game in gt1dev; issue #47)
     "widespot": lambda m: m.update(wide_spot=True),
+    # executor.py tiles: a building on a pro's tile, a base laid out as one pro's game on this map and start
+    # (ingest/build_tiles.py; #16)
+    "tiles": lambda m: m.update(tiles=True),
     # executor.py place: a building's base and side drawn from the placement model's odds (the pros' buildings against
     # what they knew: gary/policy/placement.py, #65), where the matchup's race has one (the Protoss)
     "place": lambda m: m.update(place=True),
@@ -1386,9 +1389,13 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # gp0.26dev: savecoming, a goal its income pays for within 30 s kept 60 s (PL226a against PL225a, the same seeds): expands
 # given up at the timeout to 6:00 0 (6), the forge-first Nexus placed at a median 146 s (149, the pros 135; quartiles
 # 141-164, 142-164); the gap score 0.27 (0.28), every game graded as before
+# gp0.27dev: tiles, a base laid out as one pro's game on the map and start (PL231a against PL230a, the same seeds):
+# buildings to 12:00 on a tile a pro used there 97% (36%, the pros against each other 81%; eval/tiles.py), the forge-first
+# Forge 100% (0%), the first Gateway at the natural 94% (67%, the pros 91%), builds dropped for no spot 12 (26), the
+# forge-first Stargate 4.83 minutes (4.97, the pros 4.35); ahead or won at 12:00 42 of 48 (35), the gap score 0.28 (0.29)
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
-                                     "+fightrules+aircluster+coming+comingbuild+savecoming"),
-                       "version": "gp0.26dev"}
+                                     "+fightrules+aircluster+coming+comingbuild+savecoming+tiles"),
+                       "version": "gp0.27dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:
@@ -1505,6 +1512,9 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
             from gary.policy.placement import Losses, PlacementModel
             g.executor.place_model = PlacementModel.find(g.matchup, g.race.letter)
             g.executor.place_look = Losses(g.race) if g.executor.place_model is not None else None
+        if m.get("tiles"):
+            from gary.policy.placement import ProTiles
+            g.executor.tiles = ProTiles.find(g.matchup, g.race.letter, g.map.hash, g.main.tile)
         if hasattr(g.executor, "addon_room"):
             g.executor.addon_room = m.get("addon_room", False)
         g.macro.odds_mass = m["macro"].get("odds_mass")

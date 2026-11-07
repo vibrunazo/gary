@@ -63,7 +63,7 @@ closed and its line leaves this file; docs/PROGRESS.md keeps what was done and h
 - [#38](https://github.com/vibrunazo/gary/issues/38) Map mechanics on the current ladder maps: neutral units and per-map priors
 - [#16](https://github.com/vibrunazo/gary/issues/16) Learn building placement and scouting from replays (a building's base
   and side learned for the Protoss, gp0.21dev; Corsairs scouting as the army's air clusters, PvZ, gp0.23dev; saving for the first
-  Corsair, gp0.24dev, its Core, gp0.25dev, and its natural Nexus, gp0.26dev; next the tile, the other races, the other matchups' air clusters, the macro's look a moment after each decision)
+  Corsair, gp0.24dev, its Core, gp0.25dev, and its natural Nexus, gp0.26dev; buildings on one pro's tiles, PvZ, gp0.27dev; next the tiles of the other matchups and races, the other matchups' air clusters, the macro's look a moment after each decision)
 - [#25](https://github.com/vibrunazo/gary/issues/25) Walls: copy the pros' walls per map and start location
 - [#23](https://github.com/vibrunazo/gary/issues/23) Map analysis: split maps at their chokes
 - [#36](https://github.com/vibrunazo/gary/issues/36) Protoss: the executor (refactor Phase 4) begun, `gp1` plays every matchup
