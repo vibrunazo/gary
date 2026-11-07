@@ -28,17 +28,17 @@
   ".records.jsonl": "0fb2c678280a5db2b931c72e5dd73f0a4b3ec69e3ac58282a9118ea0be4c7790"
  },
  "Radeon 1.2 7001 TvT": {
-  ".pov.jsonl": "596a1bfde0564044a2820befd32a29923f22dd187987c9e1975f6472d11941a9",
-  ".bpov.jsonl": "fa219f5f87c04d544344e64527eced745b2ea7231a0d382b5e9638ec07c6d5cc",
-  ".trace.jsonl": "6676ed63d001ca8df632ffa269b89b9de3e051990f4eec13f64385ea92819f17",
-  ".btrace.jsonl": "74bc3d2f516305535e3a1b197381f2031c92f0a7b5ee48bed6f177a03b64c912",
-  ".records.jsonl": "fcdafb9242437482fb213e4315565960e054db1edc405020965b55ff7f6e95e0"
+  ".pov.jsonl": "2c832fb4f8147c0f9d9a84f3dea387442f7f44193185a6a778a51629f282415c",
+  ".bpov.jsonl": "3f5bf6460ff7a0bb4945c3aa36f445b06f0fcc8d24dcd4e63db4ace2ea644ca6",
+  ".trace.jsonl": "adb3b28086d187cfa6adbe97111e66295bb03b231965d6cb4d96c62f89234697",
+  ".btrace.jsonl": "cde74901969e0494ea13bca1bc7fa6e48ce95650cc20e7815ccc583fd9e70f46",
+  ".records.jsonl": "ddcbcafacaa5de3a865a366f3b1e826904117674e21d4b64e82cb98fa7dede17"
  },
  "Fighting Spirit 1.4 8001 PvT": {
-  ".pov.jsonl": "26142e3b1e63ad34982dcddd5f059fe78dfc560a373af81710b7f7828c2d3697",
-  ".bpov.jsonl": "2e6c5b7880e9c776f60eeff8deb25c0b92a92f1d79fba0c6d513c214fbee60af",
-  ".trace.jsonl": "762917d9d2757d8b0e2e14d6a825e6edbf98ea4338fd6f909102617b976507e2",
-  ".btrace.jsonl": "6b3b445600fb8b49431fa13e9872c59c42dd3682c5cf7f5c3471b9ec043526d2",
-  ".records.jsonl": "36ff3288f846f3f828cc2f49db80a024efed66714cc838e02d5ee5002ae70a3f"
+  ".pov.jsonl": "8200f585c9ad05305ddf13dcd3d07930a30849a023d497cae4dcf030a7efbad4",
+  ".bpov.jsonl": "e5c5a52223a9a9d3a7676c31c2d4ac6867679b3cfcb9feba4b4e23741544cbbf",
+  ".trace.jsonl": "bfa350637241c897ec8a8b3cb164a32bab7bfe067d4a8251542870fee0792d93",
+  ".btrace.jsonl": "52bfe016ed1462729c1f07995d3291815ea9dfd71c29f341e08c212af54d65e3",
+  ".records.jsonl": "453f29a04fdee0bc995d09a216af485cefa31ad915b836e6ed1838c37b3b654d"
  }
 }

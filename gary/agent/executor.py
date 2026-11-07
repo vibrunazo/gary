@@ -645,6 +645,10 @@ class Executor:
         else:
             budget = obs["me"]["minerals"] - sum(g.race.minerals[ut] for ut, *_ in g.reserved) \
                 - sum(g.race.minerals[p.unit_type] for p in g.parked[:g.parked.index(t)])     # (the ones parked before it first)
+            # (and the units queued before it: Gary-P's cannon and Citadel decided after its first Corsair, queued for the
+            # Stargate warping in, were placed with its money, and the Corsair trained 17 s later, #55)
+            if hasattr(g.macro, "queued_before"):
+                budget -= g.macro.queued_before(t.data.get("decided", t.started))
             if budget < g.race.minerals[t.unit_type] and g.hi.frame - t.data["walking"] < PARK_FOR:
                 return False
             # just about there: until it stops (a box finds a standing SCV where Gary saw it; one

@@ -619,6 +619,11 @@ class LearnedMacro:
             sm, sg = sm + m, sg + gas
         return sm, sg
 
+    def queued_before(self, frame: int) -> int:
+        """The minerals of the queued units decided before this frame: a parked build decided after them leaves them
+        alone (#55, the other way round from _train_queued)."""
+        return sum(self.g.executor.cost_of(act, uid)[0] for (act, uid), since in self.queued if since < frame)
+
     def _affordable(self, goal: dict, obs: dict, mine: list[dict], done: list[dict], me: dict, own: bool = False,
                     plan: dict | None = None) -> bool:
         """Its money is there, less what is spoken for and the parked decision's (unless it is that one). A

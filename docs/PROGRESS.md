@@ -1781,6 +1781,18 @@ plan and the full log).
   draws. Of the 14 second Pylons before the Nexus in PL226a, 9 were drawn at 92-103 s at 11-12/17 supply, 4 were made
   by the executor for a Forge at a base with no Pylon (each building's base is its own die: the first Pylon drawn at the
   main at 5-27% and the Forge at the natural at 80%, or the Forge at the main at 1%), 1 came after the expand.
+- **A parked build leaves the queued units' money (2026-11-07, a bug fix in every race's executor; #16, #55).** Gary-P's
+  forge-first path loses about 8 s at each step after the one before finishes (each step's order after its requirement's
+  finish, PL226a against the pros: the Core 25 s, 12; the Stargate 15 s, 9; the first Corsair 14 s, 6). The first
+  Corsair, decided as its Stargate warped in and queued, waited while a cannon and a Citadel of Adun decided after it
+  were placed with its money (one game: decided at 6:10, trained at 6:27). A new goal leaves alone the money of the units
+  queued before it (#55), but a parked build, its worker walking, resumed on the money less the reserved and the
+  earlier parked builds only. Now less the units queued before its decision too (executor.py _resume_one,
+  macro.py queued_before). Parity recorded again (a TvT and a PvT game differ). In PL228a (PL226a's seeds, 48 PvZ
+  games): buildings placed after a waiting unit's decision and before it trained 17.3 a game (22.4; the count takes in
+  units waiting for a busy producer with money for both), units decided to trained a median 6.1 s (6.4), the first
+  Corsair 8.9 s (9.1); 24 of the 32 forge-first Stargates placed at the same moment, the other 8 moved -62 to +58 s
+  (mean +2 s); gap score 0.29 (0.27), graded alike (won 1).
 - **Gary-P's Corsairs on their own (2026-11-04, gp0.23dev; #16).** The pros see the Spire before any Mutalisk in 72% of
   PvZ games (400 modern games re-simulated: when the Protoss first sees the Spire, 68% of the time a Corsair is by it, at
   the Zerg's main, a median 6:20), Gary-P in 20% (PL219a), its first Corsair's nearest to the Zerg's start a median 70
