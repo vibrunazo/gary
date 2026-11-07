@@ -61,6 +61,7 @@ BAD_FOR = 60 * 24                     # a spot where a build failed (not for mon
 WIDE_SPOT = 24                  # option widespot: the main's search box this many tiles each way
 HALL_CLEAR = 3                  # option widespot: tiles kept free around the natural's town hall site
 PLACE_NEAR = 8 * 32             # option place: a building this near a town hall stands at its base
+VESPENE_GEYSER = 188            # the neutral geyser (4x2 tiles)
 MINING_LANE = 1.5               # option place: a mineral-side spot's least gap to a town hall's lanes to its minerals, in
                                 # tiles, where the race's PLACE_LANE has none for the building
 MINERAL_SIDE = 0.3              # option place: a mineral-side spot's cos(spot - town hall, minerals - town hall) over this ...
@@ -916,6 +917,7 @@ class Executor:
         # drawn for the natural stood in the main: 68% at 8-12 minutes, the pros' 27%)
         packed = None
         pack = self.place_on and (w, h) == (2, 2)
+        sides = taken = None
         for _, tx, ty in cands:
             if any(abs(tx - rx) < self.g.race.sizes[rt][0] + 1 and abs(ty - ry) < self.g.race.sizes[rt][1] + 1 for rt, rx, ry in self.g.reserved) \
                     or self._bad(unit_type, tx, ty):
@@ -926,7 +928,44 @@ class Executor:
                     return tx, ty
                 if pack and packed is None:
                     packed = (tx, ty)
-        return packed
+                elif not pack and sides is None:
+                    taken = self._taken() if taken is None else taken
+                    if self._ring_free(unit_type, tx, ty, taken):
+                        sides = (tx, ty)
+        # (else a gap on its four sides, its corners touching: Gary-P's natural boxed in by its Nexus, Forge, cannons and
+        # Pylons had 11-18 spots the game took for a Gateway and none whose corners were free too, so its Gateway was
+        # dropped for no spot 13 times in one game, the pros' wall packed there; #16)
+        return packed or sides
+
+    def _taken(self) -> set[tuple[int, int]]:
+        """The tiles under Gary's buildings, the resources and the spots reserved for buildings."""
+        g = self.g
+        taken = set()
+        for u in g.hi.observe()["units"]:
+            size = g.race.sizes.get(u["type"]) if u["owner"] == g.slot else \
+                (4, 2) if u["type"] == VESPENE_GEYSER else (2, 1) if u["owner"] == 11 else None
+            if size is not None:
+                bx, by = (u["x"] - size[0] * 16) // 32, (u["y"] - size[1] * 16) // 32
+                taken.update((x, y) for x in range(bx, bx + size[0]) for y in range(by, by + size[1]))
+        for ut, rx, ry in g.reserved:
+            w, h = g.race.sizes[ut]
+            taken.update((x, y) for x in range(rx, rx + w) for y in range(ry, ry + h))
+        return taken
+
+    def _ring_free(self, unit_type: int, tx: int, ty: int, taken: set[tuple[int, int]]) -> bool:
+        """The tiles along the building's four sides free of buildings and resources (and buildable, where the terrain
+        is known), its corners aside: a gap to walk through, whatever the power there (a shifted Gateway's own check
+        failed at the edge of its Pylon's field)."""
+        w, h = self.g.race.sizes[unit_type]
+        ring = [(x, y) for x in (tx - 1, tx + w) for y in range(ty, ty + h)] + \
+            [(x, y) for y in (ty - 1, ty + h) for x in range(tx, tx + w)]
+        if any(p in taken for p in ring):
+            return False
+        terrain = self.terrain()
+        if terrain is None:
+            return True
+        th, tw = terrain[0].shape
+        return all(0 <= x < tw and 0 <= y < th and terrain[0][y, x] for x, y in ring)
 
     def spot_order(self, unit_type: int, cands: list[tuple[float, int, int]]) -> list[tuple[float, int, int]]:
         """The order a base's candidate spots (distance, tile x, tile y; nearest first) are tried in: this race's

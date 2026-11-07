@@ -1793,6 +1793,18 @@ plan and the full log).
   units waiting for a busy producer with money for both), units decided to trained a median 6.1 s (6.4), the first
   Corsair 8.9 s (9.1); 24 of the 32 forge-first Stargates placed at the same moment, the other 8 moved -62 to +58 s
   (mean +2 s); gap score 0.29 (0.27), graded alike (won 1).
+- **A building's gap on its sides when its corners can't have one (2026-11-07, a fix of the hands in every race's
+  executor; #16).** Gary-P's Gateways were given up for no spot 64 times in 48 PvZ games (PL228a; 76 builds in all), 13
+  times in one game, its Gateway decided at 2:39 still failing at 4:20. Re-simulated there, the game took a Gateway at
+  11-18 tiles of the natural, boxed in by its Nexus, Forge, cannons and Pylons, and the spot search took none: it keeps
+  a walkable gap round each building by asking the game for the same building one tile off both ways diagonally, which
+  failed where a corner touched a Pylon or the Forge, or the shifted footprint left the Pylon's field. Where no spot
+  passes that, a building now takes one whose four sides are free (no building, resource or reserved spot on them,
+  buildable ground), its corners aside, power not asked (2x2s still pack without the gap; executor.py _base_spot,
+  _ring_free). Parity unchanged. In PL230a (PL228a's seeds): builds given up for no spot 26 (76; Gateways 21, 64), in
+  14 games (22), at most 6 in one (13); the forge-first opening played in 30 games (26), its Core at 4.03 minutes (4.13,
+  the pros 3.59), Stargate 4.97 (5.12, 4.35), first Corsair 5.85 (6.07, 5.18); gap score 0.29 both, graded alike. (A
+  first try asking the game for the building shifted one tile each side, PL229a, left 50: the shifted Gateway's power.)
 - **Gary-P's Corsairs on their own (2026-11-04, gp0.23dev; #16).** The pros see the Spire before any Mutalisk in 72% of
   PvZ games (400 modern games re-simulated: when the Protoss first sees the Spire, 68% of the time a Corsair is by it, at
   the Zerg's main, a median 6:20), Gary-P in 20% (PL219a), its first Corsair's nearest to the Zerg's start a median 70
