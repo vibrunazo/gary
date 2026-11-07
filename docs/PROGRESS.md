@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.28dev), `gp1dev` (gp0.25dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.28dev), `gp1dev` (gp0.26dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1760,6 +1760,21 @@ plan and the full log).
   decided after the first Pylon trained before it in 0 games (39 of 48), the first Pylon at 51 s (58; quartiles 50-53,
   55-59), the first Forge or Gateway 91 s (94), the forge-first first Corsair 5.80 minutes (5.97), every first
   Corsair 5.88 (5.98); styles as told 81% and 81% (81%, 78%), gap score 0.28 (0.27).
+- **A goal saved for kept (2026-11-07, gp0.26dev, option savecoming; #16).** The forge-first natural Nexus came at 2:29
+  (placed, PL225a), the pros' at 2:15 (990 modern PvZ pros: Forge 91 s, Nexus 135, first cannon 143, second Pylon 175;
+  Gary-P 92, 149, 157, 145). Decided at a median 109 s with 92 minerals, it waited for its money as the macro's goal,
+  and a goal not carried out in 30 s is dropped: 6 expands of 48 games were given up with 184-270 minerals and decided
+  again ~25 s later, where the pros save 35-45 s for it. With savecoming a goal whose missing minerals its workers mine
+  within the 30 s is on its way, kept twice as long as for a Pylon warping in (agent/macro.py carry_out; any race). In
+  PL226a (PL225a's seeds): expands given up at the timeout 0 (6), the forge-first Nexus at 146 s (149; quartiles
+  141-164, 142-164), every game graded as before, gap score 0.27 (0.28). Adopted. What still holds it is the order:
+  Gary-P puts its second Pylon before the Nexus in 46% of these games (the pros 15%) and a cannon in 23% (29%), and its
+  late Nexuses (19% after 2:50) all follow a Pylon and one or two cannons decided at 1:40-2:05. The macro model is
+  calibrated there (held-out pros' states after the Forge, one Pylon: the Pylon next 0.049, its odds 0.039), but on
+  Gary-P's states it gives the Pylon 0.072: it is asked again a moment after each decision, its seconds-since-the-last-
+  decision input 0 (the pros' states 7.6 s), and with that input and the decisions so far set to the pros' means the
+  odds are 0.055 and 0.056. Next: the next look when the timing head says the pros' next decision comes (pace, untried
+  alone for the Protoss).
 - **Gary-P's Corsairs on their own (2026-11-04, gp0.23dev; #16).** The pros see the Spire before any Mutalisk in 72% of
   PvZ games (400 modern games re-simulated: when the Protoss first sees the Spire, 68% of the time a Corsair is by it, at
   the Zerg's main, a median 6:20), Gary-P in 20% (PL219a), its first Corsair's nearest to the Zerg's start a median 70

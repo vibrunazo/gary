@@ -128,6 +128,7 @@ class LearnedMacro:
         self.queued: list[tuple[tuple[int, int], int]] = []
         self.queue_depth = 1                  # the model's waiting units queued per producer (option qdepth2: 2)
         self.wait_builds = False              # option comingbuild: a building waits for what it needs being built too
+        self.save_coming = False              # option savecoming: a goal its income pays for within the timeout is on its way
         # option rethink: a unit decided whose producers' queues are full isn't held as the goal (the model wasn't
         # asked again while it waited, so it never added production with the bank: the bank escape covered for that);
         # the model is asked again at its next look
@@ -541,6 +542,11 @@ class LearnedMacro:
         if budget < minerals - walk_ahead or me["gas"] - kept_g < gas:
             if self.nosave:
                 self.goal = None
+            elif self.save_coming and me["gas"] - kept_g >= gas and \
+                    minerals - walk_ahead - budget <= MINING * workers * GOAL_TIMEOUT / 24:
+                # (its money on its way: kept twice as long, as for a Pylon warping in; a Nexus decided with 24-208
+                # minerals was given up at 30 s with 184-270 in 6 of 48 PvZ games, the pros saving 35-45 s for it, #16)
+                goal["coming"] = True
             return
         if plan["kind"] == "build" and len(g.parked) >= g.parked_max:
             return                          # (parked_max builders walking ahead at a time: the parked builds)

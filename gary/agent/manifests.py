@@ -656,6 +656,10 @@ OPTIONS = {
     # into its 38, the model's 22%; Gary-P ordered it 33 s after the Gateway's finish in the forge-first opening, the
     # pros 12 s; #16). In gp1dev since gp0.25dev
     "comingbuild": lambda m: m["macro"].update(wait_builds=True),
+    # macro.py carry_out: a goal waiting for minerals its income brings within the 30 s timeout is on its way, kept 60 s
+    # (Gary-P's forge-first Nexus, decided with 24-208 minerals, was given up at 30 s in 6 of 48 PvZ games, and placed
+    # at 2:29 against the pros' 2:15, #16)
+    "savecoming": lambda m: m["macro"].update(save_coming=True),
     # army.py: no hunt (v0.16's scripted attack once no enemy army was seen for a minute): with commitments the
     # engage choice decides when the army goes for the enemy's buildings. In human game 3 the hunt sent 23
     # marines into three sunkens at "100% sure", one by one, twice
@@ -1375,9 +1379,12 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # first, PL224a against PL223a, the same seeds): the forge-first opening's Gateway to Cybernetics Core 56 s (74 s, the
 # pros 50), its Stargate 5.03 minutes (5.28, the pros 4.35); the first Corsair 5.98 minutes (6.23, the pros 5.47); style
 # 21 played as told 78% (69%), style 20 81% (81%); the gap score 0.27 both
+# gp0.26dev: savecoming, a goal its income pays for within 30 s kept 60 s (PL226a against PL225a, the same seeds): expands
+# given up at the timeout to 6:00 0 (6), the forge-first Nexus placed at a median 146 s (149, the pros 135; quartiles
+# 141-164, 142-164); the gap score 0.27 (0.28), every game graded as before
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
-                                     "+fightrules+aircluster+coming+comingbuild"),
-                       "version": "gp0.25dev"}
+                                     "+fightrules+aircluster+coming+comingbuild+savecoming"),
+                       "version": "gp0.26dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:
@@ -1482,6 +1489,7 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
         g.macro.queue_depth = m["macro"].get("queue_depth", 1)
         g.macro.rethink = m["macro"].get("rethink", False)
         g.macro.wait_builds = m["macro"].get("wait_builds", False)
+        g.macro.save_coming = m["macro"].get("save_coming", False)
         g.macro.nosave = m["macro"].get("nosave", False)
         g.macro.dice_t = m["macro"].get("dice_t", 1.0)
         if hasattr(g.executor, "scv_saturation"):
