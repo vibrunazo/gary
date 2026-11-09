@@ -1232,10 +1232,15 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # minutes): buildings on a tile a pro used there 97% (34%, the pros against each other 85%; eval/tiles.py); its depots
 # no longer spill to the natural (the main packs them on the pros' tiles: 0 of 650, the pros 19%; no model decides a
 # Terran building's base yet); builds dropped for no spot 0 (2); the gap score 0.289 (0.273, +0.016 [-0.012, +0.037])
+# gt0.30dev: place, a building's base and side drawn from a learned placement model, as Gary-P's (gary/policy/placement.py,
+# trained on 94,943 pro Terran buildings in 2,719 modern TvZ games: log-loss 0.706, the prior 1.168, the base right 85%;
+# TvZ only so far, the main elsewhere). TZ238a against TZ237a, the same seeds: the first Barracks at the natural 88% (0%,
+# the pros 77%), the first depot 50% (0%, 62%), Bunker 90% (0%, 93%), turret 62% (0%, 71%); on a pro's tile 98% (97%),
+# none dropped for no spot; the gap -0.016 [-0.046, +0.009]
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+widespot+seenall+armyseen+builtcount+unitcount+styleroll+noalarm+gastarget"
-                                     "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+pendown+tiles"),
-                       "version": "gt0.29dev"}
+                                     "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+pendown+tiles+place"),
+                       "version": "gt0.30dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,

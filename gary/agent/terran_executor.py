@@ -65,7 +65,9 @@ class TerranExecutor(Executor):
             return {"kind": "build", "where": spot[0], "data": {"spot": spot[1]}, "cost": g.race.costs[uid]} \
                 if spot else self.no("no free geyser")
         if act == BUILD and uid in g.race.sizes and uid != g.race.town_hall:
-            return {"kind": "build", "where": "main", "cost": g.race.costs[uid]}
+            # (option place: its base and side drawn from the placement model's odds, as Gary-P's; the main without it)
+            where, side = self.place(uid, mine)
+            return {"kind": "build", "where": where, "data": {"side": side}, "cost": g.race.costs[uid]}
         if act == EXPAND and uid == g.race.town_hall:
             base = self.free_base(obs)
             return {"kind": "build", "where": "natural" if base is g.natural else base,

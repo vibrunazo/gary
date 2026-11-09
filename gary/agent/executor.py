@@ -950,9 +950,9 @@ class Executor:
         (its layout, drawn once a base: ingest/build_tiles.py), the how-manieth of its type Gary's is first; else the
         tile the most pros used there that fits. None when none fits (the search around the side's anchor then)."""
         g, R = self.g, self.g.race
-        # (the side the placement model drew; with no model, a pro's tile on either side: Gary-T's turrets by the
-        # minerals were never offered otherwise)
-        key = (unit_type, tuple(base.tile), None if not self.place_on else 1 if side == "minerals" else 0)
+        # (the side the placement model drew; with no model for the matchup, a pro's tile on either side: Gary-T's
+        # turrets by the minerals were never offered otherwise)
+        key = (unit_type, tuple(base.tile), None if self.place_model is None else 1 if side == "minerals" else 0)
         w, h = R.sizes[unit_type]
         units = g.hi.observe()["units"]
         k = sum(1 for u in units if u["owner"] == g.slot and u["type"] == unit_type

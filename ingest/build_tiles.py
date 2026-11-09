@@ -65,7 +65,7 @@ def side_of(x: float, y: float, base) -> int:
 def game_builds(items: list[dict], mi, R) -> dict | None:
     """One player's main tile and builds on a ladder map, or None (no main found)."""
     ids = {name: uid for uid, name in R.names.items()}
-    kinds = set(placed_kinds(R)) - set(getattr(R.data, "ADDON_PARENT", {}))   # (an add-on stands where its building's room is)
+    kinds = set(placed_kinds(R))
     halls = {R.names[t] for t in R.town_halls}
     gas = R.names[R.gas_building]
     builds = [i for i in items if i["kind"] == "build" and i.get("pos") and i["conf"] not in NOT_BUILT

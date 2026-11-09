@@ -28,9 +28,10 @@ LOOK_EVERY = 48                # frames between the losses' looks (the dataset's
 
 
 def kinds(R) -> list[int]:
-    """The race's buildings placed by the model (town halls and gas aside: the executor places those itself), in the
-    order of the type's category."""
-    return sorted(t for t in R.sizes if t not in R.town_halls and t != R.gas_building)
+    """The race's buildings placed by the model (town halls and gas aside: the executor places those itself; a Terran
+    add-on stands where its building's room is), in the order of the type's category."""
+    addons = set(getattr(R.data, "ADDON_PARENT", {}))
+    return sorted(t for t in R.sizes if t not in R.town_halls and t != R.gas_building and t not in addons)
 
 
 class Losses:

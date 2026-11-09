@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.29dev), `gp1dev` (gp0.27dev) and `gz1dev` (gz0.18dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.30dev), `gp1dev` (gp0.27dev) and `gz1dev` (gz0.18dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1793,6 +1793,17 @@ plan and the full log).
   units waiting for a busy producer with money for both), units decided to trained a median 6.1 s (6.4), the first
   Corsair 8.9 s (9.1); 24 of the 32 forge-first Stargates placed at the same moment, the other 8 moved -62 to +58 s
   (mean +2 s); gap score 0.29 (0.27), graded alike (won 1).
+- **A learned placement model for Gary-T (2026-11-09, gt0.30dev, option place; #16, #65).** With the pros' tiles
+  (gt0.29dev) Gary-T's depots stopped reaching the natural (0 of 650, the pros 19%), and nothing had ever decided a
+  Terran building's base: every first Barracks, depot, Bunker and turret stood in the main (TZ237a; the pros' at the
+  natural 77%, 62%, 93%, 71%, eval/placement.py on 60 modern games). The Protoss's dataset builder and trainer, race
+  tables already (add-ons left out of the placed kinds, where their building's room is): 94,943 pro Terran buildings in
+  2,719 modern TvZ games, log-loss 0.706 on held-out games (the prior 1.168), the base right 85%. The Terran executor
+  draws its base and side as Gary-P's. 48 games on the same seeds (TZ238a against TZ237a): the first Barracks at the
+  natural 88% (0%), the first depot 50% (0%), the second 54% (0%), the Bunker 90% (0%), the first turret 62% (0%) and by
+  the minerals 73% (25%, the pros 59%), depots to 5:00 at the natural 36% (0%, the pros 41%); the first Factory there 19%
+  (the pros 7%). On a pro's tile 98% (97%), none dropped for no spot; the gap -0.016 [-0.046, +0.009], the Zerg's
+  -0.015; ahead or won at 12:00 30 of 48 (34). TvT and PvT have no Terran model yet (the main there, as before).
 - **The pros' tiles for the Terran and the Zerg (2026-11-09, gt0.29dev, gz0.18dev, option tiles; #16).** Tables for
   every Terran and Zerg matchup (ingest/build_tiles.py; the replays name a matchup one way for both players, so Gary-T's
   TvP is PvT_T and Gary-Z's ZvT TvZ_Z; add-ons left out, where their building's room is): the pros against each other

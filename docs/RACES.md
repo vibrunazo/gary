@@ -69,7 +69,7 @@ dev build where learning is done and judged without the stop-gaps (AGENTS.md):
 | | Terran | Zerg | Protoss |
 |---|---|---|---|
 | Plays | `gt1` gt0.11 | `gz1` gz0.4 | `gp1` gp0.7 (crude) |
-| Dev build | `gt1dev` gt0.29dev | `gz1dev` gz0.18dev | `gp1dev` gp0.27dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
+| Dev build | `gt1dev` gt0.30dev | `gz1dev` gz0.18dev | `gp1dev` gp0.27dev (gp0.4dev, 2026-10-30: 96 paired games a matchup against gp1, PvT -0.029, PvZ -0.068, PvP -0.076) |
 
 ## What still differs between the races
 
@@ -85,6 +85,7 @@ tables over time. In the dev builds:
 | First producer by a time (`rax_by`) | 78 s | 2:45 | none |
 | Fight | TvZ: the RL'd role model and the fight rules (repair, pull, load, detect, stim, reinforce); PvT and TvT: the matchup's role model | its own provider (`zerg_fight.py`: the role model, lurkers, retreat when outweighed) | the matchup's role model, the Terran's pull and reinforce; buildings placed by the pros' tables; Archons merged as a macro decision (gp0.9dev), Reavers and Carriers kept armed; Psionic Storms when and where the pros cast them (gp0.11dev); no shuttles |
 | Army | the commit model, the hunt as advice, the static-defense nudge, scans | the commit model; overlord posts and mutalisk raid as rules (no model moves those units) | the commit model |
+| Placement | a building's base and side by the placement model (TvZ; the main elsewhere), the pros' tiles | rings round its hatcheries, the pros' tiles (no placement model) | the placement model in every matchup, the pros' tiles |
 | Control groups | by type, keys 1-4 (the pros' layout) | by type, keys 1-3 | by type, keys 1-4, production 5-8 (the Protoss pros' layout, gp0.10dev) |
 | Critic | every matchup (2026-11-01) | every matchup | every matchup |
 
@@ -132,5 +133,5 @@ The playing builds differ more: `gt1` keeps every stop-gap, `gz1` the pros' deci
    (gp0.27dev, ingest/build_tiles.py: on a tile a pro used there 97% in PvZ, 98% in PvT, 97% in PvP; 36%, 32% and 50%
    before; the pros 81%, 78%, 83%). Left: the commit
    model's answer to raids at home, shuttles, cannons at newer bases (its third Nexus later than the pros'), and
-   unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'). The placement model is
-   the Protoss's; the other races (turrets, bunkers, colonies) can have theirs from the same dataset builder.
+   unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'). The Terran has a
+   placement model in TvZ too (gt0.30dev); its other matchups and the Zerg's (colonies) come from the same builder.
