@@ -1805,7 +1805,14 @@ plan and the full log).
   tile 97%, every type 90% or more, the Forge 100%; the first Gateway at the natural 94% (67%, the pros 91%); builds
   dropped for no spot 12 (26); the forge-first Stargate 4.83 minutes (4.97, the pros 4.35), Corsair 5.81 (5.85); ahead or
   won at 12:00 42 of 48 (35), the gap score 0.28 (0.29). Left: the second Pylon in the main 62% (the pros 85%), the
-  placement model's base; the table for PvT, PvP and the other races.
+  placement model's base; the tables for the other races.
+- **The pros' tiles in PvT and PvP (2026-11-09, gp0.27dev's option tiles, its tables built; #16).** ingest/build_tiles.py
+  for the Protoss in PvT (2,378 layouts) and PvP (5,037); the pros against each other on them 78% and 83%. 48 games each
+  on the same seeds, with and without (option notiles): PvT against gt1dev (PT233a, PT232a) on a pro's tile 98% (32%),
+  the share of the pros' games using that very tile 13.3% (1.5%), builds dropped for no spot 0 (3); PvP gp1dev against
+  itself (PP235a, PP234a) 97% (50%), 9.8% (1.7%), dropped 1 (5). Gap score P alike (PvT 0.33, 0.32; PvP 0.34, 0.33);
+  PvT lost 2 (0: a Vulture and tank push at the natural at 6:30, 8:16, and one at 11:00; the army, not the tiles), PvP
+  won 1 lost 1 (lost 1).
 - **A building's gap on its sides when its corners can't have one (2026-11-07, a fix of the hands in every race's
   executor; #16).** Gary-P's Gateways were given up for no spot 64 times in 48 PvZ games (PL228a; 76 builds in all), 13
   times in one game, its Gateway decided at 2:39 still failing at 4:20. Re-simulated there, the game took a Gateway at

@@ -1069,6 +1069,7 @@ OPTIONS = {
     # executor.py tiles: a building on a pro's tile, a base laid out as one pro's game on this map and start
     # (ingest/build_tiles.py; #16)
     "tiles": lambda m: m.update(tiles=True),
+    "notiles": lambda m: m.update(tiles=False),        # (a baseline without them: a matchup's table new)
     # executor.py place: a building's base and side drawn from the placement model's odds (the pros' buildings against
     # what they knew: gary/policy/placement.py, #65), where the matchup's race has one (the Protoss)
     "place": lambda m: m.update(place=True),

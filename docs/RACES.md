@@ -129,7 +129,8 @@ The playing builds differ more: `gt1` keeps every stop-gap, `gz1` the pros' deci
    v6: the first Corsair within 25 tiles of the Zerg's start in 35% of PvZ games, 12% before, the pros 80%); the macro
    model saving for what a building nearing done makes (gp0.24dev and gp0.25dev: the first Corsair within 10 s of the Stargate in 47%
    of PvZ games, 3% before, the pros 88%); its buildings on the tiles of one pro's layout of the map and start
-   (gp0.27dev, ingest/build_tiles.py: on a tile a pro used there 97%, 36% before, the pros 81%). Left: the commit
+   (gp0.27dev, ingest/build_tiles.py: on a tile a pro used there 97% in PvZ, 98% in PvT, 97% in PvP; 36%, 32% and 50%
+   before; the pros 81%, 78%, 83%). Left: the commit
    model's answer to raids at home, shuttles, cannons at newer bases (its third Nexus later than the pros'), and
    unit mix (cannons: PvZ 24.5 at 20:00, the pros 13.8; High Templar two thirds of the pros'). The placement model is
    the Protoss's; the other races (turrets, bunkers, colonies) can have theirs from the same dataset builder.
