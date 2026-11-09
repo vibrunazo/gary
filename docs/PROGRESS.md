@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.30dev), `gp1dev` (gp0.27dev) and `gz1dev` (gz0.18dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.30dev), `gp1dev` (gp0.27dev) and `gz1dev` (gz0.19dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1793,6 +1793,25 @@ plan and the full log).
   units waiting for a busy producer with money for both), units decided to trained a median 6.1 s (6.4), the first
   Corsair 8.9 s (9.1); 24 of the 32 forge-first Stargates placed at the same moment, the other 8 moved -62 to +58 s
   (mean +2 s); gap score 0.29 (0.27), graded alike (won 1).
+- **The placement models for every Terran and Zerg matchup (2026-11-09, gz0.19dev, option place; #16, #65).** The
+  dataset kept a game's samples under its hash alone, so a TvZ game's Zerg samples would have overwritten its Terran's:
+  now one file a game and race (ingest/placement_dataset.py npz_path, the 9,109 built renamed). Built and trained, the
+  held-out log-loss against the classes' prior and the base right: Zerg TvZ 0.734 (1.535) 83%, ZvZ 0.726 (1.387) 88%,
+  PvZ 0.896 (1.673) 77%; Terran TvT 0.720 (1.019) 85%, PvT 0.759 (1.134) 82%. gt1dev's place takes the TvT and PvT
+  models as they come (the newest of the matchup). Gary-Z's executor draws its buildings' base and side the same way
+  (the rule's point at the natural for its colonies only without a model); a town hall the macro builds (a Zerg macro
+  Hatchery) isn't the model's and stays in the main (the first round, TZ239a, crashed in 36 of 48 games on it). TZ240a
+  (gt1dev against gz1dev+place, TZ238a's seeds, 48 games), the Zerg's firsts against 120 modern pro games
+  (eval/placement.py; TZ238a, then the pros): the first Hydralisk Den in the main 53% (100%, 42%), Evolution Chamber
+  72% (100%, 48%), Queen's Nest 73% (100%, 37%), Spire 83% (100%, 78%); the Spawning Pool by the minerals 88% (73%,
+  87%); colonies to 12:00 at the natural 46%, newer bases 49% (81% and 0%, 42% and 56%); the second colony at the
+  natural 82% (95%, 60%). Off the pros': the first colony in the main 25% (2%, 2%). The model's odds there read a
+  natural with a Hatchery and no drones (pros' 21 samples so, 90% in the main; with drones there 96% at the natural):
+  Gary-Z's natural gets drones only from its rally (the transfer, balance, waits for over 1.8 a patch at the main),
+  where the pros have 2.5 there before 3:30 and 4 at 3:30-4:30, so the fix is moving drones as the natural finishes,
+  not the model. On a pro's tile 99%, no build dropped for no spot (4 in TZ238a); sunkens morphed 228 (213); the gap
+  Z +0.025 [-0.009, +0.052], T -0.006 [-0.019, +0.014], graded T ahead 24, even 23, Z ahead 1 (29, 16, 2, won 1).
+  Short TvT, PvT, ZvZ and PvZ games with the dev builds play.
 - **A learned placement model for Gary-T (2026-11-09, gt0.30dev, option place; #16, #65).** With the pros' tiles
   (gt0.29dev) Gary-T's depots stopped reaching the natural (0 of 650, the pros 19%), and nothing had ever decided a
   Terran building's base: every first Barracks, depot, Bunker and turret stood in the main (TZ237a; the pros' at the

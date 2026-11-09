@@ -26,7 +26,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "ingest"))
 
 from gary.policy.placement import BASE_FEATURES, CLASSES, categorical, encode, enemy_types  # noqa: E402
-from ingest.placement_dataset import out_dir  # noqa: E402
+from ingest.placement_dataset import npz_path, out_dir  # noqa: E402
 from train.macro import is_test  # noqa: E402
 
 AIR = (43, 141, 137)            # Mutalisk, Spire, Greater Spire
@@ -39,7 +39,7 @@ def load(matchup: str, race: str) -> dict:
         r = json.loads(line)
         if not r.get("ok") or r["matchup"] != matchup or r.get("race") != race:
             continue
-        z = np.load(out_dir() / r["sha1"][:2] / f"{r['sha1']}.npz")
+        z = np.load(npz_path(r["sha1"], race))
         for k, p in enumerate(r["players"]):
             n = len(z[f"p{k}_type"])
             if n:

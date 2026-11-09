@@ -23,7 +23,7 @@ frames to MINUTES; a building is a sample at the step it first appears, with the
 clean games only (the current ladder maps: the old maps' bases stand elsewhere).
 
     python -m ingest.placement_dataset --matchup PvZ --race P
-Output: data/interim/placement/v1/<sha1[:2]>/<sha1>.npz (per player i: p{i}_bases (n, 3, BASE_FEATURES),
+Output: data/interim/placement/v1/<sha1[:2]>/<sha1>_<race>.npz (per player i: p{i}_bases (n, 3, BASE_FEATURES),
 p{i}_glob (n, 4), p{i}_type, p{i}_seen, p{i}_seen_max (n, 228), p{i}_base, p{i}_side, p{i}_frame) and its index.jsonl
 (the players' slots, races, styles and samples).
 """
@@ -60,6 +60,11 @@ def out_dir() -> Path:
     return data_root() / "interim" / "placement" / VERSION
 
 
+def npz_path(sha1: str, race: str) -> Path:
+    """A game's samples of one race (both races of a game have theirs: TvZ's Terran and Zerg)."""
+    return out_dir() / sha1[:2] / f"{sha1}_{race}.npz"
+
+
 def select(matchup: str) -> list[dict]:
     """The matchup's modern clean games in the macro dataset (8 minutes at least), with its file."""
     from eval.humanlike import clean_replays
@@ -90,7 +95,7 @@ def build_game(rec: dict, race: str) -> dict:
     """The race's players' samples of one game, written to its npz; its index row."""
     from gary import styles
     row = {"sha1": rec["sha1"], "rel_path": rec["rel_path"], "matchup": rec["matchup"], "race": race}
-    labels = styles.catalog(rec["matchup"], race)["assignments"]
+    labels = (styles.catalog(rec["matchup"], race) or {}).get("assignments", {})
     m = np.load(rec["macro"])
     players = [(i, p) for i, p in enumerate(rec["players"]) if p["race"] == race]
     try:
@@ -104,7 +109,7 @@ def build_game(rec: dict, race: str) -> dict:
         out.update({f"p{k}_{name}": v for name, v in a.items()})
         meta.append({"slot": p["slot"], "name": p["name"], "style": labels.get(f"{rec['rel_path']}|{p['name']}", -1),
                      "samples": len(a["type"])})
-    path = out_dir() / rec["sha1"][:2] / f"{rec['sha1']}.npz"
+    path = npz_path(rec["sha1"], race)
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(path, **out)
     row.update(ok=True, players=meta, kinds=placed_kinds(Race.of(race)))

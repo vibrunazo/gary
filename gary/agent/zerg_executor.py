@@ -126,6 +126,11 @@ class ZergExecutor(Executor):
                 spot = self.free_geyser(obs, mine)
                 return {"kind": "build", "where": spot[0], "data": {"spot": spot[1]}, "cost": cost} if spot \
                     else self.no("no free geyser")
+            if self.place_model is not None:
+                # (option place: its base and side drawn from the placement model's odds, as Gary-P's and Gary-T's;
+                # the colonies' point at the natural below without it)
+                where, side = self.place(uid, mine)
+                return {"kind": "build", "where": where, "data": {"side": side}, "cost": cost}
             if uid == Z.CREEP and self._holds_natural(mine):
                 nat, front = g.natural.center, g.rally
                 near = (int(nat[0] + (front[0] - nat[0]) * CREEP_FRONT), int(nat[1] + (front[1] - nat[1]) * CREEP_FRONT))
@@ -167,7 +172,7 @@ class ZergExecutor(Executor):
         """The first spot in rings around the base's hatchery that fits (on its creep, which the game's check
         asks), off the drones' path to the minerals (Gary-Z's rings; the shared spot's gap around the building
         found no creep wide enough for a Spawning Pool by the first hatchery). With option tiles, a pro's tile first
-        (executor.py _pro_tile; the side: no Zerg placement model, so either)."""
+        (executor.py _pro_tile; its side the placement model's with option place, else either)."""
         g = self.g
         if self.tiles is not None and (spot := self._pro_tile(unit_type, base, builder, side, None)):
             return spot

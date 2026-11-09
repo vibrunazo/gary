@@ -446,8 +446,9 @@ class Executor:
         each tick instead, the first tick that drew the natural won the race, its build setting out earlier (its walk
         counted against the money: PvT's Cybernetics Core, 6% at the natural, there in 38% of games, PT204a); with one die
         the choice changes only where the odds move past it."""
-        if self.place_model is None:
-            return "main", "front"
+        from gary.policy.placement import kinds
+        if self.place_model is None or uid not in kinds(self.g.race):
+            return "main", "front"           # (a Zerg macro Hatchery: town halls aren't the model's)
         if uid not in self._drawn:
             self._drawn[uid] = self._rng().random()
         frame = self.g.hi.frame

@@ -1299,9 +1299,14 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # TZ236a): on a tile a pro used there 100% (49%, the pros 75%); the macro gap +0.028 [+0.012, +0.043], its model
 # deciding more static defense (382 creep colonies and 395 sunkens in 48 games, 341 and 309) with the Terran ahead at
 # 12:00 more often (34, 28): kept on, fidelity first, the colonies to look into
+# gz0.19dev: place, the Zerg placement model (TvZ, ZvZ, PvZ; as gt0.30dev's; TZ240a against TZ238a): its tech buildings
+# off the main as the pros' (the first Hydralisk Den in the main 53%, the pros 42%, 100% before; Evolution Chamber 72%,
+# 48%, 100%), colonies to 12:00 at newer bases 49% (the pros 56%, 0%), the Spawning Pool by the minerals 88% (87%, 73%);
+# the first colony in the main 25% (the pros 2%, 2%): its natural without drones when it decides (pros' 21 samples so,
+# 90% in the main), the drones moved there late; on a pro's tile 99%, no build dropped, the gap Z +0.025 [-0.009, +0.052]
 MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allstyles+gaswaits+parkmany"
-                                     "+pvzroles+mirrorroles+ownhist+builtcount+pendown+tiles"),
-                       "version": "gz0.18dev"}
+                                     "+pvzroles+mirrorroles+ownhist+builtcount+pendown+tiles+place"),
+                       "version": "gz0.19dev"}
 
 # gp0.4dev: gp1 without the stop-gaps over its learned layers (unscripted: the hunt, a Pylon ahead of production) and
 # its army on control groups by type (grouping, as gt1dev's and gz1's): the Protoss's dev build, where its learning is
