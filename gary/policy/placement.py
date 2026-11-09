@@ -135,7 +135,8 @@ class PlacementModel:
 
 class ProTiles:
     """The pros' building tiles on one map from one start (ingest/build_tiles.py): per pro game, its builds by
-    (building, base tile, side) as [(tile x, tile y, the how-manieth of its type at that base)], and each game's style."""
+    (building, base tile, side) as [(tile x, tile y, the how-manieth of its type at that base)], and each game's style.
+    Side 0 the front, 1 by the minerals, None either (for a race whose side no model decides)."""
 
     def __init__(self, games: list[dict]):
         self.games = []
@@ -144,6 +145,7 @@ class ProTiles:
             by = {}
             for uid, bx, by_, side, tx, ty, _, k in gm["builds"]:
                 by.setdefault((uid, (bx, by_), side), []).append((tx, ty, k))
+                by.setdefault((uid, (bx, by_), None), []).append((tx, ty, k))   # (either side: no side decided)
             self.games.append(by)
             self.styles.append(gm.get("style", -1))
         common: dict = {}

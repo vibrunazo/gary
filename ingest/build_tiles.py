@@ -65,7 +65,7 @@ def side_of(x: float, y: float, base) -> int:
 def game_builds(items: list[dict], mi, R) -> dict | None:
     """One player's main tile and builds on a ladder map, or None (no main found)."""
     ids = {name: uid for uid, name in R.names.items()}
-    kinds = set(placed_kinds(R))
+    kinds = set(placed_kinds(R)) - set(getattr(R.data, "ADDON_PARENT", {}))   # (an add-on stands where its building's room is)
     halls = {R.names[t] for t in R.town_halls}
     gas = R.names[R.gas_building]
     builds = [i for i in items if i["kind"] == "build" and i.get("pos") and i["conf"] not in NOT_BUILT
@@ -116,7 +116,7 @@ def main() -> None:
     for line in open(data_root() / "interim" / "inventory.jsonl", encoding="utf-8"):
         r = json.loads(line)
         inv[r["sha1"]] = r
-    labels = styles.catalog(args.matchup, args.race)["assignments"]
+    labels = (styles.catalog(args.matchup, args.race) or {}).get("assignments", {})   # (no catalogue: no style)
     out = {h: {"starts": [list(b.tile) for b in mi.bases if b.start], "games": []} for h, mi in maps.items()}
     t0, n = time.time(), 0
     for line in open(data_root() / "interim" / "build_orders.jsonl", encoding="utf-8"):

@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.28dev), `gp1dev` (gp0.27dev) and `gz1dev` (gz0.17dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.29dev), `gp1dev` (gp0.27dev) and `gz1dev` (gz0.18dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1793,6 +1793,26 @@ plan and the full log).
   units waiting for a busy producer with money for both), units decided to trained a median 6.1 s (6.4), the first
   Corsair 8.9 s (9.1); 24 of the 32 forge-first Stargates placed at the same moment, the other 8 moved -62 to +58 s
   (mean +2 s); gap score 0.29 (0.27), graded alike (won 1).
+- **The pros' tiles for the Terran and the Zerg (2026-11-09, gt0.29dev, gz0.18dev, option tiles; #16).** Tables for
+  every Terran and Zerg matchup (ingest/build_tiles.py; the replays name a matchup one way for both players, so Gary-T's
+  TvP is PvT_T and Gary-Z's ZvT TvZ_Z; add-ons left out, where their building's room is): the pros against each other
+  TvZ 85%, TvT 89%, PvT 82% (Terran), TvZ 75%, ZvZ 91%, PvZ 74% (Zerg). With no model deciding a Terran or Zerg
+  building's side, a pro's tile on either side; Gary-Z's own spot search (rings round its hatchery) and the buildings a
+  rule's point places (Gary-Z's natural colonies, the bunkers, the answers' turrets) take a pro's tile first. 48 TvZ
+  games on the same seeds, both sides with and without (TZ237a, TZ236a): Gary-T on a pro's tile 97% (34%), the pros'
+  games with that very tile 14.5% (2.5%), dropped for no spot 0 (2); Gary-Z 100% (49%), 13.3% (3.4%), dropped 3 (2).
+  Left: Gary-T's depots no longer spill to the natural (0 of 650, 74 of 537 before; the pros 19%): the main packs them
+  on the pros' tiles and no model decides a Terran building's base (the Protoss placement model's job, #65, for the
+  Terran); Gary-Z's macro gap +0.028 [+0.012, +0.043] (eval/gap_windows.py), its model deciding more static defense
+  (382 creep colonies and 395 sunkens, 341 and 309; unmorphed colonies at 5-12 minutes 0.71, 0.52, the pros 0.21) with
+  the Terran ahead at 12:00 in 34 games (28) and the Zerg in none (1); Gary-T's gap +0.016 [-0.012, +0.037].
+- **The pros' tiles in PvT and PvP (2026-11-09, gp0.27dev's option tiles, its tables built; #16).** ingest/build_tiles.py
+  for the Protoss in PvT (2,378 layouts) and PvP (5,037); the pros against each other on them 78% and 83%. 48 games each
+  on the same seeds, with and without (option notiles): PvT against gt1dev (PT233a, PT232a) on a pro's tile 98% (32%),
+  the share of the pros' games using that very tile 13.3% (1.5%), builds dropped for no spot 0 (3); PvP gp1dev against
+  itself (PP235a, PP234a) 97% (50%), 9.8% (1.7%), dropped 1 (5). Gap score P alike (PvT 0.33, 0.32; PvP 0.34, 0.33);
+  PvT lost 2 (0: a Vulture and tank push at the natural at 6:30, 8:16, and one at 11:00; the army, not the tiles), PvP
+  won 1 lost 1 (lost 1).
 - **Buildings on the pros' tiles (2026-11-07, gp0.27dev, option tiles; #16).** The placement model draws a building's
   base and side; the tile was the spot search's, the nearest free one to an anchor. On the ladder maps 36% of Gary-P's
   buildings to 12:00 stood on a tile some pro had used for that building at that base from the same start (PL230a), its
@@ -1806,13 +1826,6 @@ plan and the full log).
   dropped for no spot 12 (26); the forge-first Stargate 4.83 minutes (4.97, the pros 4.35), Corsair 5.81 (5.85); ahead or
   won at 12:00 42 of 48 (35), the gap score 0.28 (0.29). Left: the second Pylon in the main 62% (the pros 85%), the
   placement model's base; the tables for the other races.
-- **The pros' tiles in PvT and PvP (2026-11-09, gp0.27dev's option tiles, its tables built; #16).** ingest/build_tiles.py
-  for the Protoss in PvT (2,378 layouts) and PvP (5,037); the pros against each other on them 78% and 83%. 48 games each
-  on the same seeds, with and without (option notiles): PvT against gt1dev (PT233a, PT232a) on a pro's tile 98% (32%),
-  the share of the pros' games using that very tile 13.3% (1.5%), builds dropped for no spot 0 (3); PvP gp1dev against
-  itself (PP235a, PP234a) 97% (50%), 9.8% (1.7%), dropped 1 (5). Gap score P alike (PvT 0.33, 0.32; PvP 0.34, 0.33);
-  PvT lost 2 (0: a Vulture and tank push at the natural at 6:30, 8:16, and one at 11:00; the army, not the tiles), PvP
-  won 1 lost 1 (lost 1).
 - **A building's gap on its sides when its corners can't have one (2026-11-07, a fix of the hands in every race's
   executor; #16).** Gary-P's Gateways were given up for no spot 64 times in 48 PvZ games (PL228a; 76 builds in all), 13
   times in one game, its Gateway decided at 2:39 still failing at 4:20. Re-simulated there, the game took a Gateway at

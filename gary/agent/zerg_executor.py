@@ -166,8 +166,11 @@ class ZergExecutor(Executor):
     def _base_spot(self, unit_type: int, base, builder: int, side: str = "front") -> tuple[int, int] | None:
         """The first spot in rings around the base's hatchery that fits (on its creep, which the game's check
         asks), off the drones' path to the minerals (Gary-Z's rings; the shared spot's gap around the building
-        found no creep wide enough for a Spawning Pool by the first hatchery). (The side: no Zerg table yet.)"""
+        found no creep wide enough for a Spawning Pool by the first hatchery). With option tiles, a pro's tile first
+        (executor.py _pro_tile; the side: no Zerg placement model, so either)."""
         g = self.g
+        if self.tiles is not None and (spot := self._pro_tile(unit_type, base, builder, side, None)):
+            return spot
         w, h = g.race.sizes[unit_type]
         cx, cy = base.center[0] // 32, base.center[1] // 32
         paths = [(base.center, m) for m in base.minerals]

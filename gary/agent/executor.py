@@ -950,7 +950,9 @@ class Executor:
         (its layout, drawn once a base: ingest/build_tiles.py), the how-manieth of its type Gary's is first; else the
         tile the most pros used there that fits. None when none fits (the search around the side's anchor then)."""
         g, R = self.g, self.g.race
-        key = (unit_type, tuple(base.tile), 1 if side == "minerals" else 0)
+        # (the side the placement model drew; with no model, a pro's tile on either side: Gary-T's turrets by the
+        # minerals were never offered otherwise)
+        key = (unit_type, tuple(base.tile), None if not self.place_on else 1 if side == "minerals" else 0)
         w, h = R.sizes[unit_type]
         units = g.hi.observe()["units"]
         k = sum(1 for u in units if u["owner"] == g.slot and u["type"] == unit_type
@@ -1352,10 +1354,17 @@ class Executor:
             if "spot" not in t.data:
                 if not g.look_at(obs, t.where):
                     return
-                spot = self.town_hall_spot(base, t.data["worker"]) if t.unit_type == g.race.town_hall else \
-                    self.spot_near(t.unit_type, t.data["near"], t.data["worker"], t.data.get("level_at"),
-                                   t.data.get("avoid")) if "near" in t.data else \
-                    self.spot(t.unit_type, base, t.data["worker"], t.data.get("side", "front"))
+                if t.unit_type == g.race.town_hall:
+                    spot = self.town_hall_spot(base, t.data["worker"])
+                elif "near" in t.data:
+                    # (option tiles: a building a rule's point places, Gary-Z's natural colonies, the bunkers, the
+                    # answers' turrets, on a pro's tile at that base first)
+                    spot = self.tiles is not None and \
+                        self._pro_tile(t.unit_type, base, t.data["worker"], t.data.get("side", "front"), None) or \
+                        self.spot_near(t.unit_type, t.data["near"], t.data["worker"], t.data.get("level_at"),
+                                       t.data.get("avoid"))
+                else:
+                    spot = self.spot(t.unit_type, base, t.data["worker"], t.data.get("side", "front"))
                 if not spot:
                     self.fail_build(t, "no spot for it")
                     return

@@ -1228,10 +1228,14 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # building gone, refused by the game) taken back from its decisions so far, as the replays count the commands given, and a
 # key the hands didn't give (no APM left) given again, not lost; plain fixes, adopted on the input check (#47: 7 Marines
 # and 2 SCVs decided over the replay's at 9:00 of its game, now none; the decided block off at 57% of moments, now 5%)
+# gt0.29dev: tiles, a base laid out as one pro's game on the map and start (TZ237a against TZ236a, the same seeds, 12
+# minutes): buildings on a tile a pro used there 97% (34%, the pros against each other 85%; eval/tiles.py); its depots
+# no longer spill to the natural (the main packs them on the pros' tiles: 0 of 650, the pros 19%; no model decides a
+# Terran building's base yet); builds dropped for no spot 0 (2); the gap score 0.289 (0.273, +0.016 [-0.012, +0.037])
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+widespot+seenall+armyseen+builtcount+unitcount+styleroll+noalarm+gastarget"
-                                     "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+pendown"),
-                       "version": "gt0.28dev"}
+                                     "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+pendown+tiles"),
+                       "version": "gt0.29dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
@@ -1286,9 +1290,13 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # gz0.15dev: the fix of 2026-11-02 (as gt0.26dev's): a building placed that never started taken out of its decisions so far
 # gz0.16dev: a building decided and not started yet among its own units, its Drone gone (pendown, as gt0.27dev's)
 # gz0.17dev: gt0.28dev's fix
+# gz0.18dev: tiles, as gt0.29dev's (its natural colonies too, a pro's tile before the rule's point; TZ237a against
+# TZ236a): on a tile a pro used there 100% (49%, the pros 75%); the macro gap +0.028 [+0.012, +0.043], its model
+# deciding more static defense (382 creep colonies and 395 sunkens in 48 games, 341 and 309) with the Terran ahead at
+# 12:00 more often (34, 28): kept on, fidelity first, the colonies to look into
 MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allstyles+gaswaits+parkmany"
-                                     "+pvzroles+mirrorroles+ownhist+builtcount+pendown"),
-                       "version": "gz0.17dev"}
+                                     "+pvzroles+mirrorroles+ownhist+builtcount+pendown+tiles"),
+                       "version": "gz0.18dev"}
 
 # gp0.4dev: gp1 without the stop-gaps over its learned layers (unscripted: the hunt, a Pylon ahead of production) and
 # its army on control groups by type (grouping, as gt1dev's and gz1's): the Protoss's dev build, where its learning is
