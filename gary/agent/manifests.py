@@ -1069,6 +1069,8 @@ OPTIONS = {
     # executor.py tiles: a building on a pro's tile, a base laid out as one pro's game on this map and start
     # (ingest/build_tiles.py; #16)
     "tiles": lambda m: m.update(tiles=True),
+    # workers sent to a new base to arrive as its town hall finishes, by the pros' share (executor.py _transfer_ahead)
+    "transferahead": lambda m: m.update(balance=True, transfer_ahead=True),
     "notiles": lambda m: m.update(tiles=False),        # (a baseline without them: a matchup's table new)
     # executor.py place: a building's base and side drawn from the placement model's odds (the pros' buildings against
     # what they knew: gary/policy/placement.py, #65), where the matchup's race has one (the Protoss)
@@ -1237,10 +1239,14 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # TvZ only so far, the main elsewhere). TZ238a against TZ237a, the same seeds: the first Barracks at the natural 88% (0%,
 # the pros 77%), the first depot 50% (0%, 62%), Bunker 90% (0%, 93%), turret 62% (0%, 71%); on a pro's tile 98% (97%),
 # none dropped for no spot; the gap -0.016 [-0.046, +0.009]
+# gt0.31dev: transferahead, workers sent to a new base to arrive as its town hall finishes, enough for the pros' share by
+# the time since it finished (executor.py _transfer_ahead; eval/transfers.py): TZ244a against TZ240a, the natural's SCVs when it
+# finished 5.4 (1.1, the pros 4.0), 15 s after 7.0 (2.1, 7.3), a minute after 10.2 (8.8, 10.7); the gap +0.012
+# [-0.007, +0.026], its macro at 10-12 minutes further (+0.044 [+0.001, +0.067])
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+widespot+seenall+armyseen+builtcount+unitcount+styleroll+noalarm+gastarget"
-                                     "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+pendown+tiles+place"),
-                       "version": "gt0.30dev"}
+                                     "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+pendown+tiles+place+transferahead"),
+                       "version": "gt0.31dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
@@ -1304,9 +1310,14 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # 48%, 100%), colonies to 12:00 at newer bases 49% (the pros 56%, 0%), the Spawning Pool by the minerals 88% (87%, 73%);
 # the first colony in the main 25% (the pros 2%, 2%): its natural without drones when it decides (pros' 21 samples so,
 # 90% in the main), the drones moved there late; on a pro's tile 99%, no build dropped, the gap Z +0.025 [-0.009, +0.052]
+# gz0.20dev: transferahead, workers sent to a new base to arrive as its town hall finishes, enough for the pros' share by
+# the time since it finished (executor.py _transfer_ahead; eval/transfers.py): TZ244a against TZ240a, the natural's drones when it
+# finished 0.9 (0.0, the pros 0.4), 15 s after 2.2 (0.2, 1.4), a minute after 5.2 (2.6, 4.8); the first colony in the
+# main 19% (25%): decided before the natural finished in Pool-first games (the macro's timing); the gap +0.056
+# [-0.051, +0.088]
 MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allstyles+gaswaits+parkmany"
-                                     "+pvzroles+mirrorroles+ownhist+builtcount+pendown+tiles+place"),
-                       "version": "gz0.19dev"}
+                                     "+pvzroles+mirrorroles+ownhist+builtcount+pendown+tiles+place+transferahead"),
+                       "version": "gz0.20dev"}
 
 # gp0.4dev: gp1 without the stop-gaps over its learned layers (unscripted: the hunt, a Pylon ahead of production) and
 # its army on control groups by type (grouping, as gt1dev's and gz1's): the Protoss's dev build, where its learning is
@@ -1412,9 +1423,12 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # buildings to 12:00 on a tile a pro used there 97% (36%, the pros against each other 81%; eval/tiles.py), the forge-first
 # Forge 100% (0%), the first Gateway at the natural 94% (67%, the pros 91%), builds dropped for no spot 12 (26), the
 # forge-first Stargate 4.83 minutes (4.97, the pros 4.35); ahead or won at 12:00 42 of 48 (35), the gap score 0.28 (0.29)
+# gp0.28dev: transferahead, workers sent to a new base to arrive as its town hall finishes, enough for the pros' share by
+# the time since it finished (executor.py _transfer_ahead; eval/transfers.py): PL242a, the natural's Probes when it finished 4.0
+# (PL231a 0.5, the pros 3.1), 15 s after 5.6 (3.1, 6.0), a minute after 10.0 (9.9, 9.9)
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
-                                     "+fightrules+aircluster+coming+comingbuild+savecoming+tiles"),
-                       "version": "gp0.27dev"}
+                                     "+fightrules+aircluster+coming+comingbuild+savecoming+tiles+transferahead"),
+                       "version": "gp0.28dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:
@@ -1526,6 +1540,7 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
             g.executor.scv_saturation = m.get("scv_saturation", True)
         g.executor.train_depth = m.get("train_depth", 1)
         g.executor.wide_spot = m.get("wide_spot", False)
+        g.executor.transfer_ahead = m.get("transfer_ahead", False)
         g.executor.place_on = m.get("place", False)
         if g.executor.place_on:
             from gary.policy.placement import Losses, PlacementModel

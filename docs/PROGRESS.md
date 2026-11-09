@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.30dev), `gp1dev` (gp0.27dev) and `gz1dev` (gz0.19dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.31dev), `gp1dev` (gp0.28dev) and `gz1dev` (gz0.20dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -1793,6 +1793,24 @@ plan and the full log).
   units waiting for a busy producer with money for both), units decided to trained a median 6.1 s (6.4), the first
   Corsair 8.9 s (9.1); 24 of the 32 forge-first Stargates placed at the same moment, the other 8 moved -62 to +58 s
   (mean +2 s); gap score 0.29 (0.27), graded alike (won 1).
+- **Workers to a new base as it finishes (2026-11-09, gt0.31dev, gz0.20dev, gp0.28dev, option transferahead; #16).**
+  Gary-Z's first colony in the main (above) read a natural without drones. eval/transfers.py (new): per new base, the
+  workers at it when its town hall finishes and 15, 30 and 60 s after, and its workers a patch against the older bases'.
+  The pros have them there as it finishes (60 modern games each; natural, finished / +15 s / +60 s): Terran 4.0 / 7.3 /
+  10.7, Protoss 3.1 / 6.0 / 9.9, Zerg 0.4 / 1.4 / 4.8; Gary 1.1 / 2.1 / 8.8, 0.5 / 3.1 / 9.9 and 0.0 / 0.2 / 2.6
+  (TZ240a, PL231a), its transfer (balance) waiting for over 1.8 workers a patch at the source. Now a group from the most
+  saturated base, sent once a town hall's remaining build time (from its HP's growth) is under the walk, and topped up
+  every 10 s, sized for the new base's workers a patch to reach the pros' share of the source's by the time since it
+  finished (a race-keyed table at 15, 30, 60 s: Terran 0.69, 0.73, 0.86 at the natural; Protoss 0.56, 0.67, 0.78;
+  Zerg 0.12, 0.30, 0.54, its larvae filling its bases). Aimed at the share a minute on (TZ241a) Gary-Z overshot (3.5 at
+  +15 s); groups truncated under two sent it none (TZ242a, TZ243a); one drone is a group (TZ244a). TZ244a (both sides)
+  and PL242a: Terran 5.4 / 7.0 / 10.2, Protoss 4.0 / 5.6 / 10.0, Zerg 0.9 / 2.2 / 5.2 (none there at +15 s 19%, the
+  pros' 27%, 77% before); the Zerg's third 3.5 a minute on (the pros 3.2, 1.5 before). Gary-Z's first colony in the
+  main 19% (25%): in those games it is decided before the natural finishes (Pool first, the natural placed at 3:35),
+  where the pros' colonies wait for it (0.8% in the main): the macro's timing, not the hands. The gap, paired against
+  TZ240a: T +0.012 [-0.007, +0.026], its macro at 10-12 minutes further (+0.044 [+0.001, +0.067], minerals banked 444
+  against 513), Z +0.056 [-0.051, +0.088]; P against PL231a (an older gz1dev) -0.022 [-0.040, +0.025]. Folded into the
+  three dev builds on the hands' measure.
 - **The placement models for every Terran and Zerg matchup (2026-11-09, gz0.19dev, option place; #16, #65).** The
   dataset kept a game's samples under its hash alone, so a TvZ game's Zerg samples would have overwritten its Terran's:
   now one file a game and race (ingest/placement_dataset.py npz_path, the 9,109 built renamed). Built and trained, the

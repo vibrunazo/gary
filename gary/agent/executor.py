@@ -43,6 +43,20 @@ FIGHT_CALM = 10 * 24                          # home_scvs: pulled or attack-movi
 SATURATED, UNDER = 1.8, 1.0                   # balance: workers a mineral patch at a base that gives some away,
                                               # and at one that takes them
 TRANSFER_EVERY = 10 * 24                      # balance: bases' saturation looked at this often
+# transferahead: a new base's workers a patch to its older bases' TRANSFER_AT seconds after its town hall finished, the
+# pros' median (eval/transfers.py, 60 modern games each: TvZ Terran, PvZ Protoss, TvZ Zerg), its second base and later
+# ones: the share a top-up aims for by the time since it finished, a group sent ahead the first (the Zerg's larvae fill
+# its bases, so it moves fewer; the Terran pros' third Command Centers mostly fly there)
+TRANSFER_AT = (15, 30, 60)
+TRANSFER_RATIO = {"T": ((0.69, 0.73, 0.86), (0.08, 0.63, 0.90)),
+                  "P": ((0.56, 0.67, 0.78), (0.56, 0.85, 0.94)),
+                  "Z": ((0.12, 0.30, 0.54), (0.07, 0.10, 0.22))}
+WORKER_SPEED = 4.9                            # px a frame, a worker's top speed (all three)
+WALK_DETOUR = 1.4                             # transferahead: the ground walk over the straight line
+TRANSFER_MIN = 1                              # transferahead: workers in a group at least (the Zerg pros send one
+                                              # ahead in 35% of games, a drone at the natural 15 s after it finished in 73%)
+TRANSFER_EARLY = 4 * 24                       # transferahead: frames before it finishes a group may arrive (one
+                                              # mining earlier carries its load back to the old base)
 DANGER_FOR = 60 * 24                          # balance: a base with zerg fighters seen near this recently isn't sent to
                                               # (20 s let mutalisks that hit, hid in the fog and came back draw the main's
                                               # workers to the natural under them: human game 4)
@@ -149,6 +163,10 @@ class Executor:
         self._ramp = None                             # rerally: (spot inside the main's ramp, its bottom), or False
         self.danger: dict[tuple, int] = {}            # balance: base center -> frame zerg fighters were last seen near it
         self.next_transfer = 0
+        self.transfer_ahead = False                   # option transferahead (transfer)
+        self.hall_seen: dict[int, tuple] = {}         # transferahead: an unfinished town hall's first (frame, hp)
+        self.halls_done: dict[int, int] = {}          # transferahead: town halls once finished, when (first seen
+                                                      # finished; a Lair's morph isn't a new one)
         self._bases_by_walk: list | None = None       # free_base: the bases by a worker's walk from the natural
         self.why: str | None = None                   # why carry_out's last None or WAIT (no, wait)
         self.wait_coming = False                      # carry_out's last WAIT is for something on its way
@@ -544,6 +562,8 @@ class Executor:
             return False
         self.next_transfer = hi.frame + TRANSFER_EVERY
         self.note_danger(obs)
+        if self.transfer_ahead:
+            return self._transfer_ahead(mine)
         bases = self.my_bases(mine)
         if len(bases) < 2:
             return False
@@ -563,6 +583,66 @@ class Executor:
                          and math.dist((u["x"], u["y"]), src.center) < 10 * 32),
                         key=lambda u: math.dist((u["x"], u["y"]), line))[:k]
         g.task = Task("transfer", data={"tags": [u["tag"] for u in miners], "to": dst.center}, started=hi.frame)
+        g.say(f"transfers {len(miners)} workers to the base at {dst.center[0] // 32},{dst.center[1] // 32}")
+        return True
+
+    def _transfer_ahead(self, mine: list[dict]) -> bool:
+        """transferahead: workers to a new base timed to arrive as its town hall finishes, and to any base under its
+        share: the pros' are there as it finishes (TvZ Terran 4.0 at its natural, 7.3 15 s later; Gary-T 1.1 and 2.1,
+        its transfer waiting for over SATURATED a patch at the main; Gary-Z's natural none in 77% of games 15 s after,
+        the pros' 27%, and its first colony read the natural as unused: eval/transfers.py). A group from the most
+        saturated finished base, enough for the base's workers a patch to reach TRANSFER_RATIO of the source's by the time
+        since its town hall finished (a group ahead: the first); a town
+        hall not finished takes them once its remaining build time (from its HP's growth) is under the walk (with TRANSFER_EARLY)."""
+        g, hi = self.g, self.g.hi
+        R, frame = g.race, hi.frame
+        halls = [u for u in mine if u["type"] in R.town_halls]
+        for u in halls:
+            if u["completed"]:
+                self.halls_done.setdefault(u["tag"], frame)
+                self.hall_seen.pop(u["tag"], None)
+            elif u["tag"] not in self.halls_done:
+                self.hall_seen.setdefault(u["tag"], (frame, u["hp"]))
+        done = self.my_bases(mine)
+        if not done:
+            return False
+        sat = {b.center: self.saturation_at(b, mine) for b in done}
+        src = max(done, key=lambda b: sat[b.center])
+        line = (sum(x for x, _ in src.minerals) / len(src.minerals), sum(y for _, y in src.minerals) / len(src.minerals))
+        dsts = [b for b in done if b is not src]
+        for u in halls:                               # (a town hall about to finish: the walk's time left or less)
+            f0, hp0 = self.hall_seen.get(u["tag"], (frame, u["hp"]))
+            if u["completed"] or frame - f0 < 48 or u["hp"] <= hp0:
+                continue
+            left = (u["hp_max"] - u["hp"]) / ((u["hp"] - hp0) / (frame - f0))
+            b = next((b for b in g.map.bases if math.dist(b.center, (u["x"], u["y"])) < 6 * 32), None)
+            walk = math.dist(line, b.center) * WALK_DETOUR / WORKER_SPEED if b is not None else 0
+            if b is not None and b is not src and left <= walk + TRANSFER_EARLY and all(d is not b for d in dsts):
+                dsts.append(b)
+        dsts = [b for b in dsts if frame - self.danger.get(b.center, -10 ** 9) > DANGER_FOR and b.minerals]
+        if not dsts:
+            return False
+        n_src, p_src = sat[src.center] * len(src.minerals), len(src.minerals)
+        best = None
+        for b in dsts:
+            curve = TRANSFER_RATIO[R.letter][0 if len(done) <= 1 or (len(done) == 2 and b in done) else 1]
+            hall = next((u for u in halls if math.dist(b.center, (u["x"], u["y"])) < 6 * 32), None)
+            since = (frame - self.halls_done.get(hall["tag"], frame)) / 24 if hall is not None and hall["completed"] else 0
+            ratio = float(np.interp(since, TRANSFER_AT, curve))
+            n = sum(1 for w in mine if w["type"] == R.worker and math.dist((w["x"], w["y"]), b.center) < 10 * 32)
+            k = round((ratio * n_src * len(b.minerals) - n * p_src) / (p_src + ratio * len(b.minerals)))
+            if best is None or k > best[0]:
+                best = (k, b)
+        k, dst = best
+        k = min(k, 8)
+        if k < TRANSFER_MIN:
+            return False
+        miners = sorted((u for u in mine if u["type"] == R.worker and u["order"] in GATHERING and u["tag"] not in g.pulled | g.block_units
+                         and math.dist((u["x"], u["y"]), src.center) < 10 * 32),
+                        key=lambda u: math.dist((u["x"], u["y"]), line))[:k]
+        if len(miners) < TRANSFER_MIN:
+            return False
+        g.task = Task("transfer", data={"tags": [u["tag"] for u in miners], "to": dst.center}, started=frame)
         g.say(f"transfers {len(miners)} workers to the base at {dst.center[0] // 32},{dst.center[1] // 32}")
         return True
 
