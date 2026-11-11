@@ -323,7 +323,7 @@ MANIFESTS: dict[str, dict] = {
     # (AGENTS.md); and every build's fix of that day, a worker that wouldn't walk no builder while it stands there
     # gz0.7: a building that waits for what is on its way (a Pylon warping in at its base, the parked builders) queued as a unit for its busy producer, the macro deciding on meanwhile, its money kept (macro.py queued_builds, 2026-11-11)
     # gz0.6: the macro's two fixes of 2026-11-11 (macro.py plan: an expansion refused while its town hall is on its way; a build beyond the parked builders waits as a unit for its busy building, not held 30 s as the goal; gt0.33dev)
-    "gz1": {"version": "gz0.7", "race": "Z", "posture": "zerg", "leases": "enforced", "balance": True, "rotate": True,
+    "gz1": {"version": "gz0.8", "race": "Z", "posture": "zerg", "leases": "enforced", "balance": True, "rotate": True,
             "grouping": "types",
             "macro": {**_LEARNED, "builds": ["alarm"], "decoder": "dice", "odds_mass": 1.0, "hatch_mass": 0.5, "park": True, "pace": True,
                       "tech_min_p": 0.10, "wait_min_p": 0.05, "own_supply": True, "rax_by": 165 * 24, "history": "pro", "style": "roll",
@@ -351,7 +351,7 @@ MANIFESTS: dict[str, dict] = {
     # (its inputs needed none: tests/test_inputs.py with GARY_TEST_T=gp1 holds them to its data's)
     # gp0.10: a building that waits for what is on its way (a Pylon warping in at its base, the parked builders) queued as a unit for its busy producer, the macro deciding on meanwhile, its money kept (macro.py queued_builds, 2026-11-11)
     # gp0.9: the macro's two fixes of 2026-11-11 (macro.py plan: an expansion refused while its town hall is on its way; a build beyond the parked builders waits as a unit for its busy building, not held 30 s as the goal; gt0.33dev)
-    "gp1": {"version": "gp0.10", "race": "P", "posture": "normal", "leases": "enforced", "balance": True, "builder_back": True,
+    "gp1": {"version": "gp0.11", "race": "P", "posture": "normal", "leases": "enforced", "balance": True, "builder_back": True,
             "macro": {"provider": "learned", "model": "runs/macro_exp/P_all_v2all/model.pt", "builds": [], "decoder": "dice",
                       "odds_mass": 1.0, "expand_mass": 1.0, "park": True, "supply_ahead": True, "parked_max": 3,
                       "gas_waits": True, "style": "roll", "look_seen": True, "unit_count": True, "history_styles": "v2"},
@@ -1160,11 +1160,12 @@ def manifest_of(name: str | dict) -> dict:
 # gt1dev had alone. Adopted on that check, not on rounds (AGENTS.md: if it plays worse, a model or a stop-gap leaned
 # on the fault; the answers to lurkers and mutalisks are to be measured with seenall); and every build's fix of that
 # day: a worker that wouldn't walk to a build (walled in by the building it made) is no builder while it stands there
+# gt0.15: a build's worker sent again on its way to another base (stopped, or taken along in the army's box) walks with the hands free, parked as from the travel stage (executor.py wait_arrival, 2026-11-11): the parked builds held the hands 241 s a game in gp1dev and 202 in gt1dev, 3.8 and 5.3 holds over 5 s, a Probe's 31 s walk the macro idle behind it; 62 and 44 s with this, 0.2 and 0.1 holds (PW253a, TW253a against DP252a, DT250a: the bank at 15-20 minutes 1,813 to 1,285 and 1,910 to 1,236, the pros 1,737 and 2,205)
 # gt0.14: a building that waits for what is on its way (a Pylon warping in at its base, the parked builders) queued as a unit for its busy producer, the macro deciding on meanwhile, its money kept (macro.py queued_builds, 2026-11-11): gp1dev decided 10.7 times a minute at 10-20 with the cannon held for its Pylon, 17.6 with this (PQ251a)
 # gt0.13: the macro's two fixes of 2026-11-11 (macro.py plan: an expansion refused while its town hall is on its way; a build beyond the parked builders waits as a unit for its busy building, not held 30 s as the goal; gt0.33dev): 7 expansion decisions a game in gt1, 67 of them timed out, every one with its builder walking (BT247a)
 MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords+hunt4+split+static+roles30+lone"
                                   "+addonroom+gamequeue+softguard+widespot+seenall+armyseen+builtcount+unitcount"
-                                  "+pendown"), "version": "gt0.14"}
+                                  "+pendown"), "version": "gt0.15"}
 # gt1dev: the Terran Gary that learning is trained and judged in (AGENTS.md): gt1 with the role model deciding in
 # contact as well (attended pro units with their re-issues as a decision, again, Gary's own order rate as input, its
 # moves kept current, several orders a turn) and the army on control groups by type, a key's units drawing their
@@ -1268,6 +1269,7 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # one-tile pocket, and every expansion after took it, the nearest, and failed: TT245a, 17 builds in one game, its
 # natural at 9:54; TT246a on the same seeds, 3 such drops in 3 games for 21, every natural by 4:22). Its input options
 # (widespot, seenall, armyseen, builtcount, unitcount, pendown) are gt1's now (gt0.12)
+# gt0.35dev: a build's worker sent again on its way to another base (stopped, or taken along in the army's box) walks with the hands free, parked as from the travel stage (executor.py wait_arrival, 2026-11-11): the parked builds held the hands 241 s a game in gp1dev and 202 in gt1dev, 3.8 and 5.3 holds over 5 s, a Probe's 31 s walk the macro idle behind it; 62 and 44 s with this, 0.2 and 0.1 holds (PW253a, TW253a against DP252a, DT250a: the bank at 15-20 minutes 1,813 to 1,285 and 1,910 to 1,236, the pros 1,737 and 2,205)
 # gt0.34dev: a building that waits for what is on its way (a Pylon warping in at its base, the parked builders) queued as a unit for its busy producer, the macro deciding on meanwhile, its money kept (macro.py queued_builds, 2026-11-11)
 # gt0.33dev (2026-11-11): three builds parked at once (parkmany, as gz0.9dev's and gp1's) with the macro's two fixes of
 # that day (macro.py plan: an expansion refused while its Command Center is on its way; a build beyond the parked
@@ -1278,7 +1280,7 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
                                      "+parkmany"),
-                       "version": "gt0.34dev"}
+                       "version": "gt0.35dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
@@ -1349,11 +1351,12 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # [-0.051, +0.088]
 # gz0.21dev (2026-11-11): a worker that wouldn't walk to a build is no builder while it stands there (as gt0.32dev);
 # seenall and zfullhp are gz1's now (gz0.5)
+# gz0.24dev: a build's worker sent again on its way to another base (stopped, or taken along in the army's box) walks with the hands free, parked as from the travel stage (executor.py wait_arrival, 2026-11-11): the parked builds held the hands 241 s a game in gp1dev and 202 in gt1dev, 3.8 and 5.3 holds over 5 s, a Probe's 31 s walk the macro idle behind it; 62 and 44 s with this, 0.2 and 0.1 holds (PW253a, TW253a against DP252a, DT250a: the bank at 15-20 minutes 1,813 to 1,285 and 1,910 to 1,236, the pros 1,737 and 2,205)
 # gz0.23dev: a building that waits for what is on its way (a Pylon warping in at its base, the parked builders) queued as a unit for its busy producer, the macro deciding on meanwhile, its money kept (macro.py queued_builds, 2026-11-11)
 # gz0.22dev: the macro's two fixes of 2026-11-11 (macro.py plan: an expansion refused while its town hall is on its way; a build beyond the parked builders waits as a unit for its busy building, not held 30 s as the goal; gt0.33dev)
 MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+eggs+allstyles+gaswaits+parkmany"
                                      "+pvzroles+mirrorroles+ownhist+builtcount+pendown+tiles+place+transferahead"),
-                       "version": "gz0.23dev"}
+                       "version": "gz0.24dev"}
 
 # gp0.4dev: gp1 without the stop-gaps over its learned layers (unscripted: the hunt, a Pylon ahead of production) and
 # its army on control groups by type (grouping, as gt1dev's and gz1's): the Protoss's dev build, where its learning is
@@ -1463,11 +1466,12 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+eggs+allstyles+gaswaits+par
 # the time since it finished (executor.py _transfer_ahead; eval/transfers.py): PL242a, the natural's Probes when it finished 4.0
 # (PL231a 0.5, the pros 3.1), 15 s after 5.6 (3.1, 6.0), a minute after 10.0 (9.9, 9.9)
 # gp0.29dev (2026-11-11): a worker that wouldn't walk to a build is no builder while it stands there (as gt0.32dev)
+# gp0.32dev: a build's worker sent again on its way to another base (stopped, or taken along in the army's box) walks with the hands free, parked as from the travel stage (executor.py wait_arrival, 2026-11-11): the parked builds held the hands 241 s a game in gp1dev and 202 in gt1dev, 3.8 and 5.3 holds over 5 s, a Probe's 31 s walk the macro idle behind it; 62 and 44 s with this, 0.2 and 0.1 holds (PW253a, TW253a against DP252a, DT250a: the bank at 15-20 minutes 1,813 to 1,285 and 1,910 to 1,236, the pros 1,737 and 2,205)
 # gp0.31dev: a building that waits for what is on its way (a Pylon warping in at its base, the parked builders) queued as a unit for its busy producer, the macro deciding on meanwhile, its money kept (macro.py queued_builds, 2026-11-11)
 # gp0.30dev: the macro's two fixes of 2026-11-11 (macro.py plan: an expansion refused while its town hall is on its way; a build beyond the parked builders waits as a unit for its busy building, not held 30 s as the goal; gt0.33dev)
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
                                      "+fightrules+aircluster+coming+comingbuild+savecoming+tiles+transferahead"),
-                       "version": "gp0.31dev"}
+                       "version": "gp0.32dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

@@ -1442,8 +1442,20 @@ class Executor:
                         self.fail_build(t, f"its {g.race.names[g.race.worker]} wouldn't walk to the base")
                         return
                     hi.minimap_right_click(*center)
+                    t.data["walking"] = hi.frame                  # (a new walk: its own TRAVEL_FOR)
+                    going = True
                 elif not going:
                     t.data["resume"], t.stage = "wait_arrival", "reselect"
+                    return
+                if going and len(g.parked) < g.parked_max:
+                    # the hands go back to production while it walks, as from the travel stage: sent again after the
+                    # army took it along in a box, a Probe walked 31 s with the hands held and the macro idle behind
+                    # it (120 s a game in gp1dev, 113 in gt1dev: a tenth of the hands' time, their biggest holder)
+                    t.data.setdefault("walking", hi.frame)
+                    g.ignore_idle_until[t.data["worker"]] = hi.frame + TRAVEL_FOR
+                    t.data["resume"], t.stage = "wait_arrival", "reselect"
+                    g.parked.append(t)
+                    g.task = None
                 return
             if not g.look_at(obs, t.where):
                 return

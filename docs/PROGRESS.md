@@ -1932,6 +1932,35 @@ plan and the full log).
   critics, saved before the spec had its `idle` and `coming` fields (empty for those races), failed it while reading
   the same 441 and 451 inputs feature for feature. The test now reads the saved spec as the code does
   (FeatureSpec(**spec)) and names the critic; all nine critics pass.
+- **A builder sent again walks with the hands free: the parked builds were the hands' biggest holder (2026-11-11,
+  gt0.35dev, gz0.24dev, gp0.32dev; gt0.15, gz0.8, gp0.11).** Read from the records of the two standings below, the hands'
+  owners timed (every change of owner is a record): the parked builds held the hands 241 s a game in gp1dev and 202 in
+  gt1dev, more than any other owner, in 7.5 and 8.1 holds over 5 s a game; the army's orders next, 165 and 71 s. The long
+  holds had one order inside them, a minimap right-click: a build's worker on its way to another base, stopped or
+  taken along (the army's box selection took a parked Probe with three Dragoons), is sent again from the hands, and the
+  wait_arrival stage then kept the hands for the whole walk, where the travel stage parks the build and gives them back.
+  One game: a Probe sent again at 15:34 walked 31 s with the macro idle behind it (minerals 1,044 to 2,728), the Dragoon
+  goal timed out, the queued cannon dropped at its 60 s, and the expansion whose Nexus it was walking for failed its 40 s.
+  Fixed in the executor for every build: sent again, the worker's walk has its own 40 s and the build is parked as
+  from the travel stage, if the parked builders have room (gary/agent/executor.py wait_arrival). The pattern (the
+  scratch script timed the owners; a second classed each hold over 5 s by the orders inside it) is how the next hold
+  is found. On the same 16 games (seeds 4004-4005, against DP252a and DT250a):
+
+  | | gp1dev before | with it | pros PvZ | gt1dev before | with it | pros TvZ |
+  |---|---|---|---|---|---|---|
+  | parked builds' hold of the hands, s a game | 241 | 62 | | 202 | 44 | |
+  | ...holds over 5 s a game | 7.5 | 0.2 | | 8.1 | 0.1 | |
+  | time in gaps over 10 s between decisions, 10-20 min | 48% | 44% | | 42% | 29% | |
+  | decisions a minute, 10-20 min | 17.6 | 17.1 | | 17.5 | 18.6 | |
+  | minerals banked, 15-20 min | 1,813 | 1,285 | 1,737 | 1,910 | 1,236 | 2,205 |
+  | minerals banked, 20-25 min | 2,752 | 2,294 | 3,573 | 2,470 | 1,747 | 3,366 |
+  | results (won / lost / time) | 8 / 1 / 7 | 8 / 1 / 7 | | 3 / 4 / 9 | 2 / 5 / 9 | |
+
+  Both now bank less than the pros at 15-25 minutes. A plain fix of the hands, adopted on this check (AGENTS.md).
+  Cannons dropped from the queue at 60 s: 2.8 a game to 2.0. What holds the hands now: the army's orders (212 s a
+  game in gp1dev, 3.5 holds of 10 s: an order's timeout) and the macro's own build task stuck 40 s at 0.3 a game
+  (late, a turret against mutalisks with 12 workers left), to read next; 44% of the Protoss's 10-20 minutes is still
+  in gaps over 10 s.
 - **A building that waits is queued, as a unit is: the Protoss's cannon no longer holds its macro for its Pylon
   (2026-11-11, gt0.34dev, gz0.23dev, gp0.31dev; gt0.14, gz0.7, gp0.10).** The same class of hold as the entry below,
   read from the other races' records after it: gz1dev was fine (24 decisions a minute at 10-20, 10% of its time in
