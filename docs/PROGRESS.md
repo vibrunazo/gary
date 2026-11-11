@@ -1932,6 +1932,31 @@ plan and the full log).
   critics, saved before the spec had its `idle` and `coming` fields (empty for those races), failed it while reading
   the same 441 and 451 inputs feature for feature. The test now reads the saved spec as the code does
   (FeatureSpec(**spec)) and names the critic; all nine critics pass.
+- **The hunt back on in the dev builds: a fifth of the Terran's deficit, a sixth of the Protoss's (2026-11-11).** The
+  status rounds above left the Terran's and the Protoss's dev builds not ending games, and the hunt is the one rule
+  whose job that is (AGENTS.md), off in both under `unscripted`. Written first: with it back, decided games near the
+  playing builds' six in ten and the paired score up 0.15 or more; 48 pairs resolve about +-0.09. Two rounds on the
+  status rounds' maps and seeds: HT248a, gt1dev+hunt against gz1, paired against DT247a; HP248a, gp1dev+hunt against
+  gz1dev, against DP247a.
+
+  | Dev build with the hunt | Won, lost, at time (ahead, even, behind) | Decided | Against the dev build | Against the playing build |
+  |---|---|---|---|---|
+  | Terran (HT248a; DT247a: 7, 9, 32) | 12, 10, 26 (9, 12, 5) | 46% (33%, gt1 60%) | +0.057 [+0.000, +0.120], t +1.56 | -0.250 [-0.344, -0.156] |
+  | Protoss (HP248a; DP247a: 13, 1, 34) | 21, 1, 26 (6, 9, 11) | 46% (29%, gp1 65%) | +0.021 [-0.021, +0.057], t +0.85 | -0.115 [-0.219, -0.010] |
+
+  Not what was written: the hunt ends more games but closes a fifth of the Terran's 0.307 and a sixth of the
+  Protoss's 0.135. Gary-P with it wins the games it was ahead in (of DP247a's 15 leads at time, 7 are wins now) and
+  loses ground in others (behind at time in 11 games for 8: the hunt's own entry, its attacks into sunkens). The
+  fidelity reading moves the other way for the Terran: with the hunt gt1dev is nearer the pros than gt1 in the macro
+  features at 0-15 minutes and in the fight features at 10-20, and the Protoss's further in the opening's macro,
+  nearer in the late fight. So the dev builds' deficit is not one missing job. What remains of it is what the past
+  rounds measured one rule at a time, each against the then playing build: the bank escape off -0.203, the caps off
+  -0.109, the static guard off -0.062, the SCV cap off -0.047 (the regrade table above), together more than the whole
+  gap. The dev build is the playing build without the stop-gaps that each measurably helped, plus the pros' styles
+  in place of the selector's cheese, and the promotion rule as written asks its learned layers to make up for all of
+  them at once. The hunt stays off in the dev builds, as every stop-gap does (its job is a learned finish, the
+  self-play plan's first reward); what to ask of a dev build before it replaces the playing build is the open
+  decision.
 - **Workers to a new base as it finishes (2026-11-09, gt0.31dev, gz0.20dev, gp0.28dev, option transferahead; #16).**
   Gary-Z's first colony in the main (above) read a natural without drones. eval/transfers.py (new): per new base, the
   workers at it when its town hall finishes and 15, 30 and 60 s after, and its workers a patch against the older bases'.

@@ -136,7 +136,10 @@ odds become a choice: dice, hold, floors), and fixes of plain bugs.
   (`huntadvice`, play unchanged) and train/commit.py --rule-labels learns its advice; the models follow it where it
   acts (0.81) and finish more leads, but copy its attacks into sunkens, and on v5's data trail the deployed commit
   model in games, so not adopted yet (docs/PROGRESS.md). Tried on gz1 with the
-  static guard (48 games against gt1): the Zerg won 1 (2), so off for Zerg.
+  static guard (48 games against gt1): the Zerg won 1 (2), so off for Zerg. Back on in the dev builds (2026-11-11, 48 paired games each): gt1dev decided 46% of its games for
+  33% and +0.057 [+0.000, +0.120] against gz1; gp1dev 46% for 29%, +0.021 [-0.021, +0.057] against gz1dev, behind at
+  time in 11 games for 8: a fifth and a sixth of their deficits to the playing builds (docs/PROGRESS.md), so off
+  there still.
 - **Static-defense guard on engages** (options `static` and `softguard`, in gt1; `army.py` static_odds,
   static_beta). An engage's spots where the group doesn't outweigh 1.5 times the ground static defense there (6
   supply each) and the enemy fighters seen near it keep (the group / 1.5 times that) squared of their odds: a nudge
