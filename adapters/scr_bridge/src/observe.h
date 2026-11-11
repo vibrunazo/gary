@@ -48,6 +48,9 @@ struct UnitView {
     uint32_t order_target_ptr = 0;
     int tx = 0, ty = 0;      // the order's target point
     int carrying = 0;
+    int stim = 0;            // stim timer
+    int ammo = 0;            // Scarabs in a Reaver, Interceptors of a Carrier (inside and out), as gary_env counts them
+    int ammo_max = 0;        // their room, without the capacity upgrades (not read: README "Known gaps")
     uint32_t detected = 0;
     int queue = 0;
     uint8_t elevation = 0;

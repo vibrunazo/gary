@@ -91,6 +91,16 @@ bool unit_view(uint32_t ptr, UnitView* u) {
     u->ty = read_at<uint16_t>(ptr + profile::kUnitOrderTargetPos + 2);
     u->order_target_ptr = read_ptr(ptr + profile::kUnitOrderTargetUnit);
     u->carrying = read_at<uint8_t>(ptr + profile::kUnitCarrying);
+    u->stim = read_at<uint8_t>(ptr + profile::kUnitStimTimer);
+    // gary_env's "ammo": OpenBW's unit_scarab_count (inside) + unit_interceptor_count (inside and outside)
+    u->ammo = u->ammo_max = 0;
+    if (u->type == profile::kTypeReaver) {
+        u->ammo = read_at<uint8_t>(ptr + profile::kUnitHangarInside);
+        u->ammo_max = 5;
+    } else if (u->type == profile::kTypeCarrier) {
+        u->ammo = read_at<uint8_t>(ptr + profile::kUnitHangarInside) + read_at<uint8_t>(ptr + profile::kUnitHangarOutside);
+        u->ammo_max = 4;
+    }
     u->detected = read_at<uint32_t>(ptr + profile::kUnitDetected);
     if (u->flags & (profile::kStatusCloaked | profile::kStatusRequiresDetector))
         u->visible_to &= (uint8_t)((u->detected & 0xff) | (1u << u->owner));
@@ -234,15 +244,17 @@ bool observe_json(const World& w, std::string* out, std::string* error) {
                 target = tag_of(t.ref, w.unit_count);
             }
         }
-        char buf[448];
+        char buf[512];
         snprintf(buf, sizeof buf,
                  "{\"tag\":%u,\"owner\":%d,\"type\":%d,\"x\":%d,\"y\":%d,\"hp\":%d,"
                  "\"shields\":%d,\"completed\":%d,\"visible_to\":%d,\"order\":%d,"
                  "\"resources\":%d,\"queue\":%d,\"cooldown\":%d,\"order_target\":%u,\"tx\":%d,"
-                 "\"ty\":%d,\"carrying\":%d,\"hp_max\":%d,\"energy\":%d}",
+                 "\"ty\":%d,\"carrying\":%d,\"hp_max\":%d,\"energy\":%d,"
+                 "\"stim\":%d,\"ammo\":%d,\"ammo_max\":%d}",
                  (unsigned)tag_of(u.ref, w.unit_count), (int)u.owner, (int)u.type, u.x, u.y, u.hp, u.shields,
                  u.completed ? 1 : 0, (int)u.visible_to, (int)u.order, u.resources, u.queue, u.cooldown,
-                 target, u.tx, u.ty, u.carrying, (int)kHitPoints[u.type], u.energy);
+                 target, u.tx, u.ty, u.carrying, (int)kHitPoints[u.type], u.energy,
+                 u.stim, u.ammo, u.ammo_max);
         o += buf;
     }
     o += "]}";

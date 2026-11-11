@@ -54,7 +54,8 @@ per completed simulation frame (the watcher):
    ├─ drain the act() outbox ──► translate legacy→1.21 commands ──► scr send_command()
    └─ (future: update an immutable snapshot; v0 reads memory at request time)
    ▼
-gary/scr_env.py (ScrGame) ──same methods as gary.env.Game──► gary/interface.py ──► bots
+gary/scr_env.py (ScrGame) ──same methods as gary.env.Game──► gary/interface.py ──► gary/agent (a Gary built from a manifest)
+   └─ the map's file, found from what the client shows and opened headless: terrain, regions, unit data, the map's hash
 ```
 
 Design notes, following the two reference projects:
@@ -100,6 +101,8 @@ backend-agnostic:
 | `can_place(...)` | green/red placement grid | buildable tiles + collision + depot distance (v1 approx, see gaps) |
 | `depot_spot_ok(tx, ty)` | map knowledge for base finding | `gary_env_depot_spot_ok`'s algorithm over the game's tile flags |
 | `start_locations()` | map knowledge | `Game.start_position` |
+| `type_select(slot, x, y, view)` | tags a ctrl+click selects (≤12) | in `ScrGame`, from the observation: the clicked unit's type among the player's units in the view, left to right |
+| `terrain()`, `regions()`, `walkable()`, `creep()`, `unit_type_info()`, `map_path` | the map's static knowledge (the map analysis, placement, the models' map input) | not read from the client: `ScrGame` finds the live map among the map files Gary has (`find_map`: the same size and mineral fields; the ladder maps, the tests' fixtures, `GARY_LIVE_MAPS`, or `gary.play --live --map FILE`) and opens it headless beside the live game. With no file of the map these are missing and Gary plays without them, as its layers allow |
 | `set_name` / `save_replay` | — | not applicable: the client writes its own replay (see gaps) |
 
 `observe()` JSON — byte-for-byte the schema of `gary_env_observe`:
@@ -111,8 +114,13 @@ backend-agnostic:
               "supply_used": 4, "supply_max": 10, "victory_state": 0}],
  "units": [{"tag": 1031, "owner": 0, "type": 7, "x": 111, "y": 222,
             "hp": 40, "shields": 0, "completed": 1, "visible_to": 255,
-            "order": 2, "resources": 0, "queue": 0}]}
+            "order": 2, "resources": 0, "queue": 0, "cooldown": 0, "order_target": 0, "tx": 0, "ty": 0,
+            "carrying": 0, "hp_max": 40, "energy": 0, "stim": 0, "ammo": 0, "ammo_max": 0}]}
 ```
+
+`ammo` is the Scarabs in a Reaver or the Interceptors of a Carrier and `ammo_max` their room (Gary-P's hands keep
+them full: `gary/agent/executor.py` rearm); `stim` the stim timer. A bridge built before these three fields sends
+none and `ScrGame.observe()` fills zeros, so nothing fails but no Reaver is armed: rebuild (`build.bat`).
 
 `tag` is a **16-bit opaque handle** exactly like `gary_env`'s (OpenBW `unit_id` layout:
 `index+1 | generation<<11`), so `gary/commands.py`'s `<H>` fields work unchanged. Under the hood
@@ -216,8 +224,10 @@ any resolution; they are real-input clicks and move the mouse):
    `[4]Fighting_Spirit_1.3`).
 3. `--seq tvz`: the local player Terran, slots 3 and 4 Closed, the computer Zerg. Check the
    screenshot it saves (`build/auto_game/after_tvz.png`).
-4. Start Gary first: `python -m gary.play --live --pov runs/live/NAME.pov.jsonl` (it plays the local player's race: `--terran` / `--zerg` name the manifests). It
-   waits for a match where the local player is Terran and starts on frame 0.
+4. Start Gary first: `python -m gary.play --live --pov runs/live/NAME.pov.jsonl` (it plays the local player's race:
+   `--terran`, `--zerg` and `--protoss` name the manifests, the playing builds by default; the dev builds are
+   `--terran gt1dev --zerg gz1dev --protoss gp1dev`). It waits for a match, says which map file it found, and starts
+   on frame 0.
 5. `--target ok` starts the match.
 6. To end a match early: `--seq end` (Menu → End Mission → Quit Mission, twice). The client
    writes `Maps\Replays\LastReplay.rep` under its user folder.
@@ -259,6 +269,9 @@ the same game against the same opponents (including x64 clients over Battle.net)
    behavior, record lengths. `tests/test_scr_bridge.py` — protocol framing, `ScrGame` method
    parity with `gary.env.Game`, SHA-256 check of the pin against the real
    `%GARY_SC_INSTALL%\x86\StarCraft.exe` (`GARY_SC_INSTALL`: your StarCraft folder).
+   `tests/test_live.py` — Gary's side of the live path: each race's dev build played through
+   `gary.play`'s `play_live` on a headless game that answers only the bridge's requests (the map found
+   from the observation, its terrain and hash the headless game's, the ctrl+click's selection).
 2. **Binary-level (install only, no game run):** `verify_profile.py` — PE parse, hash pin,
    RVA→file-offset mapping, code-site sanity bytes.
 3. **Live probe (one custom game vs computer):** `tools/run_match.py` runs the whole loop
@@ -286,6 +299,15 @@ the same game against the same opponents (including x64 clients over Battle.net)
 
 ## Known gaps (v0)
 
+- No live game has been played since the one-Gary refactor (2026-10-20; human game 4 was the day before). The
+  live path was brought up to the current agent on 2026-11-11 without a client (`tests/test_live.py`): the next
+  LAN game is its check, and `tools/parity.py` on its replay the check of the three unit fields added that day
+  (`stim`, `ammo`, `ammo_max`: INFERRED offsets, where BW 1.16's unit struct has them; the TODO in
+  `scr_profile.h` says how to pin each). `ammo_max` is the room without the capacity upgrades (5 Scarabs, 4
+  Interceptors): the bridge doesn't read a player's upgrades, so a Reaver with Reaver Capacity is filled to 5.
+- `type_select` takes the units whose centre is in the view, left to right; OpenBW's takes those whose box
+  touches it, in its unit finder's order. They differ only with more than 12 of a type on screen, in which 12 are
+  taken (the select command carries the tags either way).
 - The unit fields added to the observation on 2026-10-15 so it matches `gary_env_observe` (energy,
   ground weapon cooldown, the order's target unit and point, carrying flags, players who detect it;
   `hp_max` comes from units.dat) sit where BW 1.16's unit struct has them (`scr_profile.h`, INFERRED:

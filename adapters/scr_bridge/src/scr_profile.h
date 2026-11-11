@@ -119,6 +119,18 @@ constexpr uint32_t kUnitCarrying = 0xe0;            // 224 INFERRED u8 carrying 
                                                     // OpenBW carrying_flags, right after status flags 0xdc)
 constexpr uint32_t kUnitDetected = 0xe4;            // 228 INFERRED u32 players who detect it (OpenBW
                                                     // detected_flags; 0x80000000 = not computed yet)
+constexpr uint32_t kUnitHangarInside = 0xc8;        // 200 INFERRED u8 Scarabs in a Reaver, Interceptors in a Carrier
+                                                    // (BW 1.16's carrier/reaver union: two unit pointers at 0xc0
+                                                    // and 0xc4, then the counts inside and outside; OpenBW
+                                                    // carrier.inside_count). Read for those two types only: the
+                                                    // union is a building's add-on and a resource's amount elsewhere
+constexpr uint32_t kUnitHangarOutside = 0xc9;       // 201 INFERRED u8 a Carrier's Interceptors out
+constexpr uint32_t kUnitStimTimer = 0x115;          // 277 INFERRED u8 (BW 1.16: remove timer 0x110, matrix damage
+                                                    // 0x112, matrix timer 0x114, then stim; OpenBW stim_timer)
+// TODO(pin): the three above, as kUnitShields was: probe_unit a Reaver while it builds Scarabs (the u8 that steps
+// 0..5), a Carrier with Interceptors out, and a Marine as it stims (the u8 that jumps and counts down).
+constexpr uint16_t kTypeCarrier = 72;
+constexpr uint16_t kTypeReaver = 83;
 constexpr uint32_t kStatusRequiresDetector = 0x100;  // OpenBW game_types.h (burrowed units)
 constexpr uint32_t kStatusCloaked = 0x200;
 constexpr uint32_t kUnitResources = 0xd0;          // 208 VERIFIED u16: window dump of a 1500-mineral shows
