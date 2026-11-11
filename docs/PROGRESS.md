@@ -1923,6 +1923,15 @@ plan and the full log).
   dev builds' rows are past 20:00, 22% and 21% of the playing builds'): it read gt1dev +0.111 further where four of
   its six windows are nearer. Two versions whose games differ in length are compared by the windows (its docstring
   says so now).
+- **The Protoss's critics trained again, and the critic test's false alarm (2026-11-11).** tests/test_value.py had
+  failed since gp0.24dev (2026-11-04): that build's macro model widened Gary-P's view (388 inputs with the critic's
+  own; the critics of 2026-11-01 read 374), so gp1dev's critics couldn't read its games. Trained again for PvZ, PvT
+  and PvP (python -m train.value --matchup M --race P, 2,000 league games each): held-out win AUC on the pros' games
+  0.625, 0.669 and 0.643, on Gary's 0.899, 0.885 and 0.883. The test stops at its first failure, and behind that one
+  stood a second, a false alarm: it compared the saved spec's dict with the view's, and the six Terran and Zerg
+  critics, saved before the spec had its `idle` and `coming` fields (empty for those races), failed it while reading
+  the same 441 and 451 inputs feature for feature. The test now reads the saved spec as the code does
+  (FeatureSpec(**spec)) and names the critic; all nine critics pass.
 - **Workers to a new base as it finishes (2026-11-09, gt0.31dev, gz0.20dev, gp0.28dev, option transferahead; #16).**
   Gary-Z's first colony in the main (above) read a natural without drones. eval/transfers.py (new): per new base, the
   workers at it when its town hall finishes and 15, 30 and 60 s after, and its workers a patch against the older bases'.

@@ -33,6 +33,7 @@ def read_critic(matchup: str, race: str) -> None:
         from eval.match import Match
         from gary.agent.manifests import model_for
         from gary.policy.belief import BeliefModel
+        from gary.policy.macro import FeatureSpec
         from gary.policy.value import EXTRAS, ValueModel, ValueView
         from gary.races import enemy_of
         with contextlib.redirect_stdout(io.StringIO()):
@@ -57,7 +58,9 @@ def read_critic(matchup: str, race: str) -> None:
     assert critic.ckpt["n_in"] == width, (f"the critic ({critic.path}) reads {critic.ckpt['n_in']} features, Gary's "
                                           f"view has {width}: train it again (python -m train.value --matchup "
                                           f"{matchup} --race {race})")
-    assert critic.ckpt.get("spec") == m.gary.macro.tracker.spec.to_dict(), "the critic was trained on another macro spec"
+    # (the saved spec read as the code reads it: a field added since with nothing in it is the same view, and a critic
+    # saved before `idle` and `coming` existed, 2026-11-04, once failed here for a view it reads feature for feature)
+    assert FeatureSpec(**critic.ckpt["spec"]).to_dict() == m.gary.macro.tracker.spec.to_dict(),         f"the critic ({critic.path}) was trained on another macro spec: train it again"
     p = critic.predict(x)
     print(f"ok {matchup} {race}: the critic reads {width} features; at {UNTIL // 24} s win logit {p['win'][0]:+.2f}, "
           f"net180 {p['net180'][0]:+.0f}")
