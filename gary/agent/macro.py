@@ -548,8 +548,6 @@ class LearnedMacro:
                 # minerals was given up at 30 s with 184-270 in 6 of 48 PvZ games, the pros saving 35-45 s for it, #16)
                 goal["coming"] = True
             return
-        if plan["kind"] == "build" and len(g.parked) >= g.parked_max:
-            return                          # (parked_max builders walking ahead at a time: the parked builds)
         if plan.get("first"):
             # (what the decided building needs at its base first, a Protoss's Pylon where it was placed: built now, the
             # building kept as the goal and waiting for it)
@@ -700,6 +698,12 @@ class LearnedMacro:
             return self._no("the posture: no workers now")
         if self.failed_until.get((act, uid), 0) > g.hi.frame:
             return self._no("it just failed")      # (e.g. no room): not again right away
+        if act == EXPAND and (g.building(g.race.town_hall) or any(ut == g.race.town_hall for ut, *_ in g.reserved)):
+            # (its town hall is on its way: the expansion's summed odds reset only once one stands, and until its
+            # builder got there the rule decided it again, a second goal the hands couldn't take and the macro held
+            # for 30 s: 16 expansion decisions a game in gt1dev, 116 of them timed out, every one with a Command
+            # Center's builder already walking, DT247a)
+            return self._no("one is on its way")
         # (a larva's unit and a morph too: without, gz1 made drones past the pros' cap at 1:00, and its
         # Extractor came at 3:05 where Gary-Z's dice, the drones capped, came to it by 1:25)
         # (capped: not a rule's goal that ignores the caps, as Gary-Z's overlord rule did)
@@ -709,6 +713,11 @@ class LearnedMacro:
             return self._no(f"the pros' cap for this minute ({cap})")   # as many as nine pros in ten ever had by now
         g.executor.why = None
         plan = g.executor.carry_out(act, uid, obs, mine, done, me)
+        if isinstance(plan, dict) and plan is not WAIT and plan["kind"] == "build" and len(g.parked) >= g.parked_max:
+            # (parked_max builders walking at a time: a build decided beyond them waits as a unit waits for its busy
+            # building, and the decoder takes the next doable decision meanwhile; held as the goal instead, it stood
+            # 30 s and timed out: turrets, depots and expansions, 2-4 minutes of the macro's 10-20 at 10-20 minutes)
+            return g.executor.wait("its builders are all on their way")
         self.why_not = g.executor.why if plan is None or plan is WAIT else None
         return plan
 

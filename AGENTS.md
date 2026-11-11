@@ -194,6 +194,10 @@ odds become a choice: dice, hold, floors), and fixes of plain bugs.
   the one goal at a time; next, the model's units queued in the building and paid for, as pros do (gamequeue,
   adopted in gt0.9; the escape still holds with it: off as well, -0.130 +- 0.152). In gt1dev (escape off) the macro
   draws from the model's odds (dice, gt0.11dev); rethink and nosave, which drop a waiting goal, were worse in games.
+  What filled gt1dev's bank, read from the records (2026-11-11, gt0.33dev): not the favorite's wait but the hands', one
+  builder walking at a time and every build decided behind it held 30 s as the goal (the expansion decided again
+  until its hall stood); with that fixed in every build, gt1dev banks less than the pros at 15-25 minutes
+  (docs/PROGRESS.md). The escape's own measure in gt1 stands as written.
 - **Odds summed into a decision** (`mass` for one-offs, in gt1: tech buildings, add-ons, research, upgrades;
   `expand_mass` for expansions; `macro.py` odds_mass, expand_odds). A one-off is decided once its odds, summed over
   the decisions taken while it was possible, reach one (278 times in 48 games), an expansion likewise (194).

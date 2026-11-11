@@ -68,8 +68,8 @@ dev build where learning is done and judged without the stop-gaps (AGENTS.md):
 
 | | Terran | Zerg | Protoss |
 |---|---|---|---|
-| Plays | `gt1` gt0.12 | `gz1` gz0.5 | `gp1` gp0.8 (crude) |
-| Dev build | `gt1dev` gt0.32dev | `gz1dev` gz0.21dev | `gp1dev` gp0.29dev |
+| Plays | `gt1` gt0.13 | `gz1` gz0.6 | `gp1` gp0.9 (crude) |
+| Dev build | `gt1dev` gt0.33dev | `gz1dev` gz0.22dev | `gp1dev` gp0.30dev |
 | Dev build against the one that plays (2026-11-11, 48 paired games, docs/PROGRESS.md) | -0.307 [-0.401, -0.208] against gz1; nearer the pros at 0-5 and 10-25 minutes | -0.047 [-0.135, +0.042] against gt1 | -0.135 [-0.229, -0.042] against gz1dev (gp0.4dev, 2026-10-30, 96 games a matchup: PvT -0.029, PvZ -0.068, PvP -0.076) |
 
 ## What still differs between the races

@@ -1932,6 +1932,41 @@ plan and the full log).
   critics, saved before the spec had its `idle` and `coming` fields (empty for those races), failed it while reading
   the same 441 and 451 inputs feature for feature. The test now reads the saved spec as the code does
   (FeatureSpec(**spec)) and names the critic; all nine critics pass.
+- **Why gt1dev banks: its macro held 30 s at a time for the one builder walking (2026-11-11, gt0.33dev).** The bank
+  escape's replacement, begun from the records rather than a new rule. gt0.32dev banked 982 minerals at 10-15 minutes and
+  3,401 at 15-20 (gt1 612 and 1,197, the modern pros 837 and 2,206; 6,138 at 20-25, the pros 3,366), not for want of the
+  model's answer: asked with 3,400 minerals it says Marine at 50%, Siege Tank 16%, expand 12%. It was asked too seldom:
+  14 decisions a minute at 10-20 minutes to gt1's 22, and 63% of that time in gaps over 10 s between decisions (gt1 56%).
+  The gaps are goals held for the hands: the Terran parks one build's worker at a time (parked_max 1), and a build decided
+  while that worker walked was kept as the goal, nothing else decided, until it timed out at 30 s. The commonest was the
+  expansion itself: its summed odds reset only once the hall stands, so until the Command Center's builder got to the
+  base (26 s, the median) the rule decided it again, 16 expansion decisions a game, 116 timed out, every one of the 116
+  with a Command Center's builder already walking (gt1 the same, 7 a game, 67 timed out, all with one walking); then the
+  mutalisk turrets and depots behind it (2 to 4 minutes of the macro's ten at 10-20). Three fixes in `macro.py` plan,
+  every race's: an expansion is refused while its town hall is on its way (the odds keep summing; a hall that never
+  starts is asked again as before); a build beyond the parked builders waits as a unit waits for its busy building
+  (the decoder takes the next doable decision; held only when nothing else is); and gt1dev parks three builders at
+  once (parkmany, gz1dev's and gp1's). A plain fix, judged on its check (AGENTS.md): 16 games on DT247a's maps and
+  seeds 4004-4005 (PK249a, gt1dev against gz1), against gt0.32dev's same 16:
+
+  | | gt0.32dev (DT247a) | gt0.33dev (PK249a) | modern pros |
+  |---|---|---|---|
+  | Minerals banked 10-15 / 15-20 / 20-25 min | 785 / 2,957 / 5,336 | 714 / 1,910 / 2,470 | 837 / 2,205 / 3,366 |
+  | Gas banked 15-20 / 20-25 | 1,111 / 1,912 | 760 / 1,322 | 978 / 1,707 |
+  | Supply used 15-20 / 20-25 | 106 / 102 | 125 / 154 | 119 / 131 |
+  | Decisions a minute at 10-20; time in gaps over 10 s | 13.1; 59% | 17.5; 42% | gt1 22.5; 56% |
+  | Expansions decided a game; goals timed out a game | 18.2; expand 4.1, turret 2.1, depot 1.2 | 13.3; none of those, Marine 0.7 | |
+  | Won, lost, time (16) | 1, 3, 12 | 3, 4, 9 | |
+
+  The bank at 15-25 minutes is under the pros' now, and the supply over it; the gap to the pros on the 16 paired games is
+  nearer at 10-20 (-0.023 and -0.033, intervals across zero in 16 games) and the same elsewhere. The 42% of time still in
+  long gaps is spread thin: units decided for busy producers and dropped at 30 s (Marines, Medics, Vessels; the queue's
+  wait), the answers' Science Facility and Vessel. gt1, gz1 and gp1 carry the two plan fixes (gt0.13, gz0.6, gp0.9; gt1
+  without parkmany, which stays an option until measured there), the dev builds all three (gt0.33dev, gz0.22dev,
+  gp0.30dev); the parity hashes recorded again. What this says about the bank escape: in gt1 it fires while the macro's
+  favorite waits for a busy building, and what filled gt1dev's bank was not that wait but the hands' (one builder); with
+  the hands' hold gone, whether the dev build banks more than gt1 at 10-20 is to be read from its next 48-game round
+  against gz1 (the status round DT247a replayed on the same seeds).
 - **The hunt back on in the dev builds: a fifth of the Terran's deficit, a sixth of the Protoss's (2026-11-11).** The
   status rounds above left the Terran's and the Protoss's dev builds not ending games, and the hunt is the one rule
   whose job that is (AGENTS.md), off in both under `unscripted`. Written first: with it back, decided games near the
