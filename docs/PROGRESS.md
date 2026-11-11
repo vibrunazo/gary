@@ -1884,6 +1884,45 @@ plan and the full log).
   measurable). And the spread itself differs by pairing: 96 games resolve +-0.037 (the static guard's pair) to +-0.090
   (nocaps's) by supply, +-0.05 in three of the eleven, so a round's minimum detectable effect is its own pairing's
   (AGENTS.md).
+- **Where each dev build stands against its playing build (2026-11-11; the checkpoint's status rounds).** None had
+  been held against its playing build since gt0.18dev and gp0.4dev. Five rounds of 48 games (the ladder maps, seeds
+  4004-4009, 30 minutes): each dev build and its playing build against the same opponent, paired by map and seed
+  (eval/paired.py). Written before them: the Terran's dev build well below gt1 (gt0.18dev won 12 and lost 28 of 96
+  against gz1), the other two unknown (the Protoss's last reading -0.068 in PvZ, at gp0.4dev); 48 pairs resolve about
+  +-0.09 of the paired score.
+
+  | Race, against | Plays: won, lost, at time (ahead, even, behind) | Dev build | Dev - plays, paired | Decided |
+  |---|---|---|---|---|
+  | Terran, gz1 (BT247a, DT247a) | 27, 2, 19 (9, 7, 3) | 7, 9, 32 (9, 15, 8) | -0.307 [-0.401, -0.208], t -5.15 | 60%, 33% |
+  | Zerg, gt1 (BT247a, DZ247a) | 2, 27, 19 (3, 7, 9) | 1, 36, 11 (6, 4, 1) | -0.047 [-0.135, +0.042], t -0.85 | 60%, 77% |
+  | Protoss, gz1dev (BP247a, DP247a) | 31, 0, 17 (4, 4, 9) | 13, 1, 34 (15, 11, 8) | -0.135 [-0.229, -0.042], t -2.41 | 65%, 29% |
+
+  By both critics, the second reading: the Terran -0.414 [-0.526, -0.302], the Zerg -0.080 [-0.184, +0.021]. Each
+  side's gap to the modern pros of its matchup per five minutes (eval/gap_windows.py; the playing build's, then the
+  dev build's; lower is nearer; * where the difference's 90% interval is clear of zero):
+
+  | Gap | 0-5 | 5-10 | 10-15 | 15-20 | 20-25 | 25-30 |
+  |---|---|---|---|---|---|---|
+  | Terran | 0.253, 0.169* | 0.256, 0.249 | 0.402, 0.253* | 0.419, 0.308* | 0.395, 0.327* | 0.549, 0.508 |
+  | Zerg | 0.229, 0.272* | 0.339, 0.303* | 0.414, 0.439 | 0.486, 0.509 | 0.407, 0.512* | 0.681, 0.785* |
+  | Protoss | 0.185, 0.262* | 0.246, 0.221 | 0.244, 0.265 | 0.293, 0.305 | 0.318, 0.348 | 0.389, 0.360 |
+
+  No dev build replaces its playing build. The Terran's is as expected in results and is the nearer to the pros by a
+  quarter to a third in four of the six windows: fidelity and results part there, which is the promotion rule's own
+  question (AGENTS.md: gt1dev replaces gt1 when it beats it in 96 paired games, while gt1 keeps the selector's style
+  and the stop-gaps that win against gz1), left to be decided. The Protoss's dev build is no nearer the pros than
+  gp1 (further in the opening) and 0.135 below it; the Zerg's is not measurably apart from gz1 in the score at 48
+  games (the Terran won 36 of its games for 27, its games at time graded better), further from the pros in the
+  opening and after 20:00, nearer at 5-10 minutes. What the Terran's and the Protoss's share: they stop ending games
+  (decided 33% and 29% for 60% and 65%, a game's last minute 26.7 and 26.6 for 21.1 and 22.4). Of gp1's 31 wins
+  gp1dev won 11, was ahead at time in 10 and even in 4, so most of its 0.135 is leads not ended; of gt1's 27 wins
+  gt1dev won 5, was ahead in 5, even in 6, behind in 6 and lost 5, so there it is more than that. The dev builds
+  play without the hunt (unscripted), the rule that ends a won game, and no learned layer has that job (AGENTS.md, the
+  hunt's entry): the likely cause, not measured here. One thing about the measure: gap_windows' last line ("all")
+  pools every minute's rows, so of two arms the one with longer games is read on later minutes (30% and 32% of the
+  dev builds' rows are past 20:00, 22% and 21% of the playing builds'): it read gt1dev +0.111 further where four of
+  its six windows are nearer. Two versions whose games differ in length are compared by the windows (its docstring
+  says so now).
 - **Workers to a new base as it finishes (2026-11-09, gt0.31dev, gz0.20dev, gp0.28dev, option transferahead; #16).**
   Gary-Z's first colony in the main (above) read a natural without drones. eval/transfers.py (new): per new base, the
   workers at it when its town hall finishes and 15, 30 and 60 s after, and its workers a patch against the older bases'.

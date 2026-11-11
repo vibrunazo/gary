@@ -11,6 +11,9 @@ resampling the paired games (BOOT times).
     python -m eval.gap_windows --side T --a D50a --b R50a --group fight      # the fight features only
     python -m eval.gap_windows --side A --a TT170a --b TT171a                # a mirror's side A (TvT)
 
+The last line ("all") pools every minute's rows, so of two arms the one whose games last longer is read on later
+minutes: where the arms' games differ in length (a version that stops ending games), compare them by the windows.
+
 --group: all features, the macro ones (economy, unit counts, buildings) or the fight ones (where the army stands,
 its orders, threats met, fighting, what it does at a sighting, lone units).
 """
