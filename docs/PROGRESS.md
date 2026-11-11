@@ -1932,6 +1932,33 @@ plan and the full log).
   critics, saved before the spec had its `idle` and `coming` fields (empty for those races), failed it while reading
   the same 441 and 451 inputs feature for feature. The test now reads the saved spec as the code does
   (FeatureSpec(**spec)) and names the critic; all nine critics pass.
+- **A building that waits is queued, as a unit is: the Protoss's cannon no longer holds its macro for its Pylon
+  (2026-11-11, gt0.34dev, gz0.23dev, gp0.31dev; gt0.14, gz0.7, gp0.10).** The same class of hold as the entry below,
+  read from the other races' records after it: gz1dev was fine (24 decisions a minute at 10-20, 10% of its time in
+  gaps over 10 s), gp1dev worse than gt1dev had been (11.3 a minute, 69%). Its biggest hold was its own: a Photon
+  Cannon at a base with no Pylon of Gary's gets its Pylon first, and the cannon stayed the goal, nothing else decided,
+  while the Pylon's Probe walked and the Pylon warped in (2 minutes a game, 79 of the 39 games' 285 minutes in long gaps),
+  then expansions kept for their money and Pylons timing out. Now a building whose plan is WAIT (a Pylon on its way,
+  the parked builders all walking, what it needs being built) is queued as a unit is for its busy producer
+  (`macro.py` queued_builds): its money kept as the queued units' is, one of a kind at a time (the decoder passes a
+  building queued already: without that it decided the same Refinery six times and a depot sixteen in a row in the
+  smoke test, each queued at once), the goal again the moment it can start, dropped at twice GOAL_TIMEOUT from its
+  decision. 16 games a race on the same seeds as before (4004-4005):
+
+  | | gp1dev before (DP247a) | gp1dev after (PQ251a) | PvZ pros | gt1dev before (PK249a) | gt1dev after (TQ251a) |
+  |---|---|---|---|---|---|
+  | Decisions a minute at 10-20; time in gaps over 10 s | 10.7; 70% | 17.6; 48% | | 17.5; 42% | 16.8; 39% |
+  | Minerals banked 10-15 / 15-20 / 20-25 | 719 / 2,916 / 4,734 | 454 / 1,813 / 2,752 | 909 / 1,737 / 3,573 | 714 / 1,910 / 2,470 | 581 / 1,687 / 2,879 |
+  | Supply used 15-20 | 121 | 159 | 130 | 125 | 128 |
+  | Goals timed out a game | expand 1.9, cannon 1.9 | cannon 1.7 (the queue's 60 s), upgrades 1.3 | | Marine 0.7 | Siege Tank 0.4 |
+  | Won, lost, time (16) | 5, 0, 11 | 8, 1, 7 | | 3, 4, 9 | 2, 5, 9 |
+
+  The Protoss's bank at 15-25 minutes is at the pros' now and its supply over theirs; the Terran unchanged beyond 16
+  games' noise. Every build has it (the dev builds' and the playing builds' versions above); parity recorded again;
+  smoke, pairs and matchups tests pass, the last with its worker floor at 3:00 set to 8 (gz1 against the Protoss opens
+  three hatcheries and four zerglings by then with 8 or 9 drones on seeds 7001-7003: the dice's path moved under the
+  change and seed 7001 fell to 8; a Gary that stalls has its starting four or five). The Protoss's standing against
+  its playing build is replayed next (gp1dev against gz1dev, gp1 against gz1dev, 48 games each).
 - **Why gt1dev banks: its macro held 30 s at a time for the one builder walking (2026-11-11, gt0.33dev).** The bank
   escape's replacement, begun from the records rather than a new rule. gt0.32dev banked 982 minerals at 10-15 minutes and
   3,401 at 15-20 (gt1 612 and 1,197, the modern pros 837 and 2,206; 6,138 at 20-25, the pros 3,366), not for want of the

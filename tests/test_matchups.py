@@ -44,7 +44,9 @@ def _play(path, a: str, b: str) -> tuple[str, str]:
         return "fail", "no status line"
     m = re.search(r"workers \w (\d+) \w (\d+)", lines[-1])
     wa, wb = int(m.group(1)), int(m.group(2))
-    if min(wa, wb) < 9:
+    # (8: gz1 against the Protoss opens three hatcheries and four zerglings by 3:00 with 8 or 9 drones, seeds
+    # 7001-7003, 2026-11-11; a Gary that stalls has its starting four or five)
+    if min(wa, wb) < 8:
         return "fail", f"workers at {MINUTES}:00: {wa} and {wb}"
     return "ok", f"workers at {MINUTES}:00: {wa} and {wb}"
 

@@ -126,6 +126,10 @@ class LearnedMacro:
         # the model didn't decide (keep_busy, which trained idle producers' last unit again, made half of gt1's marines
         # at 10-20 minutes; removed 2026-10-23: rounds Q60a against B60a, the same results and gap without it)
         self.queued: list[tuple[tuple[int, int], int]] = []
+        # buildings decided that wait for something on its way (a Protoss's Pylon warping in at the cannon's base, the
+        # parked builders): the goal again once they can start, the macro deciding on meanwhile; held as the goal
+        # instead, with nothing else decided, a cannon's Pylon alone cost gp1dev 2 minutes a game (DP247a)
+        self.queued_builds: list[dict] = []
         self.queue_depth = 1                  # the model's waiting units queued per producer (option qdepth2: 2)
         self.wait_builds = False              # option comingbuild: a building waits for what it needs being built too
         self.save_coming = False              # option savecoming: a goal its income pays for within the timeout is on its way
@@ -382,6 +386,7 @@ class LearnedMacro:
             # (from the third base on: forced at 4:00-6:00 as Gary held one base under pressure, the natural
             # cost 7 games of 432; the model takes the natural itself)
             if (self.expand_mass is not None and self.expand_odds >= self.expand_mass and self.halls >= 2
+                    and not self._build_queued(*self.model.spec.decisions[k_exp])
                     and self.plan(*self.model.spec.decisions[k_exp], obs, mine, done, me) is not None):
                 act, uid = self.model.spec.decisions[k_exp]
                 self.goal = {"act": act, "id": uid, "p": float(probs[0, k_exp]), "since": hi.frame, "name": describe(self.g.race, act, uid)}
@@ -448,6 +453,9 @@ class LearnedMacro:
                         else:
                             over.append([name(k), "one already parked: meanwhile only larvae"])
                         continue
+                if plan is WAIT and self._build_queued(*self.model.spec.decisions[k]):
+                    over.append([name(k), "queued already: waits for what is on its way"])
+                    continue
                 if plan is WAIT:
                     over.append([name(k), f"waits: {self.why_not or 'its building is busy'}" if waiting is None
                                  else f"also waits: {self.why_not or 'its building is busy'}"])
@@ -526,6 +534,14 @@ class LearnedMacro:
                 self.goal = None
             elif goal["act"] == TRAIN and self.rethink:
                 LOG.order(g.hi.side, hi.frame, goal["name"], "dropped", "its buildings' queues are full: asked again",
+                          by="macro")
+                self.goal = None
+            elif goal["act"] in (BUILD, EXPAND):
+                # (a building waiting for what is on its way is queued as a unit for its busy producer: its money kept,
+                # the goal again once it can start, dropped at twice GOAL_TIMEOUT from its decision)
+                goal.setdefault("decided", goal["since"])
+                self.queued_builds.append(goal)
+                LOG.order(g.hi.side, hi.frame, goal["name"], "waiting", f"queued: {self.why_not or 'what it needs is on its way'}",
                           by="macro")
                 self.goal = None
             return
@@ -615,12 +631,15 @@ class LearnedMacro:
         for (act, uid), _ in self.queued:
             m, gas = self.g.executor.cost_of(act, uid)
             sm, sg = sm + m, sg + gas
+        for b in self.queued_builds:
+            m, gas = self.g.executor.cost_of(b["act"], b["id"])
+            sm, sg = sm + m, sg + gas
         return sm, sg
 
     def queued_before(self, frame: int) -> int:
         """The minerals of the queued units decided before this frame: a parked build decided after them leaves them
         alone (#55, the other way round from _train_queued)."""
-        return sum(self.g.executor.cost_of(act, uid)[0] for (act, uid), since in self.queued if since < frame)
+        return sum(self.g.executor.cost_of(act, uid)[0] for (act, uid), since in self.queued if since < frame)             + sum(self.g.executor.cost_of(b["act"], b["id"])[0] for b in self.queued_builds if b["since"] < frame)
 
     def _affordable(self, goal: dict, obs: dict, mine: list[dict], done: list[dict], me: dict, own: bool = False,
                     plan: dict | None = None) -> bool:
@@ -636,10 +655,29 @@ class LearnedMacro:
         sm, sg = self._kept_cost(own)
         return me["minerals"] - g.committed() - sm >= minerals and me["gas"] - sg >= gas
 
+    def _build_queued(self, act: int, uid: int) -> bool:
+        """This building is queued already, waiting for what is on its way (one of a kind at a time)."""
+        return any(b["act"] == act and b["id"] == uid for b in self.queued_builds)
+
     def _train_queued(self, obs: dict, mine: list[dict], done: list[dict], me: dict) -> bool:
         """A decided unit whose producer is free now: trained (first, as pros keep production going).
         True if this turn is spent."""
         g = self.g
+        if self.goal is None:
+            for b in list(self.queued_builds):
+                plan = self.plan(b["act"], b["id"], obs, mine, done, me, capped=not b.get("uncapped"))
+                if plan is None or g.hi.frame - b["decided"] > 2 * GOAL_TIMEOUT:
+                    self.queued_builds.remove(b)
+                    LOG.order(g.hi.side, g.hi.frame, b["name"], "dropped",
+                              "no longer possible" if plan is None else f"queued: not carried out in {2 * GOAL_TIMEOUT // 24} s",
+                              by="macro")
+                    continue
+                if plan is WAIT:
+                    continue
+                self.queued_builds.remove(b)                  # (it can start: the goal again, this step's)
+                b.update(since=g.hi.frame)
+                self.goal = b
+                break
         for entry in list(self.queued):
             key, since = entry
             plan = self.plan(*key, obs, mine, done, me)
