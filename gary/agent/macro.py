@@ -755,7 +755,7 @@ class LearnedMacro:
             # (parked_max builders walking at a time: a build decided beyond them waits as a unit waits for its busy
             # building, and the decoder takes the next doable decision meanwhile; held as the goal instead, it stood
             # 30 s and timed out: turrets, depots and expansions, 2-4 minutes of the macro's 10-20 at 10-20 minutes)
-            return g.executor.wait("its builders are all on their way")
+            plan = g.executor.wait("its builders are all on their way")
         self.why_not = g.executor.why if plan is None or plan is WAIT else None
         return plan
 

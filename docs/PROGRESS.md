@@ -1957,8 +1957,17 @@ plan and the full log).
   games' noise. Every build has it (the dev builds' and the playing builds' versions above); parity recorded again;
   smoke, pairs and matchups tests pass, the last with its worker floor at 3:00 set to 8 (gz1 against the Protoss opens
   three hatcheries and four zerglings by then with 8 or 9 drones on seeds 7001-7003: the dice's path moved under the
-  change and seed 7001 fell to 8; a Gary that stalls has its starting four or five). The Protoss's standing against
-  its playing build is replayed next (gp1dev against gz1dev, gp1 against gz1dev, 48 games each).
+  change and seed 7001 fell to 8; a Gary that stalls has its starting four or five). The Protoss's standing replayed
+  with every build fixed (48 games each on the status seeds): gp1dev (DP252a) won 18 lost 1 time 29 (gp0.29dev 13, 1,
+  34), ahead at time in 17 games for 3 behind (15, 8); against its old self +0.089 [+0.010, +0.172] by supply; 17.9
+  decisions a minute at 10-20 (11.3), 46% of its time in long gaps (69%); minerals banked 505 / 1,641 / 3,221 at 10-15
+  / 15-20 / 20-25 minutes (766 / 3,754 / 6,034; the pros 909 / 1,737 / 3,573), supply used 162 at 15-20 and 179 at
+  20-25 (128, 135; the pros 130, 135). gp1 (BP252a) against its old self -0.016 [-0.068, +0.036], won 29 lost 3. **The
+  standing: gp1dev -0.031 [-0.130, +0.078] against gp1 by supply (was -0.135), +0.038 by the Protoss's critic: not
+  measurably apart now.** Its gap to the pros is further at 10-15 (+0.042 [+0.002, +0.073]) and 20-30 (+0.112, +0.120):
+  it stands on 45 supply more than the pros with games it doesn't end (29 of 48 at time; the hunt is off in the dev
+  builds), the same reading as the Terran's at 20-25. Cannons still time out of the queue 2.8 a game (60 s: 12 queued
+  a game, a cannon's Pylon and the builders ahead of it), to read next.
 - **Why gt1dev banks: its macro held 30 s at a time for the one builder walking (2026-11-11, gt0.33dev).** The bank
   escape's replacement, begun from the records rather than a new rule. gt0.32dev banked 982 minerals at 10-15 minutes and
   3,401 at 15-20 (gt1 612 and 1,197, the modern pros 837 and 2,206; 6,138 at 20-25, the pros 3,366), not for want of the
