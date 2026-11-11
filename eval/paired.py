@@ -117,6 +117,8 @@ def scores(names: list[str], side: str, grades: tuple, workers: int) -> tuple[di
             reads["other"], critics["other"] = critic_reads(name, rnd, *theirs, workers)
         for g in rnd["games"]:
             key = (g["map"], str(g["seed"]))
+            if g.get("graded", g["result"]) not in SUPPLY:          # (a game that ended in an error: no pair)
+                continue
             s = SUPPLY[g.get("graded", g["result"])]
             s = s if side == "A" else 1 - s
             decided = g["result"] in ("won", "lost")

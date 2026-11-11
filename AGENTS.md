@@ -48,7 +48,8 @@ and its line removed; a new one gets an issue and a line).
   (`--maps ladder --seeds 6 --first 4004`, 30 minutes) and the gap score to modern pros; 24 games are too
   noisy for close calls, and a single round's gap score needs its spread (`eval/gap_windows.py`, 96 paired games
   for a close call). A round is proposed only with its minimum detectable effect written first: 96 paired games
-  resolve about 0.08 of the paired score (its 90% interval about +-0.05; `eval/paired.py` prints a pairing's own), so
+  resolve 0.06 to 0.14 of the paired score by the pairing (its 90% interval +-0.04 to +-0.09 over eleven past pairs:
+  `eval/paired.py` prints a pairing's own), so
   an option expected to move less is judged on its own check (the records, the fidelity measures) or not by rounds at
   all. A round is sized to the effect it looks for: a fidelity measure expected to move severalfold (workers at a new
   base 1.1 to 5.4, a building at the natural 0% to 88%) shows in 16 games, and 48 are for a close call. An adopted option is folded into the manifest with a version bump, so the name

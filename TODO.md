@@ -32,7 +32,9 @@ closed and its line leaves this file; docs/PROGRESS.md keeps what was done and h
 - [#57](https://github.com/vibrunazo/gary/issues/57) Gary-Z banks the gas it mines (920 at 10-15 minutes, pros 499)
 - [#58](https://github.com/vibrunazo/gary/issues/58) Gary-Z's builds per style: style 2 played as itself 31%, the third Hatchery
 - [#59](https://github.com/vibrunazo/gary/issues/59) Fold the dev manifests' execution fixes (parkmany, gaswaits, the gas head)
-  into gt1, gt1dev and gz1
+  into gt1, gt1dev and gz1 (the inputs done, gt0.12 and gz0.5, 2026-11-11: what tests/test_inputs.py showed the playing
+  builds lacked; left: parkmany, gaswaits and a gas head for gt1's model, and gz1's eggs, builtcount and pendown, which
+  the test can't hold apart while gz1 reads the pros' history)
 - [#55](https://github.com/vibrunazo/gary/issues/55) The opening economy: new workers sent at once, the first worker first,
   workers on gas the macro model's decision (gastarget, gt0.20dev: style 2's natural 3.6 minutes, pros 3.2; the Zerg's,
   gz0.7dev); left: about 100 minerals mined behind the pros by 2:00 (the split, doubled fields, idle builders; Gary-Z's
@@ -63,7 +65,7 @@ closed and its line leaves this file; docs/PROGRESS.md keeps what was done and h
 - [#38](https://github.com/vibrunazo/gary/issues/38) Map mechanics on the current ladder maps: neutral units and per-map priors
 - [#16](https://github.com/vibrunazo/gary/issues/16) Learn building placement and scouting from replays (a building's base
   and side learned for the Protoss, gp0.21dev; Corsairs scouting as the army's air clusters, PvZ, gp0.23dev; saving for the first
-  Corsair, gp0.24dev, its Core, gp0.25dev, and its natural Nexus, gp0.26dev; buildings on one pro's tiles, every race and matchup, gp0.27dev, gt0.29dev, gz0.18dev; a Terran building's base learned in TvZ, gt0.30dev, and every Terran and Zerg matchup's, gz0.19dev; workers to a new base as it finishes, every race, gt0.31dev, gz0.20dev, gp0.28dev; next Gary-Z's colonies decided before its natural finishes (its first in the main 19%, the pros 1%), TvT and PvT rounds for the Terran's placement, the other matchups' air clusters, the macro's look a moment after each decision)
+  Corsair, gp0.24dev, its Core, gp0.25dev, and its natural Nexus, gp0.26dev; buildings on one pro's tiles, every race and matchup, gp0.27dev, gt0.29dev, gz0.18dev; a Terran building's base learned in TvZ, gt0.30dev, and every Terran and Zerg matchup's, gz0.19dev; workers to a new base as it finishes, every race, gt0.31dev, gz0.20dev, gp0.28dev; the Terran's placement checked in TvT and PvT, 2026-11-11; next Gary-Z's colonies decided before its natural finishes (its first in the main 19%, the pros 1%: a late natural in Pool-first games, #58), Gary-T's first Barracks in PvT (by the natural 75%, the pros 27%: it starts late, and its base is drawn again as it builds), the first Comsat on the natural's Command Center (TvT 80%, the pros 28%), a builder walled in by the building it made (set aside now, one build lost), the other matchups' air clusters, the macro's look a moment after each decision)
 - [#25](https://github.com/vibrunazo/gary/issues/25) Walls: copy the pros' walls per map and start location
 - [#23](https://github.com/vibrunazo/gary/issues/23) Map analysis: split maps at their chokes
 - [#36](https://github.com/vibrunazo/gary/issues/36) Protoss: the executor (refactor Phase 4) begun, `gp1` plays every matchup
@@ -96,7 +98,10 @@ closed and its line leaves this file; docs/PROGRESS.md keeps what was done and h
 - [#64](https://github.com/vibrunazo/gary/issues/64) The army layer's draws use seed 0 in every game (fix with the next version
   bump of every build: every baseline replayed)
 - [#63](https://github.com/vibrunazo/gary/issues/63) Grade games at time by the critic's win odds, not the supply ratio
-  (regrade past rounds both ways first: adopt only if the minimum detectable effect shrinks)
+  (regraded, 2026-11-11, eleven past pairs with eval/paired.py: the critics' grade has the larger spread in every pair,
+  a real difference 9-15% further out in its own: not adopted, printed beside supply's as a second reading; left: the
+  middle's calibration on Gary's decided games, and whether the level the critics see, the Zerg ahead where supply
+  says even, is right)
 - [#32](https://github.com/vibrunazo/gary/issues/32) The gap score disagrees with results
 - [#44](https://github.com/vibrunazo/gary/issues/44) Engine error at the map's edge
 - [#15](https://github.com/vibrunazo/gary/issues/15) Fit human-interface profiles from replays
@@ -107,5 +112,7 @@ closed and its line leaves this file; docs/PROGRESS.md keeps what was done and h
 
 ## The Remastered bridge
 
-- [#24](https://github.com/vibrunazo/gary/issues/24) Adapt to the layer refactor (`ScrGame.terrain`, `type_select`; a live
-  game of the current gt1; a unit's `ammo` and `ammo_max`, which Gary-P's hands read)
+- [#24](https://github.com/vibrunazo/gary/issues/24) Adapt to the layer refactor (done without a client, 2026-11-11: the
+  map's terrain, regions, unit data and hash from its file opened beside the live game, `type_select`, every race live,
+  `stim`, `ammo` and `ammo_max` in the bridge's observation, tests/test_live.py; left: a LAN game of the current builds
+  in a client, and `tools/parity.py` on its replay to pin the three fields' offsets)

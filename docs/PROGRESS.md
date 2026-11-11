@@ -1850,6 +1850,40 @@ plan and the full log).
   decisions so far the pros' history), and the pros' history itself, which stays until gz1dev replaces gz1
   (AGENTS.md). Parity recorded again. The answers to lurkers and mutalisks (AGENTS.md) can now be measured off with
   the model seeing what it saw.
+- **The paired score's own tool, and the critics' grade regraded (2026-11-11; #63).** Every verdict here rests on the
+  paired score of two rounds, and no script computed it: eval/paired.py (new) pairs the games of rounds B and A by
+  map and seed and prints the mean difference with its 90% interval (resampled), the spread of the differences and
+  what 96 games resolve with it (it reproduces ownhist's +0.039 and nobank's -0.203). A game at time is graded by
+  supply (eval/league.py: 0.75, 0.5, 0.25) or by the critics (#63: the side's critic's win odds over the last minute,
+  or both sides' critics, read from the replay as their training games are and kept beside the round). Eleven past
+  TvZ pairs regraded, no games played (t: the mean over its standard error; supply, the side's critic, both critics):
+
+  | Pair | Games | Supply | Critic | Critics | Spread: supply, critics |
+  |---|---|---|---|---|---|
+  | ownsupply (ZO110a, ZD110a) | 48 | -0.286, t -4.81 | -0.382, -4.59 | -0.422, -5.41 | 0.41, 0.54 |
+  | nobank (NB70a, Q60a) | 48 | -0.203, -3.25 | -0.314, -4.29 | -0.236, -3.43 | 0.43, 0.48 |
+  | the static guard off (NG70a+b, Q60a+Q70b) | 96 | -0.062, -2.81 | -0.089, -2.87 | -0.078, -2.69 | 0.22, 0.29 |
+  | rl1 (R50a+b, D50a+b) | 96 | +0.089, +1.91 | +0.156, +2.76 | +0.125, +2.36 | 0.45, 0.52 |
+  | nocaps (NC70a, Q60a) | 48 | -0.109, -1.41 | -0.134, -1.63 | -0.123, -1.46 | 0.54, 0.58 |
+  | noscvcap (NS70a, Q60a) | 48 | -0.047, -0.90 | -0.079, -1.25 | -0.064, -1.07 | 0.36, 0.41 |
+  | dice (DC100a+b, DV90a+b) | 95 | +0.058, +1.37 | -0.001, -0.03 | -0.026, -0.51 | 0.41, 0.50 |
+  | seenall, the Zerg's (ZS140a+b, ZB140a+b) | 96 | +0.042, +1.32 | +0.031, +0.69 | +0.055, +1.38 | 0.31, 0.39 |
+  | ownhist, the Zerg's (HO172a+b, HB172a+TS170b) | 96 | +0.039, +0.83 | +0.063, +1.06 | +0.068, +1.20 | 0.46, 0.55 |
+  | zfullhp, the Zerg's (ZH142a+b, LB141a+b) | 96 | -0.029, -0.90 | -0.053, -1.22 | -0.051, -1.27 | 0.31, 0.40 |
+  | fightrules, the Zerg's (FT179a+b, BT179a+b) | 96 | +0.010, +0.34 | -0.002, -0.04 | +0.005, +0.13 | 0.30, 0.36 |
+
+  The critics' grade doesn't shrink what a round resolves: its spread is larger in every pair (by a tenth to a third),
+  since the critics read most games at time as all but decided (odds near 0 or 1) where the supply grade keeps them
+  between 0.25 and 0.75. In its own spread a real difference stands a little further out: over the six pairs with a
+  known effect t is 15% larger by the side's critic and 9% by both (a third and a fifth more games' worth), and the
+  four nulls stay null under each. That is a small gain bought with a grade tied to a critic's version, so by #63's own
+  rule (adopt only if the minimum detectable effect is smaller) the league's grade stays the supply's; eval/paired.py
+  prints both, as a second reading. Two things the critics see that supply doesn't: the level (in the dice pair the
+  Terran dev build scores 0.38-0.43 by supply and 0.27-0.29 by the critics: many of supply's even games are the
+  Zerg's to the critics), and one lean the other way (dice: +0.058 by supply, -0.026 by both critics, neither
+  measurable). And the spread itself differs by pairing: 96 games resolve +-0.037 (the static guard's pair) to +-0.090
+  (nocaps's) by supply, +-0.05 in three of the eleven, so a round's minimum detectable effect is its own pairing's
+  (AGENTS.md).
 - **Workers to a new base as it finishes (2026-11-09, gt0.31dev, gz0.20dev, gp0.28dev, option transferahead; #16).**
   Gary-Z's first colony in the main (above) read a natural without drones. eval/transfers.py (new): per new base, the
   workers at it when its town hall finishes and 15, 30 and 60 s after, and its workers a patch against the older bases'.
