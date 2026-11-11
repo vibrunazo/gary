@@ -70,6 +70,7 @@ dev build where learning is done and judged without the stop-gaps (AGENTS.md):
 |---|---|---|---|
 | Plays | `gt1` gt0.13 | `gz1` gz0.6 | `gp1` gp0.9 (crude) |
 | Dev build | `gt1dev` gt0.33dev | `gz1dev` gz0.22dev | `gp1dev` gp0.30dev |
+| Dev build against the one that plays (2026-11-11 late, 48 paired games on the ladder maps, dev minus playing by supply; docs/PROGRESS.md "Why gt1dev banks") | -0.188 [-0.302, -0.078] vs gz1 (DT250a against BT250a; -0.307 before the macro's hands fix) | as above | as above |
 | Dev build against the one that plays (2026-11-11, 48 paired games, docs/PROGRESS.md) | -0.307 [-0.401, -0.208] against gz1; nearer the pros at 0-5 and 10-25 minutes | -0.047 [-0.135, +0.042] against gt1 | -0.135 [-0.229, -0.042] against gz1dev (gp0.4dev, 2026-10-30, 96 games a matchup: PvT -0.029, PvZ -0.068, PvP -0.076) |
 
 ## What still differs between the races

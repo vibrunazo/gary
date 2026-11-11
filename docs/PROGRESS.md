@@ -1966,7 +1966,24 @@ plan and the full log).
   gp0.30dev); the parity hashes recorded again. What this says about the bank escape: in gt1 it fires while the macro's
   favorite waits for a busy building, and what filled gt1dev's bank was not that wait but the hands' (one builder); with
   the hands' hold gone, whether the dev build banks more than gt1 at 10-20 is to be read from its next 48-game round
-  against gz1 (the status round DT247a replayed on the same seeds).
+  against gz1 (the status round DT247a replayed on the same seeds). That round (DT250a, 48 games, the same seeds): won 7
+  lost 6 time 35 (gt0.32dev 7, 9, 32), ahead at time in 14 games for 7 (9 for 8); against DT247a +0.062 [-0.016,
+  +0.146] by supply, +0.157 [+0.044, +0.270] by the Terran's critic; minerals banked 607 / 2,002 / 3,028 at 10-15 /
+  15-20 / 20-25 minutes (982 / 3,401 / 6,138; the pros 837 / 2,205 / 3,366), 18.6 decisions a minute at 10-20 (14.2),
+  36% of its time in gaps over 10 s (55%), no expansion, turret or depot timed out (3.4, 2.4 and 0.9 a game); supply used
+  137 at 15-20 and 164 at 20-25 (111, 113; the pros 119, 131). The gap: nearer the pros at 5-20 minutes (5-10 -0.029
+  [-0.059, -0.001], 10-15 -0.024, 15-20 -0.022), further at 20-25 (+0.042 [+0.000, +0.092]) where it now stands on
+  more supply than the pros with games it doesn't end (the hunt is off in the dev builds; 35 of 48 at time). Against the
+  old gt1 baseline -0.245 [-0.339, -0.151] (was -0.307); gt1 carries the fix too, so its baseline is replayed (BT250a).
+  gt1 gt0.13 replayed (BT250a): won 30 lost 8 time 10 (gt0.12 27, 2, 19), decided 79% of its games (60%); against
+  its old self -0.057 [-0.172, +0.052], not measurable; 26.3 decisions a minute at 10-20 (22.5), 30% of its time in
+  long gaps (37%), expansions decided 3.8 a game (7.0, the re-decisions gone), the third base's Command Center at 14.0
+  minutes (14.3), by 20:00 2.95 (3.36, on a different set of games to 20:00: 21 of 48 for 22), its bank at 20-25
+  447 minerals (1,490; the pros 3,366: gt1 spends everything on two to three bases, the caps refusing the third and
+  fourth hall 2.4 times a game). **The standing with both fixed: gt1dev -0.188 [-0.302, -0.078] against gt1 by supply
+  (was -0.307), -0.196 [-0.331, -0.065] by the Terran's critic, -0.295 [-0.414, -0.182] by both critics.** A third of
+  the deficit was this leak. The rest is as the hunt rounds read it: the stop-gaps measured one at a time, and games
+  the dev build leads and doesn't end (ahead at time in 14, the hunt off).
 - **The hunt back on in the dev builds: a fifth of the Terran's deficit, a sixth of the Protoss's (2026-11-11).** The
   status rounds above left the Terran's and the Protoss's dev builds not ending games, and the hunt is the one rule
   whose job that is (AGENTS.md), off in both under `unscripted`. Written first: with it back, decided games near the
