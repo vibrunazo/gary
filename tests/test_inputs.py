@@ -296,7 +296,8 @@ def _replay_rows(m, sides, reads, tmp: Path):
 # the placement model's blocks (gary/policy/placement.py encode): (name, columns, kind, tolerance). Play reads them as it
 # decides a building, the replay as the building appears (the state of the look before): the builder's walk and its
 # wait for the money come between, so the minute, the workers and the buildings get room
-PLACE_MIN = 8                   # buildings paired, at least, for a side with the model
+PLACE_MIN = {"T": 8, "P": 8, "Z": 4}   # buildings paired, at least, for a side with the model (the Zerg's few: its
+                                # hatcheries and extractors aren't the model's; 5 in this game to 9:00)
 _BF = 7
 
 
@@ -336,8 +337,8 @@ def compare_place(sides, prow) -> tuple[list[str], list[str], set]:
     report, fails, seen_known = [], [], set()
     for r, pairs in prow.items():
         g = sides[r]
-        if len(pairs) < PLACE_MIN:
-            fails.append(f"{r} placement: {len(pairs)} buildings paired (fewer than {PLACE_MIN})")
+        if len(pairs) < PLACE_MIN[g.race.letter]:
+            fails.append(f"{r} placement: {len(pairs)} buildings paired (fewer than {PLACE_MIN[g.race.letter]})")
             continue
         for name, cols, kind, tol in _blocks_place(len(g.executor.place_model.types)):
             offs = np.array([_off(a[cols], b[cols], kind)[0] for a, b in pairs.values()])

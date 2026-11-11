@@ -11,11 +11,12 @@ and its line removed; a new one gets an issue and a line).
   race data (`gary/terran.py`, `zerg.py`, `protoss.py`, `race.py`), the learned models (`gary/policy`), the
   interface (human-like hands) and the game environment.
 - `eval/`: the launcher (`match.py`), league rounds (`league.py`, which keeps each round's feature rows), measures
-  against the pros (`humanlike.py`, `attacks.py`, `style_adherence.py`: the build per style; `placement.py`: where the buildings stand against the pros', `tiles.py`: on which tiles; `transfers.py`: workers at a new base as it finishes), two versions compared game against game per time window with a
+  against the pros (`humanlike.py`, `attacks.py`, `style_adherence.py`: the build per style; `placement.py`: where the buildings stand against the pros', `tiles.py`: on which tiles; `transfers.py`: workers at a new base as it finishes), two versions compared game against game: their paired score with its spread and what 96 games resolve
+  (`paired.py`: a game at time graded by supply or by the critics) and their gap per time window with a
   bootstrap spread (`gap_windows.py`), the records' queries (`why.py`), the critic's calibration and would-gg games (`critic_gg.py`), the run monitor (`monitor.py`,
   `priority.py`).
 - `train/`, `ingest/`, `resim/`: models, datasets from replays, the replay re-simulator.
-- `adapters/scr_bridge`: playing StarCraft: Remastered. `tests/`: smoke, parity, matchups, game data.
+- `adapters/scr_bridge`: playing StarCraft: Remastered. `tests/`: smoke, parity, matchups, game data, the live path.
 - `docs/`: ARCHITECTURE (design), CONTROL (layers and manifests), RACES (the per-race audit), REFACTOR (one
   Gary for every race, done), SELF_PLAY (the self-play plan), DATA_ERAS (old and modern replays).
 
@@ -31,8 +32,8 @@ and its line removed; a new one gets an issue and a line).
   default) and `gt1dev` is what learning is trained and judged in: gt1 with the role model deciding in contact and
   the army on control groups, the configuration expected to win later, and without the stop-gaps over the layers
   being learned (option `unscripted`: the static guard, the hunt, the overlord hunt, the pros' caps, the SCV cap, the
-  bank escape), and with the models' inputs in play counted as their training data counts them (`seenall`,
-  `armyseen`; gt1 doesn't have them yet), so the models own those decisions there; a stop-gap stays in gt1 while it
+  bank escape), so the models own those decisions there (the models' inputs in play are counted as their training data counts them
+  in every build: gt1's since gt0.12, held by `tests/test_inputs.py` with `GARY_TEST_T=gt1 GARY_TEST_Z=gz1`); a stop-gap stays in gt1 while it
   measurably helps, and its
   job in gt1dev is the learned layer's or nobody's. `gz1dev` is the same for the Zerg (gz1 with `unscripted`: join,
   sweep, press, the hunt, the caps, the bank escape and overlords ahead off; its overlord posts and mutalisk raid
@@ -47,8 +48,10 @@ and its line removed; a new one gets an issue and a line).
   (`--maps ladder --seeds 6 --first 4004`, 30 minutes) and the gap score to modern pros; 24 games are too
   noisy for close calls, and a single round's gap score needs its spread (`eval/gap_windows.py`, 96 paired games
   for a close call). A round is proposed only with its minimum detectable effect written first: 96 paired games
-  resolve about 0.08 of the paired score (its 90% interval about +-0.05), so an option expected to move less is
-  judged on its own check (the records, the fidelity measures) or not by rounds at all. An adopted option is folded into the manifest with a version bump, so the name
+  resolve about 0.08 of the paired score (its 90% interval about +-0.05; `eval/paired.py` prints a pairing's own), so
+  an option expected to move less is judged on its own check (the records, the fidelity measures) or not by rounds at
+  all. A round is sized to the effect it looks for: a fidelity measure expected to move severalfold (workers at a new
+  base 1.1 to 5.4, a building at the natural 0% to 88%) shows in 16 games, and 48 are for a close call. An adopted option is folded into the manifest with a version bump, so the name
   never grows into a chain of options. A close 48-game round gets its second 48 (`--first 4010`) at the first
   round's priority, without asking. A baseline is replayed whenever its code or the opponent's manifest changed (a
   baseline from a worktree against an older gz1 once misjudged an option). A plain bug fix, or a model's input counted
@@ -94,7 +97,9 @@ and its line removed; a new one gets an issue and a line).
   tracker or a dataset builder (a new difference fails it; its INTENDED and KNOWN lists, with issues, say what may
   differ); a change of behaviour records the parity
   hashes again (`tests/test_parity.py --record`) in its commit, with the reason; `tests/test_matchups.py`
-  plays every matchup that can play.
+  plays every matchup that can play; `tests/test_live.py` (a minute) plays each race's dev build through the live
+  launcher on a stand-in for the bridge, after any change to the live path (`gary/scr_env.py`, `gary/play.py`) or to
+  what the agent asks of the game (a new `Game` method, a new observation field).
 - "Why did Gary do that?" is answered from the game's records (`python -m eval.why`) before writing a
   re-simulation probe.
 - Long scripts report to the run monitor (`eval.monitor`, `eval.priority`).
@@ -197,7 +202,7 @@ odds become a choice: dice, hold, floors), and fixes of plain bugs.
   (387). Scripted because the macro model didn't answer what it had seen (human games 1-2). Replace with the seen
   enemy units as macro-model inputs (they are: the `seen` counts) and measure whether the model answers alone. In
   play its "most seen" inputs stayed 0 until option `seenall` (2026-10-25: the tracker looked only when the model was
-  queried); gt1 doesn't have it yet, so the answers' measure is to be taken with it.
+  queried); gt1 has it since gt0.12, so the answers can be measured off now.
   Measure: an option off, against lurker and mutalisk plans: results and the time to the answer.
 - **The early-pool posture's builds** (in gt1; off in gt1dev since gt0.18dev, option noalarm: it went to rush defense in
   every game, half of them blind, and held the opening's gas and natural back; rush defense from scouting: bunker at the ramp, marines first, no

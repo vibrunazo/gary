@@ -111,6 +111,8 @@ GAS_PULL_EVERY = 2 * 24               # one worker taken off gas at most this of
 GAS_TRIMS = 3                         # extra workers a gas task's box caught, out by their portraits before it sends
 TRAVEL_FOR = 24 * 40                  # ...and one walking to another base, after this at most
 RESEND_TRIES = 3                      # a build's SCV stopped on its way to another base: sent again this often
+STUCK_MOVED = 48                      # pixels: a worker that wouldn't walk has moved (it is a builder again) beyond this
+STUCK_RETRY = 24 * 120                # ... and is sent to mine again this often (freed, it goes; walled in still, it can't)
 PARK_FOR = 24 * 20                    # a build's SCV walks to the spot ahead of the money: back to it after this at most
 BUILDERS = 3                          # saturation: workers past the bases' minerals and gas, for building
 BUSY_BUILDING = {O.ORDER_RESEARCH, O.ORDER_UPGRADE, O.ORDER_BUILD_ADDON}   # a building busy with these makes nothing
@@ -182,6 +184,7 @@ class Executor:
         self.tiles = None                             # option tiles: the pros' tiles on this map and start (ProTiles)
         self._layout: dict = {}                       # base tile -> the pro game whose layout it follows (or None)
         self.train_depth = 1                          # units in a building's own queue Gary trains into (option gamequeue: 2)
+        self.stuck_retry: dict[int, int] = {}         # a worker that wouldn't walk (g.stuck) -> the frame it mines again from
         self.sent: list[tuple[str, int, int]] = []    # decisions' production keys given, not yet run: (kind, act, uid)
         # the map's own creep (map knowledge, read now: at the start of a game, before any zerg's)
         creep = getattr(g.hi.game, "creep", None)
@@ -280,11 +283,18 @@ class Executor:
                 self.born.setdefault(u["tag"], g.hi.frame)
         idle = [u for u in done if u["type"] == g.race.worker and self._idle(u, done) and screen_of(obs, u["x"], u["y"])
                 and g.ignore_idle_until.get(u["tag"], 0) <= g.hi.frame and u["tag"] != g.scout
-                and u["tag"] not in g.block_units]
+                and u["tag"] not in g.block_units and not self._left_stuck(u)]
         if idle:
+            for u in idle:
+                if u["tag"] in g.stuck:
+                    self.stuck_retry[u["tag"]] = g.hi.frame + STUCK_RETRY
             g.task = Task("mine", data={"tags": [u["tag"] for u in idle]}, started=g.hi.frame)
             return True
         return False
+
+    def _left_stuck(self, u: dict) -> bool:
+        """A worker that wouldn't walk (g.stuck) and isn't due another try at mining."""
+        return u["tag"] in self.g.stuck and self.g.hi.frame < self.stuck_retry.get(u["tag"], 0)
 
     def idle_sweep(self, obs: dict, done: list[dict]) -> bool:
         """Every 10 s, look at an idle worker the camera isn't showing, so the mining routine
@@ -296,7 +306,8 @@ class Executor:
         g, hi = self.g, self.g.hi
         busy = {g.scout} | (g.pulled if not g.home_scvs or g.hi.frame - g.calm_since < FIGHT_CALM else set()) | g.block_units
         away = [u for u in done if u["type"] == g.race.worker and self._idle(u, done) and u["tag"] not in busy
-                and not screen_of(obs, u["x"], u["y"]) and g.ignore_idle_until.get(u["tag"], 0) <= hi.frame]
+                and not screen_of(obs, u["x"], u["y"]) and g.ignore_idle_until.get(u["tag"], 0) <= hi.frame
+                and not self._left_stuck(u)]
         due = [u for u in away if hi.frame - self.looked_due.get(u["tag"], -SWEEP_DUE) >= SWEEP_DUE
                and (hi.frame - self.born.get(u["tag"], -2 * NEW_WORKER) < 2 * NEW_WORKER
                     or u["order"] == IDLE and hi.frame - self.sent_home.get(u["tag"], -SENT_HOME) < SENT_HOME)]
@@ -695,6 +706,13 @@ class Executor:
         # (nor one just given a build: the order takes a few frames to show in its state, and the
         # next build's task took it as free and sent it walking elsewhere: the first build lost)
         builders = {g.builder_of.get(r) for r in g.reserved}
+        if u["tag"] in g.stuck:
+            # one that wouldn't walk (walled in by the building it made, on a tile by a cliff: a Supply Depot at Fighting
+            # Spirit's natural left its SCV in a one-tile pocket, and every expansion after took it, the nearest, and
+            # failed: 17 in one game, the natural at 9:54) is no builder while it stands there; moved, it is again
+            if math.dist((u["x"], u["y"]), g.stuck[u["tag"]]) < STUCK_MOVED:
+                return False
+            del g.stuck[u["tag"]]
         return u["type"] == g.race.worker and u["completed"] and u["order"] not in BUSY_ORDERS \
             and bool(screen_of(obs, u["x"], u["y"])) and u["tag"] != g.scout and u["tag"] not in g.pulled | g.block_units \
             and u["tag"] not in g.parked_workers() and u["tag"] not in builders
@@ -1416,7 +1434,11 @@ class Executor:
                 if not going and obs["selection"] == [w["tag"]]:
                     t.data["resent_at"] = hi.frame
                     t.data["resent"] = t.data.get("resent", 0) + 1
+                    t.data.setdefault("resent_from", (w["x"], w["y"]))
                     if t.data["resent"] > RESEND_TRIES:
+                        if math.dist((w["x"], w["y"]), t.data.get("resent_from", (-10 ** 6, 0))) < STUCK_MOVED:
+                            g.stuck[w["tag"]] = (w["x"], w["y"])       # (it never left where it was first sent again)
+                            self.stuck_retry[w["tag"]] = hi.frame + STUCK_RETRY
                         self.fail_build(t, f"its {g.race.names[g.race.worker]} wouldn't walk to the base")
                         return
                     hi.minimap_right_click(*center)

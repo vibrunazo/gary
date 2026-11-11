@@ -1793,6 +1793,63 @@ plan and the full log).
   units waiting for a busy producer with money for both), units decided to trained a median 6.1 s (6.4), the first
   Corsair 8.9 s (9.1); 24 of the 32 forge-first Stargates placed at the same moment, the other 8 moved -62 to +58 s
   (mean +2 s); gap score 0.29 (0.27), graded alike (won 1).
+- **A checkpoint after the placement work (2026-11-11).** About 25 changes had landed under #16 since 2026-11-01, each
+  judged on its own measure, none of it played by a person or held against the playing builds: the last human game was
+  game 4 (2026-10-19), the live path had not run since the one-Gary refactor (2026-10-20), and the playing builds
+  stood at gt0.11, gz0.4 and gp0.7 while their dev builds were 20 versions on. The entries below are that checkpoint:
+  the placement models checked in the two matchups left, the live path, the playing builds' inputs, the paired
+  score's own tool, and where each dev build stands against its playing build.
+- **The Terran's placement in TvT and PvT, checked in games (2026-11-11; #16).** The models of 2026-11-09 for those
+  matchups had not been played. 16 games of 12 minutes each on the ladder maps (TT245a and, with the fix below, TT246a,
+  gt1dev against itself: the latter's numbers here; PT245a, gp1dev against gt1dev), Gary-T's first buildings against 60 modern pro games of the matchup (eval/placement.py: the
+  base by the nearest of the player's town halls; share by the natural, the pros' after). TvT: the first Barracks 81%
+  (60%; the main in every game before the model), the second depot 12% (12%), the Academy 12% (15%), the Armory 7%
+  (11%), the first Factory 31% (7%), the first Starport 7% (21%), the Bunker 85% (96%; one in 81% of games, the pros
+  38%). PvT: the first depot 12% (3%), the second 31% (23%), the first Factory 6% (7%), the Engineering Bay 31% (21%),
+  the first turret 69% (68%), the second 56% (42%), the Bunker 83% (94%), the Armory 7% (46%), the first Barracks 75%
+  (27%). The model decides in both, with no crash and, on the Terran's side in PvT, no build dropped. Two things off the
+  pros': the first Comsat goes on the natural's Command Center (TvT 80%, the pros 28%; PvT 64%, 41%), which is the
+  executor's choice of Command Center, not the model's; and the first Barracks in PvT. The model's odds for it at the
+  decision are the pros' (the main 63-65%, drawn there in 9 of 16 games), but its base is drawn again as it builds,
+  19-35 s later (1:17-1:28 in the three games read), and by then the odds have moved to the natural (40-57%): to the
+  model a first Barracks that late reads as the openings that put it there. So what is off is when Gary-T's first
+  Barracks starts in PvT, not where the model puts it. Neither is chased now.
+- **A builder walled in by the building it made (2026-11-11, a bug fix of the hands in every build: gt0.12, gz0.5,
+  gp0.8, gt0.32dev, gz0.21dev, gp0.29dev).** TT245a's builds dropped because "its SCV wouldn't walk to the base" were
+  21 in 3 games, 17 of them in one (TZ244a: 10 in 9 of 48). There a Supply Depot on a pro's tile by a cliff at Fighting
+  Spirit's natural left its SCV in a one-tile pocket between the depot and the cliff; every expansion after took that
+  SCV, the nearest free one, sent it three times and gave up, from 3:48 to 9:25, and the natural came at 9:54. Now a
+  worker that never left where it was first sent again is set aside (g.stuck, executor.py free_worker): no builder
+  while it stands there, sent to mine only every two minutes (freed, it goes and is a builder again). TT246a on the
+  same seeds: 3 such drops in 3 games, the second Command Center by 5:00 in 32 of 32 player-games (31), that game's
+  natural at 4:22. The SCV is still walled in, and one build is lost finding that out: where a builder stands when its
+  building is done isn't chosen (#16).
+- **The live path brought up to the current Gary (2026-11-11; #24).** gary/scr_env.py's ScrGame had none of what the
+  layers have asked of the game since the refactor: terrain(), regions(), unit_type_info(), type_select(), the map's
+  hash, and three unit fields (ammo, ammo_max, stim: Gary-P's rearm read u["ammo"] and would have stopped the game).
+  A live Gary would have played without the map analysis, the terrain inputs of its role and macro models, the pros'
+  tiles and the map as a model input, and only for the Terran and the Zerg. Now ScrGame finds the live map among the
+  map files Gary has (find_map: the same size and mineral fields; the ladder maps, the tests' fixtures, GARY_LIVE_MAPS,
+  or --map) and opens it headless beside the live game, never stepped, for everything about the map that doesn't
+  change; type_select is answered from the observation; gary.play --live plays the Protoss too (--protoss; the minute
+  report in the race's own units) and says which map file it found. The bridge's observation sends the three fields
+  (scr_profile.h: INFERRED offsets, where BW 1.16's unit struct has them, as every pinned field so far; ammo_max
+  without the capacity upgrades), rebuilt, its offline tests passing. tests/test_live.py (new, a minute) plays each
+  race's dev build for four minutes through play_live on a stand-in for the bridge, a headless game that answers only
+  the bridge's requests, as a bridge built before the new fields would: the map found, its hash and terrain the
+  headless game's, each race's opening played, the ctrl+click's selection OpenBW's. What no test here can show is the
+  client itself: the next LAN game is that check, and tools/parity.py on its replay the check of the three fields.
+- **The playing builds' inputs as their data counts them (2026-11-11, gt0.12, gz0.5).** tests/test_inputs.py on the
+  playing builds (GARY_TEST_T=gt1 GARY_TEST_Z=gz1) failed where the dev builds had been fixed since 2026-10-25: Gary-T's
+  macro model's own units off at 24% of the moments, its decisions so far 27% (the critic's the same), its army model's
+  own units 72% and army supply 26%; Gary-Z's enemy units most seen 37%, and its role model's hidden enemies' HP read
+  as 0 where its data has them full. gp1's side showed nothing (GARY_TEST_T=gp1). The dev builds' input options are
+  folded into the playing builds (gt1: widespot, seenall, armyseen, builtcount, unitcount, pendown; gz1: seenall,
+  zfullhp), on that check and not on rounds (AGENTS.md); the test passes on both (214 moments). Not folded: gz1's eggs,
+  builtcount and pendown, which the test can't hold apart there (its own units are under #50's known fault, its
+  decisions so far the pros' history), and the pros' history itself, which stays until gz1dev replaces gz1
+  (AGENTS.md). Parity recorded again. The answers to lurkers and mutalisks (AGENTS.md) can now be measured off with
+  the model seeing what it saw.
 - **Workers to a new base as it finishes (2026-11-09, gt0.31dev, gz0.20dev, gp0.28dev, option transferahead; #16).**
   Gary-Z's first colony in the main (above) read a natural without drones. eval/transfers.py (new): per new base, the
   workers at it when its town hall finishes and 15, 30 and 60 s after, and its workers a patch against the older bases'.

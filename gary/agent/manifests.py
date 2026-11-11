@@ -316,18 +316,23 @@ MANIFESTS: dict[str, dict] = {
     # paired games against gt1, ZS100a+b against B100a+b: the Terran's score -0.029 +- 0.103, the Zerg's gap +0.026,
     # -0.024 to +0.083: no measurable difference, so the stop-gap goes)
     # gz0.4: every build's fix of 2026-10-31 (as gt0.11's)
-    "gz1": {"version": "gz0.4", "race": "Z", "posture": "zerg", "leases": "enforced", "balance": True, "rotate": True,
+    # gz0.5 (2026-11-11): its inputs in play counted as its training data counts them, where tests/test_inputs.py held
+    # them apart (GARY_TEST_Z=gz1): the enemy's units it has seen read at every look, not only when the model is asked
+    # (look_seen, gz1dev's seenall: "enemy most seen" off at 37% of the moments), and a hidden enemy's HP given to its
+    # role model as full, as its data has it (full_hp, zfullhp: it read 0). Adopted on that check, not on rounds
+    # (AGENTS.md); and every build's fix of that day, a worker that wouldn't walk no builder while it stands there
+    "gz1": {"version": "gz0.5", "race": "Z", "posture": "zerg", "leases": "enforced", "balance": True, "rotate": True,
             "grouping": "types",
             "macro": {**_LEARNED, "builds": ["alarm"], "decoder": "dice", "odds_mass": 1.0, "hatch_mass": 0.5, "park": True, "pace": True,
                       "tech_min_p": 0.10, "wait_min_p": 0.05, "own_supply": True, "rax_by": 165 * 24, "history": "pro", "style": "roll",
-                      "hold": True},
+                      "hold": True, "look_seen": True},
             # the army: clusters with commitments, drawn (Gary-Z's GARY_Z_COMMIT=latest), its ground army (the flyers
             # and lurkers have their own rules); no worker scout (its overlords)
             "army": {"provider": "learned", "model": "commit/latest", "commit": True, "draw": True, "scout": False,
                      "types": [37, 38, 39, 45, 46], "rules": ["posts", "raid", "join", "sweep", "press"], "hunt": True},
             # its fight roles from the pros' Zerg units in whole games to 30 minutes, old and modern (round R30Z against
             # B30: the Zerg ahead or winning at 30:00 in 9 of 48 games to 6, its gap at 21-30 minutes 0.40 to 0.46)
-            "fight": {"provider": "zerg", "roles_data": "response_Z_30min.npz"}, "arbiter": "fixed_priority/v1"},
+            "fight": {"provider": "zerg", "roles_data": "response_Z_30min.npz", "full_hp": True}, "arbiter": "fixed_priority/v1"},
     # the one Gary playing Protoss (docs/REFACTOR.md Phase 4), crude: the Protoss executor, the Protoss macro model with
     # every game's style (every matchup's plans, taxonomy/label_all.py; a style rolled by the modern pros' shares) and the
     # gas head (train/macro.py --race P --styles v2, every matchup: P_all_v2all, gp0.4, as allstyles in place of
@@ -340,7 +345,9 @@ MANIFESTS: dict[str, dict] = {
     # gp0.6: Reavers and Carriers kept full of Scarabs and Interceptors (the hands, executor.rearm: they are built empty,
     # and every one Gary-P made before never fired)
     # gp0.7: Pylons placed where they power new room (the hands, protoss_executor.py spot; as gp0.12dev's)
-    "gp1": {"version": "gp0.7", "race": "P", "posture": "normal", "leases": "enforced", "balance": True, "builder_back": True,
+    # gp0.8 (2026-11-11): every build's fix of that day, a worker that wouldn't walk no builder while it stands there
+    # (its inputs needed none: tests/test_inputs.py with GARY_TEST_T=gp1 holds them to its data's)
+    "gp1": {"version": "gp0.8", "race": "P", "posture": "normal", "leases": "enforced", "balance": True, "builder_back": True,
             "macro": {"provider": "learned", "model": "runs/macro_exp/P_all_v2all/model.pt", "builds": [], "decoder": "dice",
                       "odds_mass": 1.0, "expand_mass": 1.0, "park": True, "supply_ahead": True, "parked_max": 3,
                       "gas_waits": True, "style": "roll", "look_seen": True, "unit_count": True, "history_styles": "v2"},
@@ -1143,8 +1150,15 @@ def manifest_of(name: str | dict) -> dict:
 # ND70a+b: better in 4, worse in 9, -0.016 +- 0.035, the gap +0.001: no measurable difference, so the veto goes)
 # gt0.11: every build's fix of 2026-10-31: the model's decisions that ended without their command taken back from its
 # decisions so far, and a key the hands didn't give (no APM left) given again (#47, as gt0.25dev's)
+# gt0.12 (2026-11-11): its inputs in play counted as its training data counts them, where tests/test_inputs.py held
+# them apart (GARY_TEST_T=gt1: its own units off at 24% of the moments, its decisions so far 27%, the critic's the
+# same, its army's units 72%): the dev build's widespot, seenall, armyseen, builtcount, unitcount and pendown, which
+# gt1dev had alone. Adopted on that check, not on rounds (AGENTS.md: if it plays worse, a model or a stop-gap leaned
+# on the fault; the answers to lurkers and mutalisks are to be measured with seenall); and every build's fix of that
+# day: a worker that wouldn't walk to a build (walled in by the building it made) is no builder while it stands there
 MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords+hunt4+split+static+roles30+lone"
-                                  "+addonroom+gamequeue+softguard"), "version": "gt0.11"}
+                                  "+addonroom+gamequeue+softguard+widespot+seenall+armyseen+builtcount+unitcount"
+                                  "+pendown"), "version": "gt0.12"}
 # gt1dev: the Terran Gary that learning is trained and judged in (AGENTS.md): gt1 with the role model deciding in
 # contact as well (attended pro units with their re-issues as a decision, again, Gary's own order rate as input, its
 # moves kept current, several orders a turn) and the army on control groups by type, a key's units drawing their
@@ -1243,10 +1257,15 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # the time since it finished (executor.py _transfer_ahead; eval/transfers.py): TZ244a against TZ240a, the natural's SCVs when it
 # finished 5.4 (1.1, the pros 4.0), 15 s after 7.0 (2.1, 7.3), a minute after 10.2 (8.8, 10.7); the gap +0.012
 # [-0.007, +0.026], its macro at 10-12 minutes further (+0.044 [+0.001, +0.067])
+# gt0.32dev (2026-11-11): a worker that wouldn't walk to a build is no builder while it stands there (executor.py
+# free_worker, g.stuck: a Supply Depot on a pro's tile by a cliff at Fighting Spirit's natural walled its SCV into a
+# one-tile pocket, and every expansion after took it, the nearest, and failed: TT245a, 17 builds in one game, its
+# natural at 9:54; TT246a on the same seeds, 3 such drops in 3 games for 21, every natural by 4:22). Its input options
+# (widespot, seenall, armyseen, builtcount, unitcount, pendown) are gt1's now (gt0.12)
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
-                                     "+dice+widespot+seenall+armyseen+builtcount+unitcount+styleroll+noalarm+gastarget"
-                                     "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+pendown+tiles+place+transferahead"),
-                       "version": "gt0.31dev"}
+                                     "+dice+styleroll+noalarm+gastarget"
+                                     "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"),
+                       "version": "gt0.32dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
@@ -1315,9 +1334,11 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # finished 0.9 (0.0, the pros 0.4), 15 s after 2.2 (0.2, 1.4), a minute after 5.2 (2.6, 4.8); the first colony in the
 # main 19% (25%): decided before the natural finished in Pool-first games (the macro's timing); the gap +0.056
 # [-0.051, +0.088]
-MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allstyles+gaswaits+parkmany"
+# gz0.21dev (2026-11-11): a worker that wouldn't walk to a build is no builder while it stands there (as gt0.32dev);
+# seenall and zfullhp are gz1's now (gz0.5)
+MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+eggs+allstyles+gaswaits+parkmany"
                                      "+pvzroles+mirrorroles+ownhist+builtcount+pendown+tiles+place+transferahead"),
-                       "version": "gz0.20dev"}
+                       "version": "gz0.21dev"}
 
 # gp0.4dev: gp1 without the stop-gaps over its learned layers (unscripted: the hunt, a Pylon ahead of production) and
 # its army on control groups by type (grouping, as gt1dev's and gz1's): the Protoss's dev build, where its learning is
@@ -1426,9 +1447,10 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+seenall+zfullhp+eggs+allsty
 # gp0.28dev: transferahead, workers sent to a new base to arrive as its town hall finishes, enough for the pros' share by
 # the time since it finished (executor.py _transfer_ahead; eval/transfers.py): PL242a, the natural's Probes when it finished 4.0
 # (PL231a 0.5, the pros 3.1), 15 s after 5.6 (3.1, 6.0), a minute after 10.0 (9.9, 9.9)
+# gp0.29dev (2026-11-11): a worker that wouldn't walk to a build is no builder while it stands there (as gt0.32dev)
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
                                      "+fightrules+aircluster+coming+comingbuild+savecoming+tiles+transferahead"),
-                       "version": "gp0.28dev"}
+                       "version": "gp0.29dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

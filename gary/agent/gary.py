@@ -86,6 +86,7 @@ class Gary:
         self.upgraded: Counter = Counter()
         self.gas_workers: dict[int, set[int]] = {}       # refinery tag -> workers on it
         self.ignore_idle_until: dict[int, int] = {}      # workers (or refineries) to leave alone until then
+        self.stuck: dict[int, tuple[int, int]] = {}      # workers that wouldn't walk -> where they stood: no builders there
         self.pulled: set[int] = set()                    # workers taken off mining to fight
         self.scout: int | None = None                    # the scouting worker
         self.loaded: dict[int, set[int]] = {}            # bunker tag -> marines Gary sent into it
