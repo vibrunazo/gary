@@ -20,6 +20,10 @@ without them.
     python -m eval.judge --race T --matchup TvZ --rounds TW253a
     python -m eval.judge --race T --matchup PvT --rounds PT245a
     python -m eval.judge --race T --matchup TvT --rounds TT246a --retrain
+    python -m eval.judge --table                       # every round judged so far, matchup by ability
+
+Each round judged appends a line to runs/judge/results.jsonl (the judge, the round, Gary's share, a pro's, the
+difference with its interval, the ranking, the coverage); --table prints them, the newest line per cell.
 
 The judge is kept in runs/judge/<race>_<matchup>_<state>.pkl; a round's moments in its folder (judge_<race>.npz).
 A state is a row of STATES (the unit type out of the mode and in it); the pros' dataset per matchup is PROS.
@@ -520,10 +524,39 @@ def coverage(judge: dict, X, game, rng):
     return float(auc), inside, float(np.mean(q > SURE)), apart
 
 
+RESULTS = REPO / "runs" / "judge" / "results.jsonl"
+
+
+def record(row: dict) -> None:
+    import time as clock
+    RESULTS.parent.mkdir(parents=True, exist_ok=True)
+    with open(RESULTS, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"at": clock.strftime("%Y-%m-%d %H:%M"), **row}) + "\n")
+
+
+def print_table() -> None:
+    """Every (race, matchup, state) judged: its newest round's line."""
+    if not RESULTS.exists():
+        print("nothing judged yet"); return
+    rows = {}
+    for line in open(RESULTS, encoding="utf-8"):
+        r = json.loads(line)
+        rows[(r["race"], r["matchup"], r["state"])] = r
+    print(f"{'race':>4} {'matchup':>7} {'ability':>9} {'round':>8} {'games':>5} {'moments':>8} {'Gary':>6} {'a pro':>6} "
+          f"{'difference [90%]':>22} {'rank (pros)':>12} {'outside':>7}   where")
+    for k in sorted(rows):
+        r = rows[k]
+        rank = f"{r['rank']:.2f}" if r.get("rank") is not None else "never"
+        print(f"{r['race']:>4} {r['matchup']:>7} {r['state']:>9} {r['round']:>8} {r['games']:>5} {r['moments']:>8,} "
+              f"{r['gary']:>6.1%} {r['pro']:>6.1%} {r['diff']:>+7.1%} [{r['lo']:+.1%}, {r['hi']:+.1%}] "
+              f"{rank:>5} ({r['pros_auc']:.2f}) {r['outside']:>7.0%}   {r['apart']}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--race", choices=sorted(set(STATES) | set(EVENTS)), required=True, help="whose units are judged")
-    ap.add_argument("--matchup", required=True, help="the pros it is judged against (TvZ, PvT, TvT...)")
+    ap.add_argument("--race", choices=sorted(set(STATES) | set(EVENTS)), help="whose units are judged")
+    ap.add_argument("--matchup", help="the pros it is judged against (TvZ, PvT, TvT...)")
+    ap.add_argument("--table", action="store_true", help="print every round judged so far and exit")
     ap.add_argument("--state", help="a state or an event (STATES, EVENTS); default: every one the race has")
     ap.add_argument("--rounds", nargs="*", default=[], help="Gary's league rounds (none: the judge's own check only)")
     ap.add_argument("--pros", help="the pros' dataset in data/interim/roles (default: PROS)")
@@ -533,6 +566,10 @@ def main() -> None:
     priority.add_argument(ap)
     args = ap.parse_args()
     priority.apply(args.priority)
+    if args.table:
+        print_table(); return
+    if not args.race or not args.matchup:
+        ap.error("--race and --matchup are required (or --table)")
     edges = np.linspace(0, 1, BINS + 1)
     rng = np.random.default_rng(0)
     for state in ([args.state] if args.state else sorted(STATES.get(args.race, {})) + sorted(EVENTS.get(args.race, {}))):
@@ -589,6 +626,13 @@ def main() -> None:
             print(line("the situations the pros are in too (the half of its games read)", inside, p, y, game, rng))
             print("    where Gary's situations differ most (its mean against the pros', in the pros' sd): "
                   + "; ".join(f"{nm} {v:.1f}" for v, nm in apart))
+            from sklearn.metrics import roc_auc_score
+            lo, hi = spread(p, y, game, rng)
+            record({"race": args.race, "matchup": args.matchup, "state": state, "round": name,
+                    "games": int(len(np.unique(game))), "moments": int(len(y)), "gary": float(y.mean()),
+                    "pro": float(p.mean()), "diff": float(y.mean() - p.mean()), "lo": lo, "hi": hi,
+                    "rank": float(roc_auc_score(y, p)) if 0 < y.mean() < 1 else None, "pros_auc": judge["auc"],
+                    "outside": sure, "apart": "; ".join(f"{nm} {v:.1f}" for v, nm in apart[:2])})
 
 
 if __name__ == "__main__":
