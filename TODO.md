@@ -43,8 +43,9 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
    - The tanks' siege against a Protoss and a Terran, which the judge reads as misplaced (sieged where the pros
      aren't, out of it where they are): what takes them out as the enemy comes, from the records (the motor takes
      them out before a move order 4.6 to 4.8 times a game).
-   - The Zerg's fight orders dropped after three failed selections: 65 a game against 55 to 89 sent, headless and
-     live alike. Why, from the records (eval.why); a plain bug is adopted on its own check.
+   - The Zerg's fight orders dropped after three failed selections (fixed in part, gz0.26dev: orders carried out
+     tripled, the median 26 to 76 a game; 28 a game still drop when a lone click takes another unit that isn't a
+     like one beside it: the records say what was selected instead).
    - The bridge's commands added on 2026-11-12 (siege, Tank Mode, the merges, a Scarab or Interceptor) seen sent in
      a live game once Gary sends them; a LAN game with tools/parity.py for the DLL's stim and ammo fields.
 4. **The judge among the promotion rule's fidelity measures** (AGENTS.md), once it covers the three races' states

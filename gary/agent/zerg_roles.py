@@ -248,8 +248,19 @@ class ZergRoles:
         if not units:
             self.pending = None
             return False
-        sel = set(obs["selection"])
-        if p["selecting"] and sel and sel <= set(p["tags"]):
+        sel, want = set(obs["selection"]), set(p["tags"])
+        # the selection serves when it holds the units (two strangers at most) or most of them (as motor.py reads a
+        # box's take): it had to be exactly them, and a click at where a unit was seen, not where it would be, missed
+        # it: 65 fight orders a game dropped after three tries in gz1dev's games, half of all it gave (eval/judge.py
+        # found the Lurkers where the pros' aren't; the records, 2026-11-12)
+        hit, others = sel & want, sel - want
+        # a like unit beside a wanted one (a Zergling in front of the Zergling clicked: 12 of 15 drops) counts as it:
+        # it is in the same situation, and a player's click takes it the same way
+        kinds = {alive[t]["type"] for t in want if t in alive}
+        like = {t for t in others if t in alive and alive[t]["type"] in kinds
+                and any(math.dist((alive[t]["x"], alive[t]["y"]), (u["x"], u["y"])) <= 2 * 32 for u in units)}
+        strangers = others - like
+        if p["selecting"] and (hit or like) and len(hit | like) >= 0.7 * len(want)                 and len(strangers) <= max(2, len(hit | like)):
             x, y = p["point"]
             on = screen_of(obs, x, y)
             if p["kind"] == "move":
@@ -269,17 +280,23 @@ class ZergRoles:
         p["tries"] += 1
         if p["tries"] > TRIES:
             LOG.order(hi.side, hi.frame, f"{p['role'].lower()} ({len(units)} units)", "dropped",
-                      f"its units weren't selected in {TRIES} tries", by="roles")
+                      f"its units weren't selected in {TRIES} tries (the last selection: {len(sel & want)} of them, "
+                      f"{len(sel - want)} others{'' if p['selecting'] else '; never clicked'})", by="roles")
             self.pending = None
             return False
         mid = (sum(u["x"] for u in units) / len(units), sum(u["y"] for u in units) / len(units))
         if self.bot._look(obs, mid):
             return True
-        shown = [u for u in units if screen_of(obs, u["x"], u["y"])]
-        if not shown:
-            return True
-        hi.click(*screen_of(obs, shown[0]["x"], shown[0]["y"]))
-        for u in shown[1:MAX_GROUP]:
-            hi.click(*screen_of(obs, u["x"], u["y"]), shift=True)
+        from gary.agent.motor import BOX_MARGIN, box_around, hit_point
+        if len(units) == 1:                 # (a click where the game's hit test finds it, not a neighbor in front:
+            on = screen_of(obs, *hit_point(hi, hi.slot, obs, units[0]))   # 13 of 24 drops took another unit)
+            if on is None:
+                return True
+            hi.click(*on)
+        else:
+            pts = [q for q in (hi.aim(obs, u) for u in units[:MAX_GROUP]) if q]   # (where each will be when it lands)
+            if not pts:
+                return True
+            box_around(hi, pts, BOX_MARGIN)
         p["selecting"] = True
         return True

@@ -2000,6 +2000,17 @@ plan and the full log).
   from the travel stage, if the parked builders have room (gary/agent/executor.py wait_arrival). The pattern (the
   scratch script timed the owners; a second classed each hold over 5 s by the orders inside it) is how the next hold
   is found. On the same 16 games (seeds 4004-4005, against DP252a and DT250a):
+- **The Zerg's fight orders reach its units (2026-11-12, gz0.10, gz0.26dev).** Half of what gz1dev's fight roles
+  decided was dropped after three tries to select the units (65 a game in DZ247a, live too): zerg_roles.py clicked
+  a unit where it was seen (a Zergling had moved on) and took a selection only when it was exactly the units (a box
+  or a click in a pack takes a neighbor). Now a lone unit is clicked where the game's hit test finds it (motor.py
+  hit_point, the Terran's, shared), a group taken with a box where its units will be (hi.aim), and the order given
+  when the selection holds the units or most of them, a like unit beside a wanted one counting as it. On the
+  seed-4004 maps (8 games each): orders carried out 1 to 51 a game before, the median 26; 1 to 276 with it, the
+  median 76; dropped 45 and 57 (the first try, aim and box alone, 96: a lone click took the neighbor in front).
+  What still drops (28 a game): a lone click that takes another unit, not a like one beside it (an enemy in
+  contact, or a unit of another kind). The drop record now says what was selected instead. A plain fix of the
+  hands, adopted on the records (AGENTS.md).
 - **The judge: would a pro's tank be sieged here, and is Gary's (2026-11-12, `eval/judge.py`).** The live games' lesson
   was that rounds and the gap score never showed gt1dev's tanks don't siege against a Zerg (its TvZ role model has no
   siege role: the pros' sieges are its "other", carried out as nothing; 0 sieges in 64 headless games), and a count a

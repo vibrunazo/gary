@@ -66,6 +66,18 @@ LOADING_FOR = 36                     # a load's marines are left alone this long
 LOADING_NEAR = 5 * 32                # ...those this close to its bunker
 
 
+def hit_point(hi, slot: int, obs: dict, u: dict) -> tuple[int, int]:
+    """Where a click selects this unit (map pixels): where it will be (hi.aim), or the nearest pixel of its box there
+    where the game's hit test finds it (not a neighbor in front of it). Every race's hands (the Zerg's roles too)."""
+    a = hi.aim(obs, u)
+    x, y = (obs["camera"]["x"] + a[0], obs["camera"]["y"] + a[1]) if a else (u["x"], u["y"])
+    for r in range(0, 9, 2):
+        for dx, dy in ((0, 0), (r, 0), (-r, 0), (0, r), (0, -r)):
+            if hi.game.unit_at(slot, x + dx, y + dy) == u["tag"]:
+                return x + dx, y + dy
+    return x, y
+
+
 def box_around(hi, pts: list[tuple[int, int]], m: int) -> None:
     hi.box(max(0, min(p[0] for p in pts) - m), max(0, min(p[1] for p in pts) - m),
            min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + m), min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + m))
@@ -481,16 +493,7 @@ class DirectMotor:
         return False
 
     def _hit_point(self, obs: dict, u: dict) -> tuple[int, int]:
-        """Where a click selects this unit: where it will be (aim), or the nearest pixel of its box there
-        where the game's hit test finds it (not a neighbor in front of it)."""
-        g = self.g
-        a = g.hi.aim(obs, u)
-        x, y = (obs["camera"]["x"] + a[0], obs["camera"]["y"] + a[1]) if a else (u["x"], u["y"])
-        for r in range(0, 9, 2):
-            for dx, dy in ((0, 0), (r, 0), (-r, 0), (0, r), (0, -r)):
-                if g.hi.game.unit_at(g.slot, x + dx, y + dy) == u["tag"]:
-                    return x + dx, y + dy
-        return x, y
+        return hit_point(self.g.hi, self.g.slot, obs, u)
 
     def _clear_click(self, movers, x: int, y: int) -> tuple[int, int]:
         """(x, y), or the nearest pixel within PLACE_SEARCH where a click hits no unit but the movers."""

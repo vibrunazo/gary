@@ -323,8 +323,11 @@ MANIFESTS: dict[str, dict] = {
     # (AGENTS.md); and every build's fix of that day, a worker that wouldn't walk no builder while it stands there
     # gz0.7: a building that waits for what is on its way (a Pylon warping in at its base, the parked builders) queued as a unit for its busy producer, the macro deciding on meanwhile, its money kept (macro.py queued_builds, 2026-11-11)
     # gz0.6: the macro's two fixes of 2026-11-11 (macro.py plan: an expansion refused while its town hall is on its way; a build beyond the parked builders waits as a unit for its busy building, not held 30 s as the goal; gt0.33dev)
+    # gz0.10: its fight roles select where a unit will be (hi.aim) and a group with a box, and an order goes to a
+    # selection that holds its units or most of them (zerg_roles.py _carry_out, 2026-11-12: 65 fight orders a game
+    # dropped after three tries, half of all it gave, in gz1dev's games; as gz0.26dev)
     # gz0.9: the mutalisk raid's flock takes the selection's flyers not in it yet (2026-11-12, as gz0.25dev: it re-added the same flock every tick in the live client)
-    "gz1": {"version": "gz0.9", "race": "Z", "posture": "zerg", "leases": "enforced", "balance": True, "rotate": True,
+    "gz1": {"version": "gz0.10", "race": "Z", "posture": "zerg", "leases": "enforced", "balance": True, "rotate": True,
             "grouping": "types",
             "macro": {**_LEARNED, "builds": ["alarm"], "decoder": "dice", "odds_mass": 1.0, "hatch_mass": 0.5, "park": True, "pace": True,
                       "tech_min_p": 0.10, "wait_min_p": 0.05, "own_supply": True, "rax_by": 165 * 24, "history": "pro", "style": "roll",
@@ -1356,13 +1359,14 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # [-0.051, +0.088]
 # gz0.21dev (2026-11-11): a worker that wouldn't walk to a build is no builder while it stands there (as gt0.32dev);
 # seenall and zfullhp are gz1's now (gz0.5)
+# gz0.26dev (and gz0.10): the fight roles' selection (zerg_roles.py _carry_out, 2026-11-12): a lone unit clicked where the game's hit test finds it (motor.py hit_point), a group taken with a box where its units will be, and the order given to a selection that holds its units or most of them, a like unit beside a wanted one counting as it. Before, a click where a unit was seen and a selection that had to be exactly the units: 45 fight orders a game dropped after three tries on the seed-4004 maps and 1 to 51 carried out (DZ247a); with it 57 dropped and 1 to 276 carried out, the median 76 (DZ255b; the first try, a box and the aim alone, 96 and 101: the lone clicks took a neighbor)
 # gz0.25dev (and gz0.9): the mutalisk raid's flock takes the selection's flyers not in it yet (army_rules.py _form, 2026-11-12): it took the first of the selection, flock members among them, so in the live client, where a hatched Mutalisk's tag can be the lowest, it re-added the same flock every tick (633 notes and hotkey presses in a 15-minute live game, 0 to 15 in headless games, whose new units' tags are the highest)
 # gz0.24dev: a build's worker sent again on its way to another base (stopped, or taken along in the army's box) walks with the hands free, parked as from the travel stage (executor.py wait_arrival, 2026-11-11): the parked builds held the hands 241 s a game in gp1dev and 202 in gt1dev, 3.8 and 5.3 holds over 5 s, a Probe's 31 s walk the macro idle behind it; 62 and 44 s with this, 0.2 and 0.1 holds (PW253a, TW253a against DP252a, DT250a: the bank at 15-20 minutes 1,813 to 1,285 and 1,910 to 1,236, the pros 1,737 and 2,205)
 # gz0.23dev: a building that waits for what is on its way (a Pylon warping in at its base, the parked builders) queued as a unit for its busy producer, the macro deciding on meanwhile, its money kept (macro.py queued_builds, 2026-11-11)
 # gz0.22dev: the macro's two fixes of 2026-11-11 (macro.py plan: an expansion refused while its town hall is on its way; a build beyond the parked builders waits as a unit for its busy building, not held 30 s as the goal; gt0.33dev)
 MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+eggs+allstyles+gaswaits+parkmany"
                                      "+pvzroles+mirrorroles+ownhist+builtcount+pendown+tiles+place+transferahead"),
-                       "version": "gz0.25dev"}
+                       "version": "gz0.26dev"}
 
 # gp0.4dev: gp1 without the stop-gaps over its learned layers (unscripted: the hunt, a Pylon ahead of production) and
 # its army on control groups by type (grouping, as gt1dev's and gz1's): the Protoss's dev build, where its learning is
