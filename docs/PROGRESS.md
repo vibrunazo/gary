@@ -1932,6 +1932,39 @@ plan and the full log).
   critics, saved before the spec had its `idle` and `coming` fields (empty for those races), failed it while reading
   the same 441 and 451 inputs feature for feature. The test now reads the saved spec as the code does
   (FeatureSpec(**spec)) and names the critic; all nine critics pass.
+- **gp1dev judged for promotion under the new rule: not yet (2026-11-11, gp0.32dev against gp0.11, 96 paired games).**
+  The promotion rule changed today (AGENTS.md): a dev build replaces the playing build when it is nearer the pros, or as
+  near, in every time window and not measurably worse in 96 paired games; it need not win more. gp1dev's second 48
+  (DP252b against BP252b, seeds 4010 on, both arms with the day's fixes; the first 48 predate the hands fix of the
+  entry below, which both arms got alike) made the 96 with DP252a and BP252a, against gz1dev:
+
+  | | gp1 (BP252a+b) | gp1dev (DP252a+b) | B - A, 90% interval |
+  |---|---|---|---|
+  | paired score by supply, 96 games | 0.656 | 0.693 | +0.036 [-0.036, +0.109]: passes (2) |
+  | ...the second 48 alone | 0.531 | 0.635 | +0.104 [+0.000, +0.208] |
+  | gap to the pros, 0-5 min | 0.184 | 0.241 | +0.057 [+0.039, +0.096], further |
+  | 5-10 | 0.302 | 0.224 | -0.079 [-0.127, -0.003], nearer |
+  | 10-15 | 0.260 | 0.254 | -0.006 |
+  | 15-20 | 0.239 | 0.285 | +0.046 [+0.003, +0.083], further |
+  | 20-25 | 0.305 | 0.389 | +0.083 [+0.005, +0.133], further |
+  | 25-30 | 0.446 | 0.404 | -0.042 |
+
+  Further in three windows, so (1) fails. By feature group it is the macro features (further at 0-5 and 15-30); on the
+  fight features gp1dev is nearer from 15 minutes on. Per feature, the windows that fail (the standardized gap to the
+  modern PvZ pros, gp1's then gp1dev's): at 0-5 minutes the army standing still (0.75 and 2.28: 69% of its fighters
+  standing against the pros' 16%, gp1's 33%), workers off mining for 3 s or more (0.36 and 1.20), gas banked (2.8
+  against the pros' 8.7); not the build: per style (eval/style_adherence.py) gp1dev plays its told style more often
+  than gp1 (style 21, 64 games: 89% and 83%; style 23: 62% and 38%) and its key timings are within a few tenths of the
+  pros' (core 4.0 against 3.6, stargate 5.0 against 4.3), where gp1's second Gateway at 2.1 in style 20 is nobody's
+  (the pros 6.3). At 15-25 minutes: Corsairs (3.9 and 3.1 against the pros' 1.2 and 0.7, gp1 1.1), Stargates (1.3-1.5
+  against 0.95), the army kept (army supply 96 and 109 against the pros' 68 and 75, with the hunt off), Dragoons
+  (19-21 against 13-11), Observers (4.5 against 2.4), the Fleet Beacon and Arbiter Tribunal it adds. Where gp1dev is
+  nearer: workers (49.7 against the pros' 47.8, gp1 42.2), the Observatory and Robotics Facility, units alone and at
+  the enemy, Archons (gp1 merges none). So the leads, in order: why gp1dev's first fighters stand still at 0-5 minutes
+  (the records: the army's orders in both builds); the Corsair count (the model's odds or the decoder's, and whether
+  the pros' low count is losses); the army it keeps, which is the hunt's job and the self-play reward for ending
+  games. A plain outcome of the rule: the Protoss dev build is further from the pros in the windows where its
+  stop-gaps are off, and nearer where the learned layers play.
 - **A builder sent again walks with the hands free: the parked builds were the hands' biggest holder (2026-11-11,
   gt0.35dev, gz0.24dev, gp0.32dev; gt0.15, gz0.8, gp0.11).** Read from the records of the two standings below, the hands'
   owners timed (every change of owner is a record): the parked builds held the hands 241 s a game in gp1dev and 202 in
