@@ -69,11 +69,16 @@ bool legacy_record_length(const uint8_t* p, size_t n, size_t* out_len) {
     case 0x2b:  // hold position: id, queued
     case 0x2c:  // burrow: id, queued
     case 0x2d:  // unburrow: id, queued
+    case 0x25:  // unsiege: id, queued
+    case 0x26:  // siege: id, queued
     case 0x30:  // research: id, tech
     case 0x32:  // upgrade: id, upgrade
         *out_len = 2;
         return n >= *out_len;
     case 0x36:  // stim packs: id alone
+    case 0x2a:  // merge archon: id alone (the selected High Templar, in pairs)
+    case 0x5a:  // merge dark archon: id alone
+    case 0x27:  // train fighter: id alone (a Reaver's Scarab, a Carrier's Interceptor)
         *out_len = 1;
         return n >= *out_len;
     case 0x5c:  // chat (replay record): id, sender slot, 80-byte NUL-padded text (gary/commands.py)

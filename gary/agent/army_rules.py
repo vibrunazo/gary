@@ -335,7 +335,10 @@ class Raid:
         sel = set(obs["selection"])
         if sel and sel <= set(flyers) and sel & {u["tag"] for u in loose}:
             (hi.hotkey_add if self.flock else hi.hotkey_set)(RAID_KEY)
-            self.flock |= set(list(sel)[:RAID_MAX - len(self.flock)])
+            # the selection's flyers not in the flock yet (it took the first of the selection, flock members among
+            # them: in the live client, where a hatched Mutalisk's tag can be the lowest, it then re-added the same
+            # flock every tick, 633 notes and hotkey presses in a 15-minute game, 0 to 15 headless)
+            self.flock |= set(sorted(sel - self.flock)[:RAID_MAX - len(self.flock)])
             self.size = len(self.flock)
             g.say(f"raid: a flock of {len(self.flock)}")
             return "army:raid"

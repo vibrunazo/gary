@@ -59,14 +59,16 @@ static void test_lengths() {
     const uint8_t train[] = {0x1f, 0x00, 0x00};
     CHECK(legacy_record_length(train, sizeof train, &len) && len == 3);
     // every command gary/commands.py encodes that has no unit tag passes as is (the lengths of its
-    // encoders: research, upgrade, stop, hold, burrow, unburrow, return cargo, unload all: 2; stim 1;
+    // encoders: research, upgrade, stop, hold, burrow, unburrow, return cargo, unload all, siege, unsiege: 2; stim, the archon merges, train fighter 1;
     // building morph and control groups 3; chat 82)
-    for (uint8_t id : {0x30, 0x32, 0x1a, 0x2b, 0x2c, 0x2d, 0x1e, 0x28}) {
+    for (uint8_t id : {0x30, 0x32, 0x1a, 0x2b, 0x2c, 0x2d, 0x25, 0x26, 0x1e, 0x28}) {
         const uint8_t two[] = {id, 0x00};
         CHECK(legacy_record_length(two, sizeof two, &len) && len == 2);
     }
-    const uint8_t stim[] = {0x36};
-    CHECK(legacy_record_length(stim, sizeof stim, &len) && len == 1);
+    for (uint8_t id : {0x36, 0x2a, 0x5a, 0x27}) {     // stim, the archon merges, train fighter: the id alone
+        const uint8_t one[] = {id};
+        CHECK(legacy_record_length(one, sizeof one, &len) && len == 1);
+    }
     const uint8_t morph_building[] = {0x35, 0x84, 0x00};
     CHECK(legacy_record_length(morph_building, sizeof morph_building, &len) && len == 3);
     const uint8_t hotkey[] = {0x13, 0x01, 0x04};

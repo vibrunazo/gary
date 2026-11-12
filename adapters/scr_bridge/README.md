@@ -222,15 +222,21 @@ any resolution; they are real-input clicks and move the mouse):
 2. The Create screen remembers its folder and map, not the races or slots. If Fighting Spirit
    isn't selected: `--seq fighting-spirit` from the maps root (`[ladder]` → Season 11 →
    `[4]Fighting_Spirit_1.3`).
-3. `--seq tvz`: the local player Terran, slots 3 and 4 Closed, the computer Zerg. Check the
-   screenshot it saves (`build/auto_game/after_tvz.png`).
+3. `--seq tvz`: the local player Terran, slots 3 and 4 Closed, the computer Zerg (`zvz`, `pvz`: Gary
+   Zerg or Protoss). Check the screenshot it saves (`build/auto_game/after_tvz.png`). Reopened after a
+   match (`--target play_custom`), the screen keeps the map but is back to a Random local player and
+   three Computers: run the sequence before every game.
 4. Start Gary first: `python -m gary.play --live --pov runs/live/NAME.pov.jsonl` (it plays the local player's race:
    `--terran`, `--zerg` and `--protoss` name the manifests, the playing builds by default; the dev builds are
    `--terran gt1dev --zerg gz1dev --protoss gp1dev`). It waits for a match, says which map file it found, and starts
    on frame 0.
 5. `--target ok` starts the match.
 6. To end a match early: `--seq end` (Menu → End Mission → Quit Mission, twice). The client
-   writes `Maps\Replays\LastReplay.rep` under its user folder.
+   writes `Maps\Replays\LastReplay.rep` under its user folder. The ended match stays readable through
+   the bridge (in_game, its units, its frame count standing still) until the next one loads, so
+   `gary.play --live` started for the next game waits for a match whose frames tick and are under a
+   minute ("the match the client shows is past its first minute"), and the next game needs no client
+   restart.
 
 **Gary vs an idle LAN client** (a replay OpenBW can re-simulate, for `tools/parity.py`):
 

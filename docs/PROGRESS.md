@@ -1965,7 +1965,29 @@ plan and the full log).
   the pros' low count is losses); the army it keeps, which is the hunt's job and the self-play reward for ending
   games. A plain outcome of the rule: the Protoss dev build is further from the pros in the windows where its
   stop-gaps are off, and nearer where the learned layers play.
-- **A builder sent again walks with the hands free: the parked builds were the hands' biggest holder (2026-11-11,
+- **The three dev builds in the real client (2026-11-12, one 15-minute game each against the computer Zerg on
+  Fighting Spirit, gt0.35dev, gp0.32dev, gz0.25dev; runs/live/dev1_t, dev1_p, dev1_z: the replay, POV, records,
+  trace and the bridge's snapshots each second).** The first live games since 2026-10-20, and the first ever for
+  the Zerg and the Protoss (gary.play --live plays every race since 2026-11-11, the rebuilt bridge DLL with it).
+  The Terran and the Zerg played their 15 minutes clean: 718 and 389 orders sent, none refused; the Terran on five
+  bases with 61 SCVs and 2,110 minerals banked at 15:00 (its gas at 33-76 from 12:00 on: six Barracks on two
+  refineries), the Zerg on three with 27 Drones, 38 army supply and 1,484 banked. The Protoss lost its bridge at
+  13:28 when the role model's "merge" sent command 0x2a, the Archon merge, which the bridge's command translator
+  didn't know (adapters/scr_bridge/src/commands.cpp): added, with the Dark Archon merge (0x5a), Siege Mode and Tank
+  Mode (0x26, 0x25) and a Reaver's or Carrier's fighter (0x27), every command gary/commands.py packs; the golden
+  vectors (tests_main.cpp) and the DLL rebuilt. None of the three had been sent live before (the Terran's role
+  model chose no siege in its game: fire 66, close in 28, reposition 23, retreat 12, pull back 6). Two more things
+  the client taught: (1) an ended match stays readable through the bridge, in_game with its units and its frame
+  count standing still, until the next one loads, and the frame count resets before the units do, so a Gary
+  started for the next game took the ended Command Center for the new match's hall (StopIteration on the
+  Hatchery): the live wait now takes a match whose frames tick and are under a minute (gary/play.py; the client
+  needs no restart between games; the Create screen reopened keeps the map but not the races and slots:
+  auto_game.py's `tvz`, `zvz`, `pvz` sequences before every game). (2) The Zerg's mutalisk raid rule re-formed its
+  flock every tick, 633 "a flock of N" notes and hotkey presses in the game: it added the first of the selection,
+  flock members among them, so a hatched Mutalisk whose tag is the lowest (the client's tags, not the
+  simulator's ascending ones: 0 to 15 notes a game headless) was never taken; it takes the selection's flyers not
+  in the flock (army_rules.py; gz0.9, gz0.25dev). The replays against the computer can't be re-simulated
+  (AIPatrol), so no parity check: the next LAN game runs tools/parity.py on the DLL's new unit fields (stim, ammo).
   gt0.35dev, gz0.24dev, gp0.32dev; gt0.15, gz0.8, gp0.11).** Read from the records of the two standings below, the hands'
   owners timed (every change of owner is a record): the parked builds held the hands 241 s a game in gp1dev and 202 in
   gt1dev, more than any other owner, in 7.5 and 8.1 holds over 5 s a game; the army's orders next, 165 and 71 s. The long
@@ -1978,6 +2000,7 @@ plan and the full log).
   from the travel stage, if the parked builders have room (gary/agent/executor.py wait_arrival). The pattern (the
   scratch script timed the owners; a second classed each hold over 5 s by the orders inside it) is how the next hold
   is found. On the same 16 games (seeds 4004-4005, against DP252a and DT250a):
+- **A builder sent again walks with the hands free: the parked builds were the hands' biggest holder (2026-11-11,
 
   | | gp1dev before | with it | pros PvZ | gt1dev before | with it | pros TvZ |
   |---|---|---|---|---|---|---|

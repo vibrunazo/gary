@@ -75,8 +75,10 @@ CLICKS: dict[str, tuple[float, float]] = {
     "fighting_spirit_row": (0.315, 0.492),  # Season 11: [4]Fighting_Spirit_1.3 (Season 10 has it too)
     "ok": (0.730, 0.820),                 # Ok: opens a selected folder, or starts the game
     # Create screen: player rows (the local player first, then slots 2-4)
-    "my_race": (0.438, 0.672),
+    "my_race": (0.438, 0.672),            # its list: Zerg, Terran, Protoss, Random, 0.033 apart
+    "my_race_zerg": (0.375, 0.704),
     "my_race_terran": (0.375, 0.736),
+    "my_race_protoss": (0.375, 0.770),
     "slot2_race": (0.438, 0.712),         # the first Computer's race
     "slot2_race_zerg": (0.369, 0.742),
     "slot3": (0.252, 0.751),              # slot 3's player combo (Computer / Closed / ...)
@@ -103,7 +105,13 @@ SEQUENCES: dict[str, list[tuple[str, float]]] = {
     "fighting-spirit": [("map_row_1", 2), ("ok", 3), ("map_scroll_up", 1), ("map_scroll_up", 1),
                         ("season_11_row", 2), ("ok", 3), ("fighting_spirit_row", 2)],
     # the Create screen -> local player Terran vs one Zerg computer (Gary's live-test setup)
+    # (reopened after a match, the screen is back to a Random local player and three Computers: run one of
+    # these before every game, not only the first)
     "tvz": [("my_race", 1), ("my_race_terran", 1), ("slot3", 1), ("slot3_closed", 1),
+            ("slot4", 1), ("slot4_closed", 1), ("slot2_race", 1), ("slot2_race_zerg", 2)],
+    "zvz": [("my_race", 1), ("my_race_zerg", 1), ("slot3", 1), ("slot3_closed", 1),
+            ("slot4", 1), ("slot4_closed", 1), ("slot2_race", 1), ("slot2_race_zerg", 2)],
+    "pvz": [("my_race", 1), ("my_race_protoss", 1), ("slot3", 1), ("slot3_closed", 1),
             ("slot4", 1), ("slot4_closed", 1), ("slot2_race", 1), ("slot2_race_zerg", 2)],
     # LAN guest in the lobby (Melee, second row) -> Zerg
     "lan-guest-zerg": [("lobby_row2_race", 1), ("lobby_row2_race_zerg", 1)],

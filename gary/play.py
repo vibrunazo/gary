@@ -90,12 +90,18 @@ def play_live(pipe: str, minutes: float, profile: str, pov: str | None, make_bot
         # wait for a game with a town hall of a race Gary plays, polling the bridge's status 4 times a second, so
         # Gary starts within a few frames of the match (step() at the menus waited up to 120 s, its
         # frame target left over from the last match); a match of a race with no manifest is waited out
-        said = None
+        said, last_frames = None, -1
         while True:
             st = game.status()
             slot = st.get("local_player", -1)
             state = "menus"
-            if st.get("in_game") and slot >= 0:
+            frames = st.get("frames")
+            ticking = frames is None or (last_frames >= 0 and frames > last_frames)   # (a stand-in reports no frames)
+            frames, last_frames = frames or 0, frames if frames is not None else -1
+            if st.get("in_game") and slot >= 0 and frames >= 1440:
+                state = "ended"     # (an ended match stays readable until the next one loads: its frames stand still)
+            elif st.get("in_game") and slot >= 0 and ticking:
+                # (ticking: the frames reset for the next match before its units replace the ended one's)
                 obs = game.observe()
                 mains = [u["type"] for u in obs["units"] if u["owner"] == slot and u["type"] in HALLS]
                 race = HALLS.get(mains[0]) if mains else None
@@ -106,6 +112,8 @@ def play_live(pipe: str, minutes: float, profile: str, pov: str | None, make_bot
             if state != said:
                 said = state
                 print("waiting for a live game (start one)..." if state == "menus" else
+                      "the match the client shows is past its first minute (ended, or started without Gary): waiting for "
+                      "the next match" if state == "ended" else
                       f"the match running has the local player as {state}: no Gary plays it yet; waiting for the next match",
                       flush=True)
             time.sleep(0.25)
