@@ -27,9 +27,15 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
    - Siege, Tank Mode and mines against a Zerg: the TvZ response dataset relabelled with the mode roles as the PvT
      one was (pvtmodes, #60), the role model trained on it, the modes drawn (modedice). The judge: tanks sieged 0%
      for a pro's 57%, mines laid 0% for 3.3% (and the Vultures kept where pros don't: 48% of their situations).
-   - Stim against a Protoss and a Terran: never (0% for a pro's 11.8% in PvT), because the stim model's inputs are
-     a table of Zerg fighters (gary/policy/stim.py KINDS): race-keyed fighter tables and a stim model per matchup,
-     from each matchup's pros. Against a Zerg it stims a third less than a pro would (7.8% for 11.4%), least where
+     In hand (2026-11-12): option `tvzmodes`, its data and model building (response_T_TvZ_modes_again.npz; the
+     model in place of rl1, the user's call). Written before its rounds: it is a fidelity change, judged first on the
+     judge in 16 games (tanks sieged per situation from 0% toward a pro's 57%, mines from 0% toward 3.3%: severalfold,
+     so 16 games show it) and the fight gap per window; then 96 paired games against gz1 with gt1dev's baseline
+     replayed (gz1 is gz0.10 since the last one), where the pairing resolves about 0.08 of the paired score: kept in
+     the dev build unless it loses more than that, and if it does, reviewed (the records) before it is dropped.
+   - Stim against a Protoss and a Terran: never (0% for a pro's 11.8% in PvT), because the stim model's inputs were
+     a table of Zerg fighters (gary/policy/stim.py KINDS; race-keyed since 2026-11-12, the PvT and TvT datasets and
+     models building): judged on the stim judge in a PvT round. Against a Zerg it stims a third less than a pro would (7.8% for 11.4%), least where
      the pros stim most: its decoder's HP floor and threshold against the pros' per situation.
    - Mines against a Protoss and a Terran: half and a sixth of a pro's (1.5% for 3.0%, 0.4% for 2.3%), laid in the
      right situations: the mode's odds drawn once a turn (modedice) against the pros' rate.
