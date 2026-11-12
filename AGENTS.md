@@ -42,8 +42,17 @@ and its line removed; a new one gets an issue and a line).
   groups by type); its PvT and PvZ rounds play gt1dev and gz1dev, its PvP rounds gp1dev. gt1dev against
   gz1dev is the TvZ self-play pairing (balanced: each side wins or leads in 38% of 96 games; gt0.18dev against gz0.6dev
   35% and 42% of 48, docs/PROGRESS.md). A learned layer's work (data, training, the
-  pipe check, RL) is done and judged in gt1dev; gt1dev replaces gt1 when it beats it in 96 paired games, with a
-  version bump. The suite's numbers for both, and how far apart they are, are in docs/PROGRESS.md.
+  pipe check, RL) is done and judged in gt1dev. **Promotion** (2026-11-11, the same for every race): the dev build
+  replaces the playing build, with a version bump, when (1) it is nearer the pros than the playing build, or as near,
+  on the fidelity measures in every time window (the gap score per window with its spread, eval/gap_windows.py; the
+  build per style, eval/style_adherence.py; the bank and the decision rate from the records), and (2) in 96 paired
+  games against the same fixed opponent it is not measurably worse: the pairing's interval holds zero, or its loss is
+  under the minimum detectable effect written before the round. It need not win more: the playing build keeps the
+  stop-gaps that measurably win, and the dev build is judged on playing like the pros without them (fidelity before
+  wins, below); a stop-gap that measurably wins keeps its entry and its measure, but no longer blocks the promotion by
+  itself. Until then the rule was "beats it in 96 paired games", which no dev build could meet while the jobs the
+  stop-gaps do (finishing games most of all) have no learned layer. The suite's numbers for both, and how far apart they
+  are, are in docs/PROGRESS.md.
 - A change is an option on them (`gt1+<option>`), judged in paired 48-game rounds on the ladder maps
   (`--maps ladder --seeds 6 --first 4004`, 30 minutes) and the gap score to modern pros; 24 games are too
   noisy for close calls, and a single round's gap score needs its spread (`eval/gap_windows.py`, 96 paired games
