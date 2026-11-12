@@ -42,14 +42,25 @@ sys.path.insert(0, str(REPO))
 from eval import monitor, priority  # noqa: E402
 
 STATES = {"T": {"siege": (5, 30, "Siege Mode", 1200)}}    # race -> state -> (type out, type in, its research, frames)
+# (a burrowed Lurker, a cloaked Wraith, a Marine in a bunker are states too, but the re-simulator's observation
+# reports no burrowed or cloaked flag and no loaded units: those come once it does)
 # race -> event -> (the unit types, the command as the re-simulator names it, its order id (an "order" command) or
 # None, its research's tech id (None: none needed) and frames)
 EVENTS = {"T": {"stim": ({0, 32}, "stim", None, 0, 1200),
-                "mine": ({2}, "order", 132, 3, 1200)}}      # a Vulture lays a Spider Mine (gary/commands.py)
+                "mine": ({2}, "order", 132, 3, 1200)},      # a Vulture lays a Spider Mine (gary/commands.py)
+          # a Lurker's burrow and unburrow (no research; a burrowed one is a candidate for burrow too, so the pros'
+          # hazard is lower than their choice: a difference the wrong way reads as Gary's, one this way is understated)
+          "Z": {"burrow": ({103}, "burrow", None, None, 0), "unburrow": ({103}, "unburrow", None, None, 0)},
+          # Psionic Storm (gary/policy/cast.py's spell: order 142, tech 19): the judge doesn't read energy (the
+          # observation has none), so a High Templar without 75 energy is a candidate too; "seconds since its last
+          # such command" stands in for it
+          "P": {"storm": ({67}, "order", 142, 19, 1800)}}
 WINDOW = 3.0                    # seconds: an event judged as "a pro acts within this long"
 EVENT_HISTORY = ["seconds since its last such command", "seconds since its last command"]
 PROS = {("T", "TvZ"): "response_T_30min.npz", ("T", "PvT"): "response_T_PvT_modes_30min.npz",
-        ("T", "TvT"): "response_T_TvT_30min.npz"}
+        ("T", "TvT"): "response_T_TvT_30min.npz", ("Z", "TvZ"): "response_Z_30min.npz",
+        ("P", "PvT"): "response_P_PvT_30min.npz", ("P", "PvZ"): "response_P_PvZ_30min.npz",
+        ("P", "PvP"): "response_P_PvP_30min.npz"}
 TILE = 32.0
 FAR = 40.0                      # tiles: no such unit in the snapshot
 KINDS = 8                       # the enemy's commonest fighter types, each its supply within 12 tiles
@@ -262,6 +273,8 @@ def train(race: str, matchup: str, state: str, pros: str | None, with_history: b
     d = np.load(path)
     kinds = enemy_kinds(d["rows"], d["count"])
     judge = {"kinds": kinds, "history": with_history, "event": state in EVENTS.get(race, {})}
+    if not judge["event"] and state not in STATES.get(race, {}):
+        raise SystemExit(f"{race} has no state or event {state!r}")
     m = {k: d[k] for k in ("rows", "extra", "count", "time", "tags", "game")}
     what = EVENTS[race][state] if judge["event"] else STATES[race][state]
     if judge["event"]:
@@ -509,7 +522,7 @@ def coverage(judge: dict, X, game, rng):
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--race", choices=sorted(STATES), required=True, help="whose units are judged")
+    ap.add_argument("--race", choices=sorted(set(STATES) | set(EVENTS)), required=True, help="whose units are judged")
     ap.add_argument("--matchup", required=True, help="the pros it is judged against (TvZ, PvT, TvT...)")
     ap.add_argument("--state", help="a state or an event (STATES, EVENTS); default: every one the race has")
     ap.add_argument("--rounds", nargs="*", default=[], help="Gary's league rounds (none: the judge's own check only)")
@@ -522,9 +535,11 @@ def main() -> None:
     priority.apply(args.priority)
     edges = np.linspace(0, 1, BINS + 1)
     rng = np.random.default_rng(0)
-    for state in ([args.state] if args.state else sorted(STATES[args.race]) + sorted(EVENTS.get(args.race, {}))):
+    for state in ([args.state] if args.state else sorted(STATES.get(args.race, {})) + sorted(EVENTS.get(args.race, {}))):
         event = state in EVENTS.get(args.race, {})
-        pair = EVENTS[args.race][state] if event else STATES[args.race][state]
+        pair = EVENTS[args.race][state] if event else STATES[args.race].get(state)
+        if pair is None:
+            raise SystemExit(f"{args.race} has no state or event {state!r}")
         kept = REPO / "runs" / "judge" / f"{args.race}_{args.matchup}_{state}.pkl"
         if kept.exists() and not args.retrain and not args.no_history:
             with open(kept, "rb") as f:

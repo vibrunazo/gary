@@ -2037,7 +2037,28 @@ plan and the full log).
   13.7%, AUC 0.77); gt1dev's stim model stims in 7.8% of 121,859 moments where a pro would in 11.4% (-3.6% [-5.6%,
   -2.7%]), and least where the pros stim most (22-35% in the bins where the pros do 32-58%); 5% of its situations
   are ones the pros aren't in. The stim model's own measure (stims per fight, HP at the stim) never said which
-  situations it misses; this does.
+  situations it misses; this does. Against a Protoss Gary never stims (0% of 1,658 Marine-moments, a pro 11.8%): the
+  stim model's inputs are a table of Zerg fighters (gary/policy/stim.py KINDS), so with no Zerg in sight no Marine is
+  ever "in a fight" for it, the same against a Terran (where the pros' data is too thin to judge: 811 held-out
+  moments). Spider Mines, the same way (a Vulture given the mine order within 3 s, after the research): the pros'
+  held-out line holds in PvT and TvT (within 1.2 points) and sits 3.8 points under in TvZ. Gary lays none against
+  a Zerg (0% of 14,798 Vulture-moments where a pro would in 3.3%; and 48% of its Vultures' situations are ones the
+  pros' aren't in: it keeps them where pros don't), half a pro's against a Protoss (1.5% against 3.0%, [-3.4%,
+  -1.2%]) and a sixth in the mirror (0.4% against 2.3%); the mines it does lay are in the right situations (the
+  judge ranks its moments at 0.90 and 0.94, above the pros' own 0.78). The other races, the same evening. The
+  Zerg's Lurkers (gz1dev, DZ247a's Zerg side, 161,900 Lurker-moments in 24 games; the judge of their burrow ranks
+  the held-out pros at 0.92): burrowed within 3 s in 2.2% of their moments for a pro's 3.5%, unburrowed 1.5% for
+  4.8%, but 79% of their situations are ones the pros' Lurkers aren't in (by their own buildings, long in the
+  moments: Lurkers standing at home), and in the rest no gap on the burrow (6.5% against 7.0%), a small one on the
+  unburrow (2.5% against 3.6%). The Protoss's Psionic Storm (gp1dev; the judge reads no energy, a High Templar's
+  seconds since its last storm stands in): none, in PvT, PvZ and PvP alike (0 of 40,815 Templar-moments after the
+  research in PvZ, a pro 10.9%; in PvT 0 of 2,323, 1.4%). Not the models: the fightrules option (gp0.20dev) had set
+  the fight's rules before contact to the pull alone, replacing the list the storm option had added its cast rule
+  to, so gp1dev cast no storm from gp0.20dev to gp0.32dev, though its own measure on adoption had 3.9 storms by
+  15:00 in 88% of games (ST186a). Fixed in the option (it adds its rules now; gp0.33dev); a bug the gap score,
+  the paired rounds and the promotion verdict of the day before all missed. So after the first day the judge has a
+  table: siege, stim, mines, burrow and storm across the matchups, every cell but two a measurable gap, and a
+  regression found.
 - **A builder sent again walks with the hands free: the parked builds were the hands' biggest holder (2026-11-11,
 
   | | gp1dev before | with it | pros PvZ | gt1dev before | with it | pros TvZ |

@@ -918,8 +918,12 @@ OPTIONS = {
     # docs/RACES.md step 3 (the fight rules for every race): the Terran's workers' pull against an attack on a base
     # (its options: 3 workers an attacker, flyers not counted, not against more than 8 zergling's worth) and its new
     # fighters sent to a fight at home, for any race's fight layer
-    "fightrules": lambda m: m["fight"].update(before=["pull"], in_fight=["reinforce"],
-                                              rule_options={"pull": {"per_enemy": 3, "ground_only": True, "max_enemy": 8}}),
+    # (added to the rules the fight already has: set as the whole list, it dropped the storm option's cast rule from
+    # gp1dev at gp0.20dev, and gp1dev cast no storm from then to gp0.32dev: the judge, 2026-11-12)
+    "fightrules": lambda m: m["fight"].update(before=[r for r in m["fight"].get("before", []) if r != "pull"] + ["pull"],
+                                             in_fight=[r for r in m["fight"].get("in_fight", []) if r != "reinforce"] + ["reinforce"],
+                                              rule_options={**m["fight"].get("rule_options", {}),
+                                                            "pull": {"per_enemy": 3, "ground_only": True, "max_enemy": 8}}),
     "holdwait": lambda m: m["macro"].update(hold=True, wait_min_p=0.05),
     # training (docs/CONTROL.md step 7): the macro draws its next decision at temperature 1 (or
     # sample_t05: 0.5), each draw logged (g.macro.draws)
@@ -1421,6 +1425,9 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+eggs+allstyles+gaswaits+par
 # warping in kept 60 s (dropped at 30 s, 2 s before the power). Gateway-first's Gateway at 1:33-1:35, its first Zealot
 # at 2:28-2:40 (3:27, the pros 1:54); Probes lost to raids at 3-8 minutes 1.3 and 4.2 a game in two rounds of nearly
 # the same code (4.9): 16 games don't measure them
+# gp0.33dev: its storms back (2026-11-12): fightrules had set the fight's rules before contact to the pull alone, dropping
+# the cast rule storm had added (gp0.11dev), so from gp0.20dev to gp0.32dev gp1dev cast no Psionic Storm (the judge,
+# eval/judge.py: 0 of 40,815 High Templar moments after the research in PvZ, a pro 10.9%); the option adds its rules now
 # gp0.20dev: the Terran's pull and reinforce (fightrules), stop-gaps no learned layer has an output for (AGENTS.md),
 # judged on the pull's own measure: Probes lost to raids at 3-8 minutes in 48 PvZ games paired on map and seed (PL215a
 # against PL214a) 2.31 a game (3.48, the pros 0.90), -1.17 [-2.31, -0.15]; games with 10 or more lost 8% (17%, the
@@ -1473,7 +1480,7 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+eggs+allstyles+gaswaits+par
 # gp0.30dev: the macro's two fixes of 2026-11-11 (macro.py plan: an expansion refused while its town hall is on its way; a build beyond the parked builders waits as a unit for its busy building, not held 30 s as the goal; gt0.33dev)
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
                                      "+fightrules+aircluster+coming+comingbuild+savecoming+tiles+transferahead"),
-                       "version": "gp0.32dev"}
+                       "version": "gp0.33dev"}
 
 
 def _against(m: dict, vs: dict) -> dict:

@@ -17,14 +17,25 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
    past (held-out AUC 0.72-0.81; the instant alone 0.68-0.76). Still to try: the enemy's state (static defense
    finished or not, its sieged tanks), the map's lanes. Never an input that tells the unit's own mode (its type,
    order, cooldown, motion; its neighbours' modes).
-2. **The judge, every race's states and the one-shot abilities.** States from the race tables (a Lurker burrowed, a
-   Marine in a bunker, a unit cloaked); abilities as a hazard from the pros' commands (stim, a mine laid, Storm,
-   a scan, Irradiate, the merges, Dark Swarm, Plague): of the moments where a pro would act within a few seconds,
-   how often Gary does. One table: matchup by ability, the held-out pros' check and Gary's difference with its
-   spread, the share of Gary's situations the pros aren't in. Run on every matchup's latest round.
+2. **The judge, every race's states and the one-shot abilities (started: stim, mines, a Lurker's burrow and
+   unburrow, Storm, each in every matchup with the pros' data).** Left: the states the re-simulator's observation
+   doesn't report (a Lurker burrowed, a unit cloaked, a Marine in a bunker) and the inputs it lacks (energy, a
+   Vulture's mines): the re-simulator's observe gains those fields, the response datasets built again with them;
+   then scans, Irradiate, the merges (the re-simulator prints no units for a merge), Dark Swarm, Plague, Ensnare,
+   Maelstrom, Stasis, Recall. One table of matchup by ability (a script that prints it from the kept judges).
 3. **What the judge flags, the most visible first, as shared fixes.**
    - Siege, Tank Mode and mines against a Zerg: the TvZ response dataset relabelled with the mode roles as the PvT
-     one was (pvtmodes, #60), the role model trained on it, the modes drawn (modedice). To settle first: gt1dev's
+     one was (pvtmodes, #60), the role model trained on it, the modes drawn (modedice). The judge: tanks sieged 0%
+     for a pro's 57%, mines laid 0% for 3.3% (and the Vultures kept where pros don't: 48% of their situations).
+   - Stim against a Protoss and a Terran: never (0% for a pro's 11.8% in PvT), because the stim model's inputs are
+     a table of Zerg fighters (gary/policy/stim.py KINDS): race-keyed fighter tables and a stim model per matchup,
+     from each matchup's pros. Against a Zerg it stims a third less than a pro would (7.8% for 11.4%), least where
+     the pros stim most: its decoder's HP floor and threshold against the pros' per situation.
+   - Mines against a Protoss and a Terran: half and a sixth of a pro's (1.5% for 3.0%, 0.4% for 2.3%), laid in the
+     right situations: the mode's odds drawn once a turn (modedice) against the pros' rate.
+   - gp1dev's storms (fixed 2026-11-12, gp0.33dev: fightrules had dropped the cast rule since gp0.20dev): judged
+     again on its next round, and the burrow and unburrow of Lurkers standing where the pros' don't (79% of
+     gz1dev's Lurker situations: at home, by its buildings). To settle first: gt1dev's
      TvZ fights are the RL checkpoint rl1 on the older labels, so the relabelled model replaces it or the RL run
      starts again from it. Judged by Gary's line against the diagonal, the fight gap, and 96 paired games not worse
      (the minimum detectable effect written first).
