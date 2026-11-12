@@ -2000,6 +2000,35 @@ plan and the full log).
   from the travel stage, if the parked builders have room (gary/agent/executor.py wait_arrival). The pattern (the
   scratch script timed the owners; a second classed each hold over 5 s by the orders inside it) is how the next hold
   is found. On the same 16 games (seeds 4004-4005, against DP252a and DT250a):
+- **The Terran sieges and lays mines against a Zerg, and stims against the other races (2026-11-12, gt0.36dev,
+  gt0.16).** The two gaps the judge found with a cause in the models. (1) gt1dev's TvZ fights were the RL checkpoint
+  rl1, on labels older than the mode roles: the pros' sieges and mines were its "other" (21% of the labels), carried
+  out as nothing. The TvZ response dataset built again with today's labeller (800 games, 3.86 million labeled units,
+  "other" 0.9%, siege, unsiege and mine named), its re-issues added, and the role model trained as the deployed one
+  (`--decisions --move --attended --budget --again`; runs/roles/20261112-173833): on the held-out games accuracy 0.482
+  for the deployed imitation model's 0.476, siege named in 74% of the pros' sieges. In gt1dev in place of rl1 (option
+  tvzmodes, the user's call: rl1 was the one RL run that held, and can't siege). Judged per situation in 16 games
+  against gz1 (TM256a; eval/judge.py):
+
+  | TvZ, gt1dev | before (TW253a) | with it (TM256a) | a pro in the same situations |
+  |---|---|---|---|
+  | tanks sieged, of their fight moments | 0.0% | 61.3% | 54.3% (+7.1% [-2.6%, +15.1%]) |
+  | the judge's ranking of its tank-moments | none | 0.64 | the pros' 0.72 |
+  | a mine laid within 3 s, of its Vulture-moments | 0.0% | 9.6% | 6.3% (+3.2% [+0.6%, +4.4%]; where the pros are too, 10.6% and 10.6%) |
+  | stims (not changed by it) | 7.8% | 9.0% | 12.8% |
+
+  A game: 30 siege orders, 16 unsieges (9 more by the hands before a move), 10 mines; its line follows the pros'
+  but flatter (sieged 32% where the judge says under 10% and the pros are 12%; 72% where it says over 90% and the
+  pros are 91%). The results of the 16: won 1, lost 5, 10 at time (TW253a 2, 5, 9, against an older gz1); its paired
+  rounds against the old fights (`gt1dev+again+rl1`) follow, written before in TODO.md: a fidelity change, kept
+  unless 96 paired games lose more than the pairing resolves, and reviewed if they do. (2) The stim model counted
+  Zerg fighters only (gary/policy/stim.py KINDS), so against a Protoss or a Terran no Marine was ever in a fight for
+  it. The enemy's fighters are a table per race now (nine kinds each, their supply), the dataset and the trainer
+  take a matchup (only the games whose Terran researches Stim Packs: 126 clean PvT games, 79 TvT, each Terran of a
+  mirror), and the rule asks the model of the matchup it plays, saying so once when there is none: PvT from 112
+  games with stims (112,452 samples, stimmed 6.0%; held-out AUC 0.82), TvT from 56 game-sides (37,871; 0.79). The
+  TvZ features are unchanged, value for value. Both builds (gt0.16, gt0.36dev); its check is the stim judge on a
+  PvT round (PT258a).
 - **The Zerg's fight orders reach its units (2026-11-12, gz0.10, gz0.26dev).** Half of what gz1dev's fight roles
   decided was dropped after three tries to select the units (65 a game in DZ247a, live too): zerg_roles.py clicked
   a unit where it was seen (a Zergling had moved on) and took a selection only when it was exactly the units (a box

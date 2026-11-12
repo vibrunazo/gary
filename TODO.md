@@ -27,8 +27,9 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
    - Siege, Tank Mode and mines against a Zerg: the TvZ response dataset relabelled with the mode roles as the PvT
      one was (pvtmodes, #60), the role model trained on it, the modes drawn (modedice). The judge: tanks sieged 0%
      for a pro's 57%, mines laid 0% for 3.3% (and the Vultures kept where pros don't: 48% of their situations).
-     In hand (2026-11-12): option `tvzmodes`, its data and model building (response_T_TvZ_modes_again.npz; the
-     model in place of rl1, the user's call). Written before its rounds: it is a fidelity change, judged first on the
+     Done 2026-11-12 (gt0.36dev, option `tvzmodes` in place of rl1, the user's call): in 16 games its tanks sieged
+     61.3% of their fight moments for a pro's 54.3%, mines 9.6% for 6.3% (TM256a). Left: its paired rounds, and its
+     line flatter than the pros' (sieged a third of the time where the pros are a tenth). Written before its rounds: it is a fidelity change, judged first on the
      judge in 16 games (tanks sieged per situation from 0% toward a pro's 57%, mines from 0% toward 3.3%: severalfold,
      so 16 games show it) and the fight gap per window; then 96 paired games against gz1 with gt1dev's baseline
      replayed (gz1 is gz0.10 since the last one), where the pairing resolves about 0.08 of the paired score: kept in
