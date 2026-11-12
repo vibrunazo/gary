@@ -13,10 +13,10 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
 
 1. **The judge, states (v0 done 2026-11-12, docs/PROGRESS.md).** Would a pro's unit be in this mode here: the Siege
    Tank, against the pros of TvZ, PvT and TvT, on gt1dev's latest round of each (sieged 0% for a pro's 53%, 15% for
-   51% and in the wrong situations, 23% for 26% but 2-6% where the pros are surest). Next, sharper: a short history of
-   the situation (the enemy's distance 2 s and 5 s before, how long it has been near), kept only if the held-out
-   pros' AUC and calibration improve (v0: AUC 0.68, the diagonal within its spread). Never an input that tells the
-   unit's own mode (its type, order, cooldown, motion; its neighbours' modes).
+   51% and in the wrong situations, 23% for 34% and 2-6% where the pros are surest). Sharpened with the unit's recent
+   past (held-out AUC 0.72-0.81; the instant alone 0.68-0.76). Still to try: the enemy's state (static defense
+   finished or not, its sieged tanks), the map's lanes. Never an input that tells the unit's own mode (its type,
+   order, cooldown, motion; its neighbours' modes).
 2. **The judge, every race's states and the one-shot abilities.** States from the race tables (a Lurker burrowed, a
    Marine in a bunker, a unit cloaked); abilities as a hazard from the pros' commands (stim, a mine laid, Storm,
    a scan, Irradiate, the merges, Dark Swarm, Plague): of the moments where a pro would act within a few seconds,

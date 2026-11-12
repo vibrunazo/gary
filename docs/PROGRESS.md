@@ -2006,27 +2006,38 @@ plan and the full log).
   game is no measure either (how often to siege depends on the enemy, and Gary's enemies aren't the pros'). So a judge
   per situation: boosted trees on the pros' fight moments (the response datasets), a tank's situation with every own
   unit's mode hidden (the enemy near it by distance and kind, buildings, its own fighters and tanks near, HP, the
-  ground, the minute; never its type, order, cooldown or motion), a fifth of the games held out. Gary's moments are
-  built from its league replays by the dataset's own code. The held-out pros lie near the diagonal in all three
-  matchups (sieged 55.1% against the judge's 51.1% in TvZ, 52.5% and 55.2% in PvT, 60.2% and 57.1% in TvT, each
-  interval at or by zero), its ranking modest (AUC 0.68, 0.73, 0.76: the instant says only part of a pro's choice).
-  gt1dev's latest round of each:
+  ground, the minute; never its type, order, cooldown or motion), and the unit's own recent past (the enemy near it
+  2 s and 5 s before, how long enemy ground has been within 12 tiles: the instant alone ranked the held-out pros'
+  moments at AUC 0.68, 0.73 and 0.76, with it 0.72, 0.77 and 0.81), a fifth of the games held out. Gary's moments
+  are built from its league replays by the dataset's own code. The held-out pros lie near the diagonal in all three
+  matchups (sieged 55.1% against the judge's 53.2% in TvZ, 52.5% and 56.4% in PvT, 60.2% and 58.4% in TvT: the PvT
+  judge expects 4 points too much, [-6.5%, -1.0%], the others hold zero). gt1dev's latest round of each:
 
   | | Gary's tanks sieged | a pro in the same situations | difference [90%] | the judge ranks Gary's moments (pros') |
   |---|---|---|---|---|
-  | TvZ (TW253a, 15,923 tank-moments) | 0.0% | 53.3% | -53.3% [-59.8%, -44.0%] | never sieged (0.68) |
-  | PvT (PT245a, 26,299) | 14.9% | 51.1% | -36.2% [-46.7%, -0.5%] | 0.37 (0.73) |
-  | TvT (TT246a, 41,106) | 22.9% | 26.4% | -3.5% [-13.7%, +12.8%] | 0.74 (0.76) |
+  | TvZ (TW253a, 15,923 tank-moments) | 0.0% | 56.9% | -56.9% [-62.8%, -48.1%] | never sieged (0.72) |
+  | PvT (PT245a, 26,299) | 14.9% | 51.6% | -36.7% [-47.1%, -1.6%] | 0.41 (0.77) |
+  | TvT (TT246a, 41,106) | 22.9% | 34.0% | -11.1% [-17.9%, -0.1%] | 0.67 (0.81) |
 
   Against a Protoss the modes drawn since gt0.22dev had read as fine by their count (101 sieges by 20:00, the pros'
   52): per situation its tanks are sieged a third as often as a pro's, and where the pros' aren't: 28-33% sieged
   where the judge says 10-30%, 9-12% where it says 50-90% (a ranking under a half, 0.37). In the mirror the share is
   the pros' and the ranking nearly theirs, but where the judge is surest (80-100%, 2,379 moments) Gary's are sieged
-  2-6% for the pros' 85-90%. Leads, not causes: the motor takes tanks out of Siege Mode before a move order (4.6 and
+  2-6% for the pros' 85-90%; with the history the mirror's gap is measurable too (-11.1%, the interval under zero).
+  Leads, not causes: the motor takes tanks out of Siege Mode before a move order (4.6 and
   4.8 times a game in those rounds), which is when an enemy comes. Coverage (a second model telling Gary's
   situations from the held-out pros', split by game: split by moment it knew the games and told them apart
   perfectly): 20% of Gary's tank situations against a Zerg are ones the pros aren't in, 7% and 4% in the others; in
   the rest the differences stand (0% against 57.3% in TvZ). The plan from here is TODO.md's Direction.
+  *Abilities as events (the same day):* a one-shot ability is judged as a hazard, "would a pro give this unit the
+  command within 3 s here", the pros' commands read from their replays by the re-simulator's pass (a second a
+  game, kept per dataset), the unit's own command history as two more inputs (seconds since its last such command,
+  since its last command), only units after the research. Stim against a Zerg (Marines and Firebats, 2.3 million
+  unit-moments): the held-out pros on the line (stimmed within 3 s in 13.4% of their moments, the judge expecting
+  13.7%, AUC 0.77); gt1dev's stim model stims in 7.8% of 121,859 moments where a pro would in 11.4% (-3.6% [-5.6%,
+  -2.7%]), and least where the pros stim most (22-35% in the bins where the pros do 32-58%); 5% of its situations
+  are ones the pros aren't in. The stim model's own measure (stims per fight, HP at the stim) never said which
+  situations it misses; this does.
 - **A builder sent again walks with the hands free: the parked builds were the hands' biggest holder (2026-11-11,
 
   | | gp1dev before | with it | pros PvZ | gt1dev before | with it | pros TvZ |

@@ -42,6 +42,12 @@ sys.path.insert(0, str(REPO))
 from eval import monitor, priority  # noqa: E402
 
 STATES = {"T": {"siege": (5, 30, "Siege Mode", 1200)}}    # race -> state -> (type out, type in, its research, frames)
+# race -> event -> (the unit types, the command as the re-simulator names it, its order id (an "order" command) or
+# None, its research's tech id (None: none needed) and frames)
+EVENTS = {"T": {"stim": ({0, 32}, "stim", None, 0, 1200),
+                "mine": ({2}, "order", 132, 3, 1200)}}      # a Vulture lays a Spider Mine (gary/commands.py)
+WINDOW = 3.0                    # seconds: an event judged as "a pro acts within this long"
+EVENT_HISTORY = ["seconds since its last such command", "seconds since its last command"]
 PROS = {("T", "TvZ"): "response_T_30min.npz", ("T", "PvT"): "response_T_PvT_modes_30min.npz",
         ("T", "TvT"): "response_T_TvT_30min.npz"}
 TILE = 32.0
@@ -84,14 +90,53 @@ def names(kinds: list[int]) -> list[str]:
             + [f"enemy type {k} within 12" for k in kinds])
 
 
-def features(rows: np.ndarray, extra: np.ndarray, count: np.ndarray, time: np.ndarray, pair: tuple, kinds: list[int],
-             batch: int = 2000):
-    """(X, y, snapshot index) for every own unit of the state's types: the situation around it, modes hidden."""
+HISTORY = ["enemy ground within 8, 2 s ago", "enemy ground within 8, 5 s ago", "nearest enemy ground, 2 s ago",
+           "nearest enemy ground, 5 s ago", "seconds with enemy ground within 12", "seconds in the moments"]
+AGO = (2.0, 5.0)
+SPELL_MAX = 60.0
+
+
+def history(X: np.ndarray, names: list[str], game: np.ndarray, tag: np.ndarray, time: np.ndarray) -> np.ndarray:
+    """(n, len(HISTORY)): the unit's own recent past, from the moments of the same game and unit: the enemy near it
+    AGO seconds before (the latest moment at or before then, within 10 s: else now's value), how long enemy ground
+    has been within 12 tiles without a break (capped), and how long it has been in the moments at all. (The
+    instant says only part of a pro's choice: a tank sieges as the enemy comes, and unsieges once it is gone.)"""
+    e8, e12, near = (names.index("enemy ground within 8"), names.index("enemy ground within 12"),
+                     names.index("nearest enemy ground"))
+    out = np.zeros((len(X), len(HISTORY)), np.float32)
+    order = np.lexsort((time, tag, game))
+    g, t, tm = game[order], tag[order], time[order]
+    cut = np.flatnonzero((g[1:] != g[:-1]) | (t[1:] != t[:-1])) + 1
+    for a, b in zip(np.r_[0, cut], np.r_[cut, len(order)]):
+        idx = order[a:b]
+        tt = tm[a:b]
+        x8, x12, xn = X[idx, e8], X[idx, e12], X[idx, near]
+        for j, ago in enumerate(AGO):
+            k = np.searchsorted(tt, tt - ago, side="right") - 1
+            ok = (k >= 0) & (tt - tt[np.clip(k, 0, None)] <= ago + 10)
+            kk = np.where(ok, k, np.arange(len(tt)))
+            out[idx, j] = x8[kk]
+            out[idx, 2 + j] = xn[kk]
+        since = tt[0]
+        last_clear = -np.inf
+        for i in range(len(tt)):
+            if i and tt[i] - tt[i - 1] > 10:              # (a gap: a new spell of moments)
+                since, last_clear = tt[i], -np.inf
+            if x12[i] <= 0:
+                last_clear = tt[i]
+            out[idx[i], 4] = min(tt[i] - (last_clear if last_clear > -np.inf else since), SPELL_MAX)
+            out[idx[i], 5] = min(tt[i] - since, SPELL_MAX)
+    return out
+
+
+def features(rows: np.ndarray, extra: np.ndarray, count: np.ndarray, time: np.ndarray, tags: np.ndarray, types: set,
+             kinds: list[int], into: int = -1, batch: int = 2000):
+    """(X, y, snapshot index, unit tag) for every own unit of the judged types: the situation around it, modes
+    hidden; y: whether its type is the state's (into; an event's y comes from the commands instead)."""
     sup, air, build, static = tables()
-    out, into = pair[0], pair[1]
     width = rows.shape[1]
-    X, Y, S = [], [], []
-    has = ((rows[:, :, 0] == out) | (rows[:, :, 0] == into)) & (rows[:, :, 1] == 1)
+    X, Y, S, T = [], [], [], []
+    has = np.isin(rows[:, :, 0], sorted(types)) & (rows[:, :, 1] == 1)
     has &= np.arange(width)[None, :] < count[:, None]
     snaps = np.flatnonzero(has.any(1))
     notself = ~np.eye(width, dtype=bool)[None]
@@ -132,9 +177,73 @@ def features(rows: np.ndarray, extra: np.ndarray, count: np.ndarray, time: np.nd
         X.append(f[mine].astype(np.float32))
         Y.append((rows[idx, :, 0] == into)[mine])
         S.append(np.broadcast_to(idx[:, None], t.shape)[mine])
+        T.append(np.asarray(tags[idx])[mine].astype(np.int64))
     if not X:
-        return np.zeros((0, len(names(kinds))), np.float32), np.zeros(0, bool), np.zeros(0, np.int64)
-    return np.concatenate(X), np.concatenate(Y), np.concatenate(S)
+        return (np.zeros((0, len(names(kinds))), np.float32), np.zeros(0, bool), np.zeros(0, np.int64),
+                np.zeros(0, np.int64))
+    return np.concatenate(X), np.concatenate(Y), np.concatenate(S), np.concatenate(T)
+
+
+def situations(m: dict, what: tuple, judge: dict):
+    """A dataset's judged unit-moments as the judge reads them: (X, y, snapshot index, game). what: a STATES row
+    (the state's types, its y the type in the mode) or an EVENTS row (its y from the commands, with the unit's own
+    command history as inputs; only units after the research, and the moments its game's commands were read)."""
+    event = isinstance(what[1], str)
+    types, into = (what[0], -1) if event else ({what[0], what[1]}, what[1])
+    X, y, s, tag = features(m["rows"], m["extra"], m["count"], m["time"], m["tags"], types, judge["kinds"], into)
+    game, time = m["game"][s], m["time"][s]
+    if judge.get("history") and len(X):
+        X = np.concatenate([X, history(X, names(judge["kinds"]), game, tag, time)], 1)
+    if event and len(X):
+        y, hist, keep = event_labels(m["commands"], what, game, tag, time)
+        X, y, s, game = np.concatenate([X, hist], 1)[keep], y[keep], s[keep], game[keep]
+    return X, y, s, game
+
+
+def event_labels(commands: dict, what: tuple, game, tag, time):
+    """(y, the unit's command history (EVENT_HISTORY), keep) per judged unit-moment: y, whether the player gave the
+    unit the event's command within WINDOW seconds after the moment; keep, the moments after the research is done
+    whose game's commands were read."""
+    import bisect
+    _, cmd, order_id, tech, frames = what
+    y = np.zeros(len(tag), bool)
+    hist = np.full((len(tag), len(EVENT_HISTORY)), SPELL_MAX, np.float32)
+    keep = np.zeros(len(tag), bool)
+    by_game = {}
+    for i in np.argsort(game, kind="stable"):
+        g = int(game[i])
+        if g not in by_game:
+            c = commands.get(g)
+            if c is None:
+                by_game[g] = None
+                continue
+            done = 0 if tech is None else min((f for f, t in c["research"] if t == tech), default=None)
+            by_tag, by_tag_cmd = {}, {}
+            for f, name, order, _target, units in c["ucmd"]:
+                for u in units:
+                    by_tag.setdefault(u, []).append(f)
+                    if name == cmd and (order_id is None or order == order_id):
+                        by_tag_cmd.setdefault(u, []).append(f)
+            by_game[g] = (done, by_tag, by_tag_cmd)
+        got = by_game[g]
+        if got is None:
+            continue
+        done, by_tag, by_tag_cmd = got
+        f = int(round(time[i] * 1000 / 42))
+        if done is None or f < done + (0 if tech is None else frames):
+            continue
+        keep[i] = True
+        t = int(tag[i])
+        fs = by_tag_cmd.get(t, [])
+        k = bisect.bisect_right(fs, f)
+        y[i] = k < len(fs) and fs[k] <= f + WINDOW * 24
+        if k:
+            hist[i, 0] = min((f - fs[k - 1]) / 24, SPELL_MAX)
+        fa = by_tag.get(t, [])
+        ka = bisect.bisect_right(fa, f)
+        if ka:
+            hist[i, 1] = min((f - fa[ka - 1]) / 24, SPELL_MAX)
+    return y, hist, keep
 
 
 def fit(X, y, seed: int = 0):
@@ -145,22 +254,30 @@ def fit(X, y, seed: int = 0):
                                           random_state=seed).fit(X[keep], y[keep])
 
 
-def train(race: str, matchup: str, state: str, pros: str | None) -> dict:
-    """The judge of one state from the pros' dataset, a fifth of its games held out; its held-out odds kept."""
+def train(race: str, matchup: str, state: str, pros: str | None, with_history: bool = True, workers: int = 4) -> dict:
+    """The judge of one state or event from the pros' dataset, a fifth of its games held out; its held-out odds
+    kept."""
     from sklearn.metrics import roc_auc_score
     path = REPO / "data" / "interim" / "roles" / (pros or PROS[(race, matchup)])
     d = np.load(path)
     kinds = enemy_kinds(d["rows"], d["count"])
-    X, y, s = features(d["rows"], d["extra"], d["count"], d["time"], STATES[race][state], kinds)
-    game = d["game"][s]
+    judge = {"kinds": kinds, "history": with_history, "event": state in EVENTS.get(race, {})}
+    m = {k: d[k] for k in ("rows", "extra", "count", "time", "tags", "game")}
+    what = EVENTS[race][state] if judge["event"] else STATES[race][state]
+    if judge["event"]:
+        sys.path.insert(0, str(REPO / "ingest"))
+        m["commands"] = commands_of(pro_paths(d["sha1"]), m, REPO / "runs" / "judge" / f"cmds_{path.stem}.pkl",
+                                    workers, path.stem)
+    X, y, s, game = situations(m, what, judge)
     games = np.unique(d["game"])
     held = set(random.Random(0).sample(sorted(games.tolist()), max(1, len(games) // 5)))
     test = np.isin(game, sorted(held))
     model = fit(X[~test], y[~test])
     p = model.predict_proba(X[test])[:, 1]
-    judge = {"model": model, "kinds": kinds, "names": names(kinds), "pros": path.name, "games": len(games),
-             "held_games": len(held), "held_p": p.astype(np.float32), "held_y": y[test], "held_X": X[test],
-             "held_game": game[test], "auc": float(roc_auc_score(y[test], p)), "rows": int((~test).sum())}
+    judge.update(model=model, pros=path.name,
+                 names=names(kinds) + (HISTORY if with_history else []) + (EVENT_HISTORY if judge["event"] else []),
+                 games=len(games), held_games=len(held), held_p=p.astype(np.float32), held_y=y[test],
+                 held_X=X[test], held_game=game[test], auc=float(roc_auc_score(y[test], p)), rows=int((~test).sum()))
     out = REPO / "runs" / "judge"
     out.mkdir(parents=True, exist_ok=True)
     with open(out / f"{race}_{matchup}_{state}.pkl", "wb") as f:
@@ -174,7 +291,90 @@ def _moments(job: tuple) -> dict:
     from ingest.response_dataset import _job
     path, race = job
     got = _job((path, None, path, race, None, False))
-    return {"path": path, "error": got["error"], "rows": got["rows"], "extra": got["extra"], "time": got["time"]}
+    return {"path": path, "error": got["error"], "rows": got["rows"], "extra": got["extra"], "time": got["time"],
+            "tags": got["tags"]}
+
+
+def read_commands(path: str) -> dict | None:
+    """One game's unit commands and research, from the re-simulator (ingest/response_dataset.py _commands, kept
+    whole): {"ucmd": [(frame, slot, cmd, order, target, units)], "research": [(frame, slot, tech id)]}."""
+    import subprocess
+    from ingest.inventory import data_root
+    from ingest.macro_dataset import resim_exe
+    from ingest.response_dataset import MAX_MIN
+    sys.path.insert(0, str(REPO / "resim"))
+    import scr_format
+    data = Path(path).read_bytes()
+    args = [str(resim_exe()), "--data", str(data_root() / "gamedata" / "scr"), "--replay", "-", "--every", "0",
+            "--fights", str(MAX_MIN * 60)]
+    if scr_format.replay_format(data) != "legacy":
+        args += ["--flat", "--unit-limit", str(scr_format.unit_limit(data))]
+        data = scr_format.to_flat(data)
+    try:
+        proc = subprocess.run(args, input=data, capture_output=True, timeout=1800)
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    out = {"ucmd": [], "research": []}
+    for line in proc.stdout.decode("utf-8", "replace").splitlines():
+        if '"ucmd"' in line:
+            r = json.loads(line)
+            out["ucmd"].append((r["frame"], r["slot"], r["cmd"], r["order"], r["target"], r["units"]))
+        elif '"research"' in line and '"cmd"' in line:
+            r = json.loads(line)
+            out["research"].append((r["frame"], r["slot"], r["id"]))
+    return out
+
+
+def _commands_job(job: tuple) -> tuple:
+    sys.path.insert(0, str(REPO / "ingest"))
+    key, path = job
+    return key, read_commands(path)
+
+
+def side_commands(got: dict | None, own_tags: set) -> dict | None:
+    """One side's commands: the slot whose commands name the side's own units."""
+    if got is None:
+        return None
+    hits = {}
+    for f, slot, cmd, order, target, units in got["ucmd"]:
+        hits[slot] = hits.get(slot, 0) + sum(1 for u in units if u in own_tags)
+    if not hits:
+        return {"ucmd": [], "research": []}
+    slot = max(hits, key=hits.get)
+    return {"ucmd": [(f, c, o, t, u) for f, sl, c, o, t, u in got["ucmd"] if sl == slot],
+            "research": [(f, t) for f, sl, t in got["research"] if sl == slot]}
+
+
+def commands_of(paths: dict, m: dict, cache: Path, workers: int, label: str) -> dict:
+    """{game index: the side's commands} for a dataset's games (paths: game index -> replay path), built once."""
+    if cache.exists():
+        with open(cache, "rb") as f:
+            return pickle.load(f)
+    own = {}
+    valid = np.arange(m["rows"].shape[1])[None, :] < m["count"][:, None]
+    for g in np.unique(m["game"]):
+        at = m["game"] == g
+        own[int(g)] = set(np.asarray(m["tags"])[at][valid[at] & (m["rows"][at][:, :, 1] == 1)].tolist())
+    out = {}
+    jobs = [(g, p) for g, p in paths.items() if g in own]
+    with ProcessPoolExecutor(workers, initializer=priority.apply, initargs=("low",)) as pool:
+        for g, got in monitor.track(pool.map(_commands_job, jobs), len(jobs), f"{label}: commands"):
+            out[g] = side_commands(got, own[g])
+    with open(cache, "wb") as f:
+        pickle.dump(out, f)
+    return out
+
+
+def pro_paths(sha1s) -> dict:
+    """game index -> replay path, for a pros' dataset (its sha1 per game, the re-simulation index's paths)."""
+    from ingest.inventory import data_root
+    rel = {}
+    for line in open(data_root() / "interim" / "resim_index.jsonl", encoding="utf-8"):
+        r = json.loads(line)
+        rel[r["sha1"]] = r["rel_path"]
+    return {i: str(data_root() / "raw" / rel[s]) for i, s in enumerate(sha1s) if s in rel}
 
 
 def research_done(replay: str, what: str, frames: int) -> float | None:
@@ -198,13 +398,13 @@ def round_moments(name: str, race: str, workers: int) -> dict:
     its folder."""
     from gary.policy.roles import MAX_UNITS
     out = REPO / "runs" / "league" / name
-    cache = out / f"judge_{race}.npz"
+    cache = out / f"judge_{race}_v2.npz"            # (v2: the unit tags, for the history)
     if cache.exists():
         d = np.load(cache, allow_pickle=True)
         return {k: d[k] for k in d.files}
     table = json.loads((out / "round.json").read_text(encoding="utf-8"))
     replays = [g["replay"] for g in table["games"] if g["result"] != "error"]
-    rows, extra, time, game, failed = [], [], [], [], 0
+    rows, extra, time, tags, game, failed = [], [], [], [], [], 0
     with ProcessPoolExecutor(workers, initializer=priority.apply, initargs=("low",)) as pool:
         for i, got in enumerate(monitor.track(pool.map(_moments, [(p, race) for p in replays]), len(replays),
                                               f"{name}: fight moments")):
@@ -215,6 +415,7 @@ def round_moments(name: str, race: str, workers: int) -> dict:
             rows += got["rows"]
             extra += got["extra"]
             time += got["time"]
+            tags += got["tags"]
             game += [i] * len(got["rows"])
 
     def pad(a, width, dtype):
@@ -228,7 +429,9 @@ def round_moments(name: str, race: str, workers: int) -> dict:
            "extra": (np.stack([pad(e, 14, np.float32) for e in extra]) if rows
                      else np.zeros((0, MAX_UNITS, 14), np.float32)),
            "count": np.array([min(len(r), MAX_UNITS) for r in rows], np.int32),
-           "time": np.array(time, np.float32), "game": np.array(game, np.int32), "replays": np.array(replays)}
+           "time": np.array(time, np.float32), "game": np.array(game, np.int32), "replays": np.array(replays),
+           "tags": (np.stack([np.pad(np.asarray(t, np.int64)[:MAX_UNITS], (0, MAX_UNITS - min(len(t), MAX_UNITS)))
+                              for t in tags]) if rows else np.zeros((0, MAX_UNITS), np.int64))}
     if failed:                                               # (not kept: a rerun builds them all)
         print(f"  {name}: {failed} of {len(replays)} replays couldn't be read", file=sys.stderr)
     else:
@@ -308,24 +511,26 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--race", choices=sorted(STATES), required=True, help="whose units are judged")
     ap.add_argument("--matchup", required=True, help="the pros it is judged against (TvZ, PvT, TvT...)")
-    ap.add_argument("--state", help="default: every state the race has")
+    ap.add_argument("--state", help="a state or an event (STATES, EVENTS); default: every one the race has")
     ap.add_argument("--rounds", nargs="*", default=[], help="Gary's league rounds (none: the judge's own check only)")
     ap.add_argument("--pros", help="the pros' dataset in data/interim/roles (default: PROS)")
     ap.add_argument("--retrain", action="store_true")
+    ap.add_argument("--no-history", action="store_true", help="the judge without the unit's recent past (HISTORY)")
     ap.add_argument("--workers", type=int, default=4)
     priority.add_argument(ap)
     args = ap.parse_args()
     priority.apply(args.priority)
     edges = np.linspace(0, 1, BINS + 1)
     rng = np.random.default_rng(0)
-    for state in ([args.state] if args.state else sorted(STATES[args.race])):
-        pair = STATES[args.race][state]
+    for state in ([args.state] if args.state else sorted(STATES[args.race]) + sorted(EVENTS.get(args.race, {}))):
+        event = state in EVENTS.get(args.race, {})
+        pair = EVENTS[args.race][state] if event else STATES[args.race][state]
         kept = REPO / "runs" / "judge" / f"{args.race}_{args.matchup}_{state}.pkl"
-        if kept.exists() and not args.retrain:
+        if kept.exists() and not args.retrain and not args.no_history:
             with open(kept, "rb") as f:
                 judge = pickle.load(f)
         else:
-            judge = train(args.race, args.matchup, state, args.pros)
+            judge = train(args.race, args.matchup, state, args.pros, not args.no_history, args.workers)
         hp, hy = judge["held_p"], judge["held_y"]
         lo, hi = spread(hp, hy, judge["held_game"], rng)
         print(f"{state}, {args.race} in {args.matchup}: the judge from {judge['games'] - judge['held_games']} pro games "
@@ -336,14 +541,21 @@ def main() -> None:
         arms = []
         for name in args.rounds:
             m = round_moments(name, args.race, args.workers)
-            X, y, s = features(m["rows"], m["extra"], m["count"], m["time"], pair, judge["kinds"])
+            if event:
+                sys.path.insert(0, str(REPO / "ingest"))
+                m["commands"] = commands_of({i: str(r) for i, r in enumerate(m["replays"])}, m,
+                                            REPO / "runs" / "league" / name / f"judge_cmds_{args.race}.pkl",
+                                            args.workers, name)
+            X, y, s, game = situations(m, pair, judge)
             if not len(X):
                 print(f"  {name}: no unit of the state's types in a fight moment")
                 continue
             p = judge["model"].predict_proba(X)[:, 1]
-            game = m["game"][s]
-            since = {i: research_done(str(r), pair[2], pair[3]) for i, r in enumerate(m["replays"])}
-            has = np.array([since.get(int(g)) is not None and m["time"][k] >= since[int(g)] for g, k in zip(game, s)])
+            if event:
+                has = np.ones(len(y), bool)                       # (an event's moments are after its research already)
+            else:
+                since = {i: research_done(str(r), pair[2], pair[3]) for i, r in enumerate(m["replays"])}
+                has = np.array([since.get(int(g)) is not None and m["time"][k] >= since[int(g)] for g, k in zip(game, s)])
             arms.append((name, X, y, p, game, has))
         print(f"  {'the judge says':>15} {'pros':>9} {'in it':>6}" + "".join(f" | {a[0]:>9} {'in it':>6}" for a in arms))
         tabs = [table(hp, hy, edges)] + [table(a[3], a[2], edges) for a in arms]
@@ -354,7 +566,8 @@ def main() -> None:
             print(f"  {name}:")
             print(line("every moment", np.ones(len(y), bool), p, y, game, rng))
             print("    " + shape(p, y, tabs[0], edges, judge["auc"]))
-            print(line(f"with {pair[2]} its own (the records)", has, p, y, game, rng))
+            if not event:
+                print(line(f"with {pair[2]} its own (the records)", has, p, y, game, rng))
             auc, inside, sure, apart = coverage(judge, X, game, rng)
             print(f"    coverage: Gary's situations told from the pros' with AUC {auc:.3f}; {sure:.0%} of them surely "
                   f"Gary's (odds over {SURE:.0%}: the pros aren't in these)")
