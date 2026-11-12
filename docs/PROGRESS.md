@@ -2027,8 +2027,13 @@ plan and the full log).
   take a matchup (only the games whose Terran researches Stim Packs: 126 clean PvT games, 79 TvT, each Terran of a
   mirror), and the rule asks the model of the matchup it plays, saying so once when there is none: PvT from 112
   games with stims (112,452 samples, stimmed 6.0%; held-out AUC 0.82), TvT from 56 game-sides (37,871; 0.79). The
-  TvZ features are unchanged, value for value. Both builds (gt0.16, gt0.36dev); its check is the stim judge on a
-  PvT round (PT258a).
+  TvZ features are unchanged, value for value. Both builds (gt0.16, gt0.36dev). Its check, the stim judge on a PvT
+  round (PT258a, 16 games against gp1dev, 3 of them with Marines after the research): it stims now, in 1.9% of its
+  5,636 Marine-moments where a pro would in 10.5% (-8.6% [-18.1%, -4.8%]; 0% before), and in the right situations
+  (the judge ranks its moments at 0.68, the pros' 0.67). Far too rarely still: the rule stims when the model's odds
+  pass a threshold set on the pros' fights, and Gary's fights score moderate odds, the same shortfall the storms had
+  under a threshold (a third of the pros') before their dice. Against a Zerg the same shape, 9.0% for 12.8%. Next:
+  the stim decoder drawn at the model's odds.
 - **The Zerg's fight orders reach its units (2026-11-12, gz0.10, gz0.26dev).** Half of what gz1dev's fight roles
   decided was dropped after three tries to select the units (65 a game in DZ247a, live too): zerg_roles.py clicked
   a unit where it was seen (a Zergling had moved on) and took a selection only when it was exactly the units (a box

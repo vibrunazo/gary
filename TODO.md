@@ -36,7 +36,9 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
      the dev build unless it loses more than that, and if it does, reviewed (the records) before it is dropped.
    - Stim against a Protoss and a Terran: never (0% for a pro's 11.8% in PvT), because the stim model's inputs were
      a table of Zerg fighters (gary/policy/stim.py KINDS; race-keyed since 2026-11-12, the PvT and TvT datasets and
-     models building): judged on the stim judge in a PvT round. Against a Zerg it stims a third less than a pro would (7.8% for 11.4%), least where
+     models trained): it stims there now, 1.9% of its Marine-moments for a pro's 10.5% (PT258a), in the right
+     situations. Left: the decoder, a threshold where the storms' is a draw at the model's odds (the same shortfall
+     against a Zerg, 9.0% for 12.8%): option, judged on the stim judge in TvZ and PvT. Against a Zerg it stims a third less than a pro would (7.8% for 11.4%), least where
      the pros stim most: its decoder's HP floor and threshold against the pros' per situation.
    - Mines against a Protoss and a Terran: half and a sixth of a pro's (1.5% for 3.0%, 0.4% for 2.3%), laid in the
      right situations: the mode's odds drawn once a turn (modedice) against the pros' rate.
