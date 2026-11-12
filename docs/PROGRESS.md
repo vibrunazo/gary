@@ -2000,6 +2000,33 @@ plan and the full log).
   from the travel stage, if the parked builders have room (gary/agent/executor.py wait_arrival). The pattern (the
   scratch script timed the owners; a second classed each hold over 5 s by the orders inside it) is how the next hold
   is found. On the same 16 games (seeds 4004-4005, against DP252a and DT250a):
+- **The judge: would a pro's tank be sieged here, and is Gary's (2026-11-12, `eval/judge.py`).** The live games' lesson
+  was that rounds and the gap score never showed gt1dev's tanks don't siege against a Zerg (its TvZ role model has no
+  siege role: the pros' sieges are its "other", carried out as nothing; 0 sieges in 64 headless games), and a count a
+  game is no measure either (how often to siege depends on the enemy, and Gary's enemies aren't the pros'). So a judge
+  per situation: boosted trees on the pros' fight moments (the response datasets), a tank's situation with every own
+  unit's mode hidden (the enemy near it by distance and kind, buildings, its own fighters and tanks near, HP, the
+  ground, the minute; never its type, order, cooldown or motion), a fifth of the games held out. Gary's moments are
+  built from its league replays by the dataset's own code. The held-out pros lie near the diagonal in all three
+  matchups (sieged 55.1% against the judge's 51.1% in TvZ, 52.5% and 55.2% in PvT, 60.2% and 57.1% in TvT, each
+  interval at or by zero), its ranking modest (AUC 0.68, 0.73, 0.76: the instant says only part of a pro's choice).
+  gt1dev's latest round of each:
+
+  | | Gary's tanks sieged | a pro in the same situations | difference [90%] | the judge ranks Gary's moments (pros') |
+  |---|---|---|---|---|
+  | TvZ (TW253a, 15,923 tank-moments) | 0.0% | 53.3% | -53.3% [-59.8%, -44.0%] | never sieged (0.68) |
+  | PvT (PT245a, 26,299) | 14.9% | 51.1% | -36.2% [-46.7%, -0.5%] | 0.37 (0.73) |
+  | TvT (TT246a, 41,106) | 22.9% | 26.4% | -3.5% [-13.7%, +12.8%] | 0.74 (0.76) |
+
+  Against a Protoss the modes drawn since gt0.22dev had read as fine by their count (101 sieges by 20:00, the pros'
+  52): per situation its tanks are sieged a third as often as a pro's, and where the pros' aren't: 28-33% sieged
+  where the judge says 10-30%, 9-12% where it says 50-90% (a ranking under a half, 0.37). In the mirror the share is
+  the pros' and the ranking nearly theirs, but where the judge is surest (80-100%, 2,379 moments) Gary's are sieged
+  2-6% for the pros' 85-90%. Leads, not causes: the motor takes tanks out of Siege Mode before a move order (4.6 and
+  4.8 times a game in those rounds), which is when an enemy comes. Coverage (a second model telling Gary's
+  situations from the held-out pros', split by game: split by moment it knew the games and told them apart
+  perfectly): 20% of Gary's tank situations against a Zerg are ones the pros aren't in, 7% and 4% in the others; in
+  the rest the differences stand (0% against 57.3% in TvZ). The plan from here is TODO.md's Direction.
 - **A builder sent again walks with the hands free: the parked builds were the hands' biggest holder (2026-11-11,
 
   | | gp1dev before | with it | pros PvZ | gt1dev before | with it | pros TvZ |

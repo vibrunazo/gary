@@ -1,0 +1,367 @@
+"""The judge: would a pro's unit be in this state here, and is Gary's? (An ability judged per situation, not by its
+count a game: how often a tank should be sieged depends on what the enemy does, and Gary's enemies aren't the pros'.)
+
+A model learns from the pros' fight moments (the response datasets, ingest/response_dataset.py: every half second
+with a seen enemy fighter near the player's units) whether a unit that has a mode is in it: a Siege Tank sieged.
+Its inputs are the situation around the unit with every own unit's mode hidden (no type in or out of the mode, no
+order, cooldown or motion: a sieged tank's neighbours are sieged, and a judge that read them would agree with a Gary
+that never sieges): the enemy fighters near it by distance and by kind, their buildings and static defense, its own
+fighters, tanks and buildings near, its HP, the ground under it and the minute. It is not Gary's role model: other
+inputs, another kind of model (boosted trees), and games held out to check it on (by game: its odds against what the
+held-out pros did, bin by bin, is its calibration).
+
+Gary's moments are built from its league games' replays by the dataset's own code, so both are counted alike. Read:
+the pros' held-out games lie on the diagonal (in the bin where the judge says 70%, 70% of their tanks are sieged);
+Gary's line against it is the measure, summed as "in the state x% of its unit-moments, a pro y% in the same
+situations", with a 90% interval from resampling Gary's games. Coverage: a second model tells Gary's situations from
+the pros'; the share it is sure are Gary's (situations the pros aren't in) is reported, and the measure again
+without them.
+
+    python -m eval.judge --race T --matchup TvZ --rounds TW253a
+    python -m eval.judge --race T --matchup PvT --rounds PT245a
+    python -m eval.judge --race T --matchup TvT --rounds TT246a --retrain
+
+The judge is kept in runs/judge/<race>_<matchup>_<state>.pkl; a round's moments in its folder (judge_<race>.npz).
+A state is a row of STATES (the unit type out of the mode and in it); the pros' dataset per matchup is PROS.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import pickle
+import random
+import sys
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+
+import numpy as np
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
+
+from eval import monitor, priority  # noqa: E402
+
+STATES = {"T": {"siege": (5, 30, "Siege Mode", 1200)}}    # race -> state -> (type out, type in, its research, frames)
+PROS = {("T", "TvZ"): "response_T_30min.npz", ("T", "PvT"): "response_T_PvT_modes_30min.npz",
+        ("T", "TvT"): "response_T_TvT_30min.npz"}
+TILE = 32.0
+FAR = 40.0                      # tiles: no such unit in the snapshot
+KINDS = 8                       # the enemy's commonest fighter types, each its supply within 12 tiles
+BINS = 10
+BOOT = 200
+MAX_TRAIN = 400_000             # rows: half-second neighbours say the same thing
+SURE = 0.9                      # the coverage model's odds a situation is Gary's: outside the pros' above this
+
+
+def tables():
+    from gary.policy.army import ARMY_SUPPLY, STATIC_SUPPLY, is_building
+    from gary.races import FLYERS
+    sup = np.asarray(ARMY_SUPPLY, np.float32) / 2
+    air = np.zeros(228, bool)
+    air[list(FLYERS)] = True
+    build = np.array([is_building(t) for t in range(228)])
+    static = np.zeros(228, bool)
+    static[list(STATIC_SUPPLY)] = True
+    return sup, air, build, static
+
+
+def enemy_kinds(rows: np.ndarray, count: np.ndarray) -> list[int]:
+    """The enemy's commonest fighter types in a dataset."""
+    sup, _, build, _ = tables()
+    valid = np.arange(rows.shape[1])[None, :] < count[:, None]
+    t = rows[:, :, 0][valid & (rows[:, :, 1] == 0)]
+    t = t[(t >= 0) & (t < 228)]
+    n = np.bincount(t[(sup[t] > 0) & ~build[t]], minlength=228)
+    return [int(i) for i in np.argsort(-n)[:KINDS] if n[i] > 0]
+
+
+def names(kinds: list[int]) -> list[str]:
+    return (["minute", "hp", "targeted"] + [f"terrain{i}" for i in range(8)]
+            + [f"enemy ground within {r}" for r in (4, 8, 12, 16)] + [f"enemy air within {r}" for r in (8, 16)]
+            + ["nearest enemy ground", "nearest enemy air", "nearest enemy building", "enemy static within 12",
+               "own fighters within 4", "own fighters within 8", "own in the mode's types within 6",
+               "nearest own building", "own buildings within 8", "enemy supply seen", "own supply seen"]
+            + [f"enemy type {k} within 12" for k in kinds])
+
+
+def features(rows: np.ndarray, extra: np.ndarray, count: np.ndarray, time: np.ndarray, pair: tuple, kinds: list[int],
+             batch: int = 2000):
+    """(X, y, snapshot index) for every own unit of the state's types: the situation around it, modes hidden."""
+    sup, air, build, static = tables()
+    out, into = pair[0], pair[1]
+    width = rows.shape[1]
+    X, Y, S = [], [], []
+    has = ((rows[:, :, 0] == out) | (rows[:, :, 0] == into)) & (rows[:, :, 1] == 1)
+    has &= np.arange(width)[None, :] < count[:, None]
+    snaps = np.flatnonzero(has.any(1))
+    notself = ~np.eye(width, dtype=bool)[None]
+    for a in range(0, len(snaps), batch):
+        idx = snaps[a:a + batch]
+        r = rows[idx].astype(np.float32)
+        t = np.clip(rows[idx, :, 0].astype(np.int64), 0, 227)
+        valid = np.arange(width)[None, :] < count[idx][:, None]
+        own, foe = valid & (rows[idx, :, 1] == 1), valid & (rows[idx, :, 1] == 0)
+        mine = has[idx]                                           # (the judged units)
+        fighter = (sup[t] > 0) & ~build[t] & (r[:, :, 10] > 0)
+        eg, ea = foe & fighter & ~air[t], foe & fighter & air[t]
+        eb, es = foe & build[t], foe & static[t]
+        of = own & fighter & ~mine
+        ob = own & build[t]
+        d = np.sqrt(((r[:, :, None, 2:4] - r[:, None, :, 2:4]) ** 2).sum(-1)) / TILE      # (snapshot, unit, other)
+        s = sup[t][:, None, :]
+        one = np.ones_like(s)
+
+        def within(mask, radius, weight=s):
+            return ((mask[:, None, :] & (d <= radius)) * weight).sum(-1)
+
+        def nearest(mask):
+            return np.where(mask[:, None, :], d, FAR).min(-1).clip(max=FAR)
+
+        def whole(v):
+            return np.broadcast_to(v[:, None], t.shape)
+
+        cols = [whole(time[idx] / 60.0), r[:, :, 4], extra[idx, :, 2].astype(np.float32)]
+        cols += [extra[idx, :, 6 + i].astype(np.float32) for i in range(8)]
+        cols += [within(eg, x) for x in (4, 8, 12, 16)] + [within(ea, x) for x in (8, 16)]
+        cols += [nearest(eg), nearest(ea), nearest(eb), within(es, 12, one)]
+        cols += [within(of, 4), within(of, 8), ((mine[:, None, :] & (d <= 6) & notself) * one).sum(-1)]
+        cols += [nearest(ob), within(ob, 8, one)]
+        cols += [whole(((eg | ea) * sup[t]).sum(1)), whole(((own & fighter) * sup[t]).sum(1))]
+        cols += [within(foe & fighter & (t == k), 12) for k in kinds]
+        f = np.stack(cols, -1)
+        X.append(f[mine].astype(np.float32))
+        Y.append((rows[idx, :, 0] == into)[mine])
+        S.append(np.broadcast_to(idx[:, None], t.shape)[mine])
+    if not X:
+        return np.zeros((0, len(names(kinds))), np.float32), np.zeros(0, bool), np.zeros(0, np.int64)
+    return np.concatenate(X), np.concatenate(Y), np.concatenate(S)
+
+
+def fit(X, y, seed: int = 0):
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    rng = np.random.default_rng(seed)
+    keep = rng.choice(len(X), MAX_TRAIN, replace=False) if len(X) > MAX_TRAIN else np.arange(len(X))
+    return HistGradientBoostingClassifier(max_iter=200, learning_rate=0.1, max_leaf_nodes=31,
+                                          random_state=seed).fit(X[keep], y[keep])
+
+
+def train(race: str, matchup: str, state: str, pros: str | None) -> dict:
+    """The judge of one state from the pros' dataset, a fifth of its games held out; its held-out odds kept."""
+    from sklearn.metrics import roc_auc_score
+    path = REPO / "data" / "interim" / "roles" / (pros or PROS[(race, matchup)])
+    d = np.load(path)
+    kinds = enemy_kinds(d["rows"], d["count"])
+    X, y, s = features(d["rows"], d["extra"], d["count"], d["time"], STATES[race][state], kinds)
+    game = d["game"][s]
+    games = np.unique(d["game"])
+    held = set(random.Random(0).sample(sorted(games.tolist()), max(1, len(games) // 5)))
+    test = np.isin(game, sorted(held))
+    model = fit(X[~test], y[~test])
+    p = model.predict_proba(X[test])[:, 1]
+    judge = {"model": model, "kinds": kinds, "names": names(kinds), "pros": path.name, "games": len(games),
+             "held_games": len(held), "held_p": p.astype(np.float32), "held_y": y[test], "held_X": X[test],
+             "held_game": game[test], "auc": float(roc_auc_score(y[test], p)), "rows": int((~test).sum())}
+    out = REPO / "runs" / "judge"
+    out.mkdir(parents=True, exist_ok=True)
+    with open(out / f"{race}_{matchup}_{state}.pkl", "wb") as f:
+        pickle.dump(judge, f)
+    return judge
+
+
+def _moments(job: tuple) -> dict:
+    """One league game's fight moments for the race's side, as the pros' dataset builds them."""
+    sys.path.insert(0, str(REPO / "ingest"))                 # (the dataset's builders import each other by name)
+    from ingest.response_dataset import _job
+    path, race = job
+    got = _job((path, None, path, race, None, False))
+    return {"path": path, "error": got["error"], "rows": got["rows"], "extra": got["extra"], "time": got["time"]}
+
+
+def research_done(replay: str, what: str, frames: int) -> float | None:
+    """When (seconds) the side has the research, from the game's records: its macro decision and the time it takes
+    (in a mirror both sides' records carry the race: the later one, so both have it)."""
+    rec = Path(replay).with_suffix(".records.jsonl")
+    if not rec.exists():
+        return None
+    at = []
+    for line in open(rec, encoding="utf-8"):
+        if f'"{what}"' not in line:
+            continue
+        r = json.loads(line)
+        if r.get("kind") == "decision" and r.get("choice") == what:
+            at.append(r["f"])
+    return (max(at) + frames) * 42 / 1000 if at else None
+
+
+def round_moments(name: str, race: str, workers: int) -> dict:
+    """A round's fight moments (rows, extra, count, time, game: the index into its replays), built once and kept in
+    its folder."""
+    from gary.policy.roles import MAX_UNITS
+    out = REPO / "runs" / "league" / name
+    cache = out / f"judge_{race}.npz"
+    if cache.exists():
+        d = np.load(cache, allow_pickle=True)
+        return {k: d[k] for k in d.files}
+    table = json.loads((out / "round.json").read_text(encoding="utf-8"))
+    replays = [g["replay"] for g in table["games"] if g["result"] != "error"]
+    rows, extra, time, game, failed = [], [], [], [], 0
+    with ProcessPoolExecutor(workers, initializer=priority.apply, initargs=("low",)) as pool:
+        for i, got in enumerate(monitor.track(pool.map(_moments, [(p, race) for p in replays]), len(replays),
+                                              f"{name}: fight moments")):
+            if got["error"]:
+                print(f"  {Path(got['path']).parent.name}/{Path(got['path']).name}: {got['error']}", file=sys.stderr)
+                failed += 1
+                continue
+            rows += got["rows"]
+            extra += got["extra"]
+            time += got["time"]
+            game += [i] * len(got["rows"])
+
+    def pad(a, width, dtype):
+        z = np.zeros((MAX_UNITS, width), dtype)
+        a = np.asarray(a)[:MAX_UNITS]
+        if a.size:
+            z[:len(a), :min(width, a.shape[1])] = a[:, :width]
+        return z
+
+    got = {"rows": np.stack([pad(r, 11, np.int16) for r in rows]) if rows else np.zeros((0, MAX_UNITS, 11), np.int16),
+           "extra": (np.stack([pad(e, 14, np.float32) for e in extra]) if rows
+                     else np.zeros((0, MAX_UNITS, 14), np.float32)),
+           "count": np.array([min(len(r), MAX_UNITS) for r in rows], np.int32),
+           "time": np.array(time, np.float32), "game": np.array(game, np.int32), "replays": np.array(replays)}
+    if failed:                                               # (not kept: a rerun builds them all)
+        print(f"  {name}: {failed} of {len(replays)} replays couldn't be read", file=sys.stderr)
+    else:
+        np.savez_compressed(cache, **got)
+    return got
+
+
+def table(p, y, edges):
+    """Per bin of the judge's odds: how many, and the share in the state."""
+    b = np.clip(np.digitize(p, edges) - 1, 0, len(edges) - 2)
+    return [(int((b == i).sum()), float(y[b == i].mean()) if (b == i).any() else float("nan"))
+            for i in range(len(edges) - 1)]
+
+
+def spread(p, y, game, rng) -> tuple[float, float]:
+    """The 90% interval of (the share in the state) - (the judge's mean odds), games resampled."""
+    ids = np.unique(game)
+    by = {g: (y[game == g].sum(), p[game == g].sum(), (game == g).sum()) for g in ids}
+    d = []
+    for _ in range(BOOT):
+        pick = [by[g] for g in rng.choice(ids, len(ids))]
+        d.append((sum(x[0] for x in pick) - sum(x[1] for x in pick)) / max(sum(x[2] for x in pick), 1))
+    lo, hi = np.percentile(d, [5, 95])
+    return float(lo), float(hi)
+
+
+def shape(p, y, pros: list, edges, pros_auc: float) -> str:
+    """Whether Gary is in the state where the pros are, not only as often: how far its share stands from the pros'
+    in the bins of the judge's odds (points, weighted by Gary's moments), and how well the judge's odds rank Gary's
+    own moments (the pros': the judge's held-out AUC; 0.5: Gary's state has nothing to do with the situation)."""
+    from sklearn.metrics import roc_auc_score
+    mine = table(p, y, edges)
+    off = sum(n * abs(share - pros[i][1]) for i, (n, share) in enumerate(mine) if n and pros[i][0]) / max(len(y), 1)
+    rank = f"{roc_auc_score(y, p):.3f}" if 0 < y.mean() < 1 else "none (never, or always, in the state)"
+    return (f"where: off the pros' line by {off:.1%} a moment over the judge's bins; the judge's odds rank its "
+            f"moments with AUC {rank} (the pros' {pros_auc:.3f})")
+
+
+def line(label: str, k, p, y, game, rng) -> str:
+    if not k.any():
+        return f"    {label}: none"
+    lo, hi = spread(p[k], y[k], game[k], rng)
+    return (f"    {label}: in the state {y[k].mean():.1%} of {int(k.sum()):,} unit-moments "
+            f"({len(np.unique(game[k]))} games), a pro {p[k].mean():.1%} in the same situations "
+            f"(difference {y[k].mean() - p[k].mean():+.1%} [{lo:+.1%}, {hi:+.1%}])")
+
+
+def coverage(judge: dict, X, game, rng):
+    """Gary's situations told from the pros' held-out ones: (AUC, the mask of Gary's rows read and not surely
+    Gary's, the share surely Gary's, the inputs that differ most). Half of each side's games fit, the other half is
+    read (by game: half-second neighbours on both sides let it know the games, and tell them apart perfectly)."""
+    from sklearn.metrics import roc_auc_score
+    hx, hg = judge["held_X"], judge["held_game"]
+
+    def halves(ids):
+        ids = rng.permutation(np.unique(ids))
+        return ids[:len(ids) // 2], ids[len(ids) // 2:]
+
+    (pf, pr), (gf, gr) = halves(hg), halves(game)
+    if not len(gf) or not len(pf):
+        return float("nan"), np.zeros(len(X), bool), float("nan"), []
+    a_fit, a_read = hx[np.isin(hg, pf)], hx[np.isin(hg, pr)]
+    fit_g, read_g = np.flatnonzero(np.isin(game, gf)), np.flatnonzero(np.isin(game, gr))
+    n = min(len(a_fit), len(fit_g))                               # (as many of each: its odds read as a share)
+    cov = fit(np.concatenate([a_fit[rng.choice(len(a_fit), n, replace=False)], X[rng.choice(fit_g, n, replace=False)]]),
+              np.concatenate([np.zeros(n), np.ones(n)]))
+    q, qa = cov.predict_proba(X[read_g])[:, 1], cov.predict_proba(a_read)[:, 1]
+    auc = roc_auc_score(np.concatenate([np.zeros(len(qa)), np.ones(len(q))]), np.concatenate([qa, q]))
+    inside = np.zeros(len(X), bool)
+    inside[read_g[q <= SURE]] = True
+    apart = sorted(zip(np.abs(X[read_g].mean(0) - a_read.mean(0)) / (a_read.std(0) + 1e-6), judge["names"]),
+                   reverse=True)[:4]
+    return float(auc), inside, float(np.mean(q > SURE)), apart
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--race", choices=sorted(STATES), required=True, help="whose units are judged")
+    ap.add_argument("--matchup", required=True, help="the pros it is judged against (TvZ, PvT, TvT...)")
+    ap.add_argument("--state", help="default: every state the race has")
+    ap.add_argument("--rounds", nargs="*", default=[], help="Gary's league rounds (none: the judge's own check only)")
+    ap.add_argument("--pros", help="the pros' dataset in data/interim/roles (default: PROS)")
+    ap.add_argument("--retrain", action="store_true")
+    ap.add_argument("--workers", type=int, default=4)
+    priority.add_argument(ap)
+    args = ap.parse_args()
+    priority.apply(args.priority)
+    edges = np.linspace(0, 1, BINS + 1)
+    rng = np.random.default_rng(0)
+    for state in ([args.state] if args.state else sorted(STATES[args.race])):
+        pair = STATES[args.race][state]
+        kept = REPO / "runs" / "judge" / f"{args.race}_{args.matchup}_{state}.pkl"
+        if kept.exists() and not args.retrain:
+            with open(kept, "rb") as f:
+                judge = pickle.load(f)
+        else:
+            judge = train(args.race, args.matchup, state, args.pros)
+        hp, hy = judge["held_p"], judge["held_y"]
+        lo, hi = spread(hp, hy, judge["held_game"], rng)
+        print(f"{state}, {args.race} in {args.matchup}: the judge from {judge['games'] - judge['held_games']} pro games "
+              f"({judge['rows']:,} unit-moments, {judge['pros']}), {len(judge['names'])} inputs; held out "
+              f"{judge['held_games']} games: AUC {judge['auc']:.3f}")
+        print(f"  the pros held out: in the state {hy.mean():.1%} of {len(hy):,} unit-moments, the judge expects "
+              f"{hp.mean():.1%} (difference {hy.mean() - hp.mean():+.1%} [{lo:+.1%}, {hi:+.1%}])")
+        arms = []
+        for name in args.rounds:
+            m = round_moments(name, args.race, args.workers)
+            X, y, s = features(m["rows"], m["extra"], m["count"], m["time"], pair, judge["kinds"])
+            if not len(X):
+                print(f"  {name}: no unit of the state's types in a fight moment")
+                continue
+            p = judge["model"].predict_proba(X)[:, 1]
+            game = m["game"][s]
+            since = {i: research_done(str(r), pair[2], pair[3]) for i, r in enumerate(m["replays"])}
+            has = np.array([since.get(int(g)) is not None and m["time"][k] >= since[int(g)] for g, k in zip(game, s)])
+            arms.append((name, X, y, p, game, has))
+        print(f"  {'the judge says':>15} {'pros':>9} {'in it':>6}" + "".join(f" | {a[0]:>9} {'in it':>6}" for a in arms))
+        tabs = [table(hp, hy, edges)] + [table(a[3], a[2], edges) for a in arms]
+        for i in range(BINS):
+            cells = [f"{t[i][0]:>9,} {'' if t[i][0] == 0 else format(t[i][1], '.0%'):>6}" for t in tabs]
+            print(f"  {f'{edges[i]:.0%}-{edges[i + 1]:.0%}':>15} " + " | ".join(cells))
+        for name, X, y, p, game, has in arms:
+            print(f"  {name}:")
+            print(line("every moment", np.ones(len(y), bool), p, y, game, rng))
+            print("    " + shape(p, y, tabs[0], edges, judge["auc"]))
+            print(line(f"with {pair[2]} its own (the records)", has, p, y, game, rng))
+            auc, inside, sure, apart = coverage(judge, X, game, rng)
+            print(f"    coverage: Gary's situations told from the pros' with AUC {auc:.3f}; {sure:.0%} of them surely "
+                  f"Gary's (odds over {SURE:.0%}: the pros aren't in these)")
+            print(line("the situations the pros are in too (the half of its games read)", inside, p, y, game, rng))
+            print("    where Gary's situations differ most (its mean against the pros', in the pros' sd): "
+                  + "; ".join(f"{nm} {v:.1f}" for v, nm in apart))
+
+
+if __name__ == "__main__":
+    main()

@@ -13,7 +13,7 @@ and its line removed; a new one gets an issue and a line).
 - `eval/`: the launcher (`match.py`), league rounds (`league.py`, which keeps each round's feature rows), measures
   against the pros (`humanlike.py`, `attacks.py`, `style_adherence.py`: the build per style; `placement.py`: where the buildings stand against the pros', `tiles.py`: on which tiles; `transfers.py`: workers at a new base as it finishes), two versions compared game against game: their paired score with its spread and what 96 games resolve
   (`paired.py`: a game at time graded by supply or by the critics) and their gap per time window with a
-  bootstrap spread (`gap_windows.py`), the records' queries (`why.py`), the critic's calibration and would-gg games (`critic_gg.py`), the run monitor (`monitor.py`,
+  bootstrap spread (`gap_windows.py`), the records' queries (`why.py`), the judge (`judge.py`: would a pro's unit be in this mode in the situation Gary's is in, a model of the pros' fight moments checked on held-out pro games, then Gary's league rounds against it), the critic's calibration and would-gg games (`critic_gg.py`), the run monitor (`monitor.py`,
   `priority.py`).
 - `train/`, `ingest/`, `resim/`: models, datasets from replays, the replay re-simulator.
 - `adapters/scr_bridge`: playing StarCraft: Remastered. `tests/`: smoke, parity, matchups, game data, the live path.

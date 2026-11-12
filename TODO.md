@@ -4,6 +4,53 @@ Open work is tracked in the [GitHub issues](https://github.com/vibrunazo/gary/is
 grouped by area, newest thinking first (reconciled with the code on 2026-10-25). When an item is done its issue is
 closed and its line leaves this file; docs/PROGRESS.md keeps what was done and how it measured.
 
+## Direction (2026-11-12): judged per situation, in every matchup
+
+After the three live games (docs/PROGRESS.md): the rounds and the gap score never showed that Gary's tanks don't
+siege against a Zerg, and one viewing did. The work is judged by what a pro would do in the situation Gary is in
+(`eval/judge.py`), in every matchup, not by counts a game and not in one matchup first. The steps, in order (an item
+gets its issue when it is started; the ones marked "to decide" are proposals, not agreed):
+
+1. **The judge, states (v0 done 2026-11-12, docs/PROGRESS.md).** Would a pro's unit be in this mode here: the Siege
+   Tank, against the pros of TvZ, PvT and TvT, on gt1dev's latest round of each (sieged 0% for a pro's 53%, 15% for
+   51% and in the wrong situations, 23% for 26% but 2-6% where the pros are surest). Next, sharper: a short history of
+   the situation (the enemy's distance 2 s and 5 s before, how long it has been near), kept only if the held-out
+   pros' AUC and calibration improve (v0: AUC 0.68, the diagonal within its spread). Never an input that tells the
+   unit's own mode (its type, order, cooldown, motion; its neighbours' modes).
+2. **The judge, every race's states and the one-shot abilities.** States from the race tables (a Lurker burrowed, a
+   Marine in a bunker, a unit cloaked); abilities as a hazard from the pros' commands (stim, a mine laid, Storm,
+   a scan, Irradiate, the merges, Dark Swarm, Plague): of the moments where a pro would act within a few seconds,
+   how often Gary does. One table: matchup by ability, the held-out pros' check and Gary's difference with its
+   spread, the share of Gary's situations the pros aren't in. Run on every matchup's latest round.
+3. **What the judge flags, the most visible first, as shared fixes.**
+   - Siege, Tank Mode and mines against a Zerg: the TvZ response dataset relabelled with the mode roles as the PvT
+     one was (pvtmodes, #60), the role model trained on it, the modes drawn (modedice). To settle first: gt1dev's
+     TvZ fights are the RL checkpoint rl1 on the older labels, so the relabelled model replaces it or the RL run
+     starts again from it. Judged by Gary's line against the diagonal, the fight gap, and 96 paired games not worse
+     (the minimum detectable effect written first).
+   - The tanks' siege against a Protoss and a Terran, which the judge reads as misplaced (sieged where the pros
+     aren't, out of it where they are): what takes them out as the enemy comes, from the records (the motor takes
+     them out before a move order 4.6 to 4.8 times a game).
+   - The Zerg's fight orders dropped after three failed selections: 65 a game against 55 to 89 sent, headless and
+     live alike. Why, from the records (eval.why); a plain bug is adopted on its own check.
+   - The bridge's commands added on 2026-11-12 (siege, Tank Mode, the merges, a Scarab or Interceptor) seen sent in
+     a live game once Gary sends them; a LAN game with tools/parity.py for the DLL's stim and ammo fields.
+4. **The judge among the promotion rule's fidelity measures** (AGENTS.md), once it covers the three races' states
+   and abilities. To decide: it changes the rule.
+5. **A live game a race at every checkpoint, judged.** Replays against the computer can't be re-simulated, so the
+   judge reads a live game from the bridge's snapshots (one a second: the moments built from them, to write) or
+   from a LAN game's replay.
+6. **The judge on the other fight decisions** (retreat, which enemy to shoot), after the abilities: whether a role
+   for a group every half second can look like a pro at all, or the fight layer needs targets per unit.
+7. **To decide.** Reinforcement learning parked until the fight layer has an output for every job and a reward
+   ranks checkpoints as games do (#53). League games ended when the critic says a side would resign, so the late
+   windows compare like with like and dead games cost no CPU; it needs its own check (the critics' grade as a
+   paired score was not adopted, #63).
+
+Carried over, not dropped: gp1dev's leads from its promotion verdict (its first fighters standing still at 0-5
+minutes, the Corsair count, the army it keeps); the Terran's gas in the live game (six Barracks on two refineries,
+2,110 minerals banked at 15:00); Probes lost to a raid past the pull's 8 supply.
+
 ## Learning (the self-play program, docs/SELF_PLAY.md)
 
 - [#47](https://github.com/vibrunazo/gary/issues/47) Pipe checks: do the learned layers' decisions reach the game, and do
