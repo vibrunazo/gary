@@ -2056,7 +2056,16 @@ plan and the full log).
   the fight's rules before contact to the pull alone, replacing the list the storm option had added its cast rule
   to, so gp1dev cast no storm from gp0.20dev to gp0.32dev, though its own measure on adoption had 3.9 storms by
   15:00 in 88% of games (ST186a). Fixed in the option (it adds its rules now; gp0.33dev); a bug the gap score,
-  the paired rounds and the promotion verdict of the day before all missed. So after the first day the judge has a
+  the paired rounds and the promotion verdict of the day before all missed. Checked in 16 games (SJ254a against
+  gz1dev): 4.9 casts a game (ST186a 11.7, with 44 High Templar trained a game against 26 now), and per situation
+  storms in 4.6% of its 6,663 Templar-moments where a pro would in 7.1% (-2.5% [-4.1%, -1.3%]), in the right
+  situations (the judge ranks its moments at 0.79, the pros' 0.82); 23% of its Templar situations are ones the
+  pros' aren't in (its Templar nearer the enemy's air and ground). The judge's table so far, Gary against a pro
+  in the same situations (`python -m eval.judge --table`): siege 0% against 57% (TvZ), 15% against 52% (PvT), 23%
+  against 34% (TvT); stim 7.8% against 11.4% (TvZ), 0% against 11.8% (PvT); mines 0% against 3.3% (TvZ), 1.5%
+  against 3.0% (PvT), 0.4% against 2.3% (TvT); a Lurker's burrow 2.2% against 3.5% and unburrow 1.5% against 4.8%
+  (TvZ, most of its Lurkers where the pros' aren't); storm 0% against 11-12% (PvZ, PvP, PvT; gp0.33dev 4.6%
+  against 7.1% in PvZ). So after the first day the judge has a
   table: siege, stim, mines, burrow and storm across the matchups, every cell but two a measurable gap, and a
   regression found.
 - **A builder sent again walks with the hands free: the parked builds were the hands' biggest holder (2026-11-11,

@@ -33,9 +33,10 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
      the pros stim most: its decoder's HP floor and threshold against the pros' per situation.
    - Mines against a Protoss and a Terran: half and a sixth of a pro's (1.5% for 3.0%, 0.4% for 2.3%), laid in the
      right situations: the mode's odds drawn once a turn (modedice) against the pros' rate.
-   - gp1dev's storms (fixed 2026-11-12, gp0.33dev: fightrules had dropped the cast rule since gp0.20dev): judged
-     again on its next round, and the burrow and unburrow of Lurkers standing where the pros' don't (79% of
-     gz1dev's Lurker situations: at home, by its buildings). To settle first: gt1dev's
+   - gp1dev's storms, back (gp0.33dev: fightrules had dropped the cast rule since gp0.20dev; SJ254a: 4.6% of its
+     Templar-moments for a pro's 7.1%, in the right situations): the rest of the gap is the cast decoder's rate, or
+     the Templar it merges before they have the energy (26 a game, 8.6 Archons). The burrow and unburrow of
+     Lurkers standing where the pros' don't (79% of gz1dev's Lurker situations: at home, by its buildings). To settle first: gt1dev's
      TvZ fights are the RL checkpoint rl1 on the older labels, so the relabelled model replaces it or the RL run
      starts again from it. Judged by Gary's line against the diagonal, the fight gap, and 96 paired games not worse
      (the minimum detectable effect written first).
