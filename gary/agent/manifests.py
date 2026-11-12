@@ -964,6 +964,11 @@ OPTIONS = {
     # follow a move, and sieging, unsieging and laying a mine roles of their own, which the roles carry out (28% of the
     # labels were "other" before, carried out as nothing)
     "pvtmodes": lambda m: m["vs"]["P"]["fight"].update(roles_data="response_T_PvT_modes_30min.npz"),
+    # the Terran's fights against a Zerg by its TvZ pros relabelled the same way (the response dataset built again with
+    # the mode roles, its re-issues added, the model trained as the deployed one: --decisions --move --attended --budget
+    # --again), in place of the RL checkpoint rl1, whose roles have no siege, unsiege or mine: its tanks sieged in 0% of
+    # their fight moments where a pro's are in 57%, no mine laid (eval/judge.py, 2026-11-12)
+    "tvzmodes": lambda m: m["fight"].update(roles_model=None, roles_data="response_T_TvZ_modes_again.npz"),
     # roles.py learned/v1: the modes (siege, unsiege, a mine) drawn by their odds, the rest the likeliest (a decoder: the
     # likeliest laid 0.4 mines a game, the pros about 29, #60)
     "modedice": lambda m: [f.update(roles={**f.get("roles", {}), "mode_dice": True})

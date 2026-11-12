@@ -4,7 +4,8 @@ Gradient-boosted trees on each unit's view of the fight -> P(the pro stims it in
 second). Split by game (a game's samples all train or all test). The threshold: Gary stims a unit
 when P passes it, chosen so Gary stims as often as the pros did in the test games' fights.
 
-    python -m train.stim
+    python -m train.stim                      # TvZ
+    python -m train.stim --matchup PvT        # data/interim/stim/stim_PvT.npz -> runs/stim/PvT_T_<time>.pkl
 """
 
 from __future__ import annotations
@@ -19,7 +20,8 @@ import numpy as np
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--data", help="default: data/interim/stim/stim_v1.npz")
+    ap.add_argument("--matchup", default="TvZ", help="whose pros (the model Gary asks in that matchup)")
+    ap.add_argument("--data", help="default: data/interim/stim/stim_<matchup>.npz")
     ap.add_argument("--out", default="runs/stim")
     args = ap.parse_args()
     from sklearn.ensemble import HistGradientBoostingClassifier
@@ -27,7 +29,7 @@ def main() -> None:
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ingest"))
     from inventory import data_root
-    d = np.load(args.data or data_root() / "interim" / "stim" / "stim_v2.npz")
+    d = np.load(args.data or data_root() / "interim" / "stim" / f"stim_{args.matchup}.npz")
     X, y, game, names = d["X"], d["y"], d["game"], list(d["names"])
     test = game % 5 == 0
     print(f"{len(y)} samples from {len(set(game))} games, stimmed {y.mean():.2%}; test games {len(set(game[test]))}")
@@ -47,9 +49,10 @@ def main() -> None:
           f"recall {recall:.2f}")
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    path = out / f"stim_{time.strftime('%Y%m%d-%H%M%S')}.pkl"
+    path = out / f"{args.matchup}_T_{time.strftime('%Y%m%d-%H%M%S')}.pkl"
     with open(path, "wb") as f:
-        pickle.dump({"model": clf, "threshold": threshold, "names": names, "test_auc": float(roc_auc_score(y[test], p))}, f)
+        pickle.dump({"model": clf, "threshold": threshold, "names": names, "matchup": args.matchup,
+                     "test_auc": float(roc_auc_score(y[test], p))}, f)
     print(f"saved {path}")
 
 

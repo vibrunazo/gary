@@ -1,12 +1,14 @@
 """The stim dataset: when the pros stim (for gary/policy/stim.py, trained by train/stim.py).
 
-Re-simulates the pros' TvZ games in OpenBW and, every half second from 4:00, takes each of the
-Terran's marines and firebats in a fight (a zerg fighter within 10 tiles, as the Terran sees them):
+Re-simulates the pros' games of a matchup in OpenBW and, every half second from 4:00, takes each of
+the Terran's marines and firebats in a fight (an enemy fighter within 10 tiles, as the Terran sees them):
 its view of the fight (gary/policy/stim.py features) and whether the Terran stimmed it in the next
 half second (OpenBW's stim timer went up). Only from the Terran's first stim on (before it, stim
-isn't researched: no decision to learn).
+isn't researched: no decision to learn). Only the games whose Terran researches Stim Packs (the build
+orders, ingest/build_orders.py: 78% of the TvZ games, 4% of the PvT, 1% of the TvT), each Terran of a mirror.
 
     python -m ingest.stim_dataset --games 1500 --parallel 3
+    python -m ingest.stim_dataset --matchup PvT          # -> data/interim/stim/stim_PvT.npz
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from pathlib import Path
 import numpy as np
 
 from eval import monitor, priority
-from gary.policy.stim import BIO, NAMES, SAMPLE_EVERY, enemy_fighters, features, in_fight, recall
+from gary.policy.stim import BIO, SAMPLE_EVERY, enemy_fighters, features, in_fight, names, recall
 
 AHEAD = 2                        # the label: stimmed within this many samples (1 s): the moment is noisy
 
@@ -26,8 +28,8 @@ START = 4 * 1440                 # nobody stims before 4:00
 UNTIL = 20 * 1440                # enough fights by then
 
 
-def _job(job: tuple[str, int]) -> dict:
-    path, end = job
+def _job(job: tuple[str, int, str, int]) -> dict:
+    path, end, race, which = job                 # (race: the enemy's; which: the Terran, 0 or 1 in a mirror)
     from gary.env import Game
     X, y, frames = [], [], []
     first_stim = None
@@ -37,9 +39,10 @@ def _job(job: tuple[str, int]) -> dict:
         return {"error": str(e), "X": X, "y": y}
     try:
         obs = g.observe()
-        slot = next((u["owner"] for u in obs["units"] if u["type"] == 106), None)
-        if slot is None:
+        slots = sorted({u["owner"] for u in obs["units"] if u["type"] == 106})
+        if len(slots) <= which:
             return {"error": "no Terran", "X": X, "y": y}
+        slot = slots[which]
         g.step(START - g.frame)
         waiting: list[list] = []                 # [tag, features, stim then, frame, steps left, stimmed]
         last: dict[int, tuple] = {}              # tag -> recall() half a second ago
@@ -62,12 +65,13 @@ def _job(job: tuple[str, int]) -> dict:
                     first_stim = w[3]
             waiting = [w for w in waiting if w[4] > 0 and w[0] in stim]
             own = [u for u in obs["units"] if u["owner"] == slot and u["completed"]]
-            enemies = enemy_fighters(obs["units"], slot)
+            enemies = enemy_fighters(obs["units"], slot, race)
             bio = [u for u in own if u["type"] in BIO and in_fight(u, enemies)]
             for u in bio:
-                f = features(u, own, enemies, u.get("stim", 0), obs["frame"], last.get(u["tag"]), lambda t: stim.get(t, 0))
+                f = features(u, own, enemies, u.get("stim", 0), obs["frame"], last.get(u["tag"]), lambda t: stim.get(t, 0),
+                             race=race)
                 waiting.append([u["tag"], f, u.get("stim", 0), obs["frame"], AHEAD, 0])
-            last = {u["tag"]: recall(u, enemies) for u in own if u["type"] in BIO}
+            last = {u["tag"]: recall(u, enemies, race) for u in own if u["type"] in BIO}
     except Exception as e:
         return {"error": str(e), "X": X, "y": y}
     finally:
@@ -80,9 +84,10 @@ def _job(job: tuple[str, int]) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--matchup", default="TvZ", help="TvZ, PvT or TvT: the Terran's side of it")
     ap.add_argument("--games", type=int, default=1500)
     ap.add_argument("--parallel", type=int, default=3)
-    ap.add_argument("--out", help="default: data/interim/stim/stim_v1.npz")
+    ap.add_argument("--out", help="default: data/interim/stim/stim_<matchup>.npz")
     priority.add_argument(ap)
     args = ap.parse_args()
     priority.apply(args.priority)
@@ -91,21 +96,29 @@ def main() -> None:
     from inventory import data_root
     from macro_dataset import select
     root = data_root()
-    games = [g for g in select("TvZ") if g["end_frame"] > 9 * 1440]
+    import json
+    enemy = "T" if args.matchup == "TvT" else next(r for r in args.matchup if r not in "Tv")
+    stims = set()                                # (the games whose Terran researches Stim Packs)
+    for line in open(root / "interim" / "build_orders.jsonl", encoding="utf-8"):
+        if '"Stim Packs"' in line:
+            r = json.loads(line)
+            if r["race"] == "T" and r["matchup"] == args.matchup:
+                stims.add(r["rel_path"])
+    games = [g for g in select(args.matchup) if g["end_frame"] > 9 * 1440 and g["rel_path"] in stims]
     games = games[::max(1, len(games) // args.games)][:args.games]   # spread over the sources
     jobs = []
     for g in games:
         p = next((q for q in (root / "raw" / g["rel_path"], root / g["rel_path"]) if q.exists()), None)
         if p is not None:
-            jobs.append((str(p), g["end_frame"]))
+            jobs += [(str(p), g["end_frame"], enemy, which) for which in ((0, 1) if args.matchup == "TvT" else (0,))]
     with ProcessPoolExecutor(args.parallel) as pool:
         results = list(monitor.track(pool.map(_job, jobs, chunksize=4), len(jobs), "stim games"))
     X = np.array([x for r in results for x in r["X"]], np.float32)
     y = np.array([v for r in results for v in r["y"]], np.int8)
     game = np.array([i for i, r in enumerate(results) for _ in r["y"]], np.int32)
-    out = Path(args.out) if args.out else root / "interim" / "stim" / "stim_v2.npz"
+    out = Path(args.out) if args.out else root / "interim" / "stim" / f"stim_{args.matchup}.npz"
     out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(out, X=X, y=y, game=game, names=np.array(NAMES))
+    np.savez_compressed(out, X=X, y=y, game=game, names=np.array(names(enemy)), matchup=np.array(args.matchup))
     used = sum(1 for r in results if r["y"])
     print(f"{len(jobs)} games ({sum(1 for r in results if r['error'])} errors, {used} with stims), "
           f"{len(y)} samples, stimmed {y.mean():.1%} -> {out}")

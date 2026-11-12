@@ -873,19 +873,20 @@ class StimRule:
     (gary/policy/stim.py, learned from the pros' stims) picks, stimmed together. Not before Stim Packs
     is done, nor a unit with too little HP to pay for it. (Human game 2: Gary researched stim at 5:40
     and never used it; the roles model has no stim.) Option model: a train/stim.py checkpoint (default:
-    the latest in runs/stim)."""
+    the latest of the matchup Gary plays, runs/stim/<matchup>_T_*.pkl: the enemy's fighters are a table per
+    race, gary/policy/stim.py). With no model of its matchup it never stims, and says so once."""
 
     name = "stim"
 
     def __init__(self, g: Gary, model: str | None = None):
-        from gary.policy.stim import StimModel
+        from gary.policy.stim import KINDS, StimModel, latest
         self.g = g
-        if model is None:
-            found = sorted(Path("runs/stim").glob("stim_*.pkl"))
-            if not found:
-                raise FileNotFoundError("no stim model in runs/stim: python -m train.stim")
-            model = found[-1]
-        self.model = StimModel(model)
+        self.race = g.enemy.race if g.enemy is not None else None      # (the enemy's: whose fighters it counts)
+        if model is None and g.matchup:
+            model = latest(g.matchup)
+        self.model = StimModel(model) if model is not None and self.race in KINDS else None
+        if self.model is None:
+            g.say(f"stim: no model for {g.matchup} (python -m train.stim --matchup {g.matchup}): it never stims")
         self.next = 0
         self.last: dict[int, tuple] = {}         # tag -> what it saw half a second ago (stim.recall)
 
@@ -898,16 +899,16 @@ class StimRule:
         from gary.policy.stim import BIO, SAMPLE_EVERY, enemy_fighters, features, in_fight, recall
         g, hi = self.g, self.g.hi
         at = g.researched_at.get(STIM_TECH)
-        if hi.frame < self.next or at is None or hi.frame - at < STIM_RESEARCH:
+        if self.model is None or hi.frame < self.next or at is None or hi.frame - at < STIM_RESEARCH:
             return False
         self.next = hi.frame + SAMPLE_EVERY
-        enemies = enemy_fighters(obs["units"], g.slot)
-        last, self.last = self.last, {u["tag"]: recall(u, enemies) for u in mine if u["type"] in BIO}
+        enemies = enemy_fighters(obs["units"], g.slot, self.race)
+        last, self.last = self.last, {u["tag"]: recall(u, enemies, self.race) for u in mine if u["type"] in BIO}
         bio = [u for u in mine if u["type"] in BIO and u["completed"] and u["hp"] > STIM_HP and in_fight(u, enemies)]
         if not bio:
             return False
-        X = np.stack([features(u, mine, enemies, self.left(u["tag"]), hi.frame, last.get(u["tag"]), self.left)
-                      for u in bio])
+        X = np.stack([features(u, mine, enemies, self.left(u["tag"]), hi.frame, last.get(u["tag"]), self.left,
+                               race=self.race) for u in bio])
         picked = [u for u, w in zip(bio, self.model.wants(X)) if w]
         if not picked:
             return False
