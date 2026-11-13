@@ -128,6 +128,10 @@ REPEAT = 24                          # the same role isn't given to a unit again
 TURN = 12
 OVER_MAX = 4 * TURN
 MODE_DUE = 3 * 24
+# a mode model's odds (modemodel) are over the time since the unit's last draw up to HAZARD_MAX: a tank in a fight
+# goes 2 to 5 s between its turns for a fifth of its time (one game, gt0.37dev against gz1), and its situation now
+# is what the model reads
+HAZARD_MAX = 5 * 24
 KEY_IN_FIGHT = 0.75                  # by_key: a key this much in the fight is ordered whole
 # the again decision (a model with an offset head, train/roles.py --again): the unit's order given again to where the
 # head points, not within AGAIN_GAP of its last order; units whose points are within AGAIN_NEAR share one order
@@ -942,16 +946,23 @@ class RoleLearned(RoleRules):
         self.mode_models: dict = {}
         self.mode_due: dict[int, tuple[int, int]] = {}    # rates: unit -> (a mode drawn and not ordered yet, when)
 
-    def _over(self, q: np.ndarray, names: list, tag: int, now: int) -> np.ndarray:
-        """rates: the unit's odds over the time since its last draw: no decision at keep's odds to the power of the
-        half seconds passed, the decisions sharing the rest as they did (a unit new to the fight: one half second)."""
+    def _turns(self, tag: int, now: int) -> tuple[float, float]:
+        """rates: the half seconds since the unit's last draw, for its roles (OVER_MAX at most) and for its modes'
+        models (HAZARD_MAX at most); a unit new to the fight: one."""
         last = self.drawn_at.get(tag)
         self.drawn_at[tag] = now
-        if last is None or not TURN < now - last <= OVER_MAX or "keep" not in names:
+        gap = now - last if last is not None else 0
+        return (gap / TURN if TURN < gap <= OVER_MAX else 1.0), (gap / TURN if TURN < gap <= HAZARD_MAX else 1.0)
+
+    @staticmethod
+    def _over(q: np.ndarray, names: list, n: float) -> np.ndarray:
+        """rates: the unit's odds over n half seconds: no decision at keep's odds to the power of n, the decisions
+        sharing the rest as they did."""
+        if n <= 1 or "keep" not in names:
             return q
         k = names.index("keep")
         q = q / q.sum()
-        stay = q[k] ** ((now - last) / TURN)
+        stay = q[k] ** n
         out = q * ((1 - stay) / max(1 - q[k], 1e-9))
         out[k] = stay
         return out
@@ -1037,10 +1048,14 @@ class RoleLearned(RoleRules):
             if due is not None and (now - due[1] > MODE_DUE or not self._mode_ready(names[due[0]], u)):
                 del self.mode_due[u["tag"]]              # (ordered and under way, or too old)
                 due = None
+            n, n_mode = self._turns(u["tag"], now) if self.rates else (1.0, 1.0)
+            q = self._over(q, names, n)
             if u["tag"] in hazards and hazards[u["tag"]][0] in names:
-                q = self._with_hazard(q, names, *hazards[u["tag"]])
-            if self.rates:
-                q = self._over(q, names, u["tag"], now)
+                # (the mode model's odds are a half second's: over the n since the unit's last draw, 1 - (1 - h)^n.
+                # Put in before _over they were scaled by keep's odds instead, about half of it: a tank's turns come
+                # every 1.2 s, and Gary sieged in 1.0% of its half seconds where the model said 2.4%, GT268b)
+                role, both, h = hazards[u["tag"]]
+                q = self._with_hazard(q, names, role, both, 1 - (1 - h) ** n_mode)
             if due is not None:
                 k = due[0]
             elif logging or self.draw:

@@ -2091,6 +2091,34 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **gt0.38dev: Gary sieged at under half the rate its siege model asked for; a decoder's bug, fixed (2026-11-13).**
+  gt0.37dev's tanks entered Siege Mode in 1.0% of their fight half seconds for a pro's 2.2%. Not the model: read on
+  Gary's own unsieged tank-moments (GT268b) it asks for 2.4%, in every fifth of its odds about twice what Gary did
+  (6.9% for 2.5% in the top fifth). Not the hands: in a game with counters 24 of 26 sieges drawn were ordered and 22
+  of 23 ordered ended sieged, in 1.6 s. The time: a tank's turns in a fight come every 1.2 s (the median; within
+  half a second in 13%), and the mode model's odds are a half second's. `rates` scales a draw over the time since
+  the unit's last by keep's odds, which for a tank is about half the time's worth, and not at all past 2 s, where
+  half of a tank's fight time lies (2 to 5 s between turns a fifth of it, over 5 s a third). Fixed in roles.py: a
+  mode model's odds h over n half seconds since the unit's last draw are 1 - (1 - h)^n (`_turns`), up to 5 s
+  (HAZARD_MAX; the roles' own draws as before, to 2 s). Written before each 16-game round against gz1 (seeds
+  4010-4011): about 2% with the scaling alone (missed: 1.24%), over 1.5% with the 5 s (held):
+
+  | TvZ, the Terran's tanks | gt0.37dev (GT268b, 48 games) | the scaling (HT269a) | and to 5 s (HT270a) | a pro |
+  |---|---|---|---|---|
+  | an unsieged tank sieges, a half second | 1.02% | 1.24% | 1.88% | 2.16% |
+  | the mode model's odds on those moments | 2.40% | 2.08% | 2.14% | |
+  | a sieged tank leaves Siege Mode | 0.38% | 0.46% | 0.61% | 0.44% |
+  | the mode model's odds on those moments | 0.34% | 0.35% | 0.38% | |
+  | tanks sieged, of their fight moments (a pro in the same) | 32% (55%) | 37% (52%) | 45.5% (51%) | |
+  | the judge's ranking of its tank-moments | 0.64 | 0.68 | 0.64 | 0.72 |
+  | the paired score against GT268b's same games | | -0.016 [-0.125, +0.109] | +0.031 [-0.094, +0.156] | |
+
+  Adopted as a bug fix on its check (the rate Gary carries out against the model's). What is left: its tanks leave
+  Siege Mode more than the model asks (0.61% for 0.38%: the other causes of an unsiege, the army's moves first), are
+  sieged where the judge finds a pro's almost never is (34% of the moments it gives under 20%, a pro's 3%: there
+  the leave model asks for it in under 0.1% of half seconds), and the ranking has not moved. The third of a tank's
+  fight time more than 5 s from its last turn is the fight layer not asking at all, the army layer's part. The
+  Protoss's and the Terran's other matchups get the fix too (the same code), unjudged.
 - **gt0.37dev: the three options folded into the Terran dev build (2026-11-13, the user's call).** `rates`,
   `staysieged` and `modemodel` on in gt1dev; the parity hashes recorded again (its fights changed). Written before
   its pairing: 96 games against gz1 on TM256a+b+c's seeds (gt0.36dev, whose play is unchanged since: its parity

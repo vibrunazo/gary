@@ -1302,6 +1302,10 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # one-tile pocket, and every expansion after took it, the nearest, and failed: TT245a, 17 builds in one game, its
 # natural at 9:54; TT246a on the same seeds, 3 such drops in 3 games for 21, every natural by 4:22). Its input options
 # (widespot, seenall, armyseen, builtcount, unitcount, pendown) are gt1's now (gt0.12)
+# gt0.38dev (2026-11-13): a fix of gt0.37dev's decoder: the mode models' odds are a half second's, and a tank's turns
+# come every 1.2 s; over that time they were scaled by keep's odds, about half of it (roles.py _turns, HAZARD_MAX: over
+# the time since the unit's last draw, 5 s at most). 16 games against gz1: an unsieged tank sieges in 1.88% of its
+# fight half seconds (1.0% before, the model's 2.1%, a pro's 2.2%), sieged in 45% of them (31%, a pro's 51%)
 # gt0.37dev (2026-11-13, the user's call): its tanks stop flipping in and out of Siege Mode (a sieged tank left it in 3%
 # of its fight half seconds, a pro's in 0.45%): rates (the role layer's draws at the pros' rates, the trainer's class
 # weights out, over the time since a unit's last draw, a drawn mode kept until ordered), staysieged (a move doesn't
@@ -1331,7 +1335,7 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
                                      "+parkmany+tvzmodes+staysieged+modemodel"),
-                       "version": "gt0.37dev"}
+                       "version": "gt0.38dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,

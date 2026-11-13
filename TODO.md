@@ -56,9 +56,12 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
      starts again from it. Judged by Gary's line against the diagonal, the fight gap, and 96 paired games not worse
      (the minimum detectable effect written first).
    - gt0.37dev's 96 games against gz1 (2026-11-13, kept: paired +0.000 [-0.068, +0.068]): the flipping is gone, a
-     sieged tank leaves the mode at a pro's rate (0.38% to 0.54% for 0.44%). Left, in order: (a) its tanks sieged in
-     31% of their fight moments for a pro's 54%, entering at under half a pro's rate (0.8% to 1.0% for 2.2%): where the
-     army leaves the tanks and its moves of a sieged line; (b) mines at half a pro's rate (3.0% to 4.6% for 6.2% to
+     sieged tank leaves the mode at a pro's rate (0.38% to 0.54% for 0.44%). Its tanks entered it at under half a
+     pro's rate: a decoder's bug (the mode model's half-second odds over a tank's 1.2 s between turns), fixed in
+     gt0.38dev: 1.88% for a pro's 2.16%, sieged 45.5% of their fight moments for 51% (16 games). Left, in order: (a)
+     its tanks sieged where a pro's aren't (34% of the moments the judge gives under 20%, a pro's 3%) and leaving the
+     mode more than the model asks (0.61% for 0.38%): the leave model's odds in those situations, the army's moves of
+     a sieged line, and the third of a tank's fight time the fight layer doesn't ask it at all; (b) mines at half a pro's rate (3.0% to 4.6% for 6.2% to
      6.5%) and placed no better than chance (ranking 0.50 to 0.57 for 0.72): an event model on the judge's inputs,
      as the tanks got; (c) the fight gap further at 15-20 minutes (+0.063 [+0.019, +0.111]): which features, from
      eval/gap_windows.py.
