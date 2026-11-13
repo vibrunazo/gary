@@ -2095,7 +2095,27 @@ plan and the full log).
   `staysieged` and `modemodel` on in gt1dev; the parity hashes recorded again (its fights changed). Written before
   its pairing: 96 games against gz1 on TM256a+b+c's seeds (gt0.36dev, whose play is unchanged since: its parity
   hashes held), where the pairing resolves about +-0.056 and detects 0.085: kept unless it loses more than that, and
-  reviewed from the records if it does.
+  reviewed from the records if it does. **Kept (GT268a+b, 96 paired games):** the paired score +0.000 [-0.068,
+  +0.068] (the pairing's own spread resolved +-0.069, wider than written); won 15, lost 18, 63 at time (gt0.36dev 10,
+  19, 67). The fight gap to the pros over all windows -0.016 [-0.048, +0.022]: further at 15-20 minutes (+0.063
+  [+0.019, +0.111]), nearer at 20-25 (-0.060 [-0.091, +0.002]), no different elsewhere. The judge and the hazard
+  over the 96 against gt0.36dev's:
+
+  | TvZ, the Terran, 96 games | gt0.36dev (TM256a, b, c) | gt0.37dev (GT268a, b) | a pro |
+  |---|---|---|---|
+  | a sieged tank leaves Siege Mode, a half second | 2.9% (TM256a) | 0.54%, 0.38% | 0.44% |
+  | an unsieged tank sieges | 8.0% (TM256a) | 0.79%, 1.02% | 2.16% |
+  | tanks sieged, of their fight moments (a pro in the same) | 61%, 52%, 58% (54%, 61%, 54%) | 27%, 32% (53%, 55%) | |
+  | the judge's ranking of its tank-moments | 0.64, 0.63, 0.63 | 0.70, 0.64 | 0.72 |
+  | a mine within 3 s, of its Vulture-moments (a pro) | 9.6%, 8.7% (6.3%, 6.1%) | 3.0%, 4.6% (6.2%, 6.5%) | |
+  | the judge's ranking of its Vulture-moments | 0.62, 0.63 | 0.50, 0.57 | 0.72 |
+  | stimmed, of its Marine-moments (a pro) | 9.0%, 8.2%, 8.7% (12.8%, 12.7%, 13.5%) | 8.2%, 8.1% (12.8%, 13.0%) | |
+
+  The flipping is gone at no cost in games: a sieged tank leaves the mode as rarely as a pro's. Two things are worse
+  and are the next work. The tanks are sieged in 31% of their fight moments for a pro's 54% (22 to 27 points under,
+  where gt0.36dev was within 10 either way), and enter the mode at under half a pro's rate: the 16-game ranking of
+  0.76 did not hold over 96 (0.70 and 0.64). And mines fell from over a pro's rate to half of it, laid in no better
+  situations than chance in the first round (0.50). The stims did not move.
 - **Gary's tanks flipped in and out of Siege Mode seven times as often as a pro's: the causes, two options, not
   folded in yet (2026-11-13, options `rates` and `staysieged`; eval/mode_hazard.py).** The judge's share of moments
   hid it: a tank sieged half the time can be a tank that stays sieged, or one that flips every 8 s. Measured per

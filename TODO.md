@@ -55,6 +55,13 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
      TvZ fights are the RL checkpoint rl1 on the older labels, so the relabelled model replaces it or the RL run
      starts again from it. Judged by Gary's line against the diagonal, the fight gap, and 96 paired games not worse
      (the minimum detectable effect written first).
+   - gt0.37dev's 96 games against gz1 (2026-11-13, kept: paired +0.000 [-0.068, +0.068]): the flipping is gone, a
+     sieged tank leaves the mode at a pro's rate (0.38% to 0.54% for 0.44%). Left, in order: (a) its tanks sieged in
+     31% of their fight moments for a pro's 54%, entering at under half a pro's rate (0.8% to 1.0% for 2.2%): where the
+     army leaves the tanks and its moves of a sieged line; (b) mines at half a pro's rate (3.0% to 4.6% for 6.2% to
+     6.5%) and placed no better than chance (ranking 0.50 to 0.57 for 0.72): an event model on the judge's inputs,
+     as the tanks got; (c) the fight gap further at 15-20 minutes (+0.063 [+0.019, +0.111]): which features, from
+     eval/gap_windows.py.
    - The tanks' siege in every Terran matchup: they flipped in and out of Siege Mode seven times as often as a
      pro's (a sieged tank leaving it in 3% of its fight half seconds, a pro's in 0.45%; eval/mode_hazard.py). Found
      2026-11-13 (docs/PROGRESS.md): the dice drew at the trainer's class-weighted odds (option `rates`: every race's
