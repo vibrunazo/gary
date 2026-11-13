@@ -2116,9 +2116,20 @@ plan and the full log).
   Adopted as a bug fix on its check (the rate Gary carries out against the model's). What is left: its tanks leave
   Siege Mode more than the model asks (0.61% for 0.38%: the other causes of an unsiege, the army's moves first), are
   sieged where the judge finds a pro's almost never is (34% of the moments it gives under 20%, a pro's 3%: there
-  the leave model asks for it in under 0.1% of half seconds), and the ranking has not moved. The third of a tank's
-  fight time more than 5 s from its last turn is the fight layer not asking at all, the army layer's part. The
-  Protoss's and the Terran's other matchups get the fix too (the same code), unjudged.
+  the leave model asks for it 0.69% of half seconds, and Gary's leave in 0.24%), and the ranking has not moved.
+  Checked after, in one game with every fight turn logged: with the fix no tank-moment of a fight is more than 2.5 s
+  from a fight turn that read a tank (51% within 0.3 s, 43% within 1 s), so the long gaps counted before were a tank
+  between fights, not the fight layer missing one; the hands are on the fight's own orders meanwhile (36% of their
+  time after 10:00, the fight waiting on a build or an army order 33 s a game). The unsieges beyond the model's are
+  about 1.5 a game against a Zerg.
+  **Against a Protoss (PT271a, gp1dev against gt0.38dev, 16 games on MM266a's seeds).** Written before: sieges over
+  1.8% a half second and tanks sieged over 40%. Missed, and why is plain: Gary now carries out what the model asks
+  (1.58% for its 1.56%, in every fifth of its odds), but the model asks less on Gary's moments than a pro does on
+  theirs (2.35%), and Gary's tanks leave Siege Mode at 2.4 times the model's odds (1.51% for 0.62%; MM266a 1.04%; a
+  pro 0.45%), 12 leaves a game where the model would make 5. Sieged 29.6% of their fight moments (a pro 49.5%),
+  ranking 0.665 (MM266a 0.675, the pros' 0.767); the paired score against MM266a +0.016 [-0.094, +0.125]. The lever
+  against a Protoss is what unsieges the tanks besides the model. Mines: within 3 s in 1.3% of Vulture-moments for a
+  pro's 6.5%, in the right situations (ranking 0.73 for the pros' 0.78): too few, not misplaced.
 - **gt0.37dev: the three options folded into the Terran dev build (2026-11-13, the user's call).** `rates`,
   `staysieged` and `modemodel` on in gt1dev; the parity hashes recorded again (its fights changed). Written before
   its pairing: 96 games against gz1 on TM256a+b+c's seeds (gt0.36dev, whose play is unchanged since: its parity
