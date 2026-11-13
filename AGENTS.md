@@ -15,7 +15,7 @@ and its line removed; a new one gets an issue and a line).
   (`paired.py`: a game at time graded by supply or by the critics) and their gap per time window with a
   bootstrap spread (`gap_windows.py`), the records' queries (`why.py`), the judge (`judge.py`: would a pro's unit be in this mode in the situation Gary's is in, a model of the pros' fight moments checked on held-out pro games, then Gary's league rounds against it; `mode_hazard.py`: how often a unit enters and leaves the mode per half second, by the judge's odds, against the pros), the critic's calibration and would-gg games (`critic_gg.py`), the run monitor (`monitor.py`,
   `priority.py`).
-- `train/`, `ingest/`, `resim/`: models, datasets from replays, the replay re-simulator.
+- `train/`, `ingest/`, `resim/`: models, datasets from replays, the replay re-simulator (`train/modes.py`: a mode's entry and exit by situation, `gary/policy/modes.py`, the inputs the judge reads).
 - `adapters/scr_bridge`: playing StarCraft: Remastered. `tests/`: smoke, parity, matchups, game data, the live path.
 - `docs/`: ARCHITECTURE (design), CONTROL (layers and manifests), RACES (the per-race audit), REFACTOR (one
   Gary for every race, done), SELF_PLAY (the self-play plan), DATA_ERAS (old and modern replays).

@@ -62,10 +62,14 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
      lost their turn. With both options the flipping is gone and the judge's ranking is up against a Protoss (0.62
      to 0.68), but the tanks siege too late (sieged 29% for a pro's 51% in PvT, 42% for 49% in TvZ) and mines fell
      (1.3% for 6.5%, 5.5% for 10.3%): the role model's odds of a siege are flat over the situations where the pros'
-     are steep (a pro sieges in 6% of the half seconds of the likeliest fifth, Gary in 2%). Next, in order: (a) a
-     model of each mode's entry and exit by situation with the judge's inputs (its history: the enemy near 2 and 5 s
-     ago, the seconds in the fight), trained on the pros' transitions, drawn as the modes are now; its check is
-     eval/mode_hazard.py's line against the pros' and the judge; then the two options and it are folded in together.
+     are steep (a pro sieges in 6% of the half seconds of the likeliest fifth, Gary in 2%). Next, in order: (a) done
+     2026-11-13 (option `modemodel`, gary/policy/modes.py, train/modes.py): against a Zerg the tanks siege where the
+     pros do (the judge's ranking 0.62 to 0.76, the pros' 0.72), against a Protoss as before (0.68); the share still
+     31% for a pro's 50% in both, because of where the army leaves the tanks (its moves end 29 sieges a game in PvT
+     with no enemy near). To decide with the user: fold `rates`, `staysieged` and `modemodel` into gt1dev now (the
+     flipping gone, the ranking up, the fight gap nearer in PvT, the paired score no worse on 16 games; the share of
+     moments sieged lower than gt0.36dev's) or after the army's part. (a2) The army layer's moves of a sieged line,
+     from the judge's moments by who last moved the tank. (a3) Mines by an event model on the judge's inputs.
      (b) The TvZ role model trained with the unattended units as keep (`train.roles --unattended-keep`, 50 minutes
      of GPU), or made needless by (a). (c) `rates` for the Protoss and the Zerg, whose every decision is drawn:
      their decisions' rates a half second against the pros', 16 games each. (d) Where Gary's Vultures are when the

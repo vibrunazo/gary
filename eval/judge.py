@@ -44,6 +44,8 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from eval import monitor, priority  # noqa: E402
+from gary.policy.modes import (FAR, HISTORY, KINDS, SPELL_MAX, TILE, enemy_kinds, features, history,  # noqa: E402,F401
+                               names, tables)
 
 STATES = {"T": {"siege": (5, 30, "Siege Mode", 1200)}}    # race -> state -> (type out, type in, its research, frames)
 # (a burrowed Lurker, a cloaked Wraith, a Marine in a bunker are states too, but the re-simulator's observation
@@ -65,138 +67,10 @@ PROS = {("T", "TvZ"): "response_T_30min.npz", ("T", "PvT"): "response_T_PvT_mode
         ("T", "TvT"): "response_T_TvT_30min.npz", ("Z", "TvZ"): "response_Z_30min.npz",
         ("P", "PvT"): "response_P_PvT_30min.npz", ("P", "PvZ"): "response_P_PvZ_30min.npz",
         ("P", "PvP"): "response_P_PvP_30min.npz"}
-TILE = 32.0
-FAR = 40.0                      # tiles: no such unit in the snapshot
-KINDS = 8                       # the enemy's commonest fighter types, each its supply within 12 tiles
 BINS = 10
 BOOT = 200
 MAX_TRAIN = 400_000             # rows: half-second neighbours say the same thing
 SURE = 0.9                      # the coverage model's odds a situation is Gary's: outside the pros' above this
-
-
-def tables():
-    from gary.policy.army import ARMY_SUPPLY, STATIC_SUPPLY, is_building
-    from gary.races import FLYERS
-    sup = np.asarray(ARMY_SUPPLY, np.float32) / 2
-    air = np.zeros(228, bool)
-    air[list(FLYERS)] = True
-    build = np.array([is_building(t) for t in range(228)])
-    static = np.zeros(228, bool)
-    static[list(STATIC_SUPPLY)] = True
-    return sup, air, build, static
-
-
-def enemy_kinds(rows: np.ndarray, count: np.ndarray) -> list[int]:
-    """The enemy's commonest fighter types in a dataset."""
-    sup, _, build, _ = tables()
-    valid = np.arange(rows.shape[1])[None, :] < count[:, None]
-    t = rows[:, :, 0][valid & (rows[:, :, 1] == 0)]
-    t = t[(t >= 0) & (t < 228)]
-    n = np.bincount(t[(sup[t] > 0) & ~build[t]], minlength=228)
-    return [int(i) for i in np.argsort(-n)[:KINDS] if n[i] > 0]
-
-
-def names(kinds: list[int]) -> list[str]:
-    return (["minute", "hp", "targeted"] + [f"terrain{i}" for i in range(8)]
-            + [f"enemy ground within {r}" for r in (4, 8, 12, 16)] + [f"enemy air within {r}" for r in (8, 16)]
-            + ["nearest enemy ground", "nearest enemy air", "nearest enemy building", "enemy static within 12",
-               "own fighters within 4", "own fighters within 8", "own in the mode's types within 6",
-               "nearest own building", "own buildings within 8", "enemy supply seen", "own supply seen"]
-            + [f"enemy type {k} within 12" for k in kinds])
-
-
-HISTORY = ["enemy ground within 8, 2 s ago", "enemy ground within 8, 5 s ago", "nearest enemy ground, 2 s ago",
-           "nearest enemy ground, 5 s ago", "seconds with enemy ground within 12", "seconds in the moments"]
-AGO = (2.0, 5.0)
-SPELL_MAX = 60.0
-
-
-def history(X: np.ndarray, names: list[str], game: np.ndarray, tag: np.ndarray, time: np.ndarray) -> np.ndarray:
-    """(n, len(HISTORY)): the unit's own recent past, from the moments of the same game and unit: the enemy near it
-    AGO seconds before (the latest moment at or before then, within 10 s: else now's value), how long enemy ground
-    has been within 12 tiles without a break (capped), and how long it has been in the moments at all. (The
-    instant says only part of a pro's choice: a tank sieges as the enemy comes, and unsieges once it is gone.)"""
-    e8, e12, near = (names.index("enemy ground within 8"), names.index("enemy ground within 12"),
-                     names.index("nearest enemy ground"))
-    out = np.zeros((len(X), len(HISTORY)), np.float32)
-    order = np.lexsort((time, tag, game))
-    g, t, tm = game[order], tag[order], time[order]
-    cut = np.flatnonzero((g[1:] != g[:-1]) | (t[1:] != t[:-1])) + 1
-    for a, b in zip(np.r_[0, cut], np.r_[cut, len(order)]):
-        idx = order[a:b]
-        tt = tm[a:b]
-        x8, x12, xn = X[idx, e8], X[idx, e12], X[idx, near]
-        for j, ago in enumerate(AGO):
-            k = np.searchsorted(tt, tt - ago, side="right") - 1
-            ok = (k >= 0) & (tt - tt[np.clip(k, 0, None)] <= ago + 10)
-            kk = np.where(ok, k, np.arange(len(tt)))
-            out[idx, j] = x8[kk]
-            out[idx, 2 + j] = xn[kk]
-        since = tt[0]
-        last_clear = -np.inf
-        for i in range(len(tt)):
-            if i and tt[i] - tt[i - 1] > 10:              # (a gap: a new spell of moments)
-                since, last_clear = tt[i], -np.inf
-            if x12[i] <= 0:
-                last_clear = tt[i]
-            out[idx[i], 4] = min(tt[i] - (last_clear if last_clear > -np.inf else since), SPELL_MAX)
-            out[idx[i], 5] = min(tt[i] - since, SPELL_MAX)
-    return out
-
-
-def features(rows: np.ndarray, extra: np.ndarray, count: np.ndarray, time: np.ndarray, tags: np.ndarray, types: set,
-             kinds: list[int], into: int = -1, batch: int = 2000):
-    """(X, y, snapshot index, unit tag) for every own unit of the judged types: the situation around it, modes
-    hidden; y: whether its type is the state's (into; an event's y comes from the commands instead)."""
-    sup, air, build, static = tables()
-    width = rows.shape[1]
-    X, Y, S, T = [], [], [], []
-    has = np.isin(rows[:, :, 0], sorted(types)) & (rows[:, :, 1] == 1)
-    has &= np.arange(width)[None, :] < count[:, None]
-    snaps = np.flatnonzero(has.any(1))
-    notself = ~np.eye(width, dtype=bool)[None]
-    for a in range(0, len(snaps), batch):
-        idx = snaps[a:a + batch]
-        r = rows[idx].astype(np.float32)
-        t = np.clip(rows[idx, :, 0].astype(np.int64), 0, 227)
-        valid = np.arange(width)[None, :] < count[idx][:, None]
-        own, foe = valid & (rows[idx, :, 1] == 1), valid & (rows[idx, :, 1] == 0)
-        mine = has[idx]                                           # (the judged units)
-        fighter = (sup[t] > 0) & ~build[t] & (r[:, :, 10] > 0)
-        eg, ea = foe & fighter & ~air[t], foe & fighter & air[t]
-        eb, es = foe & build[t], foe & static[t]
-        of = own & fighter & ~mine
-        ob = own & build[t]
-        d = np.sqrt(((r[:, :, None, 2:4] - r[:, None, :, 2:4]) ** 2).sum(-1)) / TILE      # (snapshot, unit, other)
-        s = sup[t][:, None, :]
-        one = np.ones_like(s)
-
-        def within(mask, radius, weight=s):
-            return ((mask[:, None, :] & (d <= radius)) * weight).sum(-1)
-
-        def nearest(mask):
-            return np.where(mask[:, None, :], d, FAR).min(-1).clip(max=FAR)
-
-        def whole(v):
-            return np.broadcast_to(v[:, None], t.shape)
-
-        cols = [whole(time[idx] / 60.0), r[:, :, 4], extra[idx, :, 2].astype(np.float32)]
-        cols += [extra[idx, :, 6 + i].astype(np.float32) for i in range(8)]
-        cols += [within(eg, x) for x in (4, 8, 12, 16)] + [within(ea, x) for x in (8, 16)]
-        cols += [nearest(eg), nearest(ea), nearest(eb), within(es, 12, one)]
-        cols += [within(of, 4), within(of, 8), ((mine[:, None, :] & (d <= 6) & notself) * one).sum(-1)]
-        cols += [nearest(ob), within(ob, 8, one)]
-        cols += [whole(((eg | ea) * sup[t]).sum(1)), whole(((own & fighter) * sup[t]).sum(1))]
-        cols += [within(foe & fighter & (t == k), 12) for k in kinds]
-        f = np.stack(cols, -1)
-        X.append(f[mine].astype(np.float32))
-        Y.append((rows[idx, :, 0] == into)[mine])
-        S.append(np.broadcast_to(idx[:, None], t.shape)[mine])
-        T.append(np.asarray(tags[idx])[mine].astype(np.int64))
-    if not X:
-        return (np.zeros((0, len(names(kinds))), np.float32), np.zeros(0, bool), np.zeros(0, np.int64),
-                np.zeros(0, np.int64))
-    return np.concatenate(X), np.concatenate(Y), np.concatenate(S), np.concatenate(T)
 
 
 def situations(m: dict, what: tuple, judge: dict):

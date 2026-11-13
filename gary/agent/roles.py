@@ -935,6 +935,11 @@ class RoleLearned(RoleRules):
         # a Zerg, the pros' 0.45% and 0.44%, its sieges lasting a median of 7 to 10 s for the pros' 28 s
         self.rates = False
         self.drawn_at: dict[int, int] = {}       # rates: unit -> its last draw
+        # option modemodel (manifests): state -> (its ModeModel, the game's Situations): a unit of the state's types
+        # draws the role that enters the mode, or the one that leaves it, at the mode model's odds for its situation
+        # (gary/policy/modes.py: the pros' transitions by the judge's inputs), in place of the role model's odds of
+        # them, which are flat where the pros' are steep (docs/PROGRESS.md 2026-11-13)
+        self.mode_models: dict = {}
         self.mode_due: dict[int, tuple[int, int]] = {}    # rates: unit -> (a mode drawn and not ordered yet, when)
 
     def _over(self, q: np.ndarray, names: list, tag: int, now: int) -> np.ndarray:
@@ -949,6 +954,34 @@ class RoleLearned(RoleRules):
         stay = q[k] ** ((now - last) / TURN)
         out = q * ((1 - stay) / max(1 - q[k], 1e-9))
         out[k] = stay
+        return out
+
+    def _mode_hazards(self, rows, extra, tags, time_s: float, by_tag: dict) -> dict[int, tuple]:
+        """modemodel: unit -> (the role its state lets it take now, the state's roles, the mode model's odds of it
+        over the next half second), for the snapshot's own units of each modelled state's types."""
+        from gary.policy.modes import STATES
+        out = {}
+        for state, (model, situations) in self.mode_models.items():
+            off, on, enter, leave = STATES[self.g.race.letter][state]
+            seen = situations.read(np.asarray(rows), np.asarray(extra), list(tags), time_s, {off, on})
+            mine = [t for t in seen if t in by_tag and by_tag[t]["owner"] == self.g.slot]
+            if not mine:
+                continue
+            in_mode = np.array([by_tag[t]["type"] == on for t in mine])
+            odds = model.odds(np.stack([seen[t] for t in mine]), in_mode)
+            for t, inside, h in zip(mine, in_mode, odds):
+                out[t] = (leave if inside else enter, (enter, leave), float(h))
+        return out
+
+    @staticmethod
+    def _with_hazard(q: np.ndarray, names: list, role: str, both: tuple, h: float) -> np.ndarray:
+        """The unit's odds with its state's role at the mode model's odds h, the state's other role at none, and the
+        rest sharing what is left as they did."""
+        q = q / q.sum()
+        rest = q.copy()
+        rest[[names.index(r) for r in both if r in names]] = 0
+        out = rest * ((1 - h) / max(rest.sum(), 1e-9))
+        out[names.index(role)] = h
         return out
 
     def _dice_modes(self, u: dict, p, names, q=None) -> int:
@@ -985,6 +1018,7 @@ class RoleLearned(RoleRules):
         if not mine or not enemy:
             return None
         index = {t: i for i, t in enumerate(tags)}
+        hazards = self._mode_hazards(rows, extra, tags, obs["frame"] * 42 / 1000, by_tag) if self.mode_models else {}
         self.where = {}
         if moves is not None and self.use_where:     # (the model's moves are mirrored as its rows)
             fx, fy = (-1 if g.flip[0] else 1), (-1 if g.flip[1] else 1)
@@ -1003,6 +1037,8 @@ class RoleLearned(RoleRules):
             if due is not None and (now - due[1] > MODE_DUE or not self._mode_ready(names[due[0]], u)):
                 del self.mode_due[u["tag"]]              # (ordered and under way, or too old)
                 due = None
+            if u["tag"] in hazards and hazards[u["tag"]][0] in names:
+                q = self._with_hazard(q, names, *hazards[u["tag"]])
             if self.rates:
                 q = self._over(q, names, u["tag"], now)
             if due is not None:

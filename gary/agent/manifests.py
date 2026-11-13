@@ -728,6 +728,10 @@ OPTIONS = {
     # motor.py MODE_WATCH: a move doesn't take tanks out of Siege Mode while a seen enemy fighter is within 12 tiles of
     # one of them (a fight moment: leaving the mode there is the role model's decision, its unsiege role)
     "staysieged": lambda m: m.update(stay_watched=True),
+    # roles.py RoleLearned: a mode's entry and exit (a tank's siege and unsiege) drawn at the mode models' odds for the
+    # unit's situation (gary/policy/modes.py, train/modes.py: the pros' transitions by the judge's inputs), in place
+    # of the role model's odds of them; with rates (the draws at the pros' rates, over time, kept until ordered)
+    "modemodel": lambda m: m["fight"].update(mode_model=True, rates=True),
     # the role decoders that draw (the Terran's and the Protoss's draw and mode dice, the Zerg's roles), at the pros'
     # rates: the trainer's class weights taken out of the model's odds (gary/policy/roles.py RoleModel.rates; the
     # models' weights from python -m train.roles --weights-of). A decoder's bug: the odds drawn from were the rates
@@ -1734,6 +1738,17 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
             raise FileNotFoundError(f"option rates: {g.fight.roles.model.path} has no class weights in its config "
                                     f"(python -m train.roles --weights-of {g.fight.roles.model.path})")
         g.fight.roles.rates = True
+    if m["fight"] is not None and m["fight"].get("mode_model") and hasattr(getattr(g.fight, "roles", None), "mode_models"):
+        from gary.policy.modes import STATES, ModeModel, Situations, latest
+        for state in STATES.get(g.race.letter, {}):
+            found = latest(g.matchup, g.race.letter, state) if g.matchup else None
+            if found is None:
+                g.say(f"modemodel: no {state} model for {g.race.letter} in {g.matchup} (python -m train.modes --race "
+                      f"{g.race.letter} --matchup {g.matchup} --state {state}): the role model's odds")
+                continue
+            model = ModeModel(found)
+            g.fight.roles.mode_models[state] = (model, Situations(model.kinds))
+            models[f"mode:{state}"] = model.path
     if m["arbiter"] == "drill/v1":
         g.arbiter = DrillArbiter(g, seed, interruptions)
     else:

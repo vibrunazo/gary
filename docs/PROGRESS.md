@@ -2054,6 +2054,43 @@ plan and the full log).
   pass a threshold set on the pros' fights, and Gary's fights score moderate odds, the same shortfall the storms had
   under a threshold (a third of the pros') before their dice. Against a Zerg the same shape, 9.0% for 12.8%. Next:
   the stim decoder drawn at the model's odds.
+- **A model of a tank's entry into Siege Mode and its exit, by situation: sieges in the right situations, still too
+  few (2026-11-13, option `modemodel`; gary/policy/modes.py, train/modes.py).** What the entry below asked for. Two
+  small tree models a matchup, from the pros' own transitions (the same tank's next half second) on the judge's
+  inputs with the unit's recent past, every own unit's mode hidden: of a tank out of the mode, the odds it is in it
+  half a second later; of one in it, the odds it has left. Trained in seconds on the CPU (PvT: 926,773 unit-moments
+  of 527 games; held out a fifth of the games: entry ranked 0.74, the pros 2.5% a half second and the model 2.4%;
+  exit 0.72, 0.39% and 0.50%; TvZ 0.75 and 0.68, TvT 0.80 and 0.72). In play the role layer draws a tank's siege or
+  unsiege at these odds in place of the role model's (with `rates`: over the time since its last draw, kept until
+  ordered). The situation features moved from eval/judge.py to gary/policy/modes.py, the judge reading the same
+  code. Its inputs in play against the dataset's for the same game (one game, its replay read as a round's is): of
+  the dataset's tank moments 81% are read in play within a third of a second, the instant inputs equal in 90% to
+  100% of them, the recent past close (r 0.92 to 0.97), the model's odds 1.07% in play for 1.06% on the dataset's
+  inputs; and of the modes drawn in a game, 50 of about 53 were ordered. Written before its rounds: sieged 40% to
+  55% of its fight moments, ranked 0.68 or more in PvT and above 0.62 in TvZ. 16 games each, with `staysieged`:
+
+  | the Terran's tanks | gt0.36dev | rates, staysieged | and the mode model | a pro |
+  |---|---|---|---|---|
+  | PvT: sieged, of their fight moments (a pro in the same) | 47.0% (54.5%) | 28.9% (51.3%) | 30.9% (49.6%) | |
+  | PvT: the judge's ranking | 0.62 | 0.68 | 0.68 | 0.77 |
+  | PvT: sieges, and leaves the mode, a half second | 4.63%, 3.30% | 1.28%, 1.06% | 1.38%, 1.04% | 2.35%, 0.45% |
+  | TvZ: sieged, of their fight moments (a pro in the same) | 61.3% (54.3%) | 42.2% (49.3%) | 31.3% (50.2%) | |
+  | TvZ: the judge's ranking | 0.64 | 0.62 | 0.76 | 0.72 |
+  | TvZ: sieges, and leaves the mode, a half second | 8.0%, 2.9% | 2.30%, 1.24% | 0.98%, 0.58% | 2.16%, 0.44% |
+  | TvZ: sieged where the judge says under 10%, and over 90% | 32%, 72% | 14%, 78% | 5%, 69% | 12%, 91% |
+
+  The rounds MM266a and MM267a against PT258a and TM256a, 16 paired games: the fight gap over all windows -0.127
+  [-0.202, +0.003] in PvT and +0.009 [-0.054, +0.079] in TvZ; the paired score +0.141 [+0.000, +0.281] and +0.031
+  [-0.109, +0.188]. Against a Zerg the tanks now siege where the pros do and not elsewhere (ranked 0.76, above the
+  pros' own 0.72), with sieges of half a minute and 5.0 tanks lost a game for 8.5. The share missed what was
+  written: 31% in both matchups for a pro's 50%. Not the pipe: the model's odds on Gary's unsieged tank turns
+  average 1.5% a half second in a game and that many sieges are ordered; once the tanks follow it, the unsieged
+  moments left are the ones it finds unlikely, while the judge still reads half of them as a pro's siege. What is
+  left is where the tanks are, not what they do there: the army's moves end 29 sieges a game against a Protoss with
+  no enemy within 12 tiles (the army walks on, the pros hold a line), and the exit model's odds on Gary's sieged
+  turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
+  by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
+  in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
 - **Gary's tanks flipped in and out of Siege Mode seven times as often as a pro's: the causes, two options, not
   folded in yet (2026-11-13, options `rates` and `staysieged`; eval/mode_hazard.py).** The judge's share of moments
   hid it: a tank sieged half the time can be a tank that stays sieged, or one that flips every 8 s. Measured per
