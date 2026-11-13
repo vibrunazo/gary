@@ -39,11 +39,15 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
    - Stim against a Protoss and a Terran: never (0% for a pro's 11.8% in PvT), because the stim model's inputs were
      a table of Zerg fighters (gary/policy/stim.py KINDS; race-keyed since 2026-11-12, the PvT and TvT datasets and
      models trained): it stims there now, 1.9% of its Marine-moments for a pro's 10.5% (PT258a), in the right
-     situations. Left: the decoder, a threshold where the storms' is a draw at the model's odds (the same shortfall
-     against a Zerg, 9.0% for 12.8%): option, judged on the stim judge in TvZ and PvT. Against a Zerg it stims a third less than a pro would (7.8% for 11.4%), least where
+     situations. The decoder drawn at the model's odds (option `stimdice`, 2026-11-12, 16 games in each): the
+     rate nearer against a Zerg (9.7% for a pro's 11.3%, the interval holds zero) and the timing less sharp (the
+     judge's ranking 0.70 to 0.61), hardly a change against a Protoss (2.2% for 6.0%): not adopted. Left: the stim
+     model's inputs (the judge's history inputs: the enemy near 2 and 5 s ago, seconds in the fight, seconds since its
+     last command), then the dice again. Against a Zerg it stims a third less than a pro would (7.8% for 11.4%), least where
      the pros stim most: its decoder's HP floor and threshold against the pros' per situation.
-   - Mines against a Protoss and a Terran: half and a sixth of a pro's (1.5% for 3.0%, 0.4% for 2.3%), laid in the
-     right situations: the mode's odds drawn once a turn (modedice) against the pros' rate.
+   - Mines against a Protoss and a Terran: half and a sixth of a pro's (1.5% for 3.0%, 0.4% for 2.3%; 4.0% for
+     7.2% on PT258a), laid in the right situations: with the tanks' item above (the mines' odds were the weighted
+     ones too; at the pros' rates Gary lays a fifth of a pro's).
    - gp1dev's storms, back (gp0.33dev: fightrules had dropped the cast rule since gp0.20dev; SJ254a: 4.6% of its
      Templar-moments for a pro's 7.1%, in the right situations): the rest of the gap is the cast decoder's rate, or
      the Templar it merges before they have the energy (26 a game, 8.6 Archons). The burrow and unburrow of
@@ -51,9 +55,21 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
      TvZ fights are the RL checkpoint rl1 on the older labels, so the relabelled model replaces it or the RL run
      starts again from it. Judged by Gary's line against the diagonal, the fight gap, and 96 paired games not worse
      (the minimum detectable effect written first).
-   - The tanks' siege against a Protoss and a Terran, which the judge reads as misplaced (sieged where the pros
-     aren't, out of it where they are): what takes them out as the enemy comes, from the records (the motor takes
-     them out before a move order 4.6 to 4.8 times a game).
+   - The tanks' siege in every Terran matchup: they flipped in and out of Siege Mode seven times as often as a
+     pro's (a sieged tank leaving it in 3% of its fight half seconds, a pro's in 0.45%; eval/mode_hazard.py). Found
+     2026-11-13 (docs/PROGRESS.md): the dice drew at the trainer's class-weighted odds (option `rates`: every race's
+     draws at the pros' rates), the army's moves unsieged tanks in a fight (option `staysieged`), and drawn modes
+     lost their turn. With both options the flipping is gone and the judge's ranking is up against a Protoss (0.62
+     to 0.68), but the tanks siege too late (sieged 29% for a pro's 51% in PvT, 42% for 49% in TvZ) and mines fell
+     (1.3% for 6.5%, 5.5% for 10.3%): the role model's odds of a siege are flat over the situations where the pros'
+     are steep (a pro sieges in 6% of the half seconds of the likeliest fifth, Gary in 2%). Next, in order: (a) a
+     model of each mode's entry and exit by situation with the judge's inputs (its history: the enemy near 2 and 5 s
+     ago, the seconds in the fight), trained on the pros' transitions, drawn as the modes are now; its check is
+     eval/mode_hazard.py's line against the pros' and the judge; then the two options and it are folded in together.
+     (b) The TvZ role model trained with the unattended units as keep (`train.roles --unattended-keep`, 50 minutes
+     of GPU), or made needless by (a). (c) `rates` for the Protoss and the Zerg, whose every decision is drawn:
+     their decisions' rates a half second against the pros', 16 games each. (d) Where Gary's Vultures are when the
+     pros lay mines (the model's mine rate on Gary's Vulture-moments is a fifth of the pros' on theirs).
    - The Zerg's fight orders dropped after three failed selections (fixed in part, gz0.26dev: orders carried out
      tripled, the median 26 to 76 a game; 28 a game still drop when a lone click takes another unit that isn't a
      like one beside it: the records say what was selected instead).

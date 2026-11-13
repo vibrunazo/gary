@@ -244,6 +244,18 @@ class RoleModel:
     def save(self, path: str | Path) -> None:
         torch.save({"state": self.net.state_dict(), "config": self.config}, path)
 
+    def rates(self, probs: np.ndarray) -> np.ndarray:
+        """The model's odds (n, R) as the pros' rates: the trainer's class weights taken back out (train/roles.py
+        class_weights: the rare decisions weighted up, so the odds are the rates times the weights, renormalized).
+        For a decoder that draws: on the pros' held-out PvT moments the odds of siege averaged 16.2% a half second
+        where the pros siege in 2.1% (3.5% with the weights out), of unsiege 4.5% for 0.55% (0.37%)."""
+        w = self.config.get("weights")
+        if w is None:
+            raise ValueError(f"{getattr(self, 'path', 'the role model')}: no class weights in its config "
+                             "(python -m train.roles --weights-of <model.pt>)")
+        q = probs / np.asarray(w, np.float64)
+        return q / q.sum(-1, keepdims=True)
+
     def inputs(self, extra: np.ndarray, budget: float | None = None, keys: np.ndarray | None = None) -> np.ndarray:
         """The per-unit extras as this model reads them: the budget column and the key one-hot when it was trained
         with them (without keys given: none for every unit)."""

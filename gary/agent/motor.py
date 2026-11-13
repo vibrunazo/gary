@@ -48,6 +48,11 @@ ROLES = {"FIRE", "CLOSE_IN", "PULL_BACK", "RETREAT", "BRACE", "REGROUP", "POST",
 # and hold leave them sieged
 STAY_IN_MODE = {"FIRE", "CLOSE_IN", "POST", "HOLD", "SIEGE"}
 UNSIEGE_WAIT = 3 * 24                # at most this long for them to be out
+# option staysieged: with a seen enemy fighter this near one of them (the role data's SIGHT, ingest/response_dataset.py:
+# a fight moment, the role model's to decide), the move leaves them in the mode: there the pros' tanks leave Siege Mode
+# in 0.45% of their half seconds and a move of Gary's army took them out 30 times a game against a Protoss (PT258a),
+# its sieges lasting a median of 10 s for the pros' 28 s; with no enemy near, the move takes them out as before
+MODE_WATCH = 12 * 32
 TASK_OF = {**{k: "fight_cmd" for k in COMMANDS | ROLES}, "PULL": "pull", "UNPULL": "unpull", "LOAD": "load", "UNLOAD": "unload",
            "REPAIR": "repair", "REINFORCE": "reinforce", "ARMY_MOVE": "army_order", "ARMY_ATTACK": "army_order",
            "SCOUT": "scout", "ATTACK_WAVE": "attack", "SCAN": "scan"}
@@ -104,6 +109,7 @@ class DirectMotor:
         # control groups (gary/agent/grouping.py: a provider decides which units belong on which key; the motor
         # puts them there and uses them: an order to exactly a key's members is one key and one click)
         self.grouping = None                     # the grouping provider (a manifest's "grouping"), or None: no keys
+        self.stay_watched = False                # option staysieged (MODE_WATCH)
         self.groups: dict[int, set[int]] = {}    # the keys Gary keeps its army on (their members: members())
         self.plan: dict[int, set[int]] = {}      # key -> the units the provider wants on it
         self.tried: dict[int, int] = {}          # key -> when Gary last set out to put units on it
@@ -363,7 +369,7 @@ class DirectMotor:
             else:
                 hi.minimap_right_click(key[1], key[2])
             g.say(f"fight: {len(want)} {_names(units)} -> placed")
-        elif a in ("move", "attack_move") and (t.intent is None or t.intent.kind not in STAY_IN_MODE)                 and self._out_of_mode([u for u in units if u["tag"] in want], d, "unsiege_at"):
+        elif a in ("move", "attack_move") and (t.intent is None or t.intent.kind not in STAY_IN_MODE)                 and self._out_of_mode([u for u in units if u["tag"] in want], d, "unsiege_at", obs):
             return
         elif a == "cast":                        # a spell's key, then a click on the spot (on a unit: cast where it is)
             p = screen_of(obs, key[1], key[2])
@@ -428,20 +434,29 @@ class DirectMotor:
             hi.shift_click_portrait(s)
         return True
 
-    def _out_of_mode(self, selected: list[dict], d: dict, at: str) -> bool:
+    def _out_of_mode(self, selected: list[dict], d: dict, at: str, obs: dict | None = None) -> bool:
         """Whether this turn goes to taking the selected units out of a mode they can't move in (a sieged tank, see
         STAY_IN_MODE) before their move: the key the first turn (its frame kept in d[at]), then waiting until they are
-        out or UNSIEGE_WAIT has passed."""
+        out or UNSIEGE_WAIT has passed. Option staysieged: not with a seen enemy fighter within MODE_WATCH of one of
+        them (the move goes to the rest, they stay)."""
         g = self.g
         stuck = [u for u in selected if u["type"] in g.race.in_mode]
         if not stuck:
             return False
         if at not in d:
+            if self.stay_watched and obs is not None and self._watched(obs, stuck):
+                return False
             d[at] = g.hi.frame
             g.hi.unsiege()
             g.say(f"{len(stuck)} {_names(stuck)} -> unsiege to move")
             return True
         return g.hi.frame - d[at] < UNSIEGE_WAIT
+
+    def _watched(self, obs: dict, units: list[dict]) -> bool:
+        """A seen enemy fighter within MODE_WATCH of one of the units."""
+        from gary.agent.fight import enemy_fighters
+        foes = enemy_fighters(obs, self.g.slot)
+        return any(math.dist((u["x"], u["y"]), (e["x"], e["y"])) < MODE_WATCH for u in units for e in foes)
 
     def _exact(self, obs: dict, units: list[dict], sel: set, want: set, t: Task) -> bool:
         """Exactly these units selected, the camera on them (and on a "place" order's spot): a click on
@@ -793,7 +808,7 @@ class DirectMotor:
                     d["narrowed"] = True
                     return
             d["narrowed"] = False
-            if sel and self._out_of_mode([u for u in mine if u["tag"] in set(sel)], d, f"unsiege_at{d['boxes']}"):
+            if sel and self._out_of_mode([u for u in mine if u["tag"] in set(sel)], d, f"unsiege_at{d['boxes']}", obs):
                 return
             if sel:
                 if d["attack"]:

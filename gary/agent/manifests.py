@@ -725,6 +725,14 @@ OPTIONS = {
     "dataextras": lambda m: m["fight"].update(data_extras=True),
     # gary/agent/zerg_roles.py full_hp: Gary-Z's role model given hidden enemies' HP as full, as its data (it reads 0)
     "zfullhp": lambda m: m["fight"].update(full_hp=True),
+    # motor.py MODE_WATCH: a move doesn't take tanks out of Siege Mode while a seen enemy fighter is within 12 tiles of
+    # one of them (a fight moment: leaving the mode there is the role model's decision, its unsiege role)
+    "staysieged": lambda m: m.update(stay_watched=True),
+    # the role decoders that draw (the Terran's and the Protoss's draw and mode dice, the Zerg's roles), at the pros'
+    # rates: the trainer's class weights taken out of the model's odds (gary/policy/roles.py RoleModel.rates; the
+    # models' weights from python -m train.roles --weights-of). A decoder's bug: the odds drawn from were the rates
+    # times the weights, a tank's unsiege 9 to 11 times too likely against fire, keep a third to a half
+    "rates": lambda m: m["fight"].update(rates=True),
     # the third roles RL run, from rl1 with each decision credited over 20 s (--horizon 20; rl2's 10 s won the suite
     # and lost in games): the held-out suite +268 against rl1's +195 (paired +71, +12 to +135), against RoleAhead +122
     "rl3": lambda m: m["fight"].update(roles_model="runs/roles_rl/20261023_043828/model.pt"),
@@ -1549,6 +1557,7 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
         g.flip = flip
     models: dict[str, str] = {}
     g.motor = DirectMotor(g)
+    g.motor.stay_watched = bool(m.get("stay_watched"))
     if m.get("grouping"):                     # (gary/agent/grouping.py: the control-group provider; none: no keys)
         from gary.agent.grouping import LAYOUTS, PROVIDERS as GROUPINGS
         g.motor.grouping = GROUPINGS[m["grouping"]](g)
@@ -1720,6 +1729,11 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
         g.fight.roles.own_extra = False
     if m["fight"] is not None and m["fight"].get("full_hp") and getattr(g.fight, "roles", None) is not None:
         g.fight.roles.full_hp = True
+    if m["fight"] is not None and m["fight"].get("rates") and getattr(getattr(g.fight, "roles", None), "model", None) is not None:
+        if g.fight.roles.model.config.get("weights") is None:
+            raise FileNotFoundError(f"option rates: {g.fight.roles.model.path} has no class weights in its config "
+                                    f"(python -m train.roles --weights-of {g.fight.roles.model.path})")
+        g.fight.roles.rates = True
     if m["arbiter"] == "drill/v1":
         g.arbiter = DrillArbiter(g, seed, interruptions)
     else:

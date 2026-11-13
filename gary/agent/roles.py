@@ -121,6 +121,13 @@ PULL_HP = 0.5
 PULL_TILES = 1.5
 RETREAT_MARGIN = 3 * 32
 REPEAT = 24                          # the same role isn't given to a unit again within a second (but pull back)
+# option rates (RoleLearned): the model's odds are a half second's (TURN, the fight's ASK_EVERY); a unit's draw is over
+# the time since its last one, OVER_MAX at most (its turns came every 18 frames on average in a game, RA261a's seed
+# 4004: later while the hands are busy), and a mode drawn whose turn went to another order stays its decision for
+# MODE_DUE (a third of the sieges drawn there lost their turn to a reposition and were never ordered)
+TURN = 12
+OVER_MAX = 4 * TURN
+MODE_DUE = 3 * 24
 KEY_IN_FIGHT = 0.75                  # by_key: a key this much in the fight is ordered whole
 # the again decision (a model with an offset head, train/roles.py --again): the unit's order given again to where the
 # head points, not within AGAIN_GAP of its last order; units whose points are within AGAIN_NEAR share one order
@@ -922,16 +929,39 @@ class RoleLearned(RoleRules):
         self.where: dict[int, tuple[float, float]] = {}   # unit -> where the model moves it (with a where head)
         self.draw = draw                        # option: each unit's decision drawn from the model's odds (the league)
         # (lone: RoleAhead's, a lone outnumbered unit the model's; here every unit is the model's already)
+        # option rates (manifests): what is drawn (draw, mode_dice) is drawn at the pros' rates, the trainer's class
+        # weights out of the model's odds (RoleModel.rates); the likeliest stays the weighted odds'. Drawn at the
+        # weighted odds a sieged tank left Siege Mode in 3.3% of its fight moments against a Protoss and 2.9% against
+        # a Zerg, the pros' 0.45% and 0.44%, its sieges lasting a median of 7 to 10 s for the pros' 28 s
+        self.rates = False
+        self.drawn_at: dict[int, int] = {}       # rates: unit -> its last draw
+        self.mode_due: dict[int, tuple[int, int]] = {}    # rates: unit -> (a mode drawn and not ordered yet, when)
 
-    def _dice_modes(self, u: dict, p, names) -> int:
-        """mode_dice: one of the unit's modes it can take now, drawn by its odds; else its likeliest other role."""
+    def _over(self, q: np.ndarray, names: list, tag: int, now: int) -> np.ndarray:
+        """rates: the unit's odds over the time since its last draw: no decision at keep's odds to the power of the
+        half seconds passed, the decisions sharing the rest as they did (a unit new to the fight: one half second)."""
+        last = self.drawn_at.get(tag)
+        self.drawn_at[tag] = now
+        if last is None or not TURN < now - last <= OVER_MAX or "keep" not in names:
+            return q
+        k = names.index("keep")
+        q = q / q.sum()
+        stay = q[k] ** ((now - last) / TURN)
+        out = q * ((1 - stay) / max(1 - q[k], 1e-9))
+        out[k] = stay
+        return out
+
+    def _dice_modes(self, u: dict, p, names, q=None) -> int:
+        """mode_dice: one of the unit's modes it can take now, drawn by its odds (q: the odds drawn from, the pros'
+        rates with option rates); else its likeliest other role."""
         p = p / p.sum()
+        q = p if q is None else q / q.sum()
         modes = [i for i, n in enumerate(names) if n in self.g.race.modes and self._mode_ready(n, u)]
         r = self.g.fight.rng.random()
         for i in modes:
-            if r < p[i]:
+            if r < q[i]:
                 return i
-            r -= p[i]
+            r -= q[i]
         rest = np.array(p)
         rest[[i for i, n in enumerate(names) if n in self.g.race.modes]] = -1
         return int(rest.argmax())
@@ -950,6 +980,7 @@ class RoleLearned(RoleRules):
             else None
         shared: dict[int, float] = {}                    # key -> its units' shared uniform (together)
         probs, moves = self.model.predict_move(rows, extra, obs["frame"] * 42 / 1000, budget, keys)
+        odds = self.model.rates(probs) if self.rates else probs      # (what a draw is drawn from)
         mine, enemy = self._units(snap)
         if not mine or not enemy:
             return None
@@ -967,15 +998,26 @@ class RoleLearned(RoleRules):
         roles: dict[str, list[dict]] = {}
         for u in mine:
             p = probs[index[u["tag"]]].astype(np.float64)
-            if logging or self.draw:
+            q = odds[index[u["tag"]]].astype(np.float64)
+            due = self.mode_due.get(u["tag"]) if self.rates else None
+            if due is not None and (now - due[1] > MODE_DUE or not self._mode_ready(names[due[0]], u)):
+                del self.mode_due[u["tag"]]              # (ordered and under way, or too old)
+                due = None
+            if self.rates:
+                q = self._over(q, names, u["tag"], now)
+            if due is not None:
+                k = due[0]
+            elif logging or self.draw:
                 key = int(keys[index[u["tag"]]]) if self.together and keys is not None else -1
                 r = shared.setdefault(key, g.fight.rng.random()) if key >= 0 else g.fight.rng.random()
-                k = min(int(np.searchsorted(np.cumsum(p / p.sum()), r, side="right")), len(p) - 1)
+                k = min(int(np.searchsorted(np.cumsum(q / q.sum()), r, side="right")), len(q) - 1)
             elif self.mode_dice:
-                k = self._dice_modes(u, p, names)
+                k = self._dice_modes(u, p, names, q)
             else:
                 k = int(p.argmax())
             decided[u["tag"]], drawn[u["tag"]] = names[k], k
+            if self.rates and names[k] in g.race.modes:
+                self.mode_due.setdefault(u["tag"], (k, now))
             role = names[k].upper()
             if self.refresh and role == "KEEP" and u["tag"] in self.where:
                 told = self.told.get(u["tag"], ("", 0))[0]   # (a move kept current: sent on where the model moves it)
@@ -1126,6 +1168,7 @@ class RoleAhead(RoleRules):
         super().__init__(g, **options)
         self.model = model
         self.draw = draw
+        self.rates = False                      # option rates: its draws at the pros' rates (RoleLearned's note)
         # option lone: a unit alone and outnumbered in contact is the model's too, not the rules' (theirs fight: such
         # units attacked 75-78% of the time and backed away 0-2%, the pros' 42-44% and 13-19%; human game 4 and 96
         # games against gz1, eval/humanlike.py lone_attack / lone_away)
@@ -1151,6 +1194,7 @@ class RoleAhead(RoleRules):
         from gary.policy.roles import order_budget
         budget = order_budget(g.hi)
         probs, moves = self.model.predict_move(rows, extra, obs["frame"] * 42 / 1000, budget)
+        odds = self.model.rates(probs) if self.rates else probs
         names = self.model.config.get("roles")
         index = {t: i for i, t in enumerate(tags)}
         now = g.hi.frame
@@ -1165,7 +1209,7 @@ class RoleAhead(RoleRules):
                         self.lone and self._alone_outnumbered(u, mine, enemy)):
                     continue
                 i = index[u["tag"]]
-                k = int(g.fight.rng.choice(len(probs[i]), p=probs[i] / probs[i].sum())) if self.draw else int(probs[i].argmax())
+                k = int(g.fight.rng.choice(len(odds[i]), p=odds[i] / odds[i].sum())) if self.draw else int(probs[i].argmax())
                 self.choice[u["tag"]] = k
                 role = names[k].upper()
                 dx, dy = moves[i] * 32

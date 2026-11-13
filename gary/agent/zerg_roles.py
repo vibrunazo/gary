@@ -64,6 +64,7 @@ class ZergRoles:
         self.bot = bot
         self.model = RoleModel.load(model_path)
         self.full_hp = False                     # option zfullhp
+        self.rates = False                       # option rates: its draws at the pros' rates (RoleModel.rates)
         self.names = [n.upper() for n in self.model.config["roles"]]
         self.flip = None
         self.ground = None
@@ -134,6 +135,8 @@ class ZergRoles:
         self.prev = positions
         from gary.policy.roles import order_budget
         probs, moves = self.model.predict_move(rows, extra, obs["frame"] * 42 / 1000, order_budget(self.bot.hi))
+        if self.rates:                           # (every decision here is drawn: the odds drawn from, logged, recorded)
+            probs = self.model.rates(probs)
         by_tag = {u["tag"]: u for u in seen}
         enemy = [u for u in seen if u["owner"] not in (slot, 11) and supply_x2(u["type"]) > 0
                  and not is_worker(u["type"]) and not is_building(u["type"])]
@@ -196,6 +199,7 @@ class ZergRoles:
             other = None
             if self.shadow is not None:               # (an A/B arm: the other model's odds of the same roles)
                 sp = self.shadow.predict_move(rows, extra, obs["frame"] * 42 / 1000)[0]
+                sp = self.shadow.rates(sp) if self.rates else sp
                 other = float(np.mean([sp[i, k] for i, k, _ in chosen]))
             self.rec["record"] = LOG.decision(
                 hi.side, "roles", hi.frame, ", ".join(f"{r.lower()} {c}" for r, c in drawn.most_common()),

@@ -2054,6 +2054,98 @@ plan and the full log).
   pass a threshold set on the pros' fights, and Gary's fights score moderate odds, the same shortfall the storms had
   under a threshold (a third of the pros') before their dice. Against a Zerg the same shape, 9.0% for 12.8%. Next:
   the stim decoder drawn at the model's odds.
+- **Gary's tanks flipped in and out of Siege Mode seven times as often as a pro's: the causes, two options, not
+  folded in yet (2026-11-13, options `rates` and `staysieged`; eval/mode_hazard.py).** The judge's share of moments
+  hid it: a tank sieged half the time can be a tank that stays sieged, or one that flips every 8 s. Measured per
+  half second of a fight (the same unit's next moment; eval/mode_hazard.py):
+
+  | per half second of a fight | the pros, PvT | gt0.36dev, PvT (PT258a) | the pros, TvZ | gt0.36dev, TvZ (TM256a) |
+  |---|---|---|---|---|
+  | a sieged tank leaves Siege Mode | 0.45% | 3.30% | 0.44% | 2.9% |
+  | an unsieged tank sieges | 2.35% | 4.63% | 2.16% | 8.0% |
+  | a siege lasts, the median (the records; the pros' commands) | 28 s | 8 s | 24 s | 11 s |
+  | tank-sieges ended a game | 31 | 107 | 5 | 46 |
+
+  Three causes, from the records, the models' odds and one game with counters on the role layer. (1) **The dice
+  drew at the trainer's weighted odds.** train/roles.py weights the rare decisions up in its loss (1 / sqrt(share):
+  unsiege 9 to 11 times fire, keep a third to a half), which is right for naming the likeliest and wrong for a
+  draw: on the pros' held-out PvT moments the model's odds of siege averaged 16.2% a half second where the pros
+  siege in 2.1% (3.5% with the weights taken out), of unsiege 4.5% for 0.55% (0.37%), of a mine 5.3% for 2.1%
+  (1.4%). Every race's drawn decisions are drawn so (the Terran's and the Protoss's draw and mode dice, the Zerg's
+  roles). Option `rates`: the draws at the odds with the weights out (RoleModel.rates; the weights kept in a
+  model's config by the trainer, worked out again for the nine deployed models with `python -m train.roles
+  --weights-of`, their networks unchanged). (2) **The army's moves took tanks out of Siege Mode in the middle of a
+  fight**, 30 times a game against a Protoss with the tank in a fight moment: the motor unsieges a selection before
+  any move. Option `staysieged`: not while a seen enemy fighter is within 12 tiles of one of them (the role data's
+  sight: there, leaving the mode is the role model's decision); with none, as before. (3) **Drawn modes that were
+  never ordered**, hidden by the inflated odds: the role layer's turns came every 18 frames on average, not 12, and
+  a third of the sieges drawn lost their turn to a reposition order and were dropped. With `rates`, a unit's draw
+  is over the time since its last (keep's odds to the power of the half seconds passed) and a mode drawn stays the
+  unit's decision for 3 s until it is ordered. The TvZ model is a fourth: it is trained on attended units only (a
+  pro's sieged tank is attended in 23% of its fight moments), so its rates are a pro's given the pro is on the unit;
+  `python -m train.roles --unattended-keep` labels the units no command reached keep instead (not trained yet).
+  Written before the rounds: the churn severalfold lower, the judge's line steeper; mines expected lower. 16 games a
+  round on the baselines' seeds, gp1dev against gt1dev with the options in PvT, against gz1 in TvZ:
+
+  | PvT, the Terran | gt0.36dev (PT258a) | rates (RA261a) | rates, staysieged (RS262a) | and the draws' execution (RD264a) | a pro |
+  |---|---|---|---|---|---|
+  | a sieged tank leaves Siege Mode, a half second | 3.30% | 1.67% | 0.90% | 1.06% | 0.45% |
+  | an unsieged tank sieges | 4.63% | 0.89% | 0.81% | 1.28% | 2.35% |
+  | siege orders a game | 58 | 17 | 16 | 18 | 26 commands |
+  | tanks sieged, of their fight moments (a pro in the same) | 47.0% (54.5%) | 21.7% (51.6%) | 23.3% (55.3%) | 28.9% (51.3%) | |
+  | the judge's ranking of its tank-moments | 0.62 | 0.60 | 0.68 | 0.68 | 0.77 |
+  | a mine within 3 s, of its Vulture-moments (a pro) | 4.0% (7.2%) | 0.5% (5.0%) | | 1.3% (6.5%) | |
+  | tanks lost a game | 22.5 | 24.2 | 23.6 | 21.9 | |
+
+  | TvZ, the Terran | gt0.36dev (TM256a) | rates, staysieged (RT263a) | and the draws' execution (RD265a) | a pro |
+  |---|---|---|---|---|
+  | a sieged tank leaves Siege Mode, a half second | 2.9% | 0.56% | 1.24% | 0.44% |
+  | an unsieged tank sieges | 8.0% | 1.86% | 2.30% | 2.16% |
+  | tanks sieged, of their fight moments (a pro in the same) | 61.3% (54.3%) | 41.7% (56.4%) | 42.2% (49.3%) | |
+  | sieged where the judge says under 10%, and over 90% | 32%, 72% | 2%, 66% | 14%, 78% | 12%, 91% |
+  | the judge's ranking | 0.64 | 0.645 | 0.62 | 0.72 |
+  | a mine within 3 s, of its Vulture-moments (a pro) | 9.6% (6.3%) | 3.7% (7.0%) | 5.5% (10.3%) | |
+
+  The flipping is gone in both matchups (a siege lasts 16 to 29 s in the records, 24 to 54 s within a fight), no
+  more tanks are lost for staying sieged, and against a Protoss the tanks siege in the right situations more
+  (ranking 0.62 to 0.68). But the tanks are sieged less than a pro's now, and mines fell to a fifth and a half of
+  a pro's: the weighted odds were making up for something else. What, by the judge's odds of the situation
+  (eval/mode_hazard.py, an unsieged tank sieging in the next half second): the pros' line is steep, 0.6%, 1.9%,
+  2.8%, 3.9% and 6.2% against a Protoss from the fifth of situations the judge finds least likely to the likeliest
+  (0.3% to 9.8% against a Zerg), and Gary's is flat: 0.9%, 1.1%, 1.3%, 1.4% and 2.3% (RD264a; 1.4% to 3.9% against
+  a Zerg). The role model's own rate on Gary's unsieged tank-moments is 1.9% a half second, and 1.28% is carried
+  out. It ranks the pros' sieges at 0.83 on its held-out games, but the half second of a siege is noisy (of its top
+  2.2% of moments a quarter are the pros' sieges), and Gary's unsieged tanks stand where a pro's would be sieged
+  already, moments the pros' data shows only as the exceptions. A calibrated draw from it comes late: about 26 s to a
+  siege where a pro takes 8. The same for mines (its rate on Gary's Vulture-moments 0.4% a half second, the pros'
+  2.0% on theirs: Gary's Vultures aren't where the pros lay mines) and the stim model (above). Other measures, 16
+  paired games: the fight gap to the pros over all windows nearer against a Protoss (0.465 to 0.346, -0.119 [-0.222,
+  -0.001]) and no different against a Zerg (+0.049 [-0.007, +0.086]); the paired score -0.125 [-0.250, +0.000] and
+  +0.094 [-0.078, +0.266]. Not folded into a build: a decoder's bug and a hands' rule, to be adopted with what
+  restores the sieges, a model of each mode's entry and exit by situation that reads what the judge reads (the
+  enemy near 2 and 5 s ago, the seconds in the fight), drawn the same way. The Protoss's and the Zerg's draws with
+  `rates` are not judged yet (their decisions' rates against the pros').
+- **The stim rule drawn at the model's odds: the rate nearer, the timing less sharp, not adopted (2026-11-12, option
+  `stimdice`).** Each Marine and Firebat in a fight drawn at the stim model's odds (P(a stim within a second) as a
+  rate over the time since its last draw, the units of a bunch with one number), in place of the threshold and the
+  group around what it picked. Written before: nearer a pro's rate, ranked as well. 16 games in each matchup on the
+  seeds of the rounds it is compared with (SD259a against gz1, SP260a gp1dev against it), the stim judge:
+
+  | a stim within 3 s, of its Marine-moments | threshold | dice | a pro in the dice's situations | the judge's ranking, threshold then dice |
+  |---|---|---|---|---|
+  | against a Zerg (11 games with stims) | 9.0% (a pro 12.8%) | 9.7% | 11.3% (-1.6% [-3.9%, +0.5%]) | 0.70, 0.61 (the pros' 0.77) |
+  | against a Protoss (3 games) | 1.9% (a pro 10.5%) | 2.2% | 6.0% (-3.8% [-4.3%, -0.3%]) | 0.68, 0.75 (the pros' 0.67) |
+
+  Against a Zerg the rate's interval holds zero now, but the line is flatter: where the judge says 60-70% it stims in
+  28% of the moments (the pros 58%, the threshold 60%), where it says under 10% in 7% (5%, 4%). Against a Protoss
+  the rate hardly moved: the model's odds are low in Gary's fights there, on three games. Why the dice is flatter,
+  checked on the pros' held-out samples: the stim model's own odds are calibrated (6.5% for the pros' 6.5% against a
+  Zerg) and rank a unit's stims at 0.76; a group's odds (its frame's maximum, upper quartile or mean) rank them no
+  better (0.74 to 0.76), so deciding per bunch is not what is missing. The judge and the stim model both rank the
+  pros' stims at about 0.77 and disagree on Gary's moments: a draw from the stim model's odds is ranked 0.61 by the
+  judge. The threshold kept only the moments both agree on. The lever is the stim model's inputs (what the judge
+  reads and it doesn't: the enemy near 2 and 5 s ago, the seconds in the fight, the seconds since its last
+  command), not its decoder. The option stays, off.
 - **The Zerg's fight orders reach its units (2026-11-12, gz0.10, gz0.26dev).** Half of what gz1dev's fight roles
   decided was dropped after three tries to select the units (65 a game in DZ247a, live too): zerg_roles.py clicked
   a unit where it was seen (a Zergling had moved on) and took a selection only when it was exactly the units (a box

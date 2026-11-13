@@ -60,11 +60,43 @@ def decision_labels(d) -> np.ndarray:
     return out
 
 
-def load(path: Path, decisions: bool = False, move: bool = False, attended: bool = False, budget: bool = False,
+def class_weights(labels: np.ndarray, n: int) -> tuple[np.ndarray, np.ndarray]:
+    """The labels' share per class, and the loss weights from them: 1 / sqrt(share), the rare ones up (a class under
+    0.1% as 0.1%), the first class's as 1. A model trained with them gives odds that are the pros' rates times these
+    weights, renormalized (unsiege 9 to 11 times the rate of fire, keep a third to a half): right for naming the
+    likeliest, and a decoder that draws takes them back out (gary/policy/roles.py RoleModel.rates)."""
+    y = labels[labels >= 0]
+    share = np.bincount(y, minlength=n) / len(y)
+    w = 1 / np.sqrt(np.maximum(share, 1e-3))
+    return share, (w / w[0]).astype(np.float32)
+
+
+def weights_of(path: str) -> None:
+    """A role model trained before its class weights were kept in its config: worked out again from its data as it
+    was trained (its decisions, attended and again; the training games) and saved in it."""
+    model = RoleModel.load(path)
+    cfg, names = model.config, model.config["roles"]
+    data = Path(cfg["data"])
+    if not data.exists():
+        data = data_root() / "interim" / "roles" / data.name
+    train, _, got = load(data, "keep" in names, False, cfg.get("attended") or False, False, AGAIN in names)
+    # (a model from before the mode roles has the decisions' first names: its data holds none of the later ones)
+    assert list(got[:len(names)]) == list(names) and int(train[2].max()) < len(names), (got, names)
+    share, w = class_weights(train[2], len(names))
+    cfg["weights"] = [round(float(x), 6) for x in w]
+    model.save(path)
+    print(f"{path}: " + ", ".join(f"{r} {s:.2%} x{x:.1f}" for r, s, x in zip(names, share, w)))
+
+
+def load(path: Path, decisions: bool = False, move: bool = False, attended: bool | str = False, budget: bool = False,
          again: bool = False, use_keys: bool = False):
     """Train and validation arrays, and the label names (a dataset can name its own: the hand rules'
     decisions, ingest/role_distill.py). attended: only the labels of units the player's commands reached
-    (ingest/response_dataset.py attended; the rest -1); budget: the player's order rate a minute (/ 100) as one
+    (ingest/response_dataset.py attended; the rest -1), or "keep" (with decisions): the units no command reached are
+    labelled keep, as a unit that decided nothing (a role that changes with no command is the game's, a unit firing
+    at what walks into its range), so the model's odds are a unit's per half second, attended or not: a model of
+    the attended alone says what a pro does with a unit given the pro is on it, and a sieged tank is attended in 23%
+    of its fight moments, so drawn every turn its unsiege came several times too often; budget: the player's order rate a minute (/ 100) as one
     more per-unit input. again (needs decisions, ingest/reissue_labels.py's data): a keep the player gave a command to
     in the next half second becomes "again", and its command's target (cmd_to) the offset head's target."""
     d = np.load(path)
@@ -80,7 +112,9 @@ def load(path: Path, decisions: bool = False, move: bool = False, attended: bool
             names = names + [AGAIN]
             labels = np.where((labels == names.index("keep")) & (d["commanded"] == 1), names.index(AGAIN), labels)
             labels = labels.astype(np.int8)
-    if attended:
+    if attended == "keep":
+        labels = np.where((d["attended"] == 0) & (labels >= 0), names.index("keep"), labels).astype(labels.dtype)
+    elif attended:
         labels = np.where(d["attended"] == 1, labels, -1).astype(labels.dtype)
     extra = d["extra"]
     if budget:
@@ -194,33 +228,50 @@ def main() -> None:
     ap.add_argument("--extra", type=int, help="read only the first this many per-unit extras (6: without the terrain)")
     ap.add_argument("--move", action="store_true", help="also learn where each unit moves (the data's move)")
     ap.add_argument("--attended", action="store_true", help="learn only from units the player's commands reached")
+    ap.add_argument("--unattended-keep", action="store_true",
+                    help="with --decisions: the units no command reached labelled keep (they decided nothing), in place "
+                         "of leaving them out: the model's odds are rates per unit and half second, for a decoder that "
+                         "draws at them")
+    ap.add_argument("--out", help="the run's folder (default: runs/roles/<time>; an experiment's goes elsewhere, so "
+                                  "Gary's newest-model lookup doesn't take it)")
     ap.add_argument("--budget", action="store_true", help="the player's order rate as an input (the model's config says so)")
     ap.add_argument("--again", action="store_true",
                     help="with --decisions: the pros' re-issues as a decision of their own, and an offset head for where "
                          "they point (ingest/reissue_labels.py's data)")
     ap.add_argument("--keys", action="store_true",
                     help="each unit's control-group key as an input (ingest/key_labels.py's data)")
+    ap.add_argument("--weights-of", nargs="+", metavar="MODEL",
+                    help="no training: role models from before their class weights were kept in their config, the "
+                         "weights worked out again from their data and saved in them (for a decoder that draws at "
+                         "the pros' rates, RoleModel.rates)")
     ap.add_argument("--smooth", type=float, default=0.0,
                     help="label smoothing: every decision keeps some probability (room to explore for RL)")
     priority.add_argument(ap)
     args = ap.parse_args()
     priority.apply(args.priority)
 
+    if args.weights_of:
+        for path in args.weights_of:
+            weights_of(path)
+        return
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(0)
-    train, val, names = load(Path(args.data), args.decisions, args.move, args.attended, args.budget, args.again,
+    attended = "keep" if args.unattended_keep else bool(args.attended)
+    train, val, names = load(Path(args.data), args.decisions, args.move, attended, args.budget, args.again,
                              args.keys)
     decisions = "keep" in names
     y = train[2][train[2] >= 0]
-    share = np.bincount(y, minlength=len(names)) / len(y)
-    weights = torch.as_tensor(1 / np.sqrt(np.maximum(share, 1e-3)), dtype=torch.float32, device=device)
-    weights = weights / weights[0] if not args.no_weights else torch.ones_like(weights)
+    share, w = class_weights(train[2], len(names))
+    if args.no_weights:
+        w = np.ones_like(w)
+    weights = torch.as_tensor(w, dtype=torch.float32, device=device)
     print(f"train {len(train[0])} snapshots, {len(y)} units; validation {len(val[0])} snapshots; "
           + ", ".join(f"{r} {s:.1%}" for r, s in zip(names, share)), flush=True)
     config = {"net": {"d": args.d, "layers": args.layers, "heads": 4, "n_roles": len(names),
                       "n_extra": args.extra or int(train[1].shape[-1]) + (KEY_DIMS if args.keys else 0),
                       "move": bool(args.move), "offset": bool(args.again)}, "keys": bool(args.keys),
-              "data": args.data, "roles": names, "attended": bool(args.attended), "budget": bool(args.budget)}
+              "data": args.data, "roles": names, "attended": attended, "budget": bool(args.budget),
+              "weights": [round(float(x), 6) for x in w]}
     net = RoleNet(**config["net"]).to(device)
     opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=0.01)
     rng = np.random.default_rng(0)
@@ -260,7 +311,7 @@ def main() -> None:
         if score > best:
             best, best_state = score, {k: v.detach().cpu().clone() for k, v in net.state_dict().items()}
     net.load_state_dict(best_state)
-    out = REPO_ROOT / "runs" / "roles" / time.strftime("%Y%m%d-%H%M%S")
+    out = Path(args.out) if args.out else REPO_ROOT / "runs" / "roles" / time.strftime("%Y%m%d-%H%M%S")
     out.mkdir(parents=True, exist_ok=True)
     RoleModel(net.cpu(), config).save(out / "model.pt")
     final = evaluate(net.to(device), val, device, names)
