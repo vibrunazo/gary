@@ -1310,8 +1310,8 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # sieges 0.64 to 0.76 against a Zerg (the pros' 0.72) and 0.62 to 0.68 against a Protoss; sieged in 31% of its fight
 # moments in both for a pro's 50% (61% and 47% before, flipping): what is left is where the army leaves the tanks.
 # Its mines fell with the rates (a fifth of a pro's against a Protoss). Kept after 96 paired games against gz1
-# (GT268a+b against TM256a+b+c): +0.000 [-0.068, +0.068], a sieged tank leaving the mode at a pro's rate. The build before it: gt1dev with fight options
-# rates, mode_model and stay_watched off
+# (GT268a+b against TM256a+b+c): +0.000 [-0.068, +0.068], a sieged tank leaving the mode at a pro's rate.
+# The build before it: gt1dev with fight options rates, mode_model and stay_watched off
 # gt0.36dev (2026-11-12): against a Zerg its fights by the role model of the TvZ pros relabelled with the modes
 # (tvzmodes: response_T_TvZ_modes_again.npz, runs/roles/20261112-173833, trained as the deployed one, held-out accuracy
 # 0.482 for 0.476), in place of the RL checkpoint rl1, whose roles had no siege, unsiege or mine. Judged per situation
