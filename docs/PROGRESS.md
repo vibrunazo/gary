@@ -2091,6 +2091,11 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **gt0.37dev: the three options folded into the Terran dev build (2026-11-13, the user's call).** `rates`,
+  `staysieged` and `modemodel` on in gt1dev; the parity hashes recorded again (its fights changed). Written before
+  its pairing: 96 games against gz1 on TM256a+b+c's seeds (gt0.36dev, whose play is unchanged since: its parity
+  hashes held), where the pairing resolves about +-0.056 and detects 0.085: kept unless it loses more than that, and
+  reviewed from the records if it does.
 - **Gary's tanks flipped in and out of Siege Mode seven times as often as a pro's: the causes, two options, not
   folded in yet (2026-11-13, options `rates` and `staysieged`; eval/mode_hazard.py).** The judge's share of moments
   hid it: a tank sieged half the time can be a tank that stays sieged, or one that flips every 8 s. Measured per

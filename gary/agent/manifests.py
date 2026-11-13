@@ -1302,6 +1302,15 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # one-tile pocket, and every expansion after took it, the nearest, and failed: TT245a, 17 builds in one game, its
 # natural at 9:54; TT246a on the same seeds, 3 such drops in 3 games for 21, every natural by 4:22). Its input options
 # (widespot, seenall, armyseen, builtcount, unitcount, pendown) are gt1's now (gt0.12)
+# gt0.37dev (2026-11-13, the user's call): its tanks stop flipping in and out of Siege Mode (a sieged tank left it in 3%
+# of its fight half seconds, a pro's in 0.45%): rates (the role layer's draws at the pros' rates, the trainer's class
+# weights out, over the time since a unit's last draw, a drawn mode kept until ordered), staysieged (a move doesn't
+# unsiege tanks with a seen enemy fighter within 12 tiles) and modemodel (a tank's siege and unsiege drawn from the mode
+# models of the pros' transitions by situation, gary/policy/modes.py). 16 games a matchup: the judge's ranking of its
+# sieges 0.64 to 0.76 against a Zerg (the pros' 0.72) and 0.62 to 0.68 against a Protoss; sieged in 31% of its fight
+# moments in both for a pro's 50% (61% and 47% before, flipping): what is left is where the army leaves the tanks.
+# Its mines fell with the rates (a fifth of a pro's against a Protoss). The build before it: gt1dev with fight options
+# rates, mode_model and stay_watched off
 # gt0.36dev (2026-11-12): against a Zerg its fights by the role model of the TvZ pros relabelled with the modes
 # (tvzmodes: response_T_TvZ_modes_again.npz, runs/roles/20261112-173833, trained as the deployed one, held-out accuracy
 # 0.482 for 0.476), in place of the RL checkpoint rl1, whose roles had no siege, unsiege or mine. Judged per situation
@@ -1320,8 +1329,8 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
-                                     "+parkmany+tvzmodes"),
-                       "version": "gt0.36dev"}
+                                     "+parkmany+tvzmodes+staysieged+modemodel"),
+                       "version": "gt0.37dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,

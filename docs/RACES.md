@@ -69,7 +69,7 @@ dev build where learning is done and judged without the stop-gaps (AGENTS.md):
 | | Terran | Zerg | Protoss |
 |---|---|---|---|
 | Plays | `gt1` gt0.16 | `gz1` gz0.10 | `gp1` gp0.11 (crude) |
-| Dev build | `gt1dev` gt0.36dev | `gz1dev` gz0.26dev | `gp1dev` gp0.33dev |
+| Dev build | `gt1dev` gt0.37dev | `gz1dev` gz0.26dev | `gp1dev` gp0.33dev |
 | Promotion under the rule of 2026-11-11 (nearer the pros per window, not measurably worse in 96; docs/PROGRESS.md "gp1dev judged for promotion") | not judged yet (-0.188 over 48) | not judged yet | not yet: +0.036 [-0.036, +0.109] over 96 (DP252a+b against BP252a+b, vs gz1dev) passes; further from the pros at 0-5, 15-20 and 20-25 minutes (the army standing early, Corsairs and the army kept late) |
 | Dev build against the one that plays (2026-11-11 late, 48 paired games on the ladder maps, dev minus playing by supply; docs/PROGRESS.md "Why gt1dev banks") | -0.188 [-0.302, -0.078] vs gz1 (DT250a against BT250a; -0.307 before the macro's hands fix) | as above | -0.031 [-0.130, +0.078] vs gz1dev (DP252a against BP252a; -0.135 before the macro's hands fix and the queued builds) |
 | Dev build against the one that plays (2026-11-11, 48 paired games, docs/PROGRESS.md) | -0.307 [-0.401, -0.208] against gz1; nearer the pros at 0-5 and 10-25 minutes | -0.047 [-0.135, +0.042] against gt1 | -0.135 [-0.229, -0.042] against gz1dev (gp0.4dev, 2026-10-30, 96 games a matchup: PvT -0.029, PvZ -0.068, PvP -0.076) |
