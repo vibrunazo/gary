@@ -969,6 +969,10 @@ OPTIONS = {
     # --again), in place of the RL checkpoint rl1, whose roles have no siege, unsiege or mine: its tanks sieged in 0% of
     # their fight moments where a pro's are in 57%, no mine laid (eval/judge.py, 2026-11-12)
     "tvzmodes": lambda m: m["fight"].update(roles_model=None, roles_data="response_T_TvZ_modes_again.npz"),
+    # fight.py StimRule: each unit drawn at the stim model's odds, a bunch with one number, in place of the threshold
+    # (a decoder: under the threshold it stimmed 9.0% of its Marine-moments for a pro's 12.8% in TvZ, 1.9% for 10.5%
+    # in PvT, eval/judge.py)
+    "stimdice": lambda m: m["fight"].setdefault("rule_options", {}).setdefault("stim", {}).update(dice=True),
     # roles.py learned/v1: the modes (siege, unsiege, a mine) drawn by their odds, the rest the likeliest (a decoder: the
     # likeliest laid 0.4 mines a game, the pros about 29, #60)
     "modedice": lambda m: [f.update(roles={**f.get("roles", {}), "mode_dice": True})

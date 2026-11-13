@@ -20,9 +20,7 @@ from pathlib import Path
 import numpy as np
 
 from eval import monitor, priority
-from gary.policy.stim import BIO, SAMPLE_EVERY, enemy_fighters, features, in_fight, names, recall
-
-AHEAD = 2                        # the label: stimmed within this many samples (1 s): the moment is noisy
+from gary.policy.stim import AHEAD, BIO, SAMPLE_EVERY, enemy_fighters, features, in_fight, names, recall
 
 START = 4 * 1440                 # nobody stims before 4:00
 UNTIL = 20 * 1440                # enough fights by then

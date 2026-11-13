@@ -874,13 +874,21 @@ class StimRule:
     is done, nor a unit with too little HP to pay for it. (Human game 2: Gary researched stim at 5:40
     and never used it; the roles model has no stim.) Option model: a train/stim.py checkpoint (default:
     the latest of the matchup Gary plays, runs/stim/<matchup>_T_*.pkl: the enemy's fighters are a table per
-    race, gary/policy/stim.py). With no model of its matchup it never stims, and says so once."""
+    race, gary/policy/stim.py). With no model of its matchup it never stims, and says so once. Option dice: each
+    unit drawn at the model's odds (P(a stim within AHEAD samples) as a rate over the time since its last draw, the
+    fight's turns coming when the hands are free; the units of a bunch drawn with one number, as a player stims a
+    selection), in place of the threshold and the group around what it picked: under the threshold Gary stimmed in
+    9.0% of its Marine-moments where a pro would in 12.8% against a Zerg, 1.9% for 10.5% against a Protoss, its
+    fights scoring moderate odds (eval/judge.py; the storms' threshold had the same shortfall, ST184a)."""
 
     name = "stim"
 
-    def __init__(self, g: Gary, model: str | None = None):
+    def __init__(self, g: Gary, model: str | None = None, dice: bool = False):
         from gary.policy.stim import KINDS, StimModel, latest
         self.g = g
+        self.dice = dice
+        self.rng = np.random.default_rng(g.game_seed)
+        self.drawn_at: dict[int, int] = {}       # tag -> when it was last drawn (dice)
         self.race = g.enemy.race if g.enemy is not None else None      # (the enemy's: whose fighters it counts)
         if model is None and g.matchup:
             model = latest(g.matchup)
@@ -909,13 +917,20 @@ class StimRule:
             return False
         X = np.stack([features(u, mine, enemies, self.left(u["tag"]), hi.frame, last.get(u["tag"]), self.left,
                                race=self.race) for u in bio])
-        picked = [u for u, w in zip(bio, self.model.wants(X)) if w]
-        if not picked:
-            return False
-        # the group around the ones it picked, as a player stims the selection (the model was taught
-        # on units, one at a time: it picked 1 of 4 marines standing together)
-        want = [u["tag"] for u in bio if self.left(u["tag"]) == 0
-                and any(math.dist((u["x"], u["y"]), (q["x"], q["y"])) < STIM_GROUP for q in picked)]
+        if self.dice:
+            from gary.policy.stim import AHEAD
+            within = AHEAD * SAMPLE_EVERY
+            f = hi.frame
+            since = np.array([min(f - self.drawn_at.get(u["tag"], f - SAMPLE_EVERY), 2 * within) for u in bio])
+            self.drawn_at.update({u["tag"]: f for u in bio})
+            rate = 1 - (1 - np.minimum(self.model.odds(X), 0.999)) ** (since / within)
+            want = [u["tag"] for u, r, q in zip(bio, self._bunch_draws(bio), rate) if r < q]
+        else:
+            picked = [u for u, w in zip(bio, self.model.wants(X)) if w]
+            # the group around the ones it picked, as a player stims the selection (the model was taught
+            # on units, one at a time: it picked 1 of 4 marines standing together)
+            want = [u["tag"] for u in bio if self.left(u["tag"]) == 0
+                    and any(math.dist((u["x"], u["y"]), (q["x"], q["y"])) < STIM_GROUP for q in picked)]
         if not want:
             return False
         for tag in want:
@@ -926,6 +941,18 @@ class StimRule:
         intent.source = "rule:stim"
         g.motor.start(intent)
         return True
+
+    def _bunch_draws(self, bio: list[dict]) -> list[float]:
+        """A uniform number per unit, one for the whole bunch it stands in (within STIM_GROUP of another of it)."""
+        label = list(range(len(bio)))
+        for i, u in enumerate(bio):
+            for j in range(i):
+                if label[i] != label[j] and math.dist((u["x"], u["y"]), (bio[j]["x"], bio[j]["y"])) < STIM_GROUP:
+                    a, b = label[i], label[j]
+                    label = [a if x == b else x for x in label]
+        draws: dict[int, float] = {}
+        return [draws.setdefault(k, float(self.rng.random())) for k in label]
+
 
 class CastRule:
     """Cast a spell when the pros would, where they would (gary/policy/cast.py: Psionic Storm, learned from the pros'

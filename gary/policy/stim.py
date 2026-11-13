@@ -22,6 +22,7 @@ BIO = (MARINE, FIREBAT)
 STIM_TIME = 37                   # the stim timer right after a stim (OpenBW: counts down every 8 frames)
 FIGHT_PX = 10 * 32               # a unit with an enemy fighter this close is in a fight (sampled)
 SAMPLE_EVERY = 12                # frames: a sample every half second
+AHEAD = 2                        # the label: stimmed within this many samples (1 s): the moment is noisy
 # the enemy's fighters by kind, per enemy race (BW unit ids -> the kind's column), nine kinds each: the units a
 # Marine fights and the static defense it runs into; its supply (x2) by type, for the strength near
 KINDS = {"Z": {37: 0, 38: 1, 103: 2, 43: 3, 39: 4, 47: 5, 44: 6, 46: 7, 146: 8},
@@ -115,3 +116,7 @@ class StimModel:
 
     def wants(self, X: np.ndarray) -> np.ndarray:
         return self.clf.predict_proba(X)[:, 1] >= self.threshold
+
+    def odds(self, X: np.ndarray) -> np.ndarray:
+        """P(the pros stim each unit within AHEAD samples)."""
+        return self.clf.predict_proba(X)[:, 1]

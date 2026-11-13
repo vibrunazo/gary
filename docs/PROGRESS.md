@@ -2020,8 +2020,28 @@ plan and the full log).
   A game: 30 siege orders, 16 unsieges (9 more by the hands before a move), 10 mines; its line follows the pros'
   but flatter (sieged 32% where the judge says under 10% and the pros are 12%; 72% where it says over 90% and the
   pros are 91%). The results of the 16: won 1, lost 5, 10 at time (TW253a 2, 5, 9, against an older gz1); its paired
-  rounds against the old fights (`gt1dev+again+rl1`) follow, written before in TODO.md: a fidelity change, kept
-  unless 96 paired games lose more than the pairing resolves, and reviewed if they do. (2) The stim model counted
+  rounds against the old fights (`gt1dev+again+rl1`), written before in TODO.md (a fidelity change, kept unless 96
+  paired games lose more than the pairing resolves, and reviewed if they do): **kept.** 96 paired games against gz1
+  gz0.10 (BT257a+b the old fights, TM256a+b+c the new; eval/paired.py, graded by supply): 0.531 and 0.503, the new
+  -0.029 [-0.083, +0.029] (the pairing resolves +-0.056 and detects 0.085), so no measurable difference; won 10,
+  lost 19, 67 at time for the old fights' 17, 20, 59: as many losses, seven fewer games finished. The fight gap per
+  window (eval/gap_windows.py --group fight) nearer the pros at 10-15 minutes (-0.040 [-0.076, -0.005]) and no
+  different elsewhere (all windows -0.013 [-0.046, +0.018]): its 25 fight features never read a tank's mode, which
+  is how the gap score missed the tanks for a month. The judge on all 96:
+
+  | TvZ, gt0.36dev, per round | games with the units | Gary | a pro in the same situations | the judge's ranking (the pros' 0.72, stims 0.77) |
+  |---|---|---|---|---|
+  | tanks sieged, TM256a | 13 | 61.3% | 54.3% (+7.1% [-2.6%, +14.5%]) | 0.64 |
+  | tanks sieged, TM256b | 18 | 51.5% | 61.4% (-9.8% [-18.9%, -2.7%]) | 0.63 |
+  | tanks sieged, TM256c | 42 | 58.2% | 54.0% (+4.2% [+1.7%, +6.4%]) | 0.62 |
+  | a mine laid within 3 s, TM256c | 22 | 8.7% | 6.1% (+2.6% [+1.4%, +3.5%]) | 0.63 |
+  | a stim within 3 s, TM256b | 32 | 8.2% | 12.7% (-4.6% [-5.1%, -3.9%]) | 0.75 |
+  | a stim within 3 s, TM256c | 21 | 8.7% | 13.5% (-4.7% [-5.4%, -4.0%]) | 0.73 |
+
+  Over the three rounds its tanks are sieged in 58.0% of their 132,591 fight moments for a pro's 54.7%: the rate
+  holds over 96 games, the ranking stays under the pros' (the flatter line). The seeds 4010-4015 have tanks in 42 of
+  48 games and three quarters of their tank situations outside the pros' (TM256c: later minutes, more enemy air), so
+  its rate there is read with that. (2) The stim model counted
   Zerg fighters only (gary/policy/stim.py KINDS), so against a Protoss or a Terran no Marine was ever in a fight for
   it. The enemy's fighters are a table per race now (nine kinds each, their supply), the dataset and the trainer
   take a matchup (only the games whose Terran researches Stim Packs: 126 clean PvT games, 79 TvT, each Terran of a
