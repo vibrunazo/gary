@@ -2104,8 +2104,13 @@ plan and the full log).
   the army's keys in a fight moment 93 to about 0, the leaves 1.51% to about 0.8% (the keys before the fight reached
   the tank stay). PT272a (16 games, PT271a's seeds): 9 keys, leaves 0.89% (the fight layer's 0.68%, a pro's 0.45%),
   sieged 39.1% of their fight moments (29.6%, a pro's 52%); HT272a against gz1: leaves 0.42% (0.61%, a pro's 0.44%),
-  sieged 51.9% (45.5%); tanks out of the fight held with the rest 13 of 437 (PvT), 0 of 49 (TvZ). Results alike in 16
-  games (the Terran won 7 PvT games in both). Adopted on its own check (a test made to match its model's domain).
+  sieged 51.9% (45.5%); tanks out of the fight held with the rest 13 of 437 (PvT), 0 of 49 (TvZ). The mode model's own
+  leave odds on the new moments 0.63% (PvT) and 0.35% (TvZ): what is left over them against a Protoss is the army's
+  keys before the fight reached the tank (0.21%), and the model asks more on Gary's moments than a pro leaves (0.63% for
+  0.45%). Of the 9 army keys left in a fight moment, 6 came within 0.5 s before it began (snapshots of 10-13 units, not
+  the 64-unit cap). Results, 16 games: the Terran won 7 and lost 2 against the Protoss (7 and 0), 2 and 4 games ahead at
+  time (3 and 6 the Protoss's); against gz1 won 5, lost 2 (5, 2): no verdict at 16 games. Adopted on its own check (a
+  test made to match its model's domain); smoke, pairs, matchups and live tests pass, parity held (it plays gt1).
 - **gt0.38dev: Gary sieged at under half the rate its siege model asked for; a decoder's bug, fixed (2026-11-13).**
   gt0.37dev's tanks entered Siege Mode in 1.0% of their fight half seconds for a pro's 2.2%. Not the model: read on
   Gary's own unsieged tank-moments (GT268b) it asks for 2.4%, in every fifth of its odds about twice what Gary did

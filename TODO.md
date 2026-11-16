@@ -63,7 +63,8 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
      mode more than the model asks: against a Protoss the army's moves unsieged tanks inside fight moments (staysieged
      looked 12 tiles round the tank, a fight moment holds units 24 tiles round the enemies), fixed in gt0.39dev
      (leaves 1.51% to 0.89%, sieged 30% to 39% for a pro's 52%; against a Zerg 0.61% to 0.42% for 0.44%); what is
-     left against a Protoss is the model asking less there than a pro does (entries 1.67% for 2.35%); (b) mines at half a pro's rate (3.0% to 4.6% for 6.2% to
+     left against a Protoss: the model asking less there than a pro does (entries 1.67% for 2.35%), leaving more
+     (its odds 0.63% for a pro's 0.45%), and the army's keys just before the fight reaches a tank (0.21%); (b) mines at half a pro's rate (3.0% to 4.6% for 6.2% to
      6.5%) and placed no better than chance (ranking 0.50 to 0.57 for 0.72): an event model on the judge's inputs,
      as the tanks got; (c) the fight gap further at 15-20 minutes (+0.063 [+0.019, +0.111]): which features, from
      eval/gap_windows.py.
