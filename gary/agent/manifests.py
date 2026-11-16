@@ -1302,6 +1302,12 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # one-tile pocket, and every expansion after took it, the nearest, and failed: TT245a, 17 builds in one game, its
 # natural at 9:54; TT246a on the same seeds, 3 such drops in 3 games for 21, every natural by 4:22). Its input options
 # (widespot, seenall, armyseen, builtcount, unitcount, pendown) are gt1's now (gt0.12)
+# gt0.39dev (2026-11-16): a fix of staysieged's test: a tank in the fight snapshot its model is asked about (fight.py
+# members, 24 tiles round the enemies engaged, the moments the mode model learned from) stays sieged on an army move, not
+# only one with an enemy within 12 tiles; against a Protoss (PT272a against PT271a, 16 games) the army's unsieges of a
+# tank in a fight moment 93 to 9, its tanks leaving Siege Mode in 0.89% of their fight half seconds (1.51%, the fight
+# layer's own 0.68%, a pro's 0.45%), sieged in 39% (30%, a pro's 52%); against gz1 (HT272a) leaving 0.42% (0.61%, a
+# pro's 0.44%), sieged 52% (45%); 13 of 437 tanks held were out of the fight, held with the rest of their selection
 # gt0.38dev (2026-11-13): a fix of gt0.37dev's decoder: the mode models' odds are a half second's, and a tank's turns
 # come every 1.2 s; over that time they were scaled by keep's odds, about half of it (roles.py _turns, HAZARD_MAX: over
 # the time since the unit's last draw, 5 s at most). 16 games against gz1: an unsieged tank sieges in 1.88% of its
@@ -1335,7 +1341,7 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
                                      "+parkmany+tvzmodes+staysieged+modemodel"),
-                       "version": "gt0.38dev"}
+                       "version": "gt0.39dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,

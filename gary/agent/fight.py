@@ -244,6 +244,15 @@ class FightLayer:
         self.center = center
         return rows, tags, center, {u["tag"]: u for u in units}
 
+    def members(self, obs: dict) -> set[int]:
+        """Gary's units in the fight its model would be asked about now (the snapshot's own rows, without the turn's
+        pacing): the units the role and mode models were trained to decide for (a fight moment holds Gary's units within
+        own_radius of the enemy fighters engaged, not only those with an enemy near: ingest/response_dataset.py)."""
+        g = self.g
+        snap = snapshot(obs, g.slot, g.flip, supply_x2, is_worker, is_building, self.own_radius, self.max_units,
+                        self.watch or None)
+        return set() if snap is None else {t for t, r in zip(snap[1], snap[0]) if r[1] == 1}
+
     def _per_unit(self, obs: dict, mine: list[dict]) -> bool:
         g = self.g
         hi = g.hi

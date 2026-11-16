@@ -48,11 +48,13 @@ ROLES = {"FIRE", "CLOSE_IN", "PULL_BACK", "RETREAT", "BRACE", "REGROUP", "POST",
 # and hold leave them sieged
 STAY_IN_MODE = {"FIRE", "CLOSE_IN", "POST", "HOLD", "SIEGE"}
 UNSIEGE_WAIT = 3 * 24                # at most this long for them to be out
-# option staysieged: with a seen enemy fighter this near one of them (the role data's SIGHT, ingest/response_dataset.py:
-# a fight moment, the role model's to decide), the move leaves them in the mode: there the pros' tanks leave Siege Mode
-# in 0.45% of their half seconds and a move of Gary's army took them out 30 times a game against a Protoss (PT258a),
-# its sieges lasting a median of 10 s for the pros' 28 s; with no enemy near, the move takes them out as before
-MODE_WATCH = 12 * 32
+# option staysieged: a unit in the fight its model would be asked about now (fight.py members: the snapshot's own units,
+# within 24 tiles of the enemy fighters engaged, the fight moments the mode model learned from) stays in the mode, the
+# move going to the rest: there the pros' tanks leave Siege Mode in 0.45% of their half seconds and a move of Gary's army
+# took them out 30 times a game against a Protoss (PT258a), its sieges lasting a median of 10 s for the pros' 28 s; out
+# of a fight, the move takes them out as before. (Until gt0.39dev: a seen enemy fighter within 12 tiles of one of them,
+# which left 93 of the motor's 128 leaves a game set in PT271a inside a fight moment, the tanks 12-25 tiles from the
+# nearest enemy: 0.99% of the sieged half seconds, the fight layer's own 0.52%.)
 TASK_OF = {**{k: "fight_cmd" for k in COMMANDS | ROLES}, "PULL": "pull", "UNPULL": "unpull", "LOAD": "load", "UNLOAD": "unload",
            "REPAIR": "repair", "REINFORCE": "reinforce", "ARMY_MOVE": "army_order", "ARMY_ATTACK": "army_order",
            "SCOUT": "scout", "ATTACK_WAVE": "attack", "SCAN": "scan"}
@@ -109,7 +111,7 @@ class DirectMotor:
         # control groups (gary/agent/grouping.py: a provider decides which units belong on which key; the motor
         # puts them there and uses them: an order to exactly a key's members is one key and one click)
         self.grouping = None                     # the grouping provider (a manifest's "grouping"), or None: no keys
-        self.stay_watched = False                # option staysieged (MODE_WATCH)
+        self.stay_watched = False                # option staysieged (fight.py members)
         self.groups: dict[int, set[int]] = {}    # the keys Gary keeps its army on (their members: members())
         self.plan: dict[int, set[int]] = {}      # key -> the units the provider wants on it
         self.tried: dict[int, int] = {}          # key -> when Gary last set out to put units on it
@@ -437,26 +439,32 @@ class DirectMotor:
     def _out_of_mode(self, selected: list[dict], d: dict, at: str, obs: dict | None = None) -> bool:
         """Whether this turn goes to taking the selected units out of a mode they can't move in (a sieged tank, see
         STAY_IN_MODE) before their move: the key the first turn (its frame kept in d[at]), then waiting until they are
-        out or UNSIEGE_WAIT has passed. Option staysieged: not with a seen enemy fighter within MODE_WATCH of one of
-        them (the move goes to the rest, they stay)."""
+        out or UNSIEGE_WAIT has passed. Option staysieged: not when one of them is in the fight (fight.py members): they
+        all stay in the mode (the key goes to the whole selection) and the move goes to the rest."""
         g = self.g
         stuck = [u for u in selected if u["type"] in g.race.in_mode]
         if not stuck:
             return False
         if at not in d:
-            if self.stay_watched and obs is not None and self._watched(obs, stuck):
-                return False
+            if self.stay_watched and obs is not None:
+                inside = self._watched(obs, stuck)
+                if inside:                       # (the key goes to the whole selection: all of them stay)
+                    g.say(f"{len(stuck)} {_names(stuck)} stay in their mode: {len(inside)} in the fight, "
+                          f"{len(stuck) - len(inside)} out of it held with them")
+                    return False
             d[at] = g.hi.frame
             g.hi.unsiege()
             g.say(f"{len(stuck)} {_names(stuck)} -> unsiege to move")
             return True
         return g.hi.frame - d[at] < UNSIEGE_WAIT
 
-    def _watched(self, obs: dict, units: list[dict]) -> bool:
-        """A seen enemy fighter within MODE_WATCH of one of the units."""
-        from gary.agent.fight import enemy_fighters
-        foes = enemy_fighters(obs, self.g.slot)
-        return any(math.dist((u["x"], u["y"]), (e["x"], e["y"])) < MODE_WATCH for u in units for e in foes)
+    def _watched(self, obs: dict, units: list[dict]) -> set[int]:
+        """The units in the fight the fight layer's model would be asked about now (option staysieged)."""
+        fight = self.g.fight
+        if fight is None or not hasattr(fight, "members"):
+            return set()
+        inside = fight.members(obs)
+        return {u["tag"] for u in units if u["tag"] in inside}
 
     def _exact(self, obs: dict, units: list[dict], sel: set, want: set, t: Task) -> bool:
         """Exactly these units selected, the camera on them (and on a "place" order's spot): a click on

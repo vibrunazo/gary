@@ -17,9 +17,9 @@ rather than scripted, because the replay pipeline made that the quicker way to a
 Since 2026-10-15 every piece of the self-play loop is being built crude before any is polished: a
 learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the league isn't trained
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
-Where it stands (2026-11-04): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
-(gt0.11), Zerg as `gz1` (gz0.4) and Protoss as `gp1` (gp0.7, crude); learning is trained and judged in `gt1dev`
-(gt0.31dev), `gp1dev` (gp0.28dev) and `gz1dev` (gz0.20dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+Where it stands (2026-11-16): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
+(gt0.16), Zerg as `gz1` (gz0.10) and Protoss as `gp1` (gp0.11, crude); learning is trained and judged in `gt1dev`
+(gt0.39dev), `gp1dev` (gp0.33dev) and `gz1dev` (gz0.26dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -2091,6 +2091,21 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **gt0.39dev: what unsieged the tanks against a Protoss besides the mode model, fixed (2026-11-16).** Each judged
+  leave of Siege Mode matched by the tank's tag to the last "O (tank mode)" order that held it (by time alone the
+  attribution swapped the fight layer's and the motor's: an unsiege shows 3.5 s after its key). PT271a: of the 1.51%
+  a half second, the army's moves' "unsiege to move" 0.99% and the fight layer (the mode model) 0.52% (its odds 0.62%);
+  in 93 of the army's 128 the tank was in a fight moment when the key went, 12 to 25 tiles from the nearest enemy
+  fighter (83 of them): staysieged held a tank only with a seen enemy fighter within 12 tiles, where a fight moment,
+  the judge's and the mode model's data's, holds every own unit within 24 tiles of the enemies engaged. Against a Zerg
+  (HT270a) none of the army's 10 was in one (its excess the fight layer's own orders). The fix: staysieged asks the
+  fight layer whether the tank is in the snapshot its model would be asked about now (fight.py members, play's radius
+  and cap); one in it holds the selection's sieged tanks (the key goes to the whole selection). Written before:
+  the army's keys in a fight moment 93 to about 0, the leaves 1.51% to about 0.8% (the keys before the fight reached
+  the tank stay). PT272a (16 games, PT271a's seeds): 9 keys, leaves 0.89% (the fight layer's 0.68%, a pro's 0.45%),
+  sieged 39.1% of their fight moments (29.6%, a pro's 52%); HT272a against gz1: leaves 0.42% (0.61%, a pro's 0.44%),
+  sieged 51.9% (45.5%); tanks out of the fight held with the rest 13 of 437 (PvT), 0 of 49 (TvZ). Results alike in 16
+  games (the Terran won 7 PvT games in both). Adopted on its own check (a test made to match its model's domain).
 - **gt0.38dev: Gary sieged at under half the rate its siege model asked for; a decoder's bug, fixed (2026-11-13).**
   gt0.37dev's tanks entered Siege Mode in 1.0% of their fight half seconds for a pro's 2.2%. Not the model: read on
   Gary's own unsieged tank-moments (GT268b) it asks for 2.4%, in every fifth of its odds about twice what Gary did

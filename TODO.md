@@ -60,10 +60,10 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
      pro's rate: a decoder's bug (the mode model's half-second odds over a tank's 1.2 s between turns), fixed in
      gt0.38dev: 1.88% for a pro's 2.16%, sieged 45.5% of their fight moments for 51% (16 games). Left, in order: (a)
      its tanks sieged where a pro's aren't (34% of the moments the judge gives under 20%, a pro's 3%) and leaving the
-     mode more than the model asks, most against a Protoss (1.51% a half second for the model's 0.62%, PT271a; 0.61%
-     for 0.38% against a Zerg): what unsieges a tank besides the mode model, from the records (the army's moves of a
-     sieged line first). The entries are the model's now in both matchups (1.58% for 1.56%), and no fight moment is
-     far from a fight turn; (b) mines at half a pro's rate (3.0% to 4.6% for 6.2% to
+     mode more than the model asks: against a Protoss the army's moves unsieged tanks inside fight moments (staysieged
+     looked 12 tiles round the tank, a fight moment holds units 24 tiles round the enemies), fixed in gt0.39dev
+     (leaves 1.51% to 0.89%, sieged 30% to 39% for a pro's 52%; against a Zerg 0.61% to 0.42% for 0.44%); what is
+     left against a Protoss is the model asking less there than a pro does (entries 1.67% for 2.35%); (b) mines at half a pro's rate (3.0% to 4.6% for 6.2% to
      6.5%) and placed no better than chance (ranking 0.50 to 0.57 for 0.72): an event model on the judge's inputs,
      as the tanks got; (c) the fight gap further at 15-20 minutes (+0.063 [+0.019, +0.111]): which features, from
      eval/gap_windows.py.
