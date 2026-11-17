@@ -1554,6 +1554,30 @@ MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcou
                        "version": "gp0.33dev"}
 
 
+def fight_model_path(m: dict, matchup: str, race: str) -> Path | None:
+    """The role model a manifest's fight layer plays with in this matchup (its "vs" section already applied): a pinned
+    checkpoint (roles_model), else the newest trained on its data (roles_data), else its model reference; the Zerg's
+    (zerg_roles.py latest_zerg_model). None for a fight of rules alone. build_gary loads it; eval/pipe_table.py too."""
+    f = m.get("fight")
+    if f is None:
+        return None
+    if f["provider"] == "zerg":
+        from gary.agent.zerg_roles import latest_zerg_model
+        return latest_zerg_model(_by_matchup(f.get("roles_data", "response_Z.npz"), matchup)) if f.get("roles", True) \
+            else None
+    if f["provider"] not in ("roles", "role_override", "role_ahead") or (f["provider"] == "roles" and f.get("model") is None):
+        return None
+    if f.get("roles_model"):
+        return Path(f["roles_model"])                    # (a pinned checkpoint: an RL run's, say)
+    if f.get("roles_data"):
+        from gary.policy.roles import latest_trained_on
+        found = latest_trained_on(_by_matchup(f["roles_data"], matchup))
+        if found is None:
+            raise FileNotFoundError(f"no role model trained on {f['roles_data']}")
+        return found
+    return model_path(f["model"], matchup, race)
+
+
 def _against(m: dict, vs: dict) -> dict:
     """A manifest with its overrides for the enemy's race (its "vs" section): a layer's dict merged key by key, the
     rest replaced."""
@@ -1747,14 +1771,9 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
             models["fight"] = "roles/rules_v1"   # (the chat says so: as many lines as with a model)
         elif f["provider"] in ("roles", "role_override", "role_ahead"):
             from gary.policy.roles import RoleModel
-            if f.get("roles_model") and fight_path is None and fight_model is None:
-                fight_path = f["roles_model"]                # (a pinned checkpoint: an RL run's, say)
-            if f.get("roles_data") and fight_path is None and fight_model is None:
-                from gary.policy.roles import latest_trained_on
-                fight_path = latest_trained_on(_by_matchup(f["roles_data"], g.matchup))
-                if fight_path is None:
-                    raise FileNotFoundError(f"no role model trained on {f['roles_data']}")
-            fight = fight_model or RoleModel.load(fight_path or model_path(f["model"], g.matchup, g.race.letter))
+            if fight_path is None and fight_model is None:
+                fight_path = fight_model_path(m, g.matchup, g.race.letter)
+            fight = fight_model or RoleModel.load(fight_path)
             models["fight"] = fight.path
         else:
             fight = fight_model or load("fight", str(fight_path or model_path(f["model"], g.matchup, g.race.letter)))

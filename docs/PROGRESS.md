@@ -2091,6 +2091,47 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **What a model asks against what Gary carried out, one table (`eval/pipe_table.py`, v1, 2026-11-17; TODO.md
+  Direction b).** Why: each fault of the week (the trainer's weights in a draw, a decoder's turns, the motor
+  unsieging, a selection's spill) sat between a model's odds and what Gary did, and each was found by a check written
+  for one mode in one matchup. This is that check for every drawn decision of the fight and commit layers, every
+  race, from rounds already played (no games). How: a round's fight moments for one side are built and labelled as
+  the pros' were for the role model (ingest/response_dataset.py; train/roles.py's decision labels: the role a unit
+  took over the next half second, keep where it held), and the side's models give their odds at each of those
+  moments as play computes them (the role model's; with `rates` the weights out; the mode and event models put in for
+  tanks and Vultures). Per decision: the odds summed (asked), the share labelled with it (made), and the two by fifths
+  of the odds. A pipe that carries out what is asked makes about as many as it asks; under or over severalfold is a
+  fault (read for severalfold only, TODO.md f). Mode changes outside the labelled moments (where no fight decision
+  is asked) are counted apart; the commit layer is read from the records (odds before a floor, drawn, sent). Macro
+  has its own check (eval/macro_pipe.py). Checked first on the known faults, all with the build each round played:
+
+  | known fault | round | the table |
+  |---|---|---|
+  | tanks sieged at under half the model's odds (gt0.37dev, the turns) | GT268b, 48 games | siege made/asked 0.48; after the fix 0.85 (HT272a), 0.83 (HM273a) |
+  | tanks left Siege Mode at 2.4x the odds against a Protoss (gt0.38dev) | PT271a | in the fight 1.4x (0.89% for 0.64%), and 7.5 unsieges a game where no fight decision is asked: together the 1.5% found then |
+  | the Zerg's draws with the trainer's weights in | RB274a, RR274a | without `rates` 0.27-0.53 of each role asked (other 0.13); with it 0.85-1.07 (fire 0.63, other 0.31) |
+  | the Terran's commit floor (draw above 15%) | every Terran round | engage and move below about 15% never drawn (a tenth to a sixth of the engages asked) |
+  | a Vulture selection's spill (gt0.40dev) | HM273a, PM273a | not flagged: mines are under the asked odds even with the spill (0.86, 0.68); who laid them needs the draws logged |
+
+  What it shows on the builds as they are:
+  - *The Protoss without `rates` (gp1dev, PM273a and RB274a)*: every role under, 0.13-0.62 (retreat 0.13-0.24, other
+    0.16-0.26), keep over (1.24-1.30), as the Zerg's was; with `rates` (RR274a) 0.73-0.99, retreat 0.46, pull back
+    1.59. Both builds' commit draws match their odds (0.97-1.10). So `rates` is what makes the Protoss's and the
+    Zerg's fight carry out what their models ask, as it did the Terran's; the judge could not show it (storms are
+    the cast rule's, Lurkers too few).
+  - *The Terran's retreat (every TvZ round: 0.16-0.20, severalfold; PvT 0.39-0.45)*: its model asks a retreat in 1.5%
+    of the fight's unit half seconds, 147 a game in HT272a; the fight layer notes 71 units ordered to retreat a game,
+    and 24 are seen retreating (a stretch of 4 tiles or more away from the enemy, as the pros' were labelled).
+    Reposition (0.43-0.47) and other (0.22-0.26) are under too, stand over (1.32-1.35). Where the rest go (the draw's
+    turns, the orders, or orders too short to read as a retreat) needs the draws logged.
+  - *Tanks against a Protoss (PM273a, gt0.40dev)*: in the fight sieging and unsieging at 1.2-1.35x the odds; outside
+    it 12.8 sieges and 7.9 unsieges a game that no fight decision asked (the army's moves, the motor), as many
+    unsieges as in it. TvZ (HM273a): 4.1 and 2.6 outside, 13.1 and 1.8 in it.
+  - *Mines*: 0.68-0.86 of the asked; stim, storms and Lurkers are not in it yet (rules, not draws).
+
+  Next: one record for each of the Terran's and the Protoss's fight draws (the unit, its odds, the role drawn, the
+  order that went out, or why none), so each fault is read at its stage (drawn, ordered, done) and the "made,
+  not asked" by its source; then the retreat. `rates` for gp1dev and gz1dev is proposed to fold on this table.
 - **`rates` for the Protoss and the Zerg dev builds (started 2026-11-17).** Why: the Terran's fight draws were taken
   at the trainer's class-weighted odds, which made its rare decisions several times too likely (its tanks flipping in
   and out of Siege Mode); option `rates` takes the weights out (RoleModel.rates) and is in gt1dev since gt0.37dev.

@@ -19,7 +19,10 @@ a. Done 2026-11-17: the siege work stopped; the mines folded into gt1dev (gt0.40
    few games, so it is measured in b's table. Each further ability time-boxed to about a day.
 b. One check of what a model asks against what Gary carried out, over every drawn decision, layer and race (the
    model's odds on Gary's own judged moments against the transitions it made, by fifths of the odds): the check that
-   found every fault of the week, as one table.
+   found every fault of the week, as one table. v1 done 2026-11-17 (`eval/pipe_table.py`, docs/PROGRESS.md): the
+   fight and commit layers of every race from played rounds; it finds four of the five known faults. Left: one
+   record per fight draw of the Terran and the Protoss (the stage each fault is at, the source of the unasked); the
+   Terran's retreats (a fifth of those asked in TvZ); `rates` for gp1dev and gz1dev, proposed to fold on it.
 c. The upstream decisions ahead of the remaining abilities: the army's positioning and engagements (where the army
    leaves the tanks), and finishing games (item 6 below, the commit layer).
 d. One live game a race, watched, before more decoder work.
