@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-17): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.16), Zerg as `gz1` (gz0.10) and Protoss as `gp1` (gp0.11, crude); learning is trained and judged in `gt1dev`
-(gt0.40dev), `gp1dev` (gp0.33dev) and `gz1dev` (gz0.26dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.41dev), `gp1dev` (gp0.33dev) and `gz1dev` (gz0.26dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -2107,7 +2107,9 @@ plan and the full log).
   since gp1dev's storms are its cast rule's (gary/policy/cast.py), not a role model's draw. The Lurkers: in 2 and 3
   of the 16 games only (gz1dev makes few against a Protoss): burrows 2.2% and 1.7% for a pro's 1.5%, unburrows 0.0%
   and 0.7% for 3.4% and 3.3%; too few games to read. So the judge doesn't measure what `rates` changes in these
-  builds: their common decisions (fire, close in, retreat), each a share of the draws. Not folded; it goes into the
+  builds: their common decisions (fire, close in, retreat), each a share of the draws. It was on in both: the Zerg's
+  drawn roles kept 60.8% of the time in RB274a and 82.9% in RR274a (every other decision half or less), and the
+  Protoss's fight orders fell from 233 a game to 146. Not folded; it goes into the
   table of every drawn decision against the pros' rates (TODO.md Direction b), which measures it directly.
 - **gt0.40dev: `minemodel` folded into the Terran dev build (2026-11-17, the user's call).** On the results below
   (the mine rate at the pros' in both matchups, the line nearer, the ranking's moves within what 16 games show).
@@ -2120,8 +2122,8 @@ plan and the full log).
   (`army_enemy` +0.59: 7% of the time for 5% before and a pro's 4%, a narrow spread, so small moves score large),
   the answer to a harass (`harass_response_s` +0.47: 7.9 s for 12.5 before, a pro's 14.6) and the HP lost to it
   (`harass_hp_lost` +0.39: 124 for 262, a pro's 332); then `fight_reached` +0.20 (0.42 for 0.37, a pro's 0.34).
-  Two of the three are Gary answering raids faster and losing less than a pro does: the score counts better than the
-  pros as far as worse. One reading, not checked: gt0.37dev's army stands nearer the fights at 15-20 minutes, and
+  Two of the three are raids answered faster, and less HP lost to them, than a pro's: the score counts a difference
+  either way, and gz1's raids are not a pro's, so this says Gary's raids differ, not that it defends better. One reading, not checked: gt0.37dev's army stands nearer the fights at 15-20 minutes, and
   the later window gives it back. Nothing to fix from it; the measure keeps being
   read per window in the promotion check.
 - **Mines by an event model on the judge's inputs (option `minemodel`, started 2026-11-17).** Why: the judge (TODO.md
@@ -2158,7 +2160,16 @@ plan and the full log).
   | TvZ: the judge's ranking (the pros' 0.72) | 0.55 | 0.67 | |
   | TvZ: off the pros' line | 6.7% | 4.5% | |
 
-  The rate came to the pros' and the line nearer in both; the ranking up against a Zerg, down against a Protoss,
+  Of the mine commands the judge counts, a third to a half went to Vultures the model hadn't decided for: the
+  order goes to the hands' whole selection (one kept with up to two more, or a box), and each Vulture in it lays one
+  (PT272a 117 decisions to 199 Vultures, 41%; PM273a 386 to 607, 36%; HT272a 128 to 238, 46%; HM273a 231 to 453,
+  49%). So the shares above are the model's and that spill together, before and after; the decisions themselves rose
+  3.3 times against a Protoss and 1.8 times against a Zerg. The pros' data counts their selections' spill as well (a
+  command to several Vultures is a command to each), so the event model's odds hold theirs: narrowing Gary's order
+  to the one Vulture is a change of play to measure, not done. A bug that came with it, fixed in gt0.41dev: only the
+  decided Vulture's mine was booked, so a Vulture that had just laid one with the selection read 60 s since its last
+  to the event model and kept its three uses (some got four or five orders); every Vulture the order went to is
+  booked now (one 16-minute check game: none past three). The rate came to the pros' and the line nearer in both; the ranking up against a Zerg, down against a Protoss,
   under the 0.70 written. Why, checked: part of it is the input the mine model leaves out. A pro lays a mine 0.8 s
   (median) after the last command to that Vulture: the mine is the end of a selection and a move. Gary's come 6.0 s
   after, so the judge marks them down on that input whatever the situation (Gary's Vultures are commanded every 8 s,

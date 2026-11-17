@@ -388,6 +388,14 @@ class DirectMotor:
             else:
                 hi.minimap_command(C.ORDER_PLACE_MINE, key[1], key[2])
             g.say(f"fight: {len(want)} {_names(units)} -> mine")
+            # (the order goes to the whole selection: a Vulture kept in it or taken by the box lays one too, and its
+            # mines and the time of its last are booked as the decided one's: 36-49% of the Vultures given a mine
+            # order were not the one decided for, PM273a, HM273a; the event model reads the time since its last)
+            roles = getattr(g.fight, "roles", None) if g.fight is not None else None
+            if roles is not None and hasattr(roles, "book_mode"):
+                by_tag = {u["tag"]: u for u in mine}
+                roles.book_mode("mine", [t for t in sel - set(d["tags"]) if t in by_tag
+                                         and by_tag[t]["type"] in g.race.modes["mine"][0]])
         elif a in ("move", "attack_move"):
             # on the ground next to the point: a click on a unit there would be an attack on that one
             # unit (A-click) or a follow or attack (right-click): Gary's fighters chased single zerglings

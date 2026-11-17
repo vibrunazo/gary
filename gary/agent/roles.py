@@ -786,6 +786,15 @@ class RoleRules:
             return Intent(role, tags, None, {"key": (name,), "tags": tags, "center": _mid(group)}, "roles")
         return None
 
+    def book_mode(self, name: str, tags: list[int]) -> None:
+        """A one-off mode (a mine) carried out by these units too, besides the one it was decided for (the motor: the
+        order went to the whole selection): their uses and the time of their last one, as the decided unit's."""
+        now = self.g.hi.frame
+        for t in tags:
+            self.uses[t] = self.uses.get(t, 0) + 1
+            if hasattr(self, "event_at"):
+                self.event_at[(name, t)] = now
+
     def _mode_ready(self, name: str, u: dict) -> bool:
         """The unit can take this mode now: of its types, its tech researched, not already starting it, uses left."""
         types, tech, frames, order, uses = self.g.race.modes[name]

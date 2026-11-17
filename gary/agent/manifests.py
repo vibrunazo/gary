@@ -1309,6 +1309,9 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # one-tile pocket, and every expansion after took it, the nearest, and failed: TT245a, 17 builds in one game, its
 # natural at 9:54; TT246a on the same seeds, 3 such drops in 3 games for 21, every natural by 4:22). Its input options
 # (widespot, seenall, armyseen, builtcount, unitcount, pendown) are gt1's now (gt0.12)
+# gt0.41dev (2026-11-17): a fix of the mines' booking: a mine order goes to the whole selection, and the Vultures
+# kept in it or boxed with the decided one (36-49% of those given a mine order) lay one too; their mines used and
+# the time of their last are booked now (motor.py, roles.py book_mode), as the event model's input counts it
 # gt0.40dev (2026-11-17, the user's call): minemodel, a Vulture's mine drawn at the event model of the pros' mine
 # commands on the judge's inputs (runs/modes/<matchup>_T_mine_*.pkl). 16 games a matchup: its Vulture fight moments
 # with a mine 2.6% to 6.1% against a Protoss (a pro in its situations 8.2%), 5.5% to 6.7% against a Zerg (5.9%); the
@@ -1352,7 +1355,7 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
                                      "+parkmany+tvzmodes+staysieged+modemodel+minemodel"),
-                       "version": "gt0.40dev"}
+                       "version": "gt0.41dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,

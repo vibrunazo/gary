@@ -87,8 +87,10 @@ The steps as first written (2026-11-12), kept for what they hold:
      6.5%) and placed no better than chance (ranking 0.50 to 0.57 for 0.72): an event model on the judge's inputs,
      as the tanks got (option `minemodel`, gt0.40dev, 2026-11-17, PM273a, HM273a: the rate at the pros' in both,
      the ranking 0.55 to 0.67 against a Zerg and 0.72 to 0.67 against a Protoss; left: a pro's mine comes 0.8 s after
-     a command to the Vulture, the end of a move, Gary's 6 s); (c) done 2026-11-17: the fight gap
-     further at 15-20 minutes is the army near the enemy and raids answered faster and with less HP lost than a pro
+     a command to the Vulture, the end of a move, Gary's 6 s; a third to a half of Gary's mine commands go to Vultures
+     kept in the selection, not the one decided for (booked since gt0.41dev; narrowing the order is a change to measure)); (c) done 2026-11-17: the fight gap
+     further at 15-20 minutes is the army near the enemy and raids answered faster and with less HP lost than a pro's
+     (gz1's raids are not a pro's)
      (eval/gap_windows.py --features; docs/PROGRESS.md), nothing to fix.
    - The tanks' siege in every Terran matchup: they flipped in and out of Siege Mode seven times as often as a
      pro's (a sieged tank leaving it in 3% of its fight half seconds, a pro's in 0.45%; eval/mode_hazard.py). Found
