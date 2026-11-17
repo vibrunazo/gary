@@ -2142,6 +2142,44 @@ plan and the full log).
   "ordered" leaks in the fight layer's orders (a fire drawn for a unit already firing gets none, so fire and keep
   are read apart), and the Terran's retreat, if it leaks where it did (a fifth made in TvZ), shows at the stage
   between ordered and made: orders too short to read as a retreat, or cut by the next turn.
+
+  Results (TD275a: the Terran won 4, lost 1, 11 at time; PD275a: the Protoss won 1, lost 4). Per 100 unit half
+  seconds, asked > drawn at (the draws' odds) > drawn > ordered (that role's order to the unit the same turn) > made:
+
+  | | TvZ Terran (gt1dev) | PvT Terran (gt1dev) | PvT Protoss (gp1dev+rates) |
+  |---|---|---|---|
+  | fire | 15.5 > 13.4 > 13.5 > 3.4 > 10.4 | 7.0 > 7.9 > 8.8 > 0.1 > 5.5 | 5.3 > 8.7 > 8.7 > 0.6 > 4.8 |
+  | close in | 2.7 > 1.4 > 1.4 > 1.0 > 1.6 | 1.0 > 0.7 > 0.2 > 0.1 > 0.7 | 1.3 > 1.1 > 1.2 > 0.4 > 0.9 |
+  | retreat | 1.43 > 0.60 > 0.64 > 0.45 > 0.25 | 0.27 > 0.15 > 0.08 > 0.06 > 0.11 | 0.51 > 0.34 > 0.32 > 0.24 > 0.24 |
+  | reposition | 7.9 > 4.7 > 4.6 > 2.4 > 3.5 | 2.7 > 3.2 > 4.5 > 1.9 > 1.7 | 2.6 > 3.5 > 3.6 > 1.8 > 2.0 |
+  | stand | 4.5 > 4.8 > 4.8 > 0 > 5.8 | 8.0 > 14.4 > 22.4 > 0 > 4.0 | 2.9 > 4.8 > 4.8 > 0 > 3.0 |
+
+  Read stage by stage:
+  - *Asked to drawn at: one decision a turn.* The model's odds are a half second's; a unit's turn comes every 2.0
+    half seconds (median 1.8, TvZ), and the decoder (roles.py `_over`) folds the turn's half seconds into one draw:
+    keep's odds to the power of the turns, the rest sharing what is left. The TvZ model asks a decision other than
+    keep in 59% of half seconds (fire and again, the re-issue, most), about 1.2 a turn, so every decision is drawn at
+    half to three quarters of its rate (at the same 54,343 moments, matched draw to labelled moment: retreat 0.49,
+    fire 0.63, stand 0.79). The role model's inputs in play were checked on the same moments: its odds in play and
+    on the dataset's inputs correlate 0.81 (TvZ) and 0.88 (PvT Protoss), means within 0.03: not the inputs.
+  - *The Terran against a Protoss or a Terran draws nothing but its modes.* gt1dev's options draw, refresh, batch,
+    together and lone were folded into its fight section, and its "vs" sections for a Protoss and a Terran (pvtroles,
+    mirrorroles) keep their own roles settings, {post, mode_dice}: the likeliest role, with the modes drawn
+    (`modedice`). So stand, the likeliest after keep, is taken in 22% of its turns for 8% asked, and close in and
+    retreat at a third (0.2 for 1.0, 0.08 for 0.27). gt1dev's TvZ options never reached its PvT and TvT fights.
+  - *Drawn to ordered.* Stand and other have no order in the Terran's and the Protoss's fight layer (roles.py `_act`):
+    a unit drawn to stand goes on with what it did. Fire is ordered for a unit not already attacking (a quarter in
+    TvZ). A retreat at home gives no order by design, and a Marine near a bunker goes into it.
+  - *Ordered to made.* A retreat ordered becomes a retreat seen in about half the cases in TvZ (0.45 to 0.25): its
+    move is too short to cover the 4 tiles that label a retreat, or the next turn cuts it.
+  - The Protoss with `rates` draws what it is asked (drawn at within a few percent of drawn) and its losses are the
+    turns and the orders, as the Terran's.
+
+  The fixes, proposed (each a decoder change, judged first on this table and the judge, 16 games, then wins): (1)
+  the turn's half seconds drawn each and the most urgent decision taken (the fight layer's own order: retreat, pull
+  back, the modes, fire, close in), so a rare decision keeps its rate where a common one loses its repeats; (2) the
+  Terran's PvT and TvT fights drawn as its TvZ one (the options reach every "vs" section); (3) stand carried out
+  (a stop or hold), as the pros' stand is a hold or a stop.
 - **`rates` for the Protoss and the Zerg dev builds (started 2026-11-17).** Why: the Terran's fight draws were taken
   at the trainer's class-weighted odds, which made its rare decisions several times too likely (its tanks flipping in
   and out of Siege Mode); option `rates` takes the weights out (RoleModel.rates) and is in gt1dev since gt0.37dev.

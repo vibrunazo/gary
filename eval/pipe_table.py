@@ -274,24 +274,30 @@ def print_fight(race: str, names: list, out: dict) -> None:
 
 
 def stages(name: str, race: str, names: list, out: dict, games: int) -> None:
-    """With the games' draws logged (gary/agent/roles.py, decisions.npz draws_<race>): per decision, a game, the
-    odds asked over the labelled half seconds, the odds of the draws (each over the turns since the unit's last),
-    the draws, the units it was ordered to that turn, the labelled made; each stage's loss is where the pipe leaks."""
+    """With the games' draws logged (gary/agent/roles.py, decisions.npz draws_<race>): per decision, as a rate per
+    100 unit half seconds, the odds asked over the labelled half seconds, the odds of the draws (each over the turns
+    since the unit's last: per the half seconds the draws cover), the draws, the units it was ordered to that turn,
+    and the labelled made. The draws cover the units the fight layer decides, the labels those within sight of an
+    enemy fighter: the two sets are near, not the same. Each stage's loss is where the pipe leaks."""
     rec = defaultdict(list)
     for f in sorted((REPO / "runs" / "league" / name).glob("*/*.decisions.npz")):
         z = np.load(f)
         key = f"draws_{race.lower()}"
         if f"{key}/role" not in z.files:
             continue
-        for k in ("role", "q", "sent", "due"):
+        for k in ("role", "q", "sent", "turns"):
             rec[k].append(z[f"{key}/{k}"])
     if not rec:
         print("\n(no draws logged in this round's games: the stages need games played since the log, 2026-11-17)")
         return
-    role, q, sent, due = (np.concatenate(rec[k]) for k in ("role", "q", "sent", "due"))
-    asked, made = np.array(out["asked"]), np.array(out["made"])
-    print(f"\nby stage, a game ({games} games; the draws of the units the fight layer decides, the made of the labelled)")
-    print(f"{'decision':>10} {'asked':>8} {'drawn at':>8} {'drawn':>8} {'ordered':>8} {'made':>8}")
+    role, sent = np.concatenate(rec["role"]), np.concatenate(rec["sent"])
+    q, turns = np.concatenate(rec["q"]).astype(np.float64), np.concatenate(rec["turns"]).astype(np.float64)
+    asked, made = np.array(out["asked"], np.float64), np.array(out["made"])
+    labelled, covered = len(made), turns.sum()
+    print(f"\nby stage, per 100 unit half seconds ({games} games: {labelled / games:.0f} labelled a game, the draws "
+          f"{len(role) / games:.0f} a game covering {covered / games:.0f})")
+    print(f"{'decision':>10} {'asked':>7} {'drawn at':>8} {'drawn':>7} {'ordered':>7} {'made':>7}   (ordered: an order "
+          f"of that role to the unit the same turn)")
     for r, n in enumerate(names):
         if n in ("again",):
             continue
@@ -299,8 +305,9 @@ def stages(name: str, race: str, names: list, out: dict, games: int) -> None:
         s = d & (sent == n.upper())
         if not d.any() and (made == r).sum() == 0:
             continue
-        print(f"{n:>10} {asked[:, r].sum() / games:8.1f} {q[:, r].sum() / games:8.1f} {d.sum() / games:8.1f} "
-              f"{s.sum() / games:8.1f} {(made == r).sum() / games:8.1f}" + ("" if n != "keep" else "   (keep: no order)"))
+        print(f"{n:>10} {100 * asked[:, r].sum() / labelled:7.2f} {100 * q[:, r].sum() / covered:8.2f} "
+              f"{100 * d.sum() / covered:7.2f} {100 * s.sum() / covered:7.2f} {100 * (made == r).sum() / labelled:7.2f}"
+              + ("   (keep: no order)" if n == "keep" else ""))
 
 
 def outside(m: dict, race: str) -> None:
