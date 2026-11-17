@@ -2161,12 +2161,15 @@ plan and the full log).
     keep in 59% of half seconds (fire and again, the re-issue, most), about 1.2 a turn, so every decision is drawn at
     half to three quarters of its rate (at the same 54,343 moments, matched draw to labelled moment: retreat 0.49,
     fire 0.63, stand 0.79). The role model's inputs in play were checked on the same moments: its odds in play and
-    on the dataset's inputs correlate 0.81 (TvZ) and 0.88 (PvT Protoss), means within 0.03: not the inputs.
+    on the dataset's inputs correlate 0.81 (TvZ) and 0.88 (PvT Protoss), means within 0.03: the inputs explain
+    little of it, though not nothing (stand 0.44 in play for 0.31, correlation 0.53, TvZ; only the drawn role's odds
+    were logged, which leans play's side up).
   - *The Terran against a Protoss or a Terran draws nothing but its modes.* gt1dev's options draw, refresh, batch,
     together and lone were folded into its fight section, and its "vs" sections for a Protoss and a Terran (pvtroles,
     mirrorroles) keep their own roles settings, {post, mode_dice}: the likeliest role, with the modes drawn
     (`modedice`). So stand, the likeliest after keep, is taken in 22% of its turns for 8% asked, and close in and
-    retreat at a third (0.2 for 1.0, 0.08 for 0.27). gt1dev's TvZ options never reached its PvT and TvT fights.
+    retreat at a third (0.2 for 1.0, 0.08 for 0.27). By design (2026-10-29, `modedice`: the modes drawn because the
+    likeliest laid no mines, the rest kept the likeliest); drawing the other roles there was never tried.
   - *Drawn to ordered.* Stand and other have no order in the Terran's and the Protoss's fight layer (roles.py `_act`):
     a unit drawn to stand goes on with what it did. Fire is ordered for a unit not already attacking (a quarter in
     TvZ). A retreat at home gives no order by design, and a Marine near a bunker goes into it.
@@ -2175,11 +2178,34 @@ plan and the full log).
   - The Protoss with `rates` draws what it is asked (drawn at within a few percent of drawn) and its losses are the
     turns and the orders, as the Terran's.
 
-  The fixes, proposed (each a decoder change, judged first on this table and the judge, 16 games, then wins): (1)
-  the turn's half seconds drawn each and the most urgent decision taken (the fight layer's own order: retreat, pull
-  back, the modes, fire, close in), so a rare decision keeps its rate where a common one loses its repeats; (2) the
-  Terran's PvT and TvT fights drawn as its TvZ one (the options reach every "vs" section); (3) stand carried out
-  (a stop or hold), as the pros' stand is a hold or a stop.
+  The pros' own games as the reference (`--pros 40`: the role models' held-out games, the same odds and labels;
+  `eval/pipe_table.py` v2, which also restricts the stages to the draws matched to a labelled moment and leaves out a
+  mode drawn again while it waits). It decides what a ratio means:
+  - *PvT models (trained on every unit):* the pros make what is asked, 0.84-1.25 on every role. The yardstick holds.
+  - *The TvZ model (trained on the units the pro's commands reached, --attended):* over every labelled unit the pros
+    make 0.59-1.02 of its odds (retreat 0.78, reposition 0.59), over the units they commanded 0.86-1.07. The model's
+    odds are a commanded unit's, so part of the TvZ deficits above is the model's conditioning, not Gary's pipe; the
+    "1.2 decisions a turn" is the same conditioning (keep's odds low), so drawing more of them would make Gary act
+    more than a pro.
+
+  Ranked by confidence, Gary against the pros' ratio:
+  1. *Retreats, every side.* TvZ Terran 0.18 (pros 0.78; 0.18 for 1.03 over the commanded units), PvT Terran 0.43
+     (1.02), PvT Protoss 0.47 (1.00). By stage over the matched draws, asked > drawn > ordered > made: TvZ 1.64 > 0.93
+     > 0.66 > 0.27, PvT Terran 0.24 > 0.16 > 0.13 > 0.07, PvT Protoss 0.47 > 0.42 > 0.30 > 0.17: the common loss is
+     from the order to a retreat seen. Of 917 retreat orders in TvZ, the unit is seen moving away at the order in about
+     half (reposition 32%, retreat 10%, pull back 6%), firing or closing in 30%, standing 21% (PvT Protoss: 224, 50%,
+     41%, 9%); 42% get another retreat within 2 s in TvZ. The retreat point (roles.py `_retreat_point`) is one point
+     for the group, at least 4 tiles from its middle: a unit behind the middle has less to go, and a unit still
+     firing may not have taken the order. Next: the orders' fates in the records, then the point.
+  2. *The Terran against a Protoss takes the likeliest role* (`modedice`, by design): stand drawn 2.8x its asked in
+     its turns, close in and retreat a third; its ratios against the pros' (all about 1): stand 0.50, retreat 0.43,
+     reposition 0.61. Drawing the other roles there (option `draw` in its "vs" sections alone) is the test.
+  3. *Mines against a Protoss:* 0.67 (pros 0.88), the loss between drawn and made (0.23 > 0.15 > 0.06 a hundred).
+  4. Fire and reposition in TvZ (0.67, 0.45 for the pros' 0.79, 0.59), small against the model's conditioning.
+  Not a fault: stand in TvZ and for the Protoss is made at or above its asked rate with no order, as the pros'.
+
+  Not changed, for the user: whether to chase 1-3 now or move to the army's positioning (TODO c); `rates` for gp1dev
+  and gz1dev (the Protoss with it draws within a few percent of its odds, PD275a).
 - **`rates` for the Protoss and the Zerg dev builds (started 2026-11-17).** Why: the Terran's fight draws were taken
   at the trainer's class-weighted odds, which made its rare decisions several times too likely (its tanks flipping in
   and out of Siege Mode); option `rates` takes the weights out (RoleModel.rates) and is in gt1dev since gt0.37dev.

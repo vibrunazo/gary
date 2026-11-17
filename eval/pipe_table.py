@@ -59,14 +59,14 @@ def _job(job: tuple) -> dict:
     from ingest.response_dataset import _job as build
     path, race = job
     got = build((path, None, path, race, None, False))
-    return {"path": path, **{k: got[k] for k in ("error", "rows", "extra", "labels", "time", "tags", "budget")}}
+    return {"path": path, **{k: got[k] for k in ("error", "rows", "extra", "labels", "time", "tags", "budget", "attended")}}
 
 
 def moments(name: str, race: str, workers: int) -> dict:
     """A round's labelled fight moments for one side, built once and kept in its folder."""
     from gary.policy.roles import MAX_UNITS
     out = REPO / "runs" / "league" / name
-    cache = out / f"pipe_{race}.npz"
+    cache = out / f"pipe_{race}_v2.npz"             # (v2: whether the player's commands reached each unit)
     if cache.exists():
         d = np.load(cache, allow_pickle=True)
         return {k: d[k] for k in d.files}
@@ -81,7 +81,7 @@ def moments(name: str, race: str, workers: int) -> dict:
                 print(f"  {Path(got['path']).name}: {got['error']}", file=sys.stderr)
                 failed += 1
                 continue
-            for k in ("rows", "extra", "labels", "time", "tags", "budget"):
+            for k in ("rows", "extra", "labels", "time", "tags", "budget", "attended"):
                 acc[k] += got[k]
             acc["game"] += [i] * len(got["rows"])
 
@@ -103,6 +103,8 @@ def moments(name: str, race: str, workers: int) -> dict:
            "labels": (np.stack([pad(y, None, np.int8, -1) for y in acc["labels"]]) if n
                       else np.zeros((0, MAX_UNITS), np.int8)),
            "tags": np.stack([pad(t, None, np.int64) for t in acc["tags"]]) if n else np.zeros((0, MAX_UNITS), np.int64),
+           "attended": (np.stack([pad(a, None, np.int8, -1) for a in acc["attended"]]) if n
+                        else np.zeros((0, MAX_UNITS), np.int8)),
            "count": np.array([min(len(r), MAX_UNITS) for r in acc["rows"]], np.int32),
            "time": np.array(acc["time"], np.float32), "game": np.array(acc["game"], np.int32),
            "budget": np.array(acc["budget"], np.float32), "replays": np.array(replays)}
@@ -155,11 +157,11 @@ def fight_odds(m: dict, manifest: str, matchup: str, race: str):
     # the made decisions, as the model's data labels them (train/roles.py: decisions, keep where the role held)
     made = decision_labels(m) if "keep" in names else m["labels"]
     as_name = DECISIONS if "keep" in names else ROLES
-    research = {}
-    for g, rep in enumerate(m["replays"]):
-        from eval.judge import research_done
-        research[g] = {r: research_done(str(rep), what, RESEARCH_FRAMES) for r, what in RESEARCH.items()}
-    out = {"moment": [], "unit": [], "type": [], "raw": [], "asked": [], "made": [], "ready": []}
+    from eval.judge import research_done
+    replays = m.get("replays")                # (the pros' moments: none, their research taken as done)
+    research = {g: ({r: research_done(str(replays[g]), what, RESEARCH_FRAMES) for r, what in RESEARCH.items()}
+                    if replays is not None else {r: 0.0 for r in RESEARCH}) for g in np.unique(m["game"]).tolist()}
+    out = {"moment": [], "unit": [], "type": [], "raw": [], "asked": [], "made": [], "ready": [], "attended": []}
     order = np.lexsort((m["time"], m["game"]))
     sits: dict = {}
     used: dict = {}                         # (game, tag) -> mines laid
@@ -218,6 +220,7 @@ def fight_odds(m: dict, manifest: str, matchup: str, race: str):
             out["asked"].append(qj)
             out["made"].append(names.index(k) if k in names else -1)
             out["ready"].append(ready)
+            out["attended"].append(int(m["attended"][i, j]) if "attended" in m else -1)
     return names, path, rates, {s: str(mm.path) for s, mm in mode_models.items()}, out
 
 
@@ -248,9 +251,26 @@ def fifths(asked: np.ndarray, made: np.ndarray) -> str:
     return "  ".join(f"{asked[p].mean():.1%}>{made[p].mean():.1%}" for p in parts)
 
 
-def print_fight(race: str, names: list, out: dict) -> None:
-    types = np.array(out["type"])
-    raw, asked, made = np.array(out["raw"]), np.array(out["asked"]), np.array(out["made"])
+def pro_moments(model, games: int, seed: int = 0) -> dict:
+    """The pros' held-out fight moments the role model was judged on (its dataset's validation games, as train/roles.py
+    splits them), up to this many games: the reference a faithful pipe is read against (the pros' own made over
+    asked under the same labels: a model's conditioning, such as --attended, shows here as much as in Gary)."""
+    path = Path(model.config["data"])
+    path = path if path.is_absolute() else REPO / path
+    d = np.load(path, allow_pickle=True)
+    val = np.flatnonzero([int(str(s)[:8], 16) % 10 == 1 for s in d["sha1"]])
+    keep = np.random.default_rng(seed).choice(val, min(games, len(val)), replace=False)
+    sel = np.isin(d["game"], keep)
+    out = {k: d[k][sel] for k in ("rows", "extra", "labels", "count", "time", "game", "tags", "budget", "attended")}
+    out["extra"] = out["extra"][..., :14]
+    return out
+
+
+def print_fight(race: str, names: list, out: dict, only: np.ndarray | None = None) -> None:
+    pick = (lambda a: np.asarray(a)[only]) if only is not None else np.asarray
+    types = pick(out["type"])
+    raw, asked, made = pick(out["raw"]).copy(), pick(out["asked"]).copy(), pick(out["made"])
+    out = {**out, "ready": [r for r, k in zip(out["ready"], only if only is not None else [True] * len(out["ready"])) if k]}
     if "again" in names:                      # (no again labels here: its odds go to keep)
         a, k = names.index("again"), names.index("keep")
         for arr in (raw, asked):
@@ -273,41 +293,65 @@ def print_fight(race: str, names: list, out: dict) -> None:
               f"{fifths(a, y)}")
 
 
-def stages(name: str, race: str, names: list, out: dict, games: int) -> None:
-    """With the games' draws logged (gary/agent/roles.py, decisions.npz draws_<race>): per decision, as a rate per
-    100 unit half seconds, the odds asked over the labelled half seconds, the odds of the draws (each over the turns
-    since the unit's last: per the half seconds the draws cover), the draws, the units it was ordered to that turn,
-    and the labelled made. The draws cover the units the fight layer decides, the labels those within sight of an
-    enemy fighter: the two sets are near, not the same. Each stage's loss is where the pipe leaks."""
+def stages(name: str, race: str, names: list, m: dict, out: dict) -> None:
+    """With the games' draws logged (gary/agent/roles.py, decisions.npz draws_<race>): per decision, each draw
+    matched to the labelled moment of its unit within MATCH frames (a mode drawn again while it waits for its order
+    left out), as a rate per 100 unit half seconds over those draws: the odds asked at the moment (a half second's),
+    the odds drawn from (the turn's, over the half seconds since the unit's last draw), the draws, the units ordered
+    that role the same turn, and the made at the moment. Each stage's loss is where the pipe leaks."""
     rec = defaultdict(list)
-    for f in sorted((REPO / "runs" / "league" / name).glob("*/*.decisions.npz")):
+    for g, rep in enumerate(m["replays"]):
+        f = Path(str(rep)).with_suffix(".decisions.npz")
+        if not f.exists():
+            continue
         z = np.load(f)
         key = f"draws_{race.lower()}"
         if f"{key}/role" not in z.files:
             continue
-        for k in ("role", "q", "sent", "turns"):
+        for k in ("frame", "tag", "role", "q", "sent", "turns", "due"):
             rec[k].append(z[f"{key}/{k}"])
+        rec["game"].append(np.full(len(z[f"{key}/role"]), g))
     if not rec:
         print("\n(no draws logged in this round's games: the stages need games played since the log, 2026-11-17)")
         return
-    role, sent = np.concatenate(rec["role"]), np.concatenate(rec["sent"])
-    q, turns = np.concatenate(rec["q"]).astype(np.float64), np.concatenate(rec["turns"]).astype(np.float64)
-    asked, made = np.array(out["asked"], np.float64), np.array(out["made"])
-    labelled, covered = len(made), turns.sum()
-    print(f"\nby stage, per 100 unit half seconds ({games} games: {labelled / games:.0f} labelled a game, the draws "
-          f"{len(role) / games:.0f} a game covering {covered / games:.0f})")
-    print(f"{'decision':>10} {'asked':>7} {'drawn at':>8} {'drawn':>7} {'ordered':>7} {'made':>7}   (ordered: an order "
-          f"of that role to the unit the same turn)")
+    d = {k: np.concatenate(v) for k, v in rec.items()}
+    at: dict = defaultdict(list)                      # (game, unit) -> [(frame, index into out)]
+    for x, (i, tag) in enumerate(zip(out["moment"], out["unit"])):
+        at[(int(m["game"][i]), int(tag))].append((int(round(float(m["time"][i]) * 1000 / 42)), x))
+    for v in at.values():
+        v.sort()
+    idx = np.full(len(d["role"]), -1)
+    for y in range(len(idx)):
+        if d["due"][y]:
+            continue
+        v = at.get((int(d["game"][y]), int(d["tag"][y])))
+        if not v:
+            continue
+        k = np.searchsorted([a for a, _ in v], int(d["frame"][y]))
+        best = min((c for c in (k - 1, k) if 0 <= c < len(v)), key=lambda c: abs(v[c][0] - int(d["frame"][y])))
+        if abs(v[best][0] - int(d["frame"][y])) <= MATCH:
+            idx[y] = v[best][1]
+    ok = idx >= 0
+    asked, made = np.array(out["asked"], np.float64)[idx[ok]], np.array(out["made"])[idx[ok]]
+    q, turns = d["q"][ok].astype(np.float64), d["turns"][ok].astype(np.float64)
+    role, sent = d["role"][ok], d["sent"][ok]
+    print(f"\nby stage, per 100 unit half seconds, over the {ok.sum()} draws matched to a labelled moment "
+          f"({ok.mean():.0%} of {len(ok)}; {d['due'].sum()} redrawn modes left out)")
+    print(f"{'decision':>10} {'asked':>7} {'drawn at':>8} {'drawn':>7} {'ordered':>7} {'made':>7}   (drawn at, drawn, "
+          f"ordered: per the half seconds the draws cover)")
+    covered = turns.sum()
     for r, n in enumerate(names):
-        if n in ("again",):
+        if n in ("again", "keep"):
             continue
-        d = role == n
-        s = d & (sent == n.upper())
-        if not d.any() and (made == r).sum() == 0:
+        dr = role == n
+        if not dr.any() and (made == r).sum() == 0:
             continue
-        print(f"{n:>10} {100 * asked[:, r].sum() / labelled:7.2f} {100 * q[:, r].sum() / covered:8.2f} "
-              f"{100 * d.sum() / covered:7.2f} {100 * s.sum() / covered:7.2f} {100 * (made == r).sum() / labelled:7.2f}"
-              + ("   (keep: no order)" if n == "keep" else ""))
+        print(f"{n:>10} {100 * asked[:, r].mean():7.2f} {100 * q[:, r].sum() / covered:8.2f} "
+              f"{100 * dr.sum() / covered:7.2f} {100 * (dr & (sent == n.upper())).sum() / covered:7.2f} "
+              f"{100 * (made == r).mean():7.2f}")
+
+
+MATCH = 6                               # frames: a draw and a labelled moment this near are the same unit-moment
 
 
 def outside(m: dict, race: str) -> None:
@@ -376,6 +420,7 @@ def main() -> None:
     ap.add_argument("--round", required=True)
     ap.add_argument("--race", choices=("T", "Z", "P"), required=True)
     ap.add_argument("--manifest", help="the manifest the side played (default: the round's side of this race)")
+    ap.add_argument("--pros", type=int, default=0, help="also the pros' held-out games, this many (the reference)")
     ap.add_argument("--workers", type=int, default=4)
     priority.add_argument(ap)
     args = ap.parse_args()
@@ -383,11 +428,26 @@ def main() -> None:
     manifest, matchup = side_of(args.round, args.race, args.manifest)
     m = moments(args.round, args.race, args.workers)
     names, path, rates, modes, out = fight_odds(m, manifest, matchup, args.race)
+    from gary.policy.roles import RoleModel
+    attended = bool(RoleModel.load(path).config.get("attended"))
     print(f"{args.round} {args.race} ({manifest}, {matchup}): {len(out['made'])} labelled unit-moments in "
           f"{len(m['replays'])} games; the role model {Path(path).parent.name}"
+          + (" (trained on the units the player's commands reached)" if attended else "")
           + (", its weights out (rates)" if rates else "") + "".join(f", {s}: {Path(p).name}" for s, p in modes.items()))
     print_fight(args.race, names, out)
-    stages(args.round, args.race, names, out, len(m["replays"]))
+    if attended:
+        print("  the units Gary's commands reached:")
+        print_fight(args.race, names, out, np.array(out["attended"]) == 1)
+    if args.pros:
+        pm = pro_moments(RoleModel.load(path), args.pros)
+        _, _, _, _, pout = fight_odds(pm, manifest, matchup, args.race)
+        print(f"\nthe pros' held-out games ({len(np.unique(pm['game']))}), the same odds and labels "
+              f"({len(pout['made'])} labelled unit-moments): the reference")
+        print_fight(args.race, names, pout)
+        if attended:
+            print("  the units the pro's commands reached:")
+            print_fight(args.race, names, pout, np.array(pout["attended"]) == 1)
+    stages(args.round, args.race, names, m, out)
     outside(m, args.race)
     commit_table(args.round, args.race)
 
