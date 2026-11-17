@@ -560,16 +560,23 @@ def gap_score(Xs, Xp, cap: float = 5.0, buckets=BUCKETS) -> list:
         if len(g) < 5 or len(q) < 20:
             out.append(None)
             continue
-        zs, inside = [], []
-        for k in range(1, Xs.shape[1]):
-            gv, qv = g[:, k][~np.isnan(g[:, k])], q[:, k][~np.isnan(q[:, k])]
-            if len(gv) < 3 or len(qv) < 10:
-                continue
-            lo, hi = np.percentile(qv, [25, 75])
-            spread = (hi - lo) or qv.std() or 1.0
-            zs.append(min(cap, abs(gv.mean() - qv.mean()) / spread))
-            inside.append(lo <= np.median(gv) <= hi)
+        per = feature_gaps(g, q, cap)
+        zs, inside = [z for z, _ in per.values()], [i for _, i in per.values()]
         out.append((float(np.mean(zs)), float(np.mean(inside))) if zs else None)
+    return out
+
+
+def feature_gaps(g: np.ndarray, q: np.ndarray, cap: float = 5.0) -> dict[int, tuple[float, bool]]:
+    """Per feature column (1 on; 0 is the minute) of Gary's rows g against the pros' q: (its standardized gap, capped;
+    Gary's median inside the pros' interquartile range), for the columns with enough rows (gap_score's terms)."""
+    out = {}
+    for k in range(1, g.shape[1]):
+        gv, qv = g[:, k][~np.isnan(g[:, k])], q[:, k][~np.isnan(q[:, k])]
+        if len(gv) < 3 or len(qv) < 10:
+            continue
+        lo, hi = np.percentile(qv, [25, 75])
+        spread = (hi - lo) or qv.std() or 1.0
+        out[k] = (min(cap, abs(gv.mean() - qv.mean()) / spread), bool(lo <= np.median(gv) <= hi))
     return out
 
 

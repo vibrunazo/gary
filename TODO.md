@@ -66,8 +66,9 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
      left against a Protoss: the model asking less there than a pro does (entries 1.67% for 2.35%), leaving more
      (its odds 0.63% for a pro's 0.45%), and the army's keys just before the fight reaches a tank (0.21%); (b) mines at half a pro's rate (3.0% to 4.6% for 6.2% to
      6.5%) and placed no better than chance (ranking 0.50 to 0.57 for 0.72): an event model on the judge's inputs,
-     as the tanks got; (c) the fight gap further at 15-20 minutes (+0.063 [+0.019, +0.111]): which features, from
-     eval/gap_windows.py.
+     as the tanks got (option `minemodel`, 2026-11-17: its rounds PM273a, HM273a); (c) done 2026-11-17: the fight gap
+     further at 15-20 minutes is the army near the enemy and raids answered faster and with less HP lost than a pro
+     (eval/gap_windows.py --features; docs/PROGRESS.md), nothing to fix.
    - The tanks' siege in every Terran matchup: they flipped in and out of Siege Mode seven times as often as a
      pro's (a sieged tank leaving it in 3% of its fight half seconds, a pro's in 0.45%; eval/mode_hazard.py). Found
      2026-11-13 (docs/PROGRESS.md): the dice drew at the trainer's class-weighted odds (option `rates`: every race's

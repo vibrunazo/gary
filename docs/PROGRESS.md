@@ -2091,6 +2091,18 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **The TvZ fight gap at 15-20 minutes, by feature (2026-11-17).** Why: gt0.37dev's 96 paired games put its fight
+  gap to the pros further at 15-20 minutes (+0.063 [+0.019, +0.111]) and nearer at 20-25 (-0.060), no different over
+  the game; TODO.md asked which features. `eval/gap_windows.py --features 15` (new: a window's score split into its
+  features, each with its bootstrap interval over the same resampled games, and which way the means moved), TM256a+b+c
+  (gt0.36dev) against GT268a+b (gt0.37dev), the 25 fight features. Three carry it: the army near the enemy
+  (`army_enemy` +0.59: 7% of the time for 5% before and a pro's 4%, a narrow spread, so small moves score large),
+  the answer to a harass (`harass_response_s` +0.47: 7.9 s for 12.5 before, a pro's 14.6) and the HP lost to it
+  (`harass_hp_lost` +0.39: 124 for 262, a pro's 332); then `fight_reached` +0.20 (0.42 for 0.37, a pro's 0.34).
+  Two of the three are Gary answering raids faster and losing less than a pro does: the score counts better than the
+  pros as far as worse. One reading, not checked: gt0.37dev's army stands nearer the fights at 15-20 minutes, and
+  the later window gives it back. Nothing to fix from it; the measure keeps being
+  read per window in the promotion check.
 - **Mines by an event model on the judge's inputs (option `minemodel`, started 2026-11-17).** Why: the judge (TODO.md
   Direction 3, item b) finds gt0.39dev's Vultures laying a mine in 2.6% of their fight moments against a Protoss where
   a pro in the same situations would in 7.3% (PT272a, 13 games), short by about half in every bin of the judge's

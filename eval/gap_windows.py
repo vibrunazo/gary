@@ -10,12 +10,17 @@ resampling the paired games (BOOT times).
     python -m eval.gap_windows --side T --a B30 B30b --b R30T R30Tb
     python -m eval.gap_windows --side T --a D50a --b R50a --group fight      # the fight features only
     python -m eval.gap_windows --side A --a TT170a --b TT171a                # a mirror's side A (TvT)
+    python -m eval.gap_windows --side T --a D50a --b R50a --group fight --features 15   # 15-20 minutes by feature
 
 The last line ("all") pools every minute's rows, so of two arms the one whose games last longer is read on later
 minutes: where the arms' games differ in length (a version that stops ending games), compare them by the windows.
 
 --group: all features, the macro ones (economy, unit counts, buildings) or the fight ones (where the army stands,
 its orders, threats met, fighting, what it does at a sighting, lone units).
+
+--features M: the window that starts at minute M by feature: each feature's standardized gap to the pros under A and
+B (the window's score is their mean), the difference with its 90% interval over the same resampled games, and each
+arm's mean and the pros' (which way B moved), largest differences first.
 """
 from __future__ import annotations
 
@@ -84,11 +89,12 @@ def main() -> None:
     ap.add_argument("--b", nargs="+", required=True, help="arm B's rounds")
     ap.add_argument("--minutes", type=int, default=30)
     ap.add_argument("--group", choices=("all", "macro", "fight"), default="all")
+    ap.add_argument("--features", type=int, help="the window starting at this minute, by feature")
     ap.add_argument("--workers", type=int, default=8)
     priority.add_argument(ap)
     args = ap.parse_args()
     priority.apply(args.priority)
-    from eval.humanlike import _names, gap_score, matrix, pro_rows
+    from eval.humanlike import _names, feature_gaps, gap_score, matrix, pro_rows
     table = json.loads((REPO / "runs" / "league" / args.a[0] / "round.json").read_text(encoding="utf-8"))
     args.matchup = args.matchup or table.get("matchup", "TvZ")
     race = args.matchup[0] if args.side in ("A", "B") else args.side          # (a mirror's sides are one race)
@@ -108,15 +114,27 @@ def main() -> None:
         X, _, _ = matrix({f"{k[0]}|{k[1]}|{i}": arm[key][k] for i, k in enumerate(ks)}, names)
         return [None if v is None else v[0] for v in gap_score(X, Xp, buckets=windows)]
 
+    def rows_in(key: str, ks: list[tuple], w: tuple) -> np.ndarray:
+        X, _, _ = matrix({f"{k[0]}|{k[1]}|{i}": arm[key][k] for i, k in enumerate(ks)}, names)
+        return X[(X[:, 0] >= w[0]) & (X[:, 0] <= w[1])]
+
+    win = (args.features, args.features + WINDOW - 1) if args.features is not None else None
+    if win is not None:
+        Qw = Xp[(Xp[:, 0] >= win[0]) & (Xp[:, 0] <= win[1])]
     base_a, base_b = score("a", keys), score("b", keys)
     rng = random.Random(0)
     diffs = [[] for _ in range(len(windows) + 1)]
+    fdiffs: dict[int, list] = {}
     for _ in monitor.track(range(BOOT), BOOT, "bootstrap"):
         ks = [rng.choice(keys) for _ in keys]
         sa, sb = score("a", ks), score("b", ks)
         for i, (x, y) in enumerate(zip(sa, sb)):
             if x is not None and y is not None:
                 diffs[i].append(y - x)
+        if win is not None:
+            fa, fb = feature_gaps(rows_in("a", ks, win), Qw), feature_gaps(rows_in("b", ks, win), Qw)
+            for k in set(fa) & set(fb):
+                fdiffs.setdefault(k, []).append(fb[k][0] - fa[k][0])
     print(f"{args.side}: {len(keys)} paired games; A {' '.join(args.a)}, B {' '.join(args.b)}; gap (lower: nearer the pros)"
           + ("" if args.group == "all" else f", {args.group} features ({len(names) - 1})"))
     print(f"{'window':>10} {'A':>6} {'B':>6} {'B-A':>7}   90% interval")
@@ -128,6 +146,18 @@ def main() -> None:
         lo, hi = (np.percentile(d, [5, 95]) if d else (float("nan"), float("nan")))
         mark = "  (B further)" if lo > 0 else "  (B nearer)" if hi < 0 else ""
         print(f"{label:>10} {x:6.3f} {y:6.3f} {y - x:+7.3f}   [{lo:+.3f}, {hi:+.3f}]{mark}")
+    if win is not None:
+        A, B = rows_in("a", keys, win), rows_in("b", keys, win)
+        fa, fb = feature_gaps(A, Qw), feature_gaps(B, Qw)
+        both = sorted(set(fa) & set(fb), key=lambda k: -abs(fb[k][0] - fa[k][0]))
+        mean = lambda X, k: float(np.nanmean(X[:, k])) if np.isfinite(X[:, k]).any() else float("nan")
+        print(f"\n{win[0]}-{win[1] + 1} min by feature ({len(both)}; the window's score is their mean): gap A, B, B-A "
+              f"[90%]; the means A, B, the pros")
+        for k in both:
+            lo, hi = np.percentile(fdiffs.get(k, [0.0]), [5, 95])
+            mark = "  (B further)" if lo > 0 else "  (B nearer)" if hi < 0 else ""
+            print(f"  {names[k]:>24} {fa[k][0]:5.2f} {fb[k][0]:5.2f} {fb[k][0] - fa[k][0]:+6.2f} [{lo:+.2f}, {hi:+.2f}]"
+                  f"   {mean(A, k):8.2f} {mean(B, k):8.2f} {mean(Qw, k):8.2f}{mark}")
 
 
 if __name__ == "__main__":
