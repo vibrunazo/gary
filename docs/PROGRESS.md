@@ -17,9 +17,9 @@ rather than scripted, because the replay pipeline made that the quicker way to a
 Since 2026-10-15 every piece of the self-play loop is being built crude before any is polished: a
 learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the league isn't trained
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
-Where it stands (2026-11-16): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
+Where it stands (2026-11-17): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.16), Zerg as `gz1` (gz0.10) and Protoss as `gp1` (gp0.11, crude); learning is trained and judged in `gt1dev`
-(gt0.39dev), `gp1dev` (gp0.33dev) and `gz1dev` (gz0.26dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.40dev), `gp1dev` (gp0.33dev) and `gz1dev` (gz0.26dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -2102,6 +2102,16 @@ plan and the full log).
   them out storms, burrows and unburrows are expected to fall, further below the pros' (the Terran's mines fell from
   5.5% to 1.3% with `rates`) while the common decisions come nearer. If they do fall, the fix is the one the mines got
   (an event model on the judge's inputs), not dropping `rates`. 16 games show severalfold moves only.
+  **Results (RB274a, RR274a: the Protoss won 9 and lost none in both, 7 at time):** storms in 5.0% of the Templar's
+  fight moments, 5.2% with `rates` (a pro's 7.4%, 7.3%; the ranking 0.74, 0.75): no change, as there should be none,
+  since gp1dev's storms are its cast rule's (gary/policy/cast.py), not a role model's draw. The Lurkers: in 2 and 3
+  of the 16 games only (gz1dev makes few against a Protoss): burrows 2.2% and 1.7% for a pro's 1.5%, unburrows 0.0%
+  and 0.7% for 3.4% and 3.3%; too few games to read. So the judge doesn't measure what `rates` changes in these
+  builds: their common decisions (fire, close in, retreat), each a share of the draws. Not folded; it goes into the
+  table of every drawn decision against the pros' rates (TODO.md Direction b), which measures it directly.
+- **gt0.40dev: `minemodel` folded into the Terran dev build (2026-11-17, the user's call).** On the results below
+  (the mine rate at the pros' in both matchups, the line nearer, the ranking's moves within what 16 games show).
+  Smoke, pairs, matchups and live tests pass; parity plays gt1, unchanged.
 - **The TvZ fight gap at 15-20 minutes, by feature (2026-11-17).** Why: gt0.37dev's 96 paired games put its fight
   gap to the pros further at 15-20 minutes (+0.063 [+0.019, +0.111]) and nearer at 20-25 (-0.060), no different over
   the game; TODO.md asked which features. `eval/gap_windows.py --features 15` (new: a window's score split into its

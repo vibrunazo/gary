@@ -1309,6 +1309,10 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # one-tile pocket, and every expansion after took it, the nearest, and failed: TT245a, 17 builds in one game, its
 # natural at 9:54; TT246a on the same seeds, 3 such drops in 3 games for 21, every natural by 4:22). Its input options
 # (widespot, seenall, armyseen, builtcount, unitcount, pendown) are gt1's now (gt0.12)
+# gt0.40dev (2026-11-17, the user's call): minemodel, a Vulture's mine drawn at the event model of the pros' mine
+# commands on the judge's inputs (runs/modes/<matchup>_T_mine_*.pkl). 16 games a matchup: its Vulture fight moments
+# with a mine 2.6% to 6.1% against a Protoss (a pro in its situations 8.2%), 5.5% to 6.7% against a Zerg (5.9%); the
+# judge's ranking 0.72 to 0.67 and 0.55 to 0.67, within what a 16-game ranking moves (PM273a, HM273a)
 # gt0.39dev (2026-11-16): a fix of staysieged's test: a tank in the fight snapshot its model is asked about (fight.py
 # members, 24 tiles round the enemies engaged, the moments the mode model learned from) stays sieged on an army move, not
 # only one with an enemy within 12 tiles; against a Protoss (PT272a against PT271a, 16 games) the army's unsieges of a
@@ -1347,8 +1351,8 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
-                                     "+parkmany+tvzmodes+staysieged+modemodel"),
-                       "version": "gt0.39dev"}
+                                     "+parkmany+tvzmodes+staysieged+modemodel+minemodel"),
+                       "version": "gt0.40dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,

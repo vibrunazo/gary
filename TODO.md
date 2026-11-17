@@ -14,8 +14,9 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
 **The order from 2026-11-17 (the user's call, on a review of the week: the tank work fixed the flipping and moved
 no top-level measure; most faults found were in the pipe between a model's odds and what Gary carried out, and
 apply to every drawn decision; one mode in two matchups took five days):**
-a. Stop the siege work; finish the mines (option `minemodel`, folded into gt1dev) and `rates` for gp1dev and gz1dev
-   (RB274a, RR274a); each further ability time-boxed to about a day.
+a. Done 2026-11-17: the siege work stopped; the mines folded into gt1dev (gt0.40dev, option `minemodel`); `rates`
+   for gp1dev and gz1dev judged (RB274a, RR274a): no change in storms (the cast rule's, not a draw), Lurkers in too
+   few games, so it is measured in b's table. Each further ability time-boxed to about a day.
 b. One check of what a model asks against what Gary carried out, over every drawn decision, layer and race (the
    model's odds on Gary's own judged moments against the transitions it made, by fifths of the odds): the check that
    found every fault of the week, as one table.
@@ -84,7 +85,9 @@ The steps as first written (2026-11-12), kept for what they hold:
      left against a Protoss: the model asking less there than a pro does (entries 1.67% for 2.35%), leaving more
      (its odds 0.63% for a pro's 0.45%), and the army's keys just before the fight reaches a tank (0.21%); (b) mines at half a pro's rate (3.0% to 4.6% for 6.2% to
      6.5%) and placed no better than chance (ranking 0.50 to 0.57 for 0.72): an event model on the judge's inputs,
-     as the tanks got (option `minemodel`, 2026-11-17, PM273a, HM273a: the rate at the pros' in both, the ranking 0.55 to 0.67 against a Zerg and 0.72 to 0.67 against a Protoss; to fold into gt1dev, the user's call; left: a pro's mine comes 0.8 s after a command to the Vulture, the end of a move, Gary's 6 s); (c) done 2026-11-17: the fight gap
+     as the tanks got (option `minemodel`, gt0.40dev, 2026-11-17, PM273a, HM273a: the rate at the pros' in both,
+     the ranking 0.55 to 0.67 against a Zerg and 0.72 to 0.67 against a Protoss; left: a pro's mine comes 0.8 s after
+     a command to the Vulture, the end of a move, Gary's 6 s); (c) done 2026-11-17: the fight gap
      further at 15-20 minutes is the army near the enemy and raids answered faster and with less HP lost than a pro
      (eval/gap_windows.py --features; docs/PROGRESS.md), nothing to fix.
    - The tanks' siege in every Terran matchup: they flipped in and out of Siege Mode seven times as often as a
