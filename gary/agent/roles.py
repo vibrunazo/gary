@@ -1082,6 +1082,8 @@ class RoleLearned(RoleRules):
         decided: dict[int, str] = {}
         drawn: dict[int, int] = {}
         roles: dict[str, list[dict]] = {}
+        from gary.decision_log import LOG
+        seen: dict[int, tuple] = {}                      # (the log: unit -> its odds drawn from, turns, a mode due)
         for u in mine:
             p = probs[index[u["tag"]]].astype(np.float64)
             q = odds[index[u["tag"]]].astype(np.float64)
@@ -1108,6 +1110,8 @@ class RoleLearned(RoleRules):
             else:
                 k = int(p.argmax())
             decided[u["tag"]], drawn[u["tag"]] = names[k], k
+            if LOG.on:
+                seen[u["tag"]] = (q / q.sum(), n, due is not None)
             if self.rates and names[k] in g.race.modes:
                 self.mode_due.setdefault(u["tag"], (k, now))
             role = names[k].upper()
@@ -1146,6 +1150,14 @@ class RoleLearned(RoleRules):
                     intent = it
                 elif len(self.more) + 1 < self.batch:
                     self.more.append(it)
+        if LOG.on:                              # (eval/pipe_table.py: each unit's draw, its odds, the order it got this turn)
+            sent = {t: it.kind for it in ([intent] if intent is not None else []) + list(self.more) for t in it.units}
+            for u in mine:
+                t, k = u["tag"], drawn[u["tag"]]
+                q, n, due = seen[t]
+                LOG.add(f"draws_{g.race.letter.lower()}", frame=now, tag=t, drawn=k, p=float(probs[index[t], k]),
+                        q=np.asarray(q, np.float16), turns=float(n),
+                        due=due, role=names[k], sent=sent.get(t, ""))
         if logging:                             # (train/roles_rl.py: the drawn decisions, inputs as the model saw them)
             g.fight.rl_log.append({"rows": np.asarray(rows), "extra": self.model.inputs(extra, budget, keys),
                                    "time": obs["frame"] * 42 / 1000, "units": [index[u["tag"]] for u in mine],

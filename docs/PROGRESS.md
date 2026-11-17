@@ -2132,6 +2132,16 @@ plan and the full log).
   Next: one record for each of the Terran's and the Protoss's fight draws (the unit, its odds, the role drawn, the
   order that went out, or why none), so each fault is read at its stage (drawn, ordered, done) and the "made,
   not asked" by its source; then the retreat. `rates` for gp1dev and gz1dev is proposed to fold on this table.
+
+  The draws logged (2026-11-17, no change of play: parity holds): each Terran and Protoss fight draw goes to the
+  game's decisions.npz (`draws_t`, `draws_p`: the unit, the odds drawn from, the turns, the role drawn, the order it
+  got that turn), and the table adds a game's count at each stage: asked, drawn at (the draws' odds), drawn,
+  ordered, made. Two rounds of 16 games play it, the dev builds with `rates` on every side: TD275a (gt1dev against
+  gz1dev+rates, TvZ) and PD275a (gp1dev+rates against gt1dev, PvT). Written before them: the drawn should be within
+  a fifth of the asked for every role of every side (the decoder's turns fixed, the weights out); a role far under at
+  "ordered" leaks in the fight layer's orders (a fire drawn for a unit already firing gets none, so fire and keep
+  are read apart), and the Terran's retreat, if it leaks where it did (a fifth made in TvZ), shows at the stage
+  between ordered and made: orders too short to read as a retreat, or cut by the next turn.
 - **`rates` for the Protoss and the Zerg dev builds (started 2026-11-17).** Why: the Terran's fight draws were taken
   at the trainer's class-weighted odds, which made its rare decisions several times too likely (its tanks flipping in
   and out of Siege Mode); option `rates` takes the weights out (RoleModel.rates) and is in gt1dev since gt0.37dev.
