@@ -29,6 +29,12 @@ share drawn, the share sent (an order went out), by fifths of the odds. The macr
 (eval/macro_pipe.py: decided, carried out, delay).
 
     python -m eval.pipe_table --round HT272a --race T
+    python -m eval.pipe_table --round TD275a --race T --pros 40     (and the pros' held-out games: the reference)
+
+Read a ratio against the pros' own under the same labels (--pros): a model trained on the units the player
+commanded (--attended, the TvZ Terran's) asks more than the pros make over every unit. With the draws logged
+(games since 2026-11-17), each decision by stage over the draws matched to a labelled moment: asked, drawn at,
+drawn, ordered, made.
     python -m eval.pipe_table --round PT271a --race T --manifest "gt1+...+modemodel"   (the build the round played)
 """
 from __future__ import annotations

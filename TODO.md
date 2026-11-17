@@ -23,6 +23,9 @@ b. One check of what a model asks against what Gary carried out, over every draw
    fight and commit layers of every race from played rounds; it finds four of the five known faults. Left: one
    record per fight draw of the Terran and the Protoss (the stage each fault is at, the source of the unasked); the
    Terran's retreats (a fifth of those asked in TvZ); `rates` for gp1dev and gz1dev, proposed to fold on it.
+   v2 (2026-11-17): the draws logged, the pros' held-out games as the reference. Found, ranked: retreats short in
+   every side (0.18-0.47 for the pros' 0.78-1.02), lost between the order and a move seen; the Terran's PvT and TvT
+   fights take the likeliest role (modedice); mines against a Protoss. The user's call: chase these or go to c.
 c. The upstream decisions ahead of the remaining abilities: the army's positioning and engagements (where the army
    leaves the tanks), and finishing games (item 6 below, the commit layer).
 d. One live game a race, watched, before more decoder work.
