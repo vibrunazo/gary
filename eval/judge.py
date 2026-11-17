@@ -44,8 +44,8 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from eval import monitor, priority  # noqa: E402
-from gary.policy.modes import (FAR, HISTORY, KINDS, SPELL_MAX, TILE, enemy_kinds, features, history,  # noqa: E402,F401
-                               names, tables)
+from gary.policy.modes import (EVENT_HISTORY, FAR, HISTORY, KINDS, SPELL_MAX, TILE, enemy_kinds,  # noqa: E402,F401
+                               features, history, names, tables)
 
 STATES = {"T": {"siege": (5, 30, "Siege Mode", 1200)}}    # race -> state -> (type out, type in, its research, frames)
 # (a burrowed Lurker, a cloaked Wraith, a Marine in a bunker are states too, but the re-simulator's observation
@@ -62,7 +62,6 @@ EVENTS = {"T": {"stim": ({0, 32}, "stim", None, 0, 1200),
           # such command" stands in for it
           "P": {"storm": ({67}, "order", 142, 19, 1800)}}
 WINDOW = 3.0                    # seconds: an event judged as "a pro acts within this long"
-EVENT_HISTORY = ["seconds since its last such command", "seconds since its last command"]
 PROS = {("T", "TvZ"): "response_T_30min.npz", ("T", "PvT"): "response_T_PvT_modes_30min.npz",
         ("T", "TvT"): "response_T_TvT_30min.npz", ("Z", "TvZ"): "response_Z_30min.npz",
         ("P", "PvT"): "response_P_PvT_30min.npz", ("P", "PvZ"): "response_P_PvZ_30min.npz",
@@ -73,10 +72,11 @@ MAX_TRAIN = 400_000             # rows: half-second neighbours say the same thin
 SURE = 0.9                      # the coverage model's odds a situation is Gary's: outside the pros' above this
 
 
-def situations(m: dict, what: tuple, judge: dict):
+def situations(m: dict, what: tuple, judge: dict, window: float = WINDOW):
     """A dataset's judged unit-moments as the judge reads them: (X, y, snapshot index, game). what: a STATES row
     (the state's types, its y the type in the mode) or an EVENTS row (its y from the commands, with the unit's own
-    command history as inputs; only units after the research, and the moments its game's commands were read)."""
+    command history as inputs; only units after the research, and the moments its game's commands were read; window:
+    an event's y is the command within this many seconds, train/modes.py's half second for its event models)."""
     event = isinstance(what[1], str)
     types, into = (what[0], -1) if event else ({what[0], what[1]}, what[1])
     X, y, s, tag = features(m["rows"], m["extra"], m["count"], m["time"], m["tags"], types, judge["kinds"], into)
@@ -84,14 +84,14 @@ def situations(m: dict, what: tuple, judge: dict):
     if judge.get("history") and len(X):
         X = np.concatenate([X, history(X, names(judge["kinds"]), game, tag, time)], 1)
     if event and len(X):
-        y, hist, keep = event_labels(m["commands"], what, game, tag, time)
+        y, hist, keep = event_labels(m["commands"], what, game, tag, time, window)
         X, y, s, game = np.concatenate([X, hist], 1)[keep], y[keep], s[keep], game[keep]
     return X, y, s, game
 
 
-def event_labels(commands: dict, what: tuple, game, tag, time):
+def event_labels(commands: dict, what: tuple, game, tag, time, window: float = WINDOW):
     """(y, the unit's command history (EVENT_HISTORY), keep) per judged unit-moment: y, whether the player gave the
-    unit the event's command within WINDOW seconds after the moment; keep, the moments after the research is done
+    unit the event's command within window seconds after the moment; keep, the moments after the research is done
     whose game's commands were read."""
     import bisect
     _, cmd, order_id, tech, frames = what
@@ -125,7 +125,7 @@ def event_labels(commands: dict, what: tuple, game, tag, time):
         t = int(tag[i])
         fs = by_tag_cmd.get(t, [])
         k = bisect.bisect_right(fs, f)
-        y[i] = k < len(fs) and fs[k] <= f + WINDOW * 24
+        y[i] = k < len(fs) and fs[k] <= f + window * 24
         if k:
             hist[i, 0] = min((f - fs[k - 1]) / 24, SPELL_MAX)
         fa = by_tag.get(t, [])

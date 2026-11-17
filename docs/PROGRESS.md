@@ -2091,6 +2091,29 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **Mines by an event model on the judge's inputs (option `minemodel`, started 2026-11-17).** Why: the judge (TODO.md
+  Direction 3, item b) finds gt0.39dev's Vultures laying a mine in 2.6% of their fight moments against a Protoss where
+  a pro in the same situations would in 7.3% (PT272a, 13 games), short by about half in every bin of the judge's
+  odds, while its ranking of those moments is near the pros' (0.72 for 0.78): the rate, not the place. Against a
+  Zerg the place is off too (GT268b: 4.6% for 6.5%, ranking 0.57 for 0.72, 72% of the moments surely not a pro's).
+  Ruled out first, from PT272a's records: every mine the fight layer decided was sent (117 decisions, 117 orders);
+  a Vulture's three uses don't bind (most got one or two orders before dying); the orders lay mines (re-simulated,
+  one game's 37 orders laid 46, an order to a selection of Vultures one each; the one clicked on a Gateway laid
+  none). So the low rate is in the draw: the role model's odds of a mine, one of fourteen decisions, read from the
+  unit's own state. The tanks' siege had the same trouble and was fixed by a model of the pros' transitions on the
+  judge's inputs (gt0.37dev); this is the same for an event. `train.modes --state mine` (gary/policy/modes.py
+  EVENTS, ModeModel's `act`): the odds the pro gives a Vulture a mine command in the next half second, on the
+  judge's situation, the unit's recent past and the seconds since its last mine (the judge's labels with a half
+  second for its 3 s, eval/judge.py event_labels). Held out a fifth of the games: PvT AUC 0.799 (494 games), TvZ
+  0.724 (195), TvT 0.835 (444); its odds by fifths follow the pros' (PvT 0.34% to 8.3% for 0.23% to 9.2%). The
+  judge's other command input, the seconds since the unit's last command of any kind, is left out (AUC 0.830 with
+  it): it measures the hands, Gary's are far from the pros' on it (2.4 sd in TvT), and in play it would tie the mine
+  to Gary's click pace. In play (roles.py `_event_odds`) a Vulture's mine is drawn at the model's odds over the time
+  since its last draw, none when it has no mine left or no Spider Mines, the seconds since its last mine from the
+  fight layer's own orders. Written before the rounds: a fidelity change judged on the judge in 16 games a matchup,
+  the Vulture-moments with a mine against Protoss from 2.6% toward the pros' 7.3% in Gary's situations, the ranking
+  kept at 0.70 or more; against a Zerg the ranking from 0.57 toward 0.72. Severalfold on the rate, so 16 games show it;
+  wins are not the verdict. Baselines PT272a and HT272a (gt0.39dev, the code they ran unchanged for it).
 - **gt0.39dev: what unsieged the tanks against a Protoss besides the mode model, fixed (2026-11-16).** Each judged
   leave of Siege Mode matched by the tank's tag to the last "O (tank mode)" order that held it (by time alone the
   attribution swapped the fight layer's and the motor's: an unsiege shows 3.5 s after its key). PT271a: of the 1.51%

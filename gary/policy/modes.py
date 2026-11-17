@@ -57,6 +57,8 @@ HISTORY = ["enemy ground within 8, 2 s ago", "enemy ground within 8, 5 s ago", "
            "nearest enemy ground, 5 s ago", "seconds with enemy ground within 12", "seconds in the moments"]
 AGO = (2.0, 5.0)
 SPELL_MAX = 60.0
+# an event's inputs from the unit's own commands (eval/judge.py event_labels: SPELL_MAX when none)
+EVENT_HISTORY = ["seconds since its last such command", "seconds since its last command"]
 
 
 def history(X: np.ndarray, names: list[str], game: np.ndarray, tag: np.ndarray, time: np.ndarray) -> np.ndarray:
@@ -149,6 +151,9 @@ def features(rows: np.ndarray, extra: np.ndarray, count: np.ndarray, time: np.nd
 
 # race -> state -> (the type out of the mode, the type in it, the role that enters it, the role that leaves it)
 STATES = {"T": {"siege": (5, 30, "siege", "unsiege")}}
+# race -> event -> (the unit types, the role that is the event): a one-off command, no state to leave (its labels: the
+# pros' commands, eval/judge.py EVENTS)
+EVENTS = {"T": {"mine": ({2}, "mine")}}
 TURN_S = 0.5                    # the models' odds are over this long (the datasets' half second)
 NEXT_S = 0.6                    # a unit's next moment this soon is its next half second
 KEEP_S = 75.0                   # Situations: a unit's past kept this long (HISTORY looks back SPELL_MAX and 10 s)
@@ -171,15 +176,21 @@ def transitions(m: dict, state: tuple, kinds: list[int]):
 
 class ModeModel:
     """A state's two models (train/modes.py): the odds a unit out of the mode enters it in the next half second, and
-    that one in it leaves."""
+    that one in it leaves; or an event's one: the odds the unit is given the event's command in the next half second
+    (act)."""
 
     def __init__(self, path: str | Path):
         with open(path, "rb") as f:
             d = pickle.load(f)
-        self.enter, self.leave, self.kinds, self.state, self.path = d["enter"], d["leave"], d["kinds"], d["state"], str(path)
+        self.kinds, self.state, self.path, self.names = d["kinds"], d["state"], str(path), d["names"]
+        self.event = bool(d.get("event"))
+        self.enter, self.leave, self.act = d.get("enter"), d.get("leave"), d.get("act")
 
     def odds(self, X: np.ndarray, in_mode: np.ndarray) -> np.ndarray:
-        """Per unit: the odds it changes mode in the next half second (enters if out of it, leaves if in it)."""
+        """Per unit: the odds it changes mode in the next half second (enters if out of it, leaves if in it); for an
+        event, the odds of its command."""
+        if self.event:
+            return self.act.predict_proba(X)[:, 1]
         out = np.zeros(len(X))
         in_mode = np.asarray(in_mode, bool)
         if (~in_mode).any():

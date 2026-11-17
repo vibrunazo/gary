@@ -776,6 +776,8 @@ class RoleRules:
                 u = group[0]
                 group = [u]
                 self.uses[u["tag"]] = self.uses.get(u["tag"], 0) + 1
+                if hasattr(self, "event_at"):
+                    self.event_at[(name, u["tag"])] = now
                 point = getattr(self, "where", {}).get(u["tag"], (u["x"], u["y"]))
                 return self._intent(role, group, point, name)
             for u in group:
@@ -945,6 +947,7 @@ class RoleLearned(RoleRules):
         # them, which are flat where the pros' are steep (docs/PROGRESS.md 2026-11-13)
         self.mode_models: dict = {}
         self.mode_due: dict[int, tuple[int, int]] = {}    # rates: unit -> (a mode drawn and not ordered yet, when)
+        self.event_at: dict[tuple[str, int], int] = {}    # minemodel: (an event's role, unit) -> when it was ordered
 
     def _turns(self, tag: int, now: int) -> tuple[float, float]:
         """rates: the half seconds since the unit's last draw, for its roles (OVER_MAX at most) and for its modes'
@@ -973,6 +976,9 @@ class RoleLearned(RoleRules):
         from gary.policy.modes import STATES
         out = {}
         for state, (model, situations) in self.mode_models.items():
+            if model.event:
+                out.update(self._event_odds(state, model, situations, rows, extra, tags, time_s, by_tag))
+                continue
             off, on, enter, leave = STATES[self.g.race.letter][state]
             seen = situations.read(np.asarray(rows), np.asarray(extra), list(tags), time_s, {off, on})
             mine = [t for t in seen if t in by_tag and by_tag[t]["owner"] == self.g.slot]
@@ -982,6 +988,32 @@ class RoleLearned(RoleRules):
             odds = model.odds(np.stack([seen[t] for t in mine]), in_mode)
             for t, inside, h in zip(mine, in_mode, odds):
                 out[t] = (leave if inside else enter, (enter, leave), float(h))
+        return out
+
+    def _event_odds(self, event: str, model, situations, rows, extra, tags, time_s: float, by_tag: dict) -> dict:
+        """minemodel: unit -> (the event's role, (it,), the event model's odds of its command in the next half second)
+        for the snapshot's own units of its types: none for a unit that can't take it now (no mines left, not
+        researched). Its own command history as the data's: the seconds since the fight layer last gave it the event
+        (SPELL_MAX at most, and when never); the time since any command of its is not an input (the model's --drop:
+        it measures the hands, and Gary's are not the pros')."""
+        from gary.policy.modes import EVENT_HISTORY, EVENTS, HISTORY, SPELL_MAX
+        types, role = EVENTS[self.g.race.letter][event]
+        seen = situations.read(np.asarray(rows), np.asarray(extra), list(tags), time_s, set(types))
+        cols = situations.names + HISTORY
+        idx = [cols.index(n) for n in model.names if n in cols]
+        now = self.g.hi.frame
+        out = {}
+        for t, x in seen.items():
+            u = by_tag.get(t)
+            if u is None or u["owner"] != self.g.slot:
+                continue
+            if not self._mode_ready(role, u):
+                out[t] = (role, (role,), 0.0)
+                continue
+            since = {EVENT_HISTORY[0]: min((now - self.event_at[(role, t)]) / 24, SPELL_MAX)
+                     if (role, t) in self.event_at else SPELL_MAX}
+            row = np.concatenate([x[idx], [since[n] for n in model.names if n not in cols]]).astype(np.float32)
+            out[t] = (role, (role,), float(model.odds(row[None], np.zeros(1, bool))[0]))
         return out
 
     @staticmethod
