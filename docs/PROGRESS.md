@@ -2091,6 +2091,17 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **`rates` for the Protoss and the Zerg dev builds (started 2026-11-17).** Why: the Terran's fight draws were taken
+  at the trainer's class-weighted odds, which made its rare decisions several times too likely (its tanks flipping in
+  and out of Siege Mode); option `rates` takes the weights out (RoleModel.rates) and is in gt1dev since gt0.37dev.
+  gp1dev and gz1dev draw every fight decision from their role models the same way, so the same bias is expected there
+  (TODO.md Direction 3). One PvZ pairing measures both: RB274a (gp1dev against gz1dev, a fresh baseline on SJ254a's
+  seeds: shared code changed since) and RR274a (both with `rates`), 16 games each. Judged on the judge's events per
+  situation: the Protoss's storms (SJ254a: 4.6% of Templar-moments for a pro's 7.1%), the Zerg's Lurker burrow and
+  unburrow (DZ247a: 2.2% for 3.5%, 1.5% for 4.8%). Written before: the class weights favour rare decisions, so with
+  them out storms, burrows and unburrows are expected to fall, further below the pros' (the Terran's mines fell from
+  5.5% to 1.3% with `rates`) while the common decisions come nearer. If they do fall, the fix is the one the mines got
+  (an event model on the judge's inputs), not dropping `rates`. 16 games show severalfold moves only.
 - **The TvZ fight gap at 15-20 minutes, by feature (2026-11-17).** Why: gt0.37dev's 96 paired games put its fight
   gap to the pros further at 15-20 minutes (+0.063 [+0.019, +0.111]) and nearer at 20-25 (-0.060), no different over
   the game; TODO.md asked which features. `eval/gap_windows.py --features 15` (new: a window's score split into its
@@ -2126,6 +2137,28 @@ plan and the full log).
   the Vulture-moments with a mine against Protoss from 2.6% toward the pros' 7.3% in Gary's situations, the ranking
   kept at 0.70 or more; against a Zerg the ranking from 0.57 toward 0.72. Severalfold on the rate, so 16 games show it;
   wins are not the verdict. Baselines PT272a and HT272a (gt0.39dev, the code they ran unchanged for it).
+  **Results (PM273a against gp1dev, HM273a against gz1, 16 games each):**
+
+  | Vulture fight moments with a mine | gt0.39dev | minemodel | a pro in Gary's situations |
+  |---|---|---|---|
+  | PvT: Gary's share (PT272a, PM273a) | 2.6% | 6.1% | 7.3%, 8.2% |
+  | PvT: the judge's ranking (the pros' 0.78) | 0.72 | 0.67 | |
+  | PvT: off the pros' line over the judge's bins | 3.9% | 2.1% | |
+  | TvZ: Gary's share (HT272a, HM273a) | 5.5% | 6.7% | 7.4%, 5.9% |
+  | TvZ: the judge's ranking (the pros' 0.72) | 0.55 | 0.67 | |
+  | TvZ: off the pros' line | 6.7% | 4.5% | |
+
+  The rate came to the pros' and the line nearer in both; the ranking up against a Zerg, down against a Protoss,
+  under the 0.70 written. Why, checked: part of it is the input the mine model leaves out. A pro lays a mine 0.8 s
+  (median) after the last command to that Vulture: the mine is the end of a selection and a move. Gary's come 6.0 s
+  after, so the judge marks them down on that input whatever the situation (Gary's Vultures are commanded every 8 s,
+  a pro's every 2.3 s). With that input set to the pros' median, the judge ranks gt0.39dev's mines 0.735 and
+  minemodel's 0.698: the rest of the drop, about 0.04, is real, the more mines laid at the model's odds landing
+  where the judge and the model disagree (the mine model ranks Gary's mines 0.697 before and 0.709 with it; both
+  rank the pros' held-out games alike, 0.78). Results, not the verdict: the Terran won 5 and lost 2 against the
+  Protoss (7 and 2 before), 3 and 2 against the Zerg (5 and 2). Left: the Vultures' hands (a mine at the end of a
+  move, as the pros lay them) and the situations Gary's Vultures are in that the pros' aren't (25% against a
+  Protoss, 66% against a Zerg: by its own buildings and fighters).
 - **gt0.39dev: what unsieged the tanks against a Protoss besides the mode model, fixed (2026-11-16).** Each judged
   leave of Siege Mode matched by the tank's tag to the last "O (tank mode)" order that held it (by time alone the
   attribution swapped the fight layer's and the motor's: an unsiege shows 3.5 s after its key). PT271a: of the 1.51%
