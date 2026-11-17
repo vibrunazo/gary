@@ -2155,7 +2155,7 @@ plan and the full log).
   a pro's every 2.3 s). With that input set to the pros' median, the judge ranks gt0.39dev's mines 0.735 and
   minemodel's 0.698: the rest of the drop, about 0.04, is real, the more mines laid at the model's odds landing
   where the judge and the model disagree (the mine model ranks Gary's mines 0.697 before and 0.709 with it; both
-  rank the pros' held-out games alike, 0.78). Results, not the verdict: the Terran won 5 and lost 2 against the
+  rank the pros' held-out games alike, 0.78). A caveat on all of it: the judge's ranking moves about 0.06 between 16-game rounds of one build (a siege ranking of 0.76 in 16 games was 0.64 to 0.70 over 96), so of these 16-game rounds only the rate's move, two- to threefold, is read with confidence; the ranking's are within that. Results, not the verdict: the Terran won 5 and lost 2 against the
   Protoss (7 and 2 before), 3 and 2 against the Zerg (5 and 2). Left: the Vultures' hands (a mine at the end of a
   move, as the pros lay them) and the situations Gary's Vultures are in that the pros' aren't (25% against a
   Protoss, 66% against a Zerg: by its own buildings and fighters).

@@ -11,6 +11,24 @@ siege against a Zerg, and one viewing did. The work is judged by what a pro woul
 (`eval/judge.py`), in every matchup, not by counts a game and not in one matchup first. The steps, in order (an item
 gets its issue when it is started; the ones marked "to decide" are proposals, not agreed):
 
+**The order from 2026-11-17 (the user's call, on a review of the week: the tank work fixed the flipping and moved
+no top-level measure; most faults found were in the pipe between a model's odds and what Gary carried out, and
+apply to every drawn decision; one mode in two matchups took five days):**
+a. Stop the siege work; finish the mines (option `minemodel`, folded into gt1dev) and `rates` for gp1dev and gz1dev
+   (RB274a, RR274a); each further ability time-boxed to about a day.
+b. One check of what a model asks against what Gary carried out, over every drawn decision, layer and race (the
+   model's odds on Gary's own judged moments against the transitions it made, by fifths of the odds): the check that
+   found every fault of the week, as one table.
+c. The upstream decisions ahead of the remaining abilities: the army's positioning and engagements (where the army
+   leaves the tanks), and finishing games (item 6 below, the commit layer).
+d. One live game a race, watched, before more decoder work.
+e. gt1dev against gt1 measured again (paired, and the fidelity measures per window: -0.188 [-0.302, -0.078] on
+   2026-11-11), since promotion turns on it.
+f. A 16-game round read only for a severalfold change in a rate, never for a ranking (the judge's ranking moves
+   about 0.06 between rounds of one build).
+
+The steps as first written (2026-11-12), kept for what they hold:
+
 1. **The judge, states (v0 done 2026-11-12, docs/PROGRESS.md).** Would a pro's unit be in this mode here: the Siege
    Tank, against the pros of TvZ, PvT and TvT, on gt1dev's latest round of each (sieged 0% for a pro's 53%, 15% for
    51% and in the wrong situations, 23% for 34% and 2-6% where the pros are surest). Sharpened with the unit's recent
@@ -66,7 +84,7 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
      left against a Protoss: the model asking less there than a pro does (entries 1.67% for 2.35%), leaving more
      (its odds 0.63% for a pro's 0.45%), and the army's keys just before the fight reaches a tank (0.21%); (b) mines at half a pro's rate (3.0% to 4.6% for 6.2% to
      6.5%) and placed no better than chance (ranking 0.50 to 0.57 for 0.72): an event model on the judge's inputs,
-     as the tanks got (option `minemodel`, 2026-11-17: its rounds PM273a, HM273a); (c) done 2026-11-17: the fight gap
+     as the tanks got (option `minemodel`, 2026-11-17, PM273a, HM273a: the rate at the pros' in both, the ranking 0.55 to 0.67 against a Zerg and 0.72 to 0.67 against a Protoss; to fold into gt1dev, the user's call; left: a pro's mine comes 0.8 s after a command to the Vulture, the end of a move, Gary's 6 s); (c) done 2026-11-17: the fight gap
      further at 15-20 minutes is the army near the enemy and raids answered faster and with less HP lost than a pro
      (eval/gap_windows.py --features; docs/PROGRESS.md), nothing to fix.
    - The tanks' siege in every Terran matchup: they flipped in and out of Siege Mode seven times as often as a
@@ -100,8 +118,8 @@ gets its issue when it is started; the ones marked "to decide" are proposals, no
    from a LAN game's replay.
 6. **The judge on the other fight decisions** (retreat, which enemy to shoot), after the abilities: whether a role
    for a group every half second can look like a pro at all, or the fight layer needs targets per unit.
-7. **To decide.** Reinforcement learning parked until the fight layer has an output for every job and a reward
-   ranks checkpoints as games do (#53). League games ended when the critic says a side would resign, so the late
+7. **Reinforcement learning parked** (the user's call, 2026-11-17) until the fight layer has an output for every job,
+   the decoders are checked (b above) and a reward ranks checkpoints as games do (#53). **To decide:** league games ended when the critic says a side would resign, so the late
    windows compare like with like and dead games cost no CPU; it needs its own check (the critics' grade as a
    paired score was not adopted, #63).
 
