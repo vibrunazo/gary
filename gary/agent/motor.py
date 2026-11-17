@@ -545,7 +545,11 @@ class DirectMotor:
             w, h = T.SIZE.get(u["type"]) or OTHER_SIZE.get(u["type"], (0, 0))
             return (max(UNDER_CURSOR, w * 16 + 4), max(UNDER_CURSOR, h * 16 + 4))
         units = [(u["x"], u["y"], *half(u)) for u in obs["units"]]
-        free = lambda px, py: all(abs(px - ux) > hx or abs(py - uy) > hy for ux, uy, hx, hy in units)
+        # (and the game's own hit test where it has one: a flyer's click box is bigger and drawn above it, and a
+        # retreat clicked on a Science Vessel followed it, 14 a game in TvZ, eval/pipe_table.py 2026-11-17)
+        game = getattr(self.g.hi, "game", None)
+        hit = (lambda px, py: game.unit_at(self.g.slot, px, py) != 0) if hasattr(game, "unit_at") else (lambda px, py: False)
+        free = lambda px, py: all(abs(px - ux) > hx or abs(py - uy) > hy for ux, uy, hx, hy in units) and not hit(px, py)
         if free(x, y):
             return x, y
         for r in range(16, GROUND_SEARCH + 1, 16):

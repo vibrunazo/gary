@@ -2091,6 +2091,24 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **Retreats that get away (2026-11-17; option `retreatwhere`, and a hands fix in every build).** Why: the pipe
+  table's first finding (above): every side retreats a fifth to a half as often as the pros against its model's odds.
+  Read from the records and the replays (TD275a, PD275a; 917 and 224 retreats sent): every retreat order goes out, but
+  to one point for the group at the enemy's reach plus a margin (roles.py `_retreat_point`), a median 3 tiles from
+  the unit, 64-71% under the 4 tiles that label a retreat; 2 s later its units are a median 0.7 tiles farther from
+  the nearest enemy fighter and a third are nearer (with a point 4 tiles or more away, 19-23% get 4 tiles clear;
+  under 2 tiles, 3%). And 11% of the Terran's in TvZ were clicked on its own Science Vessel, which the unit then
+  followed: 3-6% of every side's fight moves landed on a unit.
+  - *The hands (a bug, in every build: gt0.17, gz0.11, gp0.12, gt0.42dev, gz0.27dev, gp0.34dev):* the motor's
+    move and attack-move clicks take ground that the game's own hit test finds empty too (motor.py `_ground_near`;
+    the box it checked against is smaller than a flyer's click box). Parity recorded again for it.
+  - *Option `retreatwhere` (dev builds' rounds, not folded):* a retreat goes where the role model moves the units
+    (its where head: the pros' moves, 2 s ahead), in place of the reach point. Written before its rounds (TR276a:
+    gt1dev+retreatwhere against gz1dev+rates, TvZ; PR276a: gp1dev+rates+retreatwhere against
+    gt1dev+retreatwhere, PvT; 16 games each, against TD275a and PD275a, which lack the hands fix: that fix moves at
+    most the 11% of TvZ retreats that followed a vessel): retreats made against the asked from 0.18 (TvZ Terran),
+    0.43 (PvT Terran), 0.47 (Protoss) toward the pros' 0.78, 1.02, 1.00, severalfold in TvZ; the retreating units
+    2 s later a median 2 tiles or more farther from the enemy (0.7 now); the other roles and the modes as they were.
 - **What a model asks against what Gary carried out, one table (`eval/pipe_table.py`, v1, 2026-11-17; TODO.md
   Direction b).** Why: each fault of the week (the trainer's weights in a draw, a decoder's turns, the motor
   unsieging, a selection's spill) sat between a model's odds and what Gary did, and each was found by a check written

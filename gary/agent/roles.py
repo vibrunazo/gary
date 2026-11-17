@@ -197,8 +197,13 @@ class RoleRules:
                  anchor: bool = False,
                  holds: bool = False, kite: bool = False, fire: str = "enemy", post: float | str | None = None,
                  vultures: bool = False, gap_post: bool = False, pull_hp: float = PULL_HP, surround: int = 0,
-                 refresh: bool = False):
+                 refresh: bool = False, retreat_where: bool = False):
         self.g = g
+        # option retreatwhere: a retreat to where the role model moves its units (its where head, WHERE_LEAD of the
+        # pros' half seconds ahead) in place of the group's point at the enemy's reach plus a margin, a median 3 tiles
+        # from the unit: two thirds of Gary's retreats were under the 4 tiles that label one, its units 0.7 tiles
+        # farther from the enemy 2 s later, a third nearer (eval/pipe_table.py, TD275a and PD275a)
+        self.retreat_where = retreat_where
         self.refresh = refresh                       # option: orders kept current as their targets move
         self.order_at: dict[int, tuple[int, int]] = {}   # unit -> the point of its last order (refresh)
         self.anchor = anchor                         # at home, units stay by the Command Centers and bunkers
@@ -729,7 +734,10 @@ class RoleRules:
                 if inside:
                     return self._enter(inside, bunker)
             if not home:
-                return self._intent("RETREAT", group[:MAX_GROUP], self._retreat_point(group[:MAX_GROUP], enemy), "move")
+                group = group[:MAX_GROUP]
+                where = [self.where[u["tag"]] for u in group if u["tag"] in getattr(self, "where", {})]                     if self.retreat_where else []
+                point = (sum(x for x, _ in where) / len(where), sum(y for _, y in where) / len(where)) if where                     else self._retreat_point(group, enemy)
+                return self._intent("RETREAT", group, point, "move")
         group = roles.get("PULL_BACK", [])[:MAX_GROUP]
         if group:
             targeted = [e for e in enemy if e.get("order_target") in {u["tag"] for u in group}]
