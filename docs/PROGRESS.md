@@ -2091,6 +2091,21 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **League games end when a side types gg (2026-11-18, the user's call; issue #62).** Why: the pros leave a lost game;
+  Gary's games ran to 30:00 whoever had won (most would-gg games did), so the late windows compared the end of dead
+  games with the pros' live ones, and the commit model, learned from pros who leave, has few of the states a finish
+  needs. How (eval/match.py `Resign`, the referee's): each side's critic (its matchup and race, read from that side's
+  own view every 5 s, the view kept every second) and, at or under 10% win odds for 60 s, the side types gg: the game
+  is decided for the other side, the moment in the records (layer "gg"). `eval.league --gg` (0.1 by default; 0 plays
+  to the end) and round.json keep it, each game its "gg" side. A side whose critic reads another build's view plays on
+  (the critics are trained on the dev builds' 441 macro features; gt1's are 421). The check before it played
+  (eval/critic_gg.py, every matchup's critic on its held-out games): at 10% or less for a minute the side won 0-3 of
+  the decided games after in each matchup (about 2-3%; at 20%, up to 12%), and most such games went to 30:00
+  unfinished; every critic reads the current dev builds (tests/test_value.py). A check game (gt1dev against gz1dev,
+  Fighting Spirit 4004): the Zerg typed gg at 11:15 at 3.5%, behind 20 to 33 in army and 27 to 40 in workers.
+  Consequences: rounds from now are baselines only for rounds with gg (an older one is replayed, or played with
+  `--gg 0`); a critic trained again on resigned games learns that the states it resigned in lose (#62's caution;
+  the pros' games are the same); the late windows hold fewer games.
 - **The army's positioning and engagements, first read (2026-11-18; TODO.md c).** Why: the adopted order puts the
   upstream decisions (where the army goes, when it engages, finishing games) ahead of further abilities. What was
   checked, with no new games:
@@ -2117,6 +2132,12 @@ plan and the full log).
     (NF279a: gt1dev+nofloor against gz1dev, 16 games, against TF278a, the same build with the floor): engage and move
     drawn at their odds (drawn/asked 0.83 and 0.70 now, about 1 with it), so a sixth more engages and two fifths more
     moves a game; the fight features read for direction only (16 games can't resolve them); wins not a verdict.
+    Results (NF279a: won 3, lost 2, ahead at time 7, behind 4; TF278a 4, 1, 2, 8): drawn at the odds, drawn/asked
+    engage 1.00 and move 1.05 (0.84 and 0.69 with the floor), so 30% more engages and twice the moves. The fight
+    features, 16 paired games: at 5-10 minutes the army standing with no order 0.49 (0.61 with the floor, pros 0.32;
+    the interval clear of zero), orders a fighter a minute 4.8 (4.2, pros 7.2), in the field 0.51 (0.45, pros 0.34:
+    further); at 15-20 at home 0.53 (0.58, pros 0.43), orders 3.97 (3.35, pros 4.00). The windows' scores unresolved.
+    A fidelity change that moves the army toward the pros on standing and orders: proposed to fold into gt1dev.
 - **Retreats that get away (2026-11-17; option `retreatwhere`, and a hands fix in every build).** Why: the pipe
   table's first finding (above): every side retreats a fifth to a half as often as the pros against its model's odds.
   Read from the records and the replays (TD275a, PD275a; 917 and 224 retreats sent): every retreat order goes out, but

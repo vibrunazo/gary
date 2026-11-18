@@ -54,7 +54,8 @@ and its line removed; a new one gets an issue and a line).
   stop-gaps do (finishing games most of all) have no learned layer. The suite's numbers for both, and how far apart they
   are, are in docs/PROGRESS.md.
 - A change is an option on them (`gt1+<option>`), judged in paired 48-game rounds on the ladder maps
-  (`--maps ladder --seeds 6 --first 4004`, 30 minutes) and the gap score to modern pros; 24 games are too
+  (`--maps ladder --seeds 6 --first 4004`, 30 minutes; since 2026-11-18 a side types gg when its critic's win odds stay
+  at or under 10% for a minute, `--gg`, as the pros leave: a round before then is a baseline only with `--gg 0`) and the gap score to modern pros; 24 games are too
   noisy for close calls, and a single round's gap score needs its spread (`eval/gap_windows.py`, 96 paired games
   for a close call). A round is proposed only with its minimum detectable effect written first: 96 paired games
   resolve 0.06 to 0.14 of the paired score by the pairing (its 90% interval +-0.04 to +-0.09 over eleven past pairs:

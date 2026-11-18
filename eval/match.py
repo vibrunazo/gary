@@ -84,9 +84,66 @@ class Match:
             hi.step(2, advance_game=(i == 0))
 
 
+GG_EVERY = 24 * 5                # frames between the critic's reads for a gg
+GG_HOLD = 24 * 60                # the win odds at or under the threshold this long: the side types gg and leaves
+
+
+class Resign:
+    """Issue #62's rule, as the referee plays it: each side's critic (gary/policy/value.py, its matchup and race) reads
+    the game from that side's own view; a side whose win odds stay at or under the threshold for GG_HOLD types gg and
+    leaves, as the pros do. Checked before it played (eval/critic_gg.py, 2026-11-18): of the held-out decided games read
+    at 10% or less for a minute, the side won 0-3 in each matchup after (8 of about 330), and most such games went to
+    30:00 unfinished. A side with no critic plays on."""
+
+    def __init__(self, garys: dict, races: list[str], threshold: float, slots: list[int] | None = None):
+        from gary.agent.manifests import model_for
+        from gary.policy.belief import BeliefModel
+        from gary.policy.value import ValueModel, ValueView
+        self.threshold, self.reads, self.since, self.slots = threshold, {}, {}, slots
+        for k, g in garys.items():
+            try:
+                critic = ValueModel.load(model_for("value", g.matchup, races[k]))
+                view = ValueView(g, BeliefModel.load(model_for("belief", g.matchup, races[k])))
+            except (FileNotFoundError, SystemExit) as e:
+                print(f"gg: no critic for {races[k]} in {g.matchup} ({e}): plays on", flush=True)
+                continue
+            from gary.policy.macro import FeatureSpec
+            from gary.policy.value import EXTRAS
+            spec = getattr(getattr(g.macro, "tracker", None), "spec", None)
+            if spec is None or critic.ckpt["n_in"] != spec.size + len(EXTRAS) \
+                    or FeatureSpec(**critic.ckpt["spec"]).to_dict() != spec.to_dict():
+                print(f"gg: {races[k]}'s critic ({critic.path}) reads another build's view (the dev build's, "
+                      f"tests/test_value.py): plays on", flush=True)
+                continue
+            self.reads[k] = (g, critic, view)
+
+    def look(self, frame: int) -> int | None:
+        """Each side's view kept every second; every GG_EVERY its win odds read: the side that resigns now, or None."""
+        import math
+        out = None
+        for k, (g, critic, view) in self.reads.items():
+            obs = g.hi.observe()
+            view.look(obs)
+            if frame % GG_EVERY >= 24:
+                continue
+            p = 1 / (1 + math.exp(-float(critic.predict(view.features(obs))["win"][0])))
+            if p > self.threshold:
+                self.since.pop(k, None)
+                continue
+            start = self.since.setdefault(k, frame)
+            if frame - start >= GG_HOLD and out is None:
+                from gary.decision_log import LOG
+                LOG.slot = self.slots[k] if self.slots else None
+                LOG.decision(g.hi.side, "gg", frame, "gg", p, by=f"rule: the critic's win odds at or under "
+                             f"{self.threshold:.0%} for {GG_HOLD // 24} s (issue #62)")
+                out = k
+        return out
+
+
 def play(map_path: str, minutes: float, seed: int, save: str, a: str, b: str, style: int | str | None = None,
-         style_b: int | str | None = None) -> str:
-    """One game, A against B; its result ("A won", "B won", "time")."""
+         style_b: int | str | None = None, gg: float | None = None) -> str:
+    """One game, A against B; its result ("A won", "B won", "time"). gg: the critic's win odds at which a side
+    resigns (Resign), None to play to the end."""
     races = [manifest_of(a).get("race", "T"), manifest_of(b).get("race", "T")]
     mirror = races[0] == races[1]
     with Game.new(map_path, races, [f"Gary {a}", f"Gary {b}"], seed=seed, command_delay=LIVE_COMMAND_DELAY) as game:
@@ -121,6 +178,8 @@ def play(map_path: str, minutes: float, seed: int, save: str, a: str, b: str, st
         brancher = Brancher(game, slot_of, seed or 0)
         ctx = {"gary": garys[0], "zerg": garys[1], "his": {races[k]: his[k] for k in his}, "slot_of": slot_of}
         lead = order[0]
+        resign = Resign(garys, races, gg, slots if mirror else None) if gg else None
+        resigned = None
         while his[lead].frame < end:
             players = {p["slot"] for p in game.observe()["players"]}
             if not set(slots) <= players:                     # someone was eliminated
@@ -137,6 +196,13 @@ def play(map_path: str, minutes: float, seed: int, save: str, a: str, b: str, st
             LOG.slot = None
             if brancher.on:
                 brancher.maybe(game, ctx)
+            if resign is not None and his[lead].frame % 24 < 2:
+                k = resign.look(his[lead].frame)
+                LOG.slot = None
+                if k is not None:
+                    resigned = k
+                    result = "B won" if k == 0 else "A won"
+                    break
             if his[lead].frame % (24 * 30) < 2:
                 o = game.observe()
                 t = his[lead].frame // 24
@@ -164,7 +230,8 @@ def play(map_path: str, minutes: float, seed: int, save: str, a: str, b: str, st
         garys[0].save_trace(base + ".trace.jsonl")
         garys[1].save_trace(base + ".btrace.jsonl")
         LOG.save_records(base + ".records.jsonl")
-        print(f"{result}; saved {save} (screens, traces and records beside it)")
+        gone = f" ({'A' if resigned == 0 else 'B'} typed gg)" if resigned is not None else ""
+        print(f"{result}; saved {save} (screens, traces and records beside it){gone}")
         return result
 
 
@@ -179,6 +246,8 @@ def main() -> None:
     ap.add_argument("--style-b", help="B's build style, the same")
     ap.add_argument("--list-styles", action="store_true", help="print the build styles of A's and B's races and exit")
     ap.add_argument("--save", default="match.rep")
+    ap.add_argument("--gg", type=float, help="a side resigns when its critic's win odds stay at or under this for a "
+                    "minute (issue #62; eval/league.py plays at 0.1); unset: to the end")
     args = ap.parse_args()
     if args.list_styles:
         from gary.styles import describe
@@ -188,7 +257,7 @@ def main() -> None:
         for r in dict.fromkeys(races):
             print(describe(mu, r))
         return
-    play(args.map, args.minutes, args.seed, args.save, args.a, args.b, args.style, args.style_b)
+    play(args.map, args.minutes, args.seed, args.save, args.a, args.b, args.style, args.style_b, args.gg)
 
 
 if __name__ == "__main__":

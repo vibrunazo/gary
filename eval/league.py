@@ -42,7 +42,7 @@ MAPS = {m: REPO / "tests" / "fixtures" / "replays" / f"stardata_tvz_{m}.rep"
 
 def play(job: tuple) -> dict:
     """One game in its own process (the learned layers' decision log written as the process ends)."""
-    version, name, path, seed, minutes, out, pairs, incumbent, candidate, layer, zerg = job
+    version, name, path, seed, minutes, out, pairs, incumbent, candidate, layer, zerg, gg = job
     folder = out / name
     folder.mkdir(parents=True, exist_ok=True)
     rep = folder / f"{version}_seed{seed}.rep"
@@ -59,16 +59,18 @@ def play(job: tuple) -> dict:
         if other:
             env["GARY_PAIRS_CANDIDATE"] = str(other)
     cmd = [sys.executable, "-m", "eval.match", "--a", version, "--b", zerg, "--map", str(path),
-           "--minutes", str(minutes), "--seed", str(seed), "--save", str(rep)]
+           "--minutes", str(minutes), "--seed", str(seed), "--save", str(rep)] + (["--gg", str(gg)] if gg else [])
     p = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
     log = p.stdout + p.stderr
     rep.with_suffix(".log").write_text(log, encoding="utf-8")
-    result = "error"
+    result, gone = "error", None
     for line in reversed(log.splitlines()):
         if line.startswith(("A won", "B won", "time")):
             result = {"A won": "won", "B won": "lost"}.get(line.split(";")[0], "time")
+            gone = "A" if "(A typed gg)" in line else "B" if "(B typed gg)" in line else None
             break
-    return {"map": name, "seed": seed, "result": result, "replay": str(rep), "zroles": str(main) if main else None}
+    return {"map": name, "seed": seed, "result": result, "replay": str(rep), "zroles": str(main) if main else None,
+            "gg": gone}
 
 
 def decisions(rep: str) -> dict:
@@ -151,6 +153,9 @@ def main() -> None:
                     "written by ingest/ladder_maps.py) or ladder names, comma-separated (e.g. KnockOut,Attitude SE)")
     ap.add_argument("--first", type=int, default=101)
     ap.add_argument("--minutes", type=float, default=30)
+    ap.add_argument("--gg", type=float, default=0.1, help="a side types gg when its critic's win odds stay at or under "
+                    "this for a minute (issue #62, the user's call of 2026-11-18: as the pros leave); 0: every game to "
+                    "--minutes, as rounds before 2026-11-18 played")
     ap.add_argument("--parallel", type=int, default=4)
     ap.add_argument("--pairs", action="store_true", help="paired fight episodes in every game (eval/pairs.py)")
     ap.add_argument("--incumbent", help="the Zerg's fight-role model (default: its newest)")
@@ -183,7 +188,8 @@ def main() -> None:
         for m, c in table["graded_by_map"].items():
             print(f"  {m}: {c}")
         return
-    jobs = [(args.vs, name, path, s, args.minutes, out, args.pairs, args.incumbent, args.candidate, args.layer, args.zerg)
+    jobs = [(args.vs, name, path, s, args.minutes, out, args.pairs, args.incumbent, args.candidate, args.layer, args.zerg,
+             args.gg)
             for name, path in maps.items() for s in range(args.first, args.first + args.seeds)]
     with ThreadPoolExecutor(args.parallel) as pool:
         games = list(monitor.track(pool.map(play, jobs), len(jobs), "games"))
@@ -194,7 +200,7 @@ def main() -> None:
     rows_t, rows_z = side_rows(done, ra, args.parallel, nths[0]), side_rows(done, rb, args.parallel, nths[1])
     save_rows(out, rows_t, rows_z, labels)
     grade(games, rows_t, rows_z)
-    table = {"round": args.round, "terran": args.vs, "b": args.zerg, "minutes": args.minutes, "games": games,
+    table = {"round": args.round, "terran": args.vs, "b": args.zerg, "minutes": args.minutes, "gg": args.gg, "games": games,
              "results": dict(Counter(g["result"] for g in games)),
              "graded": dict(Counter(g["graded"] for g in games)),
              "by_map": {m: dict(Counter(g["result"] for g in games if g["map"] == m)) for m in maps},
