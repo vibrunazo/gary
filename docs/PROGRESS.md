@@ -2140,22 +2140,31 @@ plan and the full log).
     A fidelity change that moves the army toward the pros on standing and orders: folded into gt1dev (gt0.44dev, the
     user's call of 2026-11-18); the standing that is left (0.49 against the pros' 0.32) is the next read.
   - *Where the standing comes from (NF279a's 16 games against 40 of the pros' modern TvZ games, re-simulated, 5-10
-    minutes; scripts in the session, measures as eval/humanlike.py's).* Gary's fighters stand 0.41 of the samples, the
-    pros' 0.25 (hold position, 0.07 of the pros', counted apart). Not standing in itself but its length: 26% of Gary's
-    standing time is in stretches of 30 s or more (pros 4%), 11% of 60 s or more (1%). Of those stretches, a third are
-    new units at their rally before their first order (a new fighter's first rest a median 16 s, 31% over 30 s; the
-    pros' 8 s and 12%), two fifths units the army layer moved that then had no order for 30 s, a tenth marines the
-    load rule sent to a bunker. Not the clusters: 4% of Gary's fighter time is outside the army layer's three
-    clusters, and those stand no more than the rest. What is missing is the short order out of contact (no enemy
-    fighter within 10 tiles): new move or attack-move orders a fighter a minute, under 16 tiles from the unit, the
-    pros 12.5 and Gary 1.8; beyond 16 tiles 4.5 and 2.7. Most of the pros' short ones are given while the unit is
-    already moving (9.2 a minute, against Gary's 1.0), one short hop after another (8.5 of them after a short
-    target), and 2.0 a minute start a standing unit (Gary 0.5). Under two army cells (16 tiles) the army data labels a
-    pro's order "keep" (ingest/army_dataset.py MOVED), so the commit model never learns these, and Gary carries out
-    "keep" as no order; the role model's where head moves units only in a fight (enemy fighters within 8 tiles,
-    ingest/fight_dataset.py). Out of contact, no layer of Gary's places its units within 16 tiles: that is the
-    positioning gap, as much as the commit model's odds. What would own it is the user's call (a learned layer, or
-    the hands).
+    minutes; scripts in the session, measures as eval/humanlike.py's).* Pooled per fighter sample (the 0.49 above is a
+    mean per game window), Gary's fighters stand 0.41 of the samples, the pros' 0.25 (hold position, 0.07 of the pros',
+    counted apart). Not standing in itself but its length: 26% of Gary's standing time is in stretches of 30 s or more
+    (pros 4%), 11% of 60 s or more (1%). Of those stretches, a third are new units at their rally before their first
+    order (a new fighter's first rest a median 16 s, 31% over 30 s; the pros' 8 s and 12%), two fifths units the army
+    layer moved that then had no order for 30 s, a tenth marines the load rule sent to a bunker. Not units left out of
+    the clusters: 4% of Gary's fighter time is outside the army layer's three clusters, and those stand no more than
+    the rest.
+    What starts the pros' standing units is the short order out of contact (no enemy fighter within 10 tiles): a
+    move or attack-move under 16 tiles given to a standing unit, 2.0 a fighter a minute against Gary's 0.5, most under
+    8 tiles (under 4: 0.90 against 0.17; 4-8: 0.65 against 0.11) and most to one unit alone (1.36 against 0.37). The
+    army data labels these "keep" (ingest/army_dataset.py MOVED: under 2 cells, Chebyshev, so 8-16 tiles), so the
+    commit model never learns them, and Gary carries out "keep" as no order; the role model's where head moves units
+    only in a fight (enemy fighters within 8 tiles, ingest/fight_dataset.py). Out of contact, no layer of Gary's
+    places a standing unit within a few tiles: that is the standing gap, beside the commit model's odds.
+    A second gap, which standing doesn't show (and orders_per_fighter doesn't count: a move re-targeted is the same
+    order id): units already moving get 9.2 short orders a minute from the pros against Gary's 1.0, 3.6 of them
+    the same destination clicked again (within 2 tiles) and 5.6 a new one 2 tiles or more away (Gary 0.8): the pros
+    steer a moving group in hops. Lower priority than the standing; noted.
+    And a mismatch with the data: half the commit model's questions at 5-10 minutes (52%) are about clusters of 1-3
+    units, where the army data samples only clusters of 4 supply or more (MIN_SUP) and Gary's clustering (army.py
+    _split) has no minimum for the ground; a small cluster can also take one of the three places from a real one. Its
+    keep is 0.85 there (0.63 at 6+ units): a third of the rally stretches may be the model asked outside its data, an
+    input-as-data fix on its own check. What should own the short orders (a learned layer, the hands) is the user's
+    call.
 - **Retreats that get away (2026-11-17; option `retreatwhere`, and a hands fix in every build).** Why: the pipe
   table's first finding (above): every side retreats a fifth to a half as often as the pros against its model's odds.
   Read from the records and the replays (TD275a, PD275a; 917 and 224 retreats sent): every retreat order goes out, but

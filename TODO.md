@@ -31,7 +31,10 @@ b. One check of what a model asks against what Gary carried out, over every draw
    gp1dev and gz1dev (the user's call); a hands fix in every build (moves clicked on units). Left, not chased: a
    retreat held for its stretch, the Terran's PvT and TvT fights drawn, mines against a Protoss. Next: c.
 c. The upstream decisions ahead of the remaining abilities: the army's positioning and engagements (where the army
-   leaves the tanks), and finishing games (item 6 below, the commit layer).
+   leaves the tanks), and finishing games (item 6 below, the commit layer). So far (2026-11-18, docs/PROGRESS.md): the
+   floor off in gt1dev (gt0.44dev) and league games ended at the critic's gg (the user's calls); the standing read:
+   out of contact no layer gives a standing unit a short order (the pros 2.0 a fighter a minute, Gary 0.5), and half
+   the commit questions are about clusters smaller than its data's. Left: home at 15-20, the PvT tanks.
 d. One live game a race, watched, before more decoder work.
 e. gt1dev against gt1 measured again (paired, and the fidelity measures per window: -0.188 [-0.302, -0.078] on
    2026-11-11), since promotion turns on it.
