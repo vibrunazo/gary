@@ -134,9 +134,8 @@ The steps as first written (2026-11-12), kept for what they hold:
 6. **The judge on the other fight decisions** (retreat, which enemy to shoot), after the abilities: whether a role
    for a group every half second can look like a pro at all, or the fight layer needs targets per unit.
 7. **Reinforcement learning parked** (the user's call, 2026-11-17) until the fight layer has an output for every job,
-   the decoders are checked (b above) and a reward ranks checkpoints as games do (#53). **To decide:** league games ended when the critic says a side would resign, so the late
-   windows compare like with like and dead games cost no CPU; it needs its own check (the critics' grade as a
-   paired score was not adopted, #63).
+   the decoders are checked (b above) and a reward ranks checkpoints as games do (#53). League games end when a side's critic reads it lost (decided 2026-11-18, the user's
+   call: `eval.league --gg`, 10% for a minute, #62; docs/PROGRESS.md).
 
 Carried over, not dropped: gp1dev's leads from its promotion verdict (its first fighters standing still at 0-5
 minutes, the Corsair count, the army it keeps); the Terran's gas in the live game (six Barracks on two refineries,
