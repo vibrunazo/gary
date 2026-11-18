@@ -120,6 +120,7 @@ CONTACT = 48
 PULL_HP = 0.5
 PULL_TILES = 1.5
 RETREAT_MARGIN = 3 * 32
+RETREAT_FAR = 6 * 32                 # option retreatfar: px past the group's edge (the pros' retreats: median 5.5 tiles)
 REPEAT = 24                          # the same role isn't given to a unit again within a second (but pull back)
 # option rates (RoleLearned): the model's odds are a half second's (TURN, the fight's ASK_EVERY); a unit's draw is over
 # the time since its last one, OVER_MAX at most (its turns came every 18 frames on average in a game, RA261a's seed
@@ -197,13 +198,14 @@ class RoleRules:
                  anchor: bool = False,
                  holds: bool = False, kite: bool = False, fire: str = "enemy", post: float | str | None = None,
                  vultures: bool = False, gap_post: bool = False, pull_hp: float = PULL_HP, surround: int = 0,
-                 refresh: bool = False, retreat_where: bool = False):
+                 refresh: bool = False, retreat_far: bool = False):
         self.g = g
-        # option retreatwhere: a retreat to where the role model moves its units (its where head, WHERE_LEAD of the
-        # pros' half seconds ahead) in place of the group's point at the enemy's reach plus a margin, a median 3 tiles
-        # from the unit: two thirds of Gary's retreats were under the 4 tiles that label one, its units 0.7 tiles
-        # farther from the enemy 2 s later, a third nearer (eval/pipe_table.py, TD275a and PD275a)
-        self.retreat_where = retreat_where
+        # option retreatfar: a retreat's point RETREAT_FAR beyond the group's edge, away from the enemy (the pros'
+        # retreats run a median 5.5 tiles, 7.7 at the 75th percentile, PvT): the point at the enemy's reach plus a
+        # margin was a median 3 tiles from the unit, two thirds under the 4 tiles that label a retreat, its units 0.7
+        # tiles farther from the enemy 2 s later (eval/pipe_table.py, TD275a and PD275a); the role model's where head
+        # (2 s of the pros' moves) put it as near (option retreatwhere, TR276a and PR276a, dropped)
+        self.retreat_far = retreat_far
         self.refresh = refresh                       # option: orders kept current as their targets move
         self.order_at: dict[int, tuple[int, int]] = {}   # unit -> the point of its last order (refresh)
         self.anchor = anchor                         # at home, units stay by the Command Centers and bunkers
@@ -735,8 +737,7 @@ class RoleRules:
                     return self._enter(inside, bunker)
             if not home:
                 group = group[:MAX_GROUP]
-                where = [self.where[u["tag"]] for u in group if u["tag"] in getattr(self, "where", {})]                     if self.retreat_where else []
-                point = (sum(x for x, _ in where) / len(where), sum(y for _, y in where) / len(where)) if where                     else self._retreat_point(group, enemy)
+                point = self._retreat_point(group, enemy, RETREAT_FAR if self.retreat_far else 0)
                 return self._intent("RETREAT", group, point, "move")
         group = roles.get("PULL_BACK", [])[:MAX_GROUP]
         if group:
@@ -910,12 +911,15 @@ class RoleRules:
                 return x, y
         return None
 
-    def _retreat_point(self, group: list[dict], enemy: list[dict]):
-        """Away from the enemy group, to the edge of their reach plus a margin."""
+    def _retreat_point(self, group: list[dict], enemy: list[dict], beyond: float = 0):
+        """Away from the enemy group, to the edge of their reach plus a margin; with beyond, at least that far past
+        the group's farthest unit from its middle."""
         mid, them = _mid(group), _mid(enemy)
         reach = max(RANGE.get(e["type"], 32) for e in enemy)
         nearest = min(math.dist(mid, (e["x"], e["y"])) for e in enemy)
         dist = max(4 * 32, reach + RETREAT_MARGIN - nearest + 2 * 32)
+        if beyond:
+            dist = max(dist, beyond + max(math.dist(mid, (u["x"], u["y"])) for u in group))
         return self._step_away(mid, them, dist)
 
 

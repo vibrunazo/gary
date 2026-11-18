@@ -994,10 +994,10 @@ OPTIONS = {
     # (a decoder: under the threshold it stimmed 9.0% of its Marine-moments for a pro's 12.8% in TvZ, 1.9% for 10.5%
     # in PvT, eval/judge.py)
     "stimdice": lambda m: m["fight"].setdefault("rule_options", {}).setdefault("stim", {}).update(dice=True),
-    # roles.py: a retreat to where the role model moves the units (its where head), not the group's point at the enemy's
-    # reach (two thirds under the 4 tiles that label a retreat: Gary retreated a fifth to a half as often as the pros
-    # against its models' odds, eval/pipe_table.py 2026-11-17); every fight section with a role model
-    "retreatwhere": lambda m: [f.update(roles={**f.get("roles", {}), "retreat_where": True})
+    # roles.py: a retreat 6 tiles past the group's edge (the pros' median retreat), not the point at the enemy's reach
+    # (two thirds under the 4 tiles that label a retreat: Gary retreated a fifth to a half as often as the pros against
+    # its models' odds, eval/pipe_table.py 2026-11-17); every fight section with a role model
+    "retreatfar": lambda m: [f.update(roles={**f.get("roles", {}), "retreat_far": True})
                                for f in [m["fight"]] + [v["fight"] for v in m.get("vs", {}).values() if "fight" in v]
                                if f.get("provider") == "roles" and f.get("model")],
     # roles.py learned/v1: the modes (siege, unsiege, a mine) drawn by their odds, the rest the likeliest (a decoder: the

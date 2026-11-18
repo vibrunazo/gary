@@ -2109,6 +2109,18 @@ plan and the full log).
     most the 11% of TvZ retreats that followed a vessel): retreats made against the asked from 0.18 (TvZ Terran),
     0.43 (PvT Terran), 0.47 (Protoss) toward the pros' 0.78, 1.02, 1.00, severalfold in TvZ; the retreating units
     2 s later a median 2 tiles or more farther from the enemy (0.7 now); the other roles and the modes as they were.
+  - *Results (TR276a: the Terran won 3; PR276a: the Protoss lost 7, won 1): not what was written.* Retreats made
+    against the asked 0.15 (TvZ Terran, 0.18 before), 0.44 (PvT Terran, 0.43), 0.35 (Protoss, 0.47). The where head's
+    point is as near as the reach point (a median 2.7-3.4 tiles; 61-71% under 4), since it is 2 s of the pros' average
+    moves, not of their retreats. 2 s later: TvZ 0.8 tiles farther from the enemy (0.7), PvT Terran 2.3 (25% 4 tiles
+    or more), Protoss 0.4. Dropped. The pros' own retreats (PvT, 4,150 stretches): a median 3 half seconds and 5.5
+    tiles, 7.7 at the 75th percentile. The hands fix took the retreats clicked on a Science Vessel from 11% to 4% in
+    TvZ, not to none (the spot is chosen, then clicked a moment later; Vultures 10% in PvT): left as is.
+  - *Next: option `retreatfar`:* the point 6 tiles past the group's farthest unit from its middle (RETREAT_FAR), away
+    from the enemy. Written before its rounds (TF277a: gt1dev+retreatfar against gz1dev+rates; PF277a:
+    gp1dev+rates+retreatfar against gt1dev+retreatfar): retreats made against the asked toward the pros' 0.78-1.02,
+    severalfold in TvZ (0.15-0.18 now); the retreating units 2 s later a median 3 tiles or more farther from the enemy;
+    if they get away and are still not labelled retreats, the label's 4 tiles in one stretch is cut by the next turn.
 - **What a model asks against what Gary carried out, one table (`eval/pipe_table.py`, v1, 2026-11-17; TODO.md
   Direction b).** Why: each fault of the week (the trainer's weights in a draw, a decoder's turns, the motor
   unsieging, a selection's spill) sat between a model's odds and what Gary did, and each was found by a check written
