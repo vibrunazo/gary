@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-18): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.17), Zerg as `gz1` (gz0.11) and Protoss as `gp1` (gp0.12, crude); learning is trained and judged in `gt1dev`
-(gt0.43dev), `gp1dev` (gp0.35dev) and `gz1dev` (gz0.28dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.44dev), `gp1dev` (gp0.35dev) and `gz1dev` (gz0.28dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -2137,7 +2137,8 @@ plan and the full log).
     features, 16 paired games: at 5-10 minutes the army standing with no order 0.49 (0.61 with the floor, pros 0.32;
     the interval clear of zero), orders a fighter a minute 4.8 (4.2, pros 7.2), in the field 0.51 (0.45, pros 0.34:
     further); at 15-20 at home 0.53 (0.58, pros 0.43), orders 3.97 (3.35, pros 4.00). The windows' scores unresolved.
-    A fidelity change that moves the army toward the pros on standing and orders: proposed to fold into gt1dev.
+    A fidelity change that moves the army toward the pros on standing and orders: folded into gt1dev (gt0.44dev, the
+    user's call of 2026-11-18); the standing that is left (0.49 against the pros' 0.32) is the next read.
 - **Retreats that get away (2026-11-17; option `retreatwhere`, and a hands fix in every build).** Why: the pipe
   table's first finding (above): every side retreats a fifth to a half as often as the pros against its model's odds.
   Read from the records and the replays (TD275a, PD275a; 917 and 224 retreats sent): every retreat order goes out, but

@@ -1371,11 +1371,14 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # its own Science Vessels followed them (14 a game in TvZ; 3-6% of fight moves landed on a unit, eval/pipe_table.py)
 # gt0.43dev (2026-11-18, the user's call): retreatfar folded in: a retreat 6 tiles past the group's edge, the pros'
 # median retreat (TF278a: its units 1.9 tiles farther from the enemy 2 s later for 0.7; docs/PROGRESS.md)
+# gt0.44dev (2026-11-18, the user's call): nofloor folded in: the commit layer drawn at the model's odds, as the Protoss's
+# and the Zerg's (NF279a: engage and move drawn at 1.00 and 1.05 of their odds for 0.84 and 0.69; the army standing
+# with no order at 5-10 minutes 0.49 for 0.61, the pros 0.32; docs/PROGRESS.md)
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
-                                     "+parkmany+tvzmodes+staysieged+modemodel+minemodel+retreatfar"),
-                       "version": "gt0.43dev"}
+                                     "+parkmany+tvzmodes+staysieged+modemodel+minemodel+retreatfar+nofloor"),
+                       "version": "gt0.44dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
