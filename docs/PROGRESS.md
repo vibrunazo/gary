@@ -2111,14 +2111,20 @@ plan and the full log).
     2 s later a median 2 tiles or more farther from the enemy (0.7 now); the other roles and the modes as they were.
   - *Results (TR276a: the Terran won 3; PR276a: the Protoss lost 7, won 1): not what was written.* Retreats made
     against the asked 0.15 (TvZ Terran, 0.18 before), 0.44 (PvT Terran, 0.43), 0.35 (Protoss, 0.47). The where head's
-    point is as near as the reach point (a median 2.7-3.4 tiles; 61-71% under 4), since it is 2 s of the pros' average
-    moves, not of their retreats. 2 s later: TvZ 0.8 tiles farther from the enemy (0.7), PvT Terran 2.3 (25% 4 tiles
+    point a median 2.7-3.4 tiles away (61-71% under 4): the same point as before (see the correction below). 2 s later: TvZ 0.8 tiles farther from the enemy (0.7), PvT Terran 2.3 (25% 4 tiles
     or more), Protoss 0.4. Dropped. The pros' own retreats (PvT, 4,150 stretches): a median 3 half seconds and 5.5
     tiles, 7.7 at the 75th percentile. The hands fix took the retreats clicked on a Science Vessel from 11% to 4% in
     TvZ, not to none (the spot is chosen, then clicked a moment later; Vultures 10% in PvT): left as is.
-  - *Next: option `retreatfar`:* the point 6 tiles past the group's farthest unit from its middle (RETREAT_FAR), away
-    from the enemy. Written before its rounds (TF277a: gt1dev+retreatfar against gz1dev+rates; PF277a:
-    gp1dev+rates+retreatfar against gt1dev+retreatfar): retreats made against the asked toward the pros' 0.78-1.02,
+  - *Correction (2026-11-18): both rounds tested nothing.* The learned fight layer (roles.py `RoleLearned._act`)
+    sends a retreat to where its role model's where head moves the units, not to the reach point
+    (`_retreat_point`, the hand rules'), so `retreatwhere` changed nothing, and the first `retreatfar` (TF277a,
+    PF277a, on the rules' point) neither: the point a median 3.0, 3.7, 2.9 tiles away, retreats 0.16, 0.42, 0.32. The
+    differences between TD275a, TR276a and TF277a are rounds of one build: the retreat ratio moves 0.15-0.18 (TvZ)
+    and 0.32-0.47 (Protoss) between them. What sets the point is the where head: 2 s of the pros' average moves.
+  - *Option `retreatfar`, as it is now:* the where head's direction, its point pushed out to RETREAT_FAR (6 tiles)
+    past the group's edge where it is nearer. Written before its rounds (TF278a: gt1dev+retreatfar against
+    gz1dev+rates; PF278a: gp1dev+rates+retreatfar against gt1dev+retreatfar): the point a median 6 tiles or more
+    from the unit (3 now); retreats made against the asked toward the pros' 0.78-1.02,
     severalfold in TvZ (0.15-0.18 now); the retreating units 2 s later a median 3 tiles or more farther from the enemy;
     if they get away and are still not labelled retreats, the label's 4 tiles in one stretch is cut by the next turn.
 - **What a model asks against what Gary carried out, one table (`eval/pipe_table.py`, v1, 2026-11-17; TODO.md

@@ -200,11 +200,10 @@ class RoleRules:
                  vultures: bool = False, gap_post: bool = False, pull_hp: float = PULL_HP, surround: int = 0,
                  refresh: bool = False, retreat_far: bool = False):
         self.g = g
-        # option retreatfar: a retreat's point RETREAT_FAR beyond the group's edge, away from the enemy (the pros'
-        # retreats run a median 5.5 tiles, 7.7 at the 75th percentile, PvT): the point at the enemy's reach plus a
-        # margin was a median 3 tiles from the unit, two thirds under the 4 tiles that label a retreat, its units 0.7
-        # tiles farther from the enemy 2 s later (eval/pipe_table.py, TD275a and PD275a); the role model's where head
-        # (2 s of the pros' moves) put it as near (option retreatwhere, TR276a and PR276a, dropped)
+        # option retreatfar: a retreat's point at least RETREAT_FAR past the group's edge (the pros' retreats run a
+        # median 5.5 tiles, 7.7 at the 75th percentile, PvT): the role model's where head (2 s of the pros' average
+        # moves, RoleLearned._act) put it a median 3 tiles from the unit, two thirds under the 4 tiles that label a
+        # retreat, its units 0.7 tiles farther from the enemy 2 s later (eval/pipe_table.py, TD275a and PD275a)
         self.retreat_far = retreat_far
         self.refresh = refresh                       # option: orders kept current as their targets move
         self.order_at: dict[int, tuple[int, int]] = {}   # unit -> the point of its last order (refresh)
@@ -1264,8 +1263,14 @@ class RoleLearned(RoleRules):
             group = [u for u in roles.get(role, []) if u["tag"] in self.where and fresh(u, role)][:MAX_GROUP]
             if group:
                 pts = [self.where[u["tag"]] for u in group]
-                return self._intent(role, group, (sum(x for x, _ in pts) / len(pts), sum(y for _, y in pts) / len(pts)),
-                                    "move")
+                point = (sum(x for x, _ in pts) / len(pts), sum(y for _, y in pts) / len(pts))
+                if role == "RETREAT" and self.retreat_far:     # (the model's way, as far as a pro's retreat goes)
+                    mid = _mid(group)
+                    far = RETREAT_FAR + max(math.dist(mid, (u["x"], u["y"])) for u in group)
+                    d = math.dist(mid, point)
+                    if 0 < d < far:
+                        point = (mid[0] + (point[0] - mid[0]) * far / d, mid[1] + (point[1] - mid[1]) * far / d)
+                return self._intent(role, group, point, "move")
         return super()._act({k: v for k, v in roles.items() if k not in ("RETREAT", "PULL_BACK")},
                             mine, enemy, by_tag, home, fresh)
 
