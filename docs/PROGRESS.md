@@ -2127,6 +2127,16 @@ plan and the full log).
     from the unit (3 now); retreats made against the asked toward the pros' 0.78-1.02,
     severalfold in TvZ (0.15-0.18 now); the retreating units 2 s later a median 3 tiles or more farther from the enemy;
     if they get away and are still not labelled retreats, the label's 4 tiles in one stretch is cut by the next turn.
+  - *Results (TF278a: the Terran won 4, lost 1, behind at time in 8; PF278a: the Protoss won 2, lost 7; wins as in
+    the rounds of the build without it):* the point where written, a median 5.8, 5.8, 5.7 tiles (under 4: 12%, 3%,
+    3%); the retreating units 2 s later farther from the nearest enemy fighter by a median 1.9 tiles in TvZ (0.7-0.8
+    without it), 3.3 for the Terran in PvT (2.1-2.3), 1.1 for the Protoss (0.4); 4 tiles or more 24%, 43%, 17%
+    (8-10%, 24-25%, 6-7%). Retreats seen against the asked: 0.22 (0.15-0.18), 0.49 (0.42-0.44), 0.46 (0.32-0.47),
+    for the pros' 0.78, 1.02, 1.00: nearer, not severalfold. What still cuts them: a third of the units end nearer
+    the enemy in TvZ and for the Protoss (the enemy follows: zerglings, and zealots and vultures are as fast), and the
+    next fight order within 2 s is another retreat in 37% of the Terran's in TvZ (its point moved again) and a
+    reposition, close in or fire in 27-40%. The point now covers a pro's retreat; the rest is the turns after it.
+    Kept as an option (fidelity: the distance is the pros'), proposed to fold into gt1dev and gp1dev.
 - **What a model asks against what Gary carried out, one table (`eval/pipe_table.py`, v1, 2026-11-17; TODO.md
   Direction b).** Why: each fault of the week (the trainer's weights in a draw, a decoder's turns, the motor
   unsieging, a selection's spill) sat between a model's odds and what Gary did, and each was found by a check written
