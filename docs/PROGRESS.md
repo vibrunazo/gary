@@ -2091,10 +2091,31 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **The army's positioning and engagements, first read (2026-11-18; TODO.md c).** Why: the adopted order puts the
+  upstream decisions (where the army goes, when it engages, finishing games) ahead of further abilities. What was
+  checked, with no new games:
+  - *The commit layer carries out what it decides.* Its draws are at its odds for the Protoss and the Zerg
+    (eval/pipe_table.py); each cluster is asked every 5 s (army.py COMMIT_TICK), the step its data was sampled at
+    (ingest/army_dataset.py TICK): no turn gap. Its orders are redirected within 30 s (TF278a: 63% of an engage's
+    units, 73% of a move's, half by the model deciding again; eval/commit_pipe.py), but that is the pros' own pattern,
+    measured on 2026-10-24 on the same measure (pros 0.79 of their group orders within 30 s, gt1dev 0.70): not a leak.
+  - *The Terran's floor:* gt1dev draws engage or move only above 15% (option `floor`, from human game 3's low draws:
+    a decoder that bets on results); the Protoss and the Zerg draw at the model's odds. A tenth to a sixth of the
+    engages its model asks never happen.
+  - *The fight features against the pros (TD275a, TF278a, 16 games each; noisy, read for what both rounds share):*
+    at 5-10 minutes the army stands with no order 61-63% of the time (pros 32%), 4.2-4.3 orders a fighter a minute
+    (7.2), moving between shots 0.04 (0.11); at 15-20 more at home (0.57-0.58, pros 0.43) and less in the field (0.39,
+    0.53). Where the standing comes from (units at a rally with nothing to do, or fighters the roles keep) is the
+    next read, from the records.
+  - *Finishing games:* the commit model learned from pros who resign, so its data has few of the lopsided states a
+    finish needs; in the dev builds the hunt (the stop-gap that finishes) is off. Imitation alone has no answer; the
+    options are the user's: the league's games ended at the critic's resignation (pending since 2026-11-12), the hunt
+    back in the dev builds, or learning beyond imitation (parked).
 - **Retreats that get away (2026-11-17; option `retreatwhere`, and a hands fix in every build).** Why: the pipe
   table's first finding (above): every side retreats a fifth to a half as often as the pros against its model's odds.
   Read from the records and the replays (TD275a, PD275a; 917 and 224 retreats sent): every retreat order goes out, but
-  to one point for the group at the enemy's reach plus a margin (roles.py `_retreat_point`), a median 3 tiles from
+  to one point for the group, where the role model's where head moves its units (RoleLearned._act; first misread
+  here as the hand rules' reach point, see the correction below), a median 3 tiles from
   the unit, 64-71% under the 4 tiles that label a retreat; 2 s later its units are a median 0.7 tiles farther from
   the nearest enemy fighter and a third are nearer (with a point 4 tiles or more away, 19-23% get 4 tiles clear;
   under 2 tiles, 3%). And 11% of the Terran's in TvZ were clicked on its own Science Vessel, which the unit then
@@ -2243,9 +2264,9 @@ plan and the full log).
      > 0.66 > 0.27, PvT Terran 0.24 > 0.16 > 0.13 > 0.07, PvT Protoss 0.47 > 0.42 > 0.30 > 0.17: the common loss is
      from the order to a retreat seen. Of 917 retreat orders in TvZ, the unit is seen moving away at the order in about
      half (reposition 32%, retreat 10%, pull back 6%), firing or closing in 30%, standing 21% (PvT Protoss: 224, 50%,
-     41%, 9%); 42% get another retreat within 2 s in TvZ. The retreat point (roles.py `_retreat_point`) is one point
-     for the group, at least 4 tiles from its middle: a unit behind the middle has less to go, and a unit still
-     firing may not have taken the order. Next: the orders' fates in the records, then the point.
+     41%, 9%); 42% get another retreat within 2 s in TvZ. The retreat point is one point for the group,
+     the where head's (2 s of the pros' average moves: a median 3 tiles; see "Retreats that get away"), and a
+     unit still firing may not have taken the order. Next: the orders' fates in the records, then the point.
   2. *The Terran against a Protoss takes the likeliest role* (`modedice`, by design): stand drawn 2.8x its asked in
      its turns, close in and retreat a third; its ratios against the pros' (all about 1): stand 0.50, retreat 0.43,
      reposition 0.61. Drawing the other roles there (option `draw` in its "vs" sections alone) is the test.
