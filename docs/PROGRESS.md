@@ -2111,6 +2111,12 @@ plan and the full log).
     finish needs; in the dev builds the hunt (the stop-gap that finishes) is off. Imitation alone has no answer; the
     options are the user's: the league's games ended at the critic's resignation (pending since 2026-11-12), the hunt
     back in the dev builds, or learning beyond imitation (parked).
+  - *The user's calls (2026-11-18):* league games to end at the critic's resignation (issue #62's rule, its own check
+    first), and gt1dev tested without the floor. Option `nofloor` (keep, engage and move drawn at the commit model's
+    odds, the destination among every cell on its side, as the Protoss's and the Zerg's). Written before its round
+    (NF279a: gt1dev+nofloor against gz1dev, 16 games, against TF278a, the same build with the floor): engage and move
+    drawn at their odds (drawn/asked 0.83 and 0.70 now, about 1 with it), so a sixth more engages and two fifths more
+    moves a game; the fight features read for direction only (16 games can't resolve them); wins not a verdict.
 - **Retreats that get away (2026-11-17; option `retreatwhere`, and a hands fix in every build).** Why: the pipe
   table's first finding (above): every side retreats a fifth to a half as often as the pros against its model's odds.
   Read from the records and the replays (TD275a, PD275a; 917 and 224 retreats sent): every retreat order goes out, but

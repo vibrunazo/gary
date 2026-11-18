@@ -689,6 +689,10 @@ OPTIONS = {
     # drawn under 15% (human game 3's 19 low draws were all under 14%), the destination among the 5 likeliest
     # cells. The deterministic decodes won fewer games against Gary-Z than drawing (6-7 of 24 against 13)
     "floor": lambda m: m["army"].update(commit_floor=0.15),
+    # without the floor: keep, engage and move drawn at the commit model's odds, the destination drawn among every cell
+    # on its side (as the Protoss's and the Zerg's): the floor left a tenth to a sixth of the engages asked undrawn
+    # (eval/pipe_table.py, 2026-11-17)
+    "nofloor": lambda m: m["army"].update(commit_floor=None),
     # army_rules.py LordHunt: one or two marines hunt an exposed overlord (the user, after human game 4)
     "lords": lambda m: m["army"].update(rules=[*m["army"].get("rules", ()), "lords"]),
     # army_rules.py ClusterRules (Gary-Z's, shared): join, a cluster under the main one's size walks to it rather than
