@@ -17,9 +17,9 @@ rather than scripted, because the replay pipeline made that the quicker way to a
 Since 2026-10-15 every piece of the self-play loop is being built crude before any is polished: a
 learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the league isn't trained
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
-Where it stands (2026-11-17): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
-(gt0.16), Zerg as `gz1` (gz0.10) and Protoss as `gp1` (gp0.11, crude); learning is trained and judged in `gt1dev`
-(gt0.41dev), `gp1dev` (gp0.33dev) and `gz1dev` (gz0.26dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+Where it stands (2026-11-18): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
+(gt0.17), Zerg as `gz1` (gz0.11) and Protoss as `gp1` (gp0.12, crude); learning is trained and judged in `gt1dev`
+(gt0.43dev), `gp1dev` (gp0.35dev) and `gz1dev` (gz0.28dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -2137,6 +2137,9 @@ plan and the full log).
     next fight order within 2 s is another retreat in 37% of the Terran's in TvZ (its point moved again) and a
     reposition, close in or fire in 27-40%. The point now covers a pro's retreat; the rest is the turns after it.
     Kept as an option (fidelity: the distance is the pros'), proposed to fold into gt1dev and gp1dev.
+  - *Folded (2026-11-18, the user's call):* `retreatfar` into gt1dev (gt0.43dev) and gp1dev, `rates` into gp1dev
+    (gp0.35dev) and gz1dev (gz0.28dev). The pipe table's item closes here (TODO.md b); next, the army's positioning,
+    engagements and finishing games (TODO.md c).
 - **What a model asks against what Gary carried out, one table (`eval/pipe_table.py`, v1, 2026-11-17; TODO.md
   Direction b).** Why: each fault of the week (the trainer's weights in a draw, a decoder's turns, the motor
   unsieging, a selection's spill) sat between a model's odds and what Gary did, and each was found by a check written

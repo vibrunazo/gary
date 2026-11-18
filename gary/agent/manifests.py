@@ -1365,11 +1365,13 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # gt0.42dev (2026-11-17): a fight move or attack-move clicks ground the game's own hit test finds empty (motor.py
 # _ground_near): a flyer's click box is bigger than the box it was checked against, and Gary's retreats clicked on
 # its own Science Vessels followed them (14 a game in TvZ; 3-6% of fight moves landed on a unit, eval/pipe_table.py)
+# gt0.43dev (2026-11-18, the user's call): retreatfar folded in: a retreat 6 tiles past the group's edge, the pros'
+# median retreat (TF278a: its units 1.9 tiles farther from the enemy 2 s later for 0.7; docs/PROGRESS.md)
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
-                                     "+parkmany+tvzmodes+staysieged+modemodel+minemodel"),
-                       "version": "gt0.42dev"}
+                                     "+parkmany+tvzmodes+staysieged+modemodel+minemodel+retreatfar"),
+                       "version": "gt0.43dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
@@ -1448,9 +1450,11 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # gz0.27dev (2026-11-17): a fight move or attack-move clicks ground the game's own hit test finds empty (motor.py
 # _ground_near): a flyer's click box is bigger than the box it was checked against, and Gary's retreats clicked on
 # its own Science Vessels followed them (14 a game in TvZ; 3-6% of fight moves landed on a unit, eval/pipe_table.py)
+# gz0.28dev (2026-11-18, the user's call): rates folded in: its fight roles drawn at the model's odds, the trainer's
+# weights out (eval/pipe_table.py: made against asked 0.77-1.07 with it, 0.27-0.53 without; RR274a, TD275a)
 MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+eggs+allstyles+gaswaits+parkmany"
-                                     "+pvzroles+mirrorroles+ownhist+builtcount+pendown+tiles+place+transferahead"),
-                       "version": "gz0.27dev"}
+                                     "+pvzroles+mirrorroles+ownhist+builtcount+pendown+tiles+place+transferahead+rates"),
+                       "version": "gz0.28dev"}
 
 # gp0.4dev: gp1 without the stop-gaps over its learned layers (unscripted: the hunt, a Pylon ahead of production) and
 # its army on control groups by type (grouping, as gt1dev's and gz1's): the Protoss's dev build, where its learning is
@@ -1569,9 +1573,11 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+eggs+allstyles+gaswaits+par
 # gp0.34dev (2026-11-17): a fight move or attack-move clicks ground the game's own hit test finds empty (motor.py
 # _ground_near): a flyer's click box is bigger than the box it was checked against, and Gary's retreats clicked on
 # its own Science Vessels followed them (14 a game in TvZ; 3-6% of fight moves landed on a unit, eval/pipe_table.py)
+# gp0.35dev (2026-11-18, the user's call): rates and retreatfar folded in (eval/pipe_table.py: made against asked
+# 0.73-1.09 with rates, 0.13-0.62 without; retreats 6 tiles past the group, its units 1.1 tiles farther for 0.4)
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
-                                     "+fightrules+aircluster+coming+comingbuild+savecoming+tiles+transferahead"),
-                       "version": "gp0.34dev"}
+                                     "+fightrules+aircluster+coming+comingbuild+savecoming+tiles+transferahead+rates+retreatfar"),
+                       "version": "gp0.35dev"}
 
 
 def fight_model_path(m: dict, matchup: str, race: str) -> Path | None:
