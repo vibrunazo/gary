@@ -128,7 +128,9 @@ def load(path: Path, decisions: bool = False, move: bool = False, attended: bool
         keys += ("move",)
     if again:                           # (the again orders' targets; NaN elsewhere)
         to = d["cmd_to"].astype(np.float32)
-        arrays["offset"] = np.where((labels == names.index(AGAIN))[..., None], to, np.nan).astype(np.float32)
+        # (the calm data's where snapshots carry their points with no labels: ingest/calm_dataset.py)
+        arrays["offset"] = (to if "where" in d else np.where((labels == names.index(AGAIN))[..., None], to, np.nan)
+                            ).astype(np.float32)
         keys += ("offset",)
     if use_keys:                        # (ingest/key_labels.py: each unit's control-group key; the one-hot in batch())
         arrays["key"] = d["key"].astype(np.int8)
@@ -311,8 +313,9 @@ def main() -> None:
                     move_loss = move_loss + F.cross_entropy(off[m], offset_bin(to[m]))
                 else:
                     move_loss = move_loss + F.smooth_l1_loss(off[m], to[m])
-            loss = F.cross_entropy(logits.reshape(-1, len(names)), labels.reshape(-1), weight=weights, ignore_index=-1,
-                                   label_smoothing=args.smooth) + move_loss
+            role_loss = F.cross_entropy(logits.reshape(-1, len(names)), labels.reshape(-1), weight=weights,
+                                        ignore_index=-1, label_smoothing=args.smooth) if (labels >= 0).any() else logits.sum() * 0
+            loss = role_loss + move_loss               # (a batch of where snapshots alone has no labels: ingest/calm_dataset.py)
             opt.zero_grad()
             loss.backward()
             opt.step()

@@ -2091,6 +2091,17 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **The army at home at 15-20 minutes, read (2026-11-19; TODO.md c).** Why: the fight features had Gary's army at home
+  0.57 of the time at 15-20 minutes for the pros' 0.43. With CB280a and NF279a (32 games) against the pros' modern TvZ
+  games: not the army's size (at 30-50 supply 0.57 home for the pros' 0.45, at 50-80 0.51 for 0.41), nor the bases
+  (3 halls 0.57 for 0.42, 4 halls 0.49 for 0.40). Nor new units at the rally: by the fighters' age (re-simulated, per
+  fighter sample, Medics out), the ones under 30 s old are at home about as the pros' (0.82, 0.77), while those 90 s or
+  older are at home twice as often (0.44, 0.22): the standing army stays home. The commit layer isn't holding it: 37%
+  of its decisions at 15-20 are moves or engages, three quarters of those from home going out. Ruled out: "keep"
+  leaving reinforcements on the army's commitment path (a cluster takes the commitment of any order whose path passes
+  within 2 cells, as the army data does, and keep sends no order): under a kept commitment 67-81% of Gary's fighters
+  stand, the pros' 69% at home and 54% out (20 games, the same rule on their commands). Open: where the army goes
+  between engages (the commit model's destinations, and what brings it back home).
 - **The calm layer, a learned placement out of contact (2026-11-19; the user's call of 2026-11-18: a learned layer for
   the short orders no layer of Gary's gives; not in any build yet).** Why: the standing read below. Built:
   gary/policy/calm.py (a bunch of calm fighters, no seen enemy fighter within 12 tiles, in a snapshot of the role

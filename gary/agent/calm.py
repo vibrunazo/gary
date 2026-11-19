@@ -1,8 +1,9 @@
 """The calm layer (option `calm`): a standing fighter out of contact placed as the pros place theirs (gary/policy/calm.py).
 
-Each half second, every calm fighter's next half second is drawn at the calm model's rates (its class weights out, over
-the half seconds since its last draw); the short orders ("again") drawn for standing units are carried out as moves to
-where the offset head points, units whose points are near each other in one click. The other decisions are left to
+Each half second, each bunch of calm fighters decides once whether it gets a short order ("again"), at its units' mean
+odds (the calm model's rates, its class weights out, over the half seconds since their last draw), as the pros give one
+command to a bunch; its standing units are then moved, in one click, to a point drawn from their offset odds from their
+middle (ingest/calm_dataset.py's where snapshots). The other decisions are left to
 their layers: far orders to the commit model, the rest to nobody (keep, a click again, a non-point command). Moving
 units are drawn too (the model's odds are learned over all calm units) but not ordered: a short order given to a unit on
 a commit move would stop it short (the pros' hops while moving, docs/PROGRESS.md 2026-11-18, are a later step).
@@ -17,12 +18,11 @@ import numpy as np
 from gary.agent.intents import Intent
 from gary.decision_log import LOG
 from gary.policy.army import is_building, is_worker, supply_x2
-from gary.policy.calm import NAMES, snapshots
-from gary.policy.roles import AGAIN, MAX_UNITS, offset_of
+from gary.policy.calm import map_extras, snapshots
+from gary.policy.roles import AGAIN, EXTRA, MAX_UNITS, offset_of
 
 STEP = 12                     # frames: a decision a half second, as the data's labels
 STANDING = {2, 3, 107}        # (ingest/calm_dataset.py STANDING)
-NEAR = 3 * 32                 # units whose points are this near share a click (gary/agent/roles.py AGAIN_NEAR)
 MAX_GROUP = 12                # (gary/agent/roles.py MAX_GROUP)
 
 
@@ -85,7 +85,8 @@ class Calm:
             if u["completed"] and supply_x2(u["type"]) > 0 and not is_worker(u["type"]) and not is_building(u["type"]):
                 self.first_seen.setdefault(u["tag"], now)
         fx, fy = (-1 if g.flip[0] else 1), (-1 if g.flip[1] else 1)
-        moves: list[tuple[dict, tuple[float, float], float]] = []
+        with_map = self.model.config["net"]["n_extra"] > EXTRA     # (a model with the map extras: gary/policy/calm.py)
+        time_s = obs["frame"] * 42 / 1000
         for rows, tags, _, calm in snapshots(obs, g.slot, g.flip, supply_x2, is_worker, is_building, MAX_UNITS):
             extra = extra_features(rows, tags, positions, prev if elapsed else {}, g.flip)
             extra[:, 6:] = terrain_features(tags, positions, self._ground(),
@@ -93,42 +94,42 @@ class Calm:
                                             [(u["x"], u["y"]) for u in own if u["type"] in RACE_SHELTERS[g.race.letter]
                                              and u["completed"]], g.flip)
             own_extras(extra, tags, by_tag, g.slot, self.first_seen, now)
-            time_s = obs["frame"] * 42 / 1000
+            if with_map:
+                extra = np.concatenate([extra, map_extras(tags, positions, self._ground(), obs["map"]["w"],
+                                                          obs["map"]["h"], g.flip)], 1)
             odds = self.model.rates(self.model.predict(rows, extra, time_s))
-            bins = self.model.offset_odds(rows, extra, time_s)       # (a drawn head; else the mean head's points)
-            offsets = self.model.predict_offset(rows, extra, time_s) if bins is None else None
+            ps, standing = [], []
             for i, t in enumerate(tags[:MAX_UNITS]):
                 if t not in calm:
                     continue
                 q = odds[i] / odds[i].sum()
                 n = max(1.0, (now - self.drawn_at.get(t, now - STEP)) / STEP)
                 self.drawn_at[t] = now
-                p = 1 - (1 - float(q[self.k])) ** n      # (its odds over the half seconds since its last draw)
-                if self.rng.random() >= p:
-                    continue
-                u = by_tag[t]
-                standing = u["order"] in STANDING
-                if LOG.on:
-                    LOG.add(f"calm_{g.race.letter.lower()}", frame=now, tag=t, p=p, standing=standing)
-                if not standing:
-                    continue
-                if bins is not None:
-                    b = min(int(np.searchsorted(np.cumsum(bins[i]), self.rng.random() * bins[i].sum(), side="right")),
-                            len(bins[i]) - 1)
-                    dx, dy = (v * 32 for v in offset_of(b))
-                else:
-                    dx, dy = offsets[i] * 32
-                moves.append((u, (max(0.0, u["x"] + fx * dx), max(0.0, u["y"] + fy * dy)), p))
-        while moves:                             # (units whose points are near share a click, at their mean point)
-            seed = moves[0][1]
-            group = [m for m in moves if math.dist(m[1], seed) < NEAR][:MAX_GROUP]
-            moves = [m for m in moves if m not in group]
-            x = sum(m[1][0] for m in group) / len(group)
-            y = sum(m[1][1] for m in group) / len(group)
-            tags = [m[0]["tag"] for m in group]
-            self.queue.append(Intent("ARMY_MOVE", tags, (int(x), int(y)), {"p": max(m[2] for m in group)}, "army"))
-            LOG.decision(g.hi.side, "calm", now, f"move to ({int(x) // 32},{int(y) // 32})", max(m[2] for m in group),
-                         inputs={"units": len(tags)}, by="model: the calm model's again (short order), drawn",
+                ps.append(1 - (1 - float(q[self.k])) ** n)     # (its odds over the half seconds since its last draw)
+                if by_tag[t]["order"] in STANDING:
+                    standing.append(i)
+            # one decision a bunch, as the pros give one command to a bunch (a median 10 units): at its units' mean odds
+            p = float(np.mean(ps)) if ps else 0.0
+            go = bool(standing) and self.rng.random() < p
+            if LOG.on and ps:
+                LOG.add(f"calm_{g.race.letter.lower()}", frame=now, units=len(ps), standing=len(standing), p=p, go=go)
+            if not go:
+                continue
+            us = [by_tag[tags[i]] for i in standing]
+            cx, cy = sum(u["x"] for u in us) / len(us), sum(u["y"] for u in us) / len(us)
+            bins = self.model.offset_odds(rows, extra, time_s)
+            if bins is not None:                 # (its point from the bunch's middle, as the data's: drawn at its units' odds)
+                w = bins[standing].mean(0)
+                b = min(int(np.searchsorted(np.cumsum(w), self.rng.random() * w.sum(), side="right")), len(w) - 1)
+                dx, dy = (v * 32 for v in offset_of(b))
+            else:
+                dx, dy = self.model.predict_offset(rows, extra, time_s)[standing].mean(0) * 32
+            x, y = max(0.0, cx + fx * dx), max(0.0, cy + fy * dy)
+            for k in range(0, len(us), MAX_GROUP):
+                part = [u["tag"] for u in us[k:k + MAX_GROUP]]
+                self.queue.append(Intent("ARMY_MOVE", part, (int(x), int(y)), {"p": p}, "army"))
+            LOG.decision(g.hi.side, "calm", now, f"move to ({int(x) // 32},{int(y) // 32})", p,
+                         inputs={"units": len(us)}, by="model: the calm model's again (short order), drawn a bunch",
                          then="queued")
 
     def _send(self, tags: list[int], point, p: float) -> str:

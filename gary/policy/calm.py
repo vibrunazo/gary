@@ -9,6 +9,9 @@ the same rows and extras as the role model's, deciding for each calm fighter ove
   far      a point under the army data's reach (ingest/army_dataset.py MOVED cells or more): the commit model's
   reclick  a moving unit's point clicked again (within RECLICK of where it was going): the hands' spam, not a decision
   again    a short point order (under MOVED cells): what this layer carries out, to where the offset head points
+The pros give a short order to a bunch (a median 10 units, every one's target the click), so the where is one per
+command: its point from the commanded units' middle, learned at every such command (where snapshots, ingest/calm_dataset.py),
+drawn once per bunch in play from its units' odds.
 Built from the pros' games by ingest/calm_dataset.py, trained by train/roles.py --again (its offset head), played
 by gary/agent/calm.py."""
 from __future__ import annotations
@@ -29,6 +32,27 @@ RECLICK = 2 * 32              # a moving unit's target this near the click: the 
 MOVED = 2                     # army cells (ingest/army_dataset.py MOVED): an order this far is the commit model's
 GRID = 16                     # (ingest/army_dataset.py GRID)
 POINT_ORDERS = {14}           # an order command with a point that places a unit (attack-move); right-click on ground too
+
+
+MAP_EXTRA = 4                 # the calm model's own extras after the role model's: the way to the main's ramp top and to
+                              # the map's middle (mirrored as the rows, / GROUND_SCALE): placement out of contact is
+                              # geography, which the role extras give only as distances (the nearest Command Center apart)
+
+
+def map_extras(tags: list[int], positions: dict, ground, mw: int, mh: int, flip: tuple[bool, bool]) -> np.ndarray:
+    """(n, MAP_EXTRA) per unit: the way to its main's ramp top (zeros without a reliable one) and to the map's middle."""
+    from gary.policy.roles import GROUND_SCALE
+    out = np.zeros((len(tags), MAP_EXTRA), np.float32)
+    fx, fy = (-1 if flip[0] else 1), (-1 if flip[1] else 1)
+    ramp = getattr(ground, "ramp_top", None) if ground is not None else None
+    for i, t in enumerate(tags):
+        if t not in positions:
+            continue
+        x, y = positions[t]
+        if ramp is not None:
+            out[i, 0], out[i, 1] = fx * (ramp[0] - x) / GROUND_SCALE, fy * (ramp[1] - y) / GROUND_SCALE
+        out[i, 2], out[i, 3] = fx * (mw / 2 - x) / GROUND_SCALE, fy * (mh / 2 - y) / GROUND_SCALE
+    return out
 
 
 def army_cell(x: float, y: float, mw: int, mh: int) -> tuple[int, int]:
