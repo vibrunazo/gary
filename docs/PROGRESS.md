@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-19): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.18), Zerg as `gz1` (gz0.12) and Protoss as `gp1` (gp0.13, crude); learning is trained and judged in `gt1dev`
-(gt0.45dev), `gp1dev` (gp0.36dev) and `gz1dev` (gz0.29dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.46dev), `gp1dev` (gp0.36dev) and `gz1dev` (gz0.29dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -2193,7 +2193,8 @@ plan and the full log).
     0.228), but the layer doesn't make them alone: of its orders in CL281a, 89% of those to one unit and 66% to 2-3
     were to units alone already (5 s later 82%, 64%), where the pros' were 51% and 68%; and 39% of Gary's calm orders
     go to one unit, 17% of the pros'. What it changes is where the lone units stand: moved off the rally a lone new unit
-    no longer gathers with the next ones (not shown yet). Not folded; the user's call.
+    no longer gathers with the next ones (not shown yet). Folded into gt1dev (gt0.46dev, the user's call of
+    2026-11-19) for the standing measures it fixes; what leaves Gary's units alone is the next item.
 - **The commit model asked about its data's clusters (2026-11-19; every build: gt0.18, gz0.12, gp0.13, gt0.45dev,
   gz0.29dev, gp0.36dev).** Why: half the commit model's questions at 5-10 minutes (52%, NF279a) were about clusters of
   1-3 units, where the army data has only clusters of 4 supply or more (ingest/army_dataset.py clusters, MIN_SUP), and

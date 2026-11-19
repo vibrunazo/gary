@@ -1380,11 +1380,14 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # 2026-11-19, every build (gt0.18, gz0.12, gp0.13, gt0.45dev, gz0.29dev, gp0.36dev): the commit model is asked only about
 # clusters of the army data's size (army.py _split: 4 supply or more, the cell with the most supply first); half its
 # questions at 5-10 minutes had been about 1-3 units (NF279a). gz1's join rule still sees every bunch
+# gt0.46dev (2026-11-19, the user's call): calm folded in (gary/agent/calm.py: out of contact, a bunch of standing
+# fighters given the pros' short orders and, under 4 supply, their far ones; CL282a: a new fighter's first rest 8 s
+# for 12, the pros' 8; units alone and the army's spread further from the pros, the next item; docs/PROGRESS.md)
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
-                                     "+parkmany+tvzmodes+staysieged+modemodel+minemodel+retreatfar+nofloor"),
-                       "version": "gt0.45dev"}
+                                     "+parkmany+tvzmodes+staysieged+modemodel+minemodel+retreatfar+nofloor+calm"),
+                       "version": "gt0.46dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
