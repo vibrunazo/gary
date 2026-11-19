@@ -695,6 +695,9 @@ OPTIONS = {
     "nofloor": lambda m: m["army"].update(commit_floor=None),
     # army_rules.py LordHunt: one or two marines hunt an exposed overlord (the user, after human game 4)
     "lords": lambda m: m["army"].update(rules=[*m["army"].get("rules", ()), "lords"]),
+    # gary/agent/calm.py: a standing fighter out of contact given the pros' short orders (the calm model, its again
+    # decision drawn at its rates), a turn rule of the army layer
+    "calm": lambda m: m["army"].update(rules=[*m["army"].get("rules", ()), "calm"]),
     # army_rules.py ClusterRules (Gary-Z's, shared): join, a cluster under the main one's size walks to it rather than
     # deciding alone (Gary-T's attacks: 0.26 late arrivals per fighter there, the pros' 0.06, eval/attacks.py); sweep,
     # the main body attacks a packet it outweighs; press, far ahead and nothing at home, it attacks the buildings

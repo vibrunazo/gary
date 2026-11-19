@@ -2091,6 +2091,27 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **The calm layer, a learned placement out of contact (2026-11-19; the user's call of 2026-11-18: a learned layer for
+  the short orders no layer of Gary's gives; not in any build yet).** Why: the standing read below. Built:
+  gary/policy/calm.py (a bunch of calm fighters, no seen enemy fighter within 12 tiles, in a snapshot of the role
+  model's rows and extras, fight.py rows_at shared), ingest/calm_dataset.py (the pros' unit commands over the next half
+  second as keep, other, far: the army data's reach, the commit model's, reclick: a moving unit's point clicked again,
+  again: a short point order, with its point), train/roles.py --offset-bins (a drawn offset head over 16 directions and
+  6 distances), gary/agent/calm.py (option `calm`: a turn rule of the army layer, drawing each calm fighter's again at
+  the model's rates and moving the standing ones to a drawn point, nearby points one click), eval/calm_check.py (the
+  measures, against the pros). Checks first (40 pro games, the commands): short orders to standing calm fighters 2.06 a
+  fighter a minute (the state count's 2.0), group commands (a median 10 units), half of a new fighter's first orders
+  short and half far. The data: 150 modern TvZ games, 89k snapshots, 502k labeled calm fighters; again 2.03 a standing
+  fighter a minute, its points a median 6.1 tiles out. The model (runs/calm, 30 epochs on the CPU, 20 s each): again
+  recall 0.20, precision 0.13 (2.5% of labels); its rates rank the moments (by fifths of its odds the pros' rate rises
+  0.002 to 0.083 a half second) and run 1.3 times high (2.63 a standing fighter a minute for 1.98). Where: a mean head
+  put its points a median 2.3 tiles out for the pros' 7.3 (the advisor's warning; the retreats' finding again), the
+  drawn head 7.5 tiles, but it knows no more than the bins' shares (log-loss 4.373 against 4.370 over all bins; the
+  direction 2.706 against 2.732, uniform 2.773). Nor do the obvious candidates tell the direction, on the pros' own
+  orders: the way to the snapshot's other fighters (mean cosine 0.00), to the enemy's side (0.17), to the bunch's
+  center (0.19), to the unit's last far order in the minute before (0.05, 64% have one). So the pros' rate of short
+  orders is learned, where they go is not: carried out, the layer would match the rate with moves in near-random
+  directions. Not played; the choice is the user's.
 - **The commit model asked about its data's clusters (2026-11-19; every build: gt0.18, gz0.12, gp0.13, gt0.45dev,
   gz0.29dev, gp0.36dev).** Why: half the commit model's questions at 5-10 minutes (52%, NF279a) were about clusters of
   1-3 units, where the army data has only clusters of 4 supply or more (ingest/army_dataset.py clusters, MIN_SUP), and
@@ -2152,8 +2173,9 @@ plan and the full log).
   - *Where the standing comes from (NF279a's 16 games against 40 of the pros' modern TvZ games, re-simulated, 5-10
     minutes; scripts in the session, measures as eval/humanlike.py's).* Pooled per fighter sample (the 0.49 above is a
     mean per game window), Gary's fighters stand 0.41 of the samples, the pros' 0.25 (hold position, 0.07 of the pros',
-    counted apart). Not standing in itself but its length: 26% of Gary's standing time is in stretches of 30 s or more
-    (pros 4%), 11% of 60 s or more (1%). Of those stretches, a third are new units at their rally before their first
+    counted apart). And its length: 57% of Gary's standing time is in stretches of 30 s or more, the pros' 32% (Medics
+    left out; eval/calm_check.py. First written here as 26% and 4%: that count pooled the games by unit ID, and IDs
+    repeat from game to game, which broke the stretches; corrected 2026-11-19). Of Gary's stretches (counted per game), a third are new units at their rally before their first
     order (a new fighter's first rest a median 16 s, 31% over 30 s; the pros' 8 s and 12%), two fifths units the army
     layer moved that then had no order for 30 s, a tenth marines the load rule sent to a bunker. Not units left out of
     the clusters: 4% of Gary's fighter time is outside the army layer's three clusters, and those stand no more than

@@ -135,7 +135,8 @@ class LearnedArmy:
         # join, sweep and press at a cluster's turn, before the model
         from gary.agent.army_rules import ClusterRules, EnemyMemory, LordHunt, Posts, Raid
         self.memory = EnemyMemory(g) if rules else None
-        turn = {"posts": Posts, "raid": Raid, "lords": LordHunt}
+        from gary.agent.calm import Calm
+        turn = {"posts": Posts, "raid": Raid, "lords": LordHunt, "calm": Calm}
         self.turn_rules = [turn[r](g, self.memory) for r in rules if r in turn]
         self.cluster_rules = ClusterRules(g, self.memory, "join" in rules, "sweep" in rules, "press" in rules,
                                           lambda x, y: self.tracker.cell(x, y), cell_dist) \

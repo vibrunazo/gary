@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import math
+
 import numpy as np
 import torch
 from torch import nn
@@ -191,9 +193,36 @@ def terrain_features(tags: list[int], positions: dict[int, tuple[float, float]],
     return out
 
 
+# the offset head drawn (offset_bins): an again order's point as one of OFFSET_DIRS directions times the distances between
+# OFFSET_EDGES (tiles; beyond the last, the last bin), drawn at the head's odds, where a mean (the regression head) put
+# the calm model's points a median 2.3 tiles out for the pros' 7.3 (their directions spread, 2026-11-19)
+OFFSET_DIRS = 16
+OFFSET_EDGES = (0.0, 2.0, 4.0, 6.0, 9.0, 13.0, 20.0)
+OFFSET_BINS = OFFSET_DIRS * (len(OFFSET_EDGES) - 1)
+
+
+def offset_bin(off: torch.Tensor) -> torch.Tensor:
+    """(..., 2) offsets in tiles -> their bins (direction * distances + distance)."""
+    n = len(OFFSET_EDGES) - 1
+    ang = torch.atan2(off[..., 1], off[..., 0]) % (2 * math.pi)
+    k = torch.clamp((ang / (2 * math.pi) * OFFSET_DIRS + 0.5).long() % OFFSET_DIRS, 0, OFFSET_DIRS - 1)
+    edges = torch.as_tensor(OFFSET_EDGES[1:-1], dtype=off.dtype, device=off.device)
+    dist = torch.bucketize(off.norm(dim=-1), edges)
+    return k * n + torch.clamp(dist, 0, n - 1)
+
+
+def offset_of(b: int) -> tuple[float, float]:
+    """A bin's point, tiles: its direction, the middle of its distances."""
+    n = len(OFFSET_EDGES) - 1
+    k, j = divmod(int(b), n)
+    r = (OFFSET_EDGES[j] + OFFSET_EDGES[j + 1]) / 2
+    a = 2 * math.pi * k / OFFSET_DIRS
+    return r * math.cos(a), r * math.sin(a)
+
+
 class RoleNet(nn.Module):
     def __init__(self, d: int = 128, layers: int = 3, heads: int = 4, n_roles: int = len(ROLES), n_extra: int = 3,
-                 move: bool = False, offset: bool = False):
+                 move: bool = False, offset: bool = False, offset_bins: int = 0):
         super().__init__()
         self.n_extra = n_extra
         self.type_emb = nn.Embedding(N_TYPES, 48)
@@ -208,7 +237,8 @@ class RoleNet(nn.Module):
         # the mineral line's workers, a retreat toward the buildings)
         self.move = nn.Linear(d, 2) if move else None
         # where an again order points (tiles from the unit, mirrored as the rows; the pros' commands' targets)
-        self.offset = nn.Linear(d, 2) if offset else None
+        # (offset_bins: its odds over the bins, offset_bin)
+        self.offset = nn.Linear(d, offset_bins or 2) if offset else None
 
     def forward(self, kind, side, order, num, extra, pad, with_move: bool = False, with_offset: bool = False):
         """kind, side, order (B, N) long; num (B, N, 9); extra (B, N, EXTRA); pad (B, N) True where
@@ -309,6 +339,15 @@ class RoleModel:
         extra = self.inputs(extra, budget, keys)
         inputs = tensors(rows[None, :n], extra[None, :n], np.zeros((1, n), bool), np.array([time_s], np.float32), dev)
         return self.net(*inputs, with_offset=True)[1][0].cpu().numpy()
+
+    @torch.no_grad()
+    def offset_odds(self, rows: np.ndarray, extra: np.ndarray, time_s: float, budget: float | None = None,
+                    keys: np.ndarray | None = None):
+        """A drawn offset head's odds over its bins (n, OFFSET_BINS; offset_of gives a bin's point, tiles mirrored as the
+        rows), or None for a model without one."""
+        if not self.config["net"].get("offset_bins"):
+            return None
+        return torch.softmax(torch.as_tensor(self.predict_offset(rows, extra, time_s, budget, keys)), -1).numpy()
 
 
 BUDGET_DEFAULT = 100.0           # unit commands a minute: the pros' median (ingest/response_dataset.py budget)

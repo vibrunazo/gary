@@ -25,7 +25,8 @@ import torch
 import torch.nn.functional as F
 
 from eval import monitor, priority
-from gary.policy.roles import AGAIN, DECISIONS, KEY_DIMS, ROLES, RoleModel, RoleNet, key_onehot, tensors
+from gary.policy.roles import (AGAIN, DECISIONS, KEY_DIMS, OFFSET_BINS, ROLES, RoleModel, RoleNet, key_onehot, offset_bin,
+                               offset_of, tensors)
 from eval.micro_roles import NEAR
 from ingest.inventory import data_root
 
@@ -166,7 +167,7 @@ def evaluate(net, data, device, names=ROLES) -> dict:
     pred, true, err, still, moved_role = [], [], [], [], []
     with_offset = getattr(net, "offset", None) is not None and "offset" in COLS
     with_move = "move" in COLS and net.move is not None
-    off_err, off_zero = [], []
+    off_err, off_zero, off_len = [], [], []
     with torch.no_grad():
         for s in range(0, len(data[0]), 512):
             got = batch(data, np.arange(s, min(s + 512, len(data[0]))), device, with_move, with_offset)
@@ -174,6 +175,11 @@ def evaluate(net, data, device, names=ROLES) -> dict:
             if with_offset:
                 off, to = net(*inputs, with_offset=True)[-1], got[-1]
                 m = ~torch.isnan(to).any(-1)
+                if off.shape[-1] != 2:            # (a drawn head: a point drawn at its odds, its distance from the pros')
+                    b = torch.multinomial(torch.softmax(off[m], -1), 1)[:, 0].cpu().numpy() if m.any() else []
+                    off = torch.zeros_like(to)
+                    off[m] = torch.as_tensor([offset_of(k) for k in b], dtype=to.dtype, device=to.device).reshape(-1, 2)
+                    off_len.append(off[m].norm(dim=-1).cpu().numpy())
                 off_err.append((off[m] - to[m]).norm(dim=-1).cpu().numpy())
                 off_zero.append(to[m].norm(dim=-1).cpu().numpy())
             if with_move:
@@ -207,6 +213,9 @@ def evaluate(net, data, device, names=ROLES) -> dict:
         e, z = np.concatenate(off_err), np.concatenate(off_zero)
         out["offset"] = {"error_tiles": round(float(np.median(e)), 2), "no_offset_tiles": round(float(np.median(z)), 2),
                          "units": int(len(e))}
+        if off_len:
+            out["offset"]["drawn_tiles"] = round(float(np.median(np.concatenate(off_len))), 2)
+            out["offset"]["pros_tiles"] = round(float(np.median(z)), 2)
     for k, r in enumerate(names):
         tp = int(((pred == k) & (true == k)).sum())
         out[r] = {"share": round(float((true == k).mean()), 3),
@@ -238,6 +247,9 @@ def main() -> None:
     ap.add_argument("--again", action="store_true",
                     help="with --decisions: the pros' re-issues as a decision of their own, and an offset head for where "
                          "they point (ingest/reissue_labels.py's data)")
+    ap.add_argument("--offset-bins", action="store_true",
+                    help="with --again: the offset head drawn over direction and distance bins (gary/policy/roles.py "
+                         "offset_bin), not a mean point")
     ap.add_argument("--keys", action="store_true",
                     help="each unit's control-group key as an input (ingest/key_labels.py's data)")
     ap.add_argument("--weights-of", nargs="+", metavar="MODEL",
@@ -269,7 +281,8 @@ def main() -> None:
           + ", ".join(f"{r} {s:.1%}" for r, s in zip(names, share)), flush=True)
     config = {"net": {"d": args.d, "layers": args.layers, "heads": 4, "n_roles": len(names),
                       "n_extra": args.extra or int(train[1].shape[-1]) + (KEY_DIMS if args.keys else 0),
-                      "move": bool(args.move), "offset": bool(args.again)}, "keys": bool(args.keys),
+                      "move": bool(args.move), "offset": bool(args.again),
+                      "offset_bins": OFFSET_BINS if args.offset_bins else 0}, "keys": bool(args.keys),
               "data": args.data, "roles": names, "attended": attended, "budget": bool(args.budget),
               "weights": [round(float(x), 6) for x in w]}
     net = RoleNet(**config["net"]).to(device)
@@ -292,7 +305,12 @@ def main() -> None:
             if args.again:                # (the offset head: the again orders' targets, tiles)
                 off, to = outs[-1], got[-1]
                 m = ~torch.isnan(to).any(-1)
-                move_loss = move_loss + (F.smooth_l1_loss(off[m], to[m]) if m.any() else off.sum() * 0)
+                if not m.any():
+                    move_loss = move_loss + off.sum() * 0
+                elif args.offset_bins:
+                    move_loss = move_loss + F.cross_entropy(off[m], offset_bin(to[m]))
+                else:
+                    move_loss = move_loss + F.smooth_l1_loss(off[m], to[m])
             loss = F.cross_entropy(logits.reshape(-1, len(names)), labels.reshape(-1), weight=weights, ignore_index=-1,
                                    label_smoothing=args.smooth) + move_loss
             opt.zero_grad()
@@ -303,11 +321,13 @@ def main() -> None:
         # model choice: over the roles that drive commands (not just the majority), mean recall; for
         # decisions mean F1 (a decision named wrongly is a needless command)
         f1 = lambda r: 2 * res[r]["recall"] * res[r]["precision"] / max(1e-9, res[r]["recall"] + res[r]["precision"])
+        # (a dataset of its own names, the calm one: gary/policy/calm.py, scored on those of them it has)
         score = np.mean([f1(r) if decisions else res[r]["recall"]
-                         for r in ("fire", "close_in", "pull_back", "retreat") + ((AGAIN,) if args.again else ())])
+                         for r in [r for r in ("fire", "close_in", "pull_back", "retreat") if r in names]
+                         + ([AGAIN] if args.again else [])])
         history.append({"epoch": epoch, "loss": round(total / len(order), 4), "val": res, "score": round(float(score), 3)})
         print(f"epoch {epoch:2d} loss {total / len(order):.3f} val acc {res['accuracy']:.3f} "
-              + " ".join(f"{r} {res[r]['recall']:.2f}/{res[r]['precision']:.2f}" for r in ROLES[:4]), flush=True)
+              + " ".join(f"{r} {res[r]['recall']:.2f}/{res[r]['precision']:.2f}" for r in names[:5]), flush=True)
         if score > best:
             best, best_state = score, {k: v.detach().cpu().clone() for k, v in net.state_dict().items()}
     net.load_state_dict(best_state)
