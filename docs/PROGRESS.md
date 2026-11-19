@@ -2111,7 +2111,16 @@ plan and the full log).
   orders: the way to the snapshot's other fighters (mean cosine 0.00), to the enemy's side (0.17), to the bunch's
   center (0.19), to the unit's last far order in the minute before (0.05, 64% have one). So the pros' rate of short
   orders is learned, where they go is not: carried out, the layer would match the rate with moves in near-random
-  directions. Not played; the choice is the user's.
+  directions. Not played; the choice is the user's. What the negative rests on (the advisor's review): the labels are
+  per unit while a pro's short order is one command for a median 10 units (every unit's target is the click itself,
+  checked on a replay; a group spreads about 2.5 tiles, its click about 10 tiles off), so 12.5k labels are a few
+  thousand commands, and the snapshots keep one command in eight (SAMPLE 96 frames, a 12-frame window). The offset
+  head learns some of its training games (log-loss 4.18 against the bins' 4.39) and nothing of the held-out ones
+  (4.37): too little data, not yet shown to be inputs. And geography, which the inputs lack (the snapshot is relative
+  to the bunch; the terrain gives the way to the nearest Command Center and distances only): of 808 commands from
+  within 4 tiles of where other games' commands on the same map started, 0.189 of those land within 3 tiles of each
+  other, 0.154 with the offset rotated at random: weak. The measure as eval/calm_check.py counts it (a standing calm
+  fighter's next order, Medics out): short orders 0.31 a fighter a minute in NF279a, the pros 1.59.
 - **The commit model asked about its data's clusters (2026-11-19; every build: gt0.18, gz0.12, gp0.13, gt0.45dev,
   gz0.29dev, gp0.36dev).** Why: half the commit model's questions at 5-10 minutes (52%, NF279a) were about clusters of
   1-3 units, where the army data has only clusters of 4 supply or more (ingest/army_dataset.py clusters, MIN_SUP), and
