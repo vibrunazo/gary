@@ -17,9 +17,9 @@ rather than scripted, because the replay pipeline made that the quicker way to a
 Since 2026-10-15 every piece of the self-play loop is being built crude before any is polished: a
 learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the league isn't trained
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
-Where it stands (2026-11-18): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
-(gt0.17), Zerg as `gz1` (gz0.11) and Protoss as `gp1` (gp0.12, crude); learning is trained and judged in `gt1dev`
-(gt0.44dev), `gp1dev` (gp0.35dev) and `gz1dev` (gz0.28dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+Where it stands (2026-11-19): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
+(gt0.18), Zerg as `gz1` (gz0.12) and Protoss as `gp1` (gp0.13, crude); learning is trained and judged in `gt1dev`
+(gt0.45dev), `gp1dev` (gp0.36dev) and `gz1dev` (gz0.29dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -2091,6 +2091,16 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **The commit model asked about its data's clusters (2026-11-19; every build: gt0.18, gz0.12, gp0.13, gt0.45dev,
+  gz0.29dev, gp0.36dev).** Why: half the commit model's questions at 5-10 minutes (52%, NF279a) were about clusters of
+  1-3 units, where the army data has only clusters of 4 supply or more (ingest/army_dataset.py clusters, MIN_SUP), and
+  Gary's clustering (army.py _split) took the densest cell by unit count, any size, so a small bunch could take one of
+  the three places from a real cluster. Now as the data: the cell with the most supply, every unit within 2 cells, up
+  to 3 of 4 supply or more; a smaller bunch isn't asked. The hands' control groups (motor.py) and gz1's join rule
+  still see every bunch. An input counted as its data counts it, adopted on its check: a check game (gt1dev against
+  gz1dev, Fighting Spirit 4004) asked the Terran's commit model 47 times, every one about 4 units or more; parity
+  recorded again, the other tests pass. What becomes of the small bunches is the calm layer's (below) and the
+  commit model's once they join a cluster.
 - **League games end when a side types gg (2026-11-18, the user's call; issue #62).** Why: the pros leave a lost game;
   Gary's games ran to 30:00 whoever had won (most would-gg games did), so the late windows compared the end of dead
   games with the pros' live ones, and the commit model, learned from pros who leave, has few of the states a finish

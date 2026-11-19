@@ -143,7 +143,7 @@ class DirectMotor:
         if self.grouping is None:
             return
         army = [u for u in g.hi.observe()["units"] if u["owner"] == g.slot and u["completed"] and u["type"] in g.army_types]
-        plan = self.grouping.step(g.army._clusters(army) if hasattr(g.army, "_clusters") else [army])
+        plan = self.grouping.step(g.army._clusters(army, asked=False) if hasattr(g.army, "_clusters") else [army])
         for key, tags in (plan or {}).items():
             self.plan[key] = self.groups[key] = set(tags)
             g.hi.hotkeys[key] = sorted(tags)
@@ -182,7 +182,7 @@ class DirectMotor:
         if self.grouping is None:
             return False
         army = [u for u in done if u["type"] in g.army_types]
-        clusters = g.army._clusters(army) if hasattr(g.army, "_clusters") else [army]
+        clusters = g.army._clusters(army, asked=False) if hasattr(g.army, "_clusters") else [army]
         plan = self.grouping.step(clusters)
         if plan is not None:
             self.plan = plan

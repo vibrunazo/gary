@@ -48,6 +48,7 @@ HAZARD_AGE = 50.0
 UNIT_COMMIT_S = 30                # option unitcommits: a unit's commitment shields it from other clusters' orders this long
 SCOUT_RETRY = 24 * 3               # a scout's worker not picked: asked again this much later
 COMMIT_TICK = 24 * 5                # commit: each cluster asked this often (the pros' data: ingest/army_dataset.py TICK)
+MIN_SUP = 8                         # (supply x2) a ground cluster asked: 4 supply (ingest/army_dataset.py MIN_SUP)
 AIR_MIN = 4                         # (supply x2) a cluster of fighting flyers asked: one Corsair (ingest/army_dataset.py MIN_AIR)
 MOVE_CELLS = 2                      # destinations closer than this are "stay"
 MOVE_P = 0.5                        # move when the model puts more belief than this away from here
@@ -277,24 +278,34 @@ class LearnedArmy:
                     seen[u["type"]] += 1
             self.belief_mem.look(obs["frame"], seen)
 
-    def _clusters(self, army: list[dict]) -> list[list[dict]]:
+    def _clusters(self, army: list[dict], asked: bool = True) -> list[list[dict]]:
         """The army split by where it stands: up to 3 clusters (the main army, reinforcements on
         their way, ...), biggest first. Units within 2 grid cells of a cluster's center join it. With a
         model of spec.air (army dataset v6) the fighting flyers are clustered apart, up to 3 more, each of
-        at least AIR_MIN as in the data (a lone Corsair is one)."""
+        at least AIR_MIN as in the data (a lone Corsair is one). asked: the ground's of at least MIN_SUP, as the data's;
+        else every ground bunch (the hands' control groups, motor.py)."""
+        least = MIN_SUP if asked else 1
         if not self.model.spec.air:
-            return self._split(army)
+            return self._split(army, least)
         flyers = [u for u in army if u["type"] in AIR_FIGHTERS]
         ground = [u for u in army if u["type"] not in AIR_FIGHTERS]
-        return self._split(ground) + [c for c in self._split(flyers) if sum(supply_x2(u["type"]) for u in c) >= AIR_MIN]
+        return self._split(ground, least) + self._split(flyers, AIR_MIN)
 
-    def _split(self, army: list[dict]) -> list[list[dict]]:
+    def _split(self, army: list[dict], least: int = MIN_SUP) -> list[list[dict]]:
+        """As the army data clusters (ingest/army_dataset.py clusters): the cell with the most supply and every
+        unit within 2 cells of it, again with what's left, up to 3 of at least `least` (supply x2); a smaller
+        bunch is passed over (never asked: the data has no such cluster). Until 2026-11-19 the densest cell by unit
+        count, any size: half the commit model's questions at 5-10 minutes were about 1-3 units (NF279a)."""
         left, out = list(army), []
-        while left and len(out) < 3:
+        while left and len(out) < 3 and sum(supply_x2(u["type"]) for u in left) >= least:
             cells = [self.tracker.cell(u["x"], u["y"]) for u in left]
-            center = max(set(cells), key=cells.count)
+            sup: dict[int, int] = {}
+            for u, c in zip(left, cells):
+                sup[c] = sup.get(c, 0) + supply_x2(u["type"])
+            center = min(sup, key=lambda c: (-sup[c], c))          # (the data's argmax: the lowest cell of the most)
             near = [u for u, c in zip(left, cells) if cell_dist(c, center) <= 2]
-            out.append(near)
+            if sum(supply_x2(u["type"]) for u in near) >= least:
+                out.append(near)
             left = [u for u in left if u not in near]
         return out
 
@@ -330,7 +341,8 @@ class LearnedArmy:
                 self.next_ask = hi.frame + ASK_EVERY
                 return None
         army = [u for u in done if u["type"] in (self.types if self.types is not None else g.army_types)]
-        clusters = self._clusters(army)
+        # (the join rule, gz1's stop-gap, sends small bunches to the main army: it sees every bunch, as before)
+        clusters = self._clusters(army, asked=not (self.cluster_rules is not None and self.cluster_rules.join))
         if not clusters:
             return None
         self.next_ask = hi.frame + (COMMIT_TICK if self.commit else ASK_EVERY) // len(clusters)   # one cluster a question

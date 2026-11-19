@@ -121,13 +121,23 @@ def snapshot(obs: dict, slot: int, flip: tuple[bool, bool], supply_x2, is_worker
         return None
     cx = sum(e["x"] for e in engaged) / len(engaged)
     cy = sum(e["y"] for e in engaged) / len(engaged)
+    rows, tags = rows_at(obs, slot, flip, (cx, cy), own_radius, max(FIGHT_AROUND, near), max_units)
+    if not (rows[:, 1] == 1).any():
+        return None                              # the engaged enemies are spread out: no one fight
+    return rows, tags, (cx, cy)
+
+
+def rows_at(obs: dict, slot: int, flip: tuple[bool, bool], center: tuple[float, float], own_radius: int,
+            other_radius: int, max_units: int) -> tuple[np.ndarray, list[int]]:
+    """The unit rows around a center (the fight's, or a bunch of calm fighters', gary/policy/calm.py): the player's
+    units within own_radius, the others' (and the resources) within other_radius, nearest first, at most max_units;
+    (rows (n, 11), their tags), mirrored by flip."""
+    cx, cy = center
     around = [u for u in obs["units"]
-              if (u["x"] - cx) ** 2 + (u["y"] - cy) ** 2 <= (own_radius if u["owner"] == slot else max(FIGHT_AROUND, near)) ** 2
+              if (u["x"] - cx) ** 2 + (u["y"] - cy) ** 2 <= (own_radius if u["owner"] == slot else other_radius) ** 2
               and (u["owner"] != 11 or u["type"] in (176, 177, 178, 188))]
     around.sort(key=lambda u: (u["x"] - cx) ** 2 + (u["y"] - cy) ** 2)
     around = around[:max_units]
-    if not any(u["owner"] == slot for u in around):
-        return None                              # the engaged enemies are spread out: no one fight
     row = {u["tag"]: i for i, u in enumerate(around)}
     fx, fy = flip
     rows = np.zeros((len(around), 11), np.int16)
@@ -137,4 +147,4 @@ def snapshot(obs: dict, slot: int, flip: tuple[bool, bool], supply_x2, is_worker
         rows[i] = (u["type"], side, -rx if fx else rx, -ry if fy else ry, min(u.get("hp") or 0, 32767),
                    u.get("shields") or 0, u.get("cooldown", 0), u.get("order", 0),
                    row.get(u.get("order_target", 0), -1), u.get("carrying", 0), u.get("completed", 1))
-    return rows, [u["tag"] for u in around], (cx, cy)
+    return rows, [u["tag"] for u in around]
