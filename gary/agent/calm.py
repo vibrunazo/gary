@@ -18,7 +18,7 @@ from gary.agent.intents import Intent
 from gary.decision_log import LOG
 from gary.policy.army import is_building, is_worker, supply_x2
 from gary.policy.calm import NAMES, snapshots
-from gary.policy.roles import AGAIN, MAX_UNITS
+from gary.policy.roles import AGAIN, MAX_UNITS, offset_of
 
 STEP = 12                     # frames: a decision a half second, as the data's labels
 STANDING = {2, 3, 107}        # (ingest/calm_dataset.py STANDING)
@@ -95,7 +95,8 @@ class Calm:
             own_extras(extra, tags, by_tag, g.slot, self.first_seen, now)
             time_s = obs["frame"] * 42 / 1000
             odds = self.model.rates(self.model.predict(rows, extra, time_s))
-            offsets = self.model.predict_offset(rows, extra, time_s)
+            bins = self.model.offset_odds(rows, extra, time_s)       # (a drawn head; else the mean head's points)
+            offsets = self.model.predict_offset(rows, extra, time_s) if bins is None else None
             for i, t in enumerate(tags[:MAX_UNITS]):
                 if t not in calm:
                     continue
@@ -111,7 +112,12 @@ class Calm:
                     LOG.add(f"calm_{g.race.letter.lower()}", frame=now, tag=t, p=p, standing=standing)
                 if not standing:
                     continue
-                dx, dy = offsets[i] * 32
+                if bins is not None:
+                    b = min(int(np.searchsorted(np.cumsum(bins[i]), self.rng.random() * bins[i].sum(), side="right")),
+                            len(bins[i]) - 1)
+                    dx, dy = (v * 32 for v in offset_of(b))
+                else:
+                    dx, dy = offsets[i] * 32
                 moves.append((u, (max(0.0, u["x"] + fx * dx), max(0.0, u["y"] + fy * dy)), p))
         while moves:                             # (units whose points are near share a click, at their mean point)
             seed = moves[0][1]
