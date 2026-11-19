@@ -95,8 +95,8 @@ class Calm:
                                              and u["completed"]], g.flip)
             own_extras(extra, tags, by_tag, g.slot, self.first_seen, now)
             if with_map:
-                extra = np.concatenate([extra, map_extras(tags, positions, self._ground(), obs["map"]["w"],
-                                                          obs["map"]["h"], g.flip)], 1)
+                t = g.army.tracker                 # (the map's size in pixels, as the army tracker keeps it)
+                extra = np.concatenate([extra, map_extras(tags, positions, self._ground(), t.mw, t.mh, g.flip)], 1)
             odds = self.model.rates(self.model.predict(rows, extra, time_s))
             ps, standing = [], []
             for i, t in enumerate(tags[:MAX_UNITS]):

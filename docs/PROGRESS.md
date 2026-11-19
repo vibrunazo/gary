@@ -2122,7 +2122,7 @@ plan and the full log).
   orders: the way to the snapshot's other fighters (mean cosine 0.00), to the enemy's side (0.17), to the bunch's
   center (0.19), to the unit's last far order in the minute before (0.05, 64% have one). So the pros' rate of short
   orders is learned, where they go is not: carried out, the layer would match the rate with moves in near-random
-  directions. Not played; the choice is the user's. What the negative rests on (the advisor's review): the labels are
+  directions. Not played; the choice was the user's (2026-11-19: rebuild per command). What the negative rested on (the advisor's review): the labels are
   per unit while a pro's short order is one command for a median 10 units (every unit's target is the click itself,
   checked on a replay; a group spreads about 2.5 tiles, its click about 10 tiles off), so 12.5k labels are a few
   thousand commands, and the snapshots keep one command in eight (SAMPLE 96 frames, a 12-frame window). The offset
@@ -2132,6 +2132,21 @@ plan and the full log).
   within 4 tiles of where other games' commands on the same map started, 0.189 of those land within 3 tiles of each
   other, 0.154 with the offset rotated at random: weak. The measure as eval/calm_check.py counts it (a standing calm
   fighter's next order, Medics out): short orders 0.31 a fighter a minute in NF279a, the pros 1.59.
+  - *Rebuilt per command (the user's call, 2026-11-19).* The data (ingest/calm_dataset.py v2): the rate snapshots as
+    before, and a where snapshot at every short point command mostly for calm fighters (one a second for the same
+    units), centered on the commanded units' middle, its target the click from there; the map extras (the way to the
+    main's ramp top and to the map's middle) after the role model's. 300 modern TvZ games: 231k snapshots, 45,060
+    where commands (the clicks a median 6.1 tiles out), again 1.93 a standing fighter a minute. The model
+    (runs/calm/TvZ_T_20261119c, 30 epochs on the CPU): on held-out games, per command as play uses it (its units'
+    odds averaged), the where head's log-loss 4.319 against the bins' shares' 4.408 and uniform 4.564 (the direction
+    2.669, 2.729, 2.773); a drawn point a median 7.6 tiles from the pros' bin, the shares' 8.3. Better than the
+    shares, modestly; it overfits (training 3.78), and 10 epochs give the same (4.316). Play (gary/agent/calm.py):
+    one decision a bunch at its units' mean odds, its standing units to a point drawn from their averaged odds from
+    their middle, one click. A check game ran it: 32 bunch orders (94 units) in 12 minutes.
+    Round CL281a (gt1dev+calm against gz1dev, 16 games, against CB280a), written before it: short orders to standing
+    calm fighters a fighter a minute (eval/calm_check.py, 5-10 minutes) from 0.34 to 1-2 (the pros 1.59), severalfold,
+    which 16 games show; standing 0.47 lower, toward the pros' 0.28; a new fighter's first rest under CB280a's 12 s.
+    Wins not a verdict (a fidelity change; it also moves units out of position at random where the head knows nothing).
 - **The commit model asked about its data's clusters (2026-11-19; every build: gt0.18, gz0.12, gp0.13, gt0.45dev,
   gz0.29dev, gp0.36dev).** Why: half the commit model's questions at 5-10 minutes (52%, NF279a) were about clusters of
   1-3 units, where the army data has only clusters of 4 supply or more (ingest/army_dataset.py clusters, MIN_SUP), and
