@@ -2157,6 +2157,19 @@ plan and the full log).
     window's fight gap +0.076 [-0.040, +0.215], all windows +0.008 [-0.062, +0.095]; won 7, lost 6, 3 at time (8, 8).
     So the layer moves units as often as the pros do, and as its where head knows little, it scatters them: the
     expected cost, now measured. Not folded.
+    Why it scatters (the user's call: a better where first; read before building it): not where it sends units. The
+    pros' short orders don't head for the army's middle or the biggest bunch either (within 45 degrees 0.28 and 0.30,
+    chance 0.25; 60 games), so those inputs wouldn't help. What differs is who gets them: Gary's calm orders in CL281a
+    went to a median 2 units, 8.8 tiles from any other fighter and 25 from the army's middle, the pros' to 7 units, 2.2
+    and 5 tiles (40 games); 5 s later neither had moved toward the army. The model is calibrated on this (its rate by a
+    unit's distance from the biggest bunch: 2.89 a minute predicted for 2.98 within 3 tiles, 1.30 for 1.60 at 16-32
+    tiles, held-out games): Gary has more standing outliers, and a short order leaves them out. The pros' outliers get
+    far orders, which Gary leaves to the commit model, and since gt0.45dev the commit model isn't asked about bunches
+    under 4 supply (the data has none); units alone at 10-15 minutes rose with that fix (0.20 to 0.27, NF279a to CB280a,
+    resolved), at 5-10 fell (0.34 to 0.29). Those far orders don't simply join the army: of the pros' far commands to
+    calm bunches under 4 supply (762 in 60 games), 44% head within 45 degrees of the army and 13% land within 8 tiles of
+    its middle. So the missing piece is a far decision with its own where for the small bunches, which the calm data
+    already labels (far, 2.8% of its labels) but without points.
 - **The commit model asked about its data's clusters (2026-11-19; every build: gt0.18, gz0.12, gp0.13, gt0.45dev,
   gz0.29dev, gp0.36dev).** Why: half the commit model's questions at 5-10 minutes (52%, NF279a) were about clusters of
   1-3 units, where the army data has only clusters of 4 supply or more (ingest/army_dataset.py clusters, MIN_SUP), and
