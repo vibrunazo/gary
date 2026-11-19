@@ -2182,6 +2182,18 @@ plan and the full log).
     A check game: 43 short orders, 2 far. Round CL282a (gt1dev+calm against gz1dev, 16 games, against CB280a and
     CL281a), written before it: short orders as CL281a's (about 1.4); units alone at 5-10 minutes back to CB280a's 0.29
     or lower (CL281a 0.38, the pros 0.20) and the spread to 16.7 or lower (20.1, 14.0); standing as CL281a's or lower.
+    Results (CL282a against CB280a, 16 paired games): won 7, lost 3, 6 at time (5 even). eval/calm_check.py at 5-10
+    minutes: short orders 1.24 a fighter a minute (the pros 1.58), far 1.03 (0.88), standing 0.42 (CB280a 0.47, the
+    pros 0.29), standing time in stretches of 30 s or more 0.35 (0.60; 0.28), a new fighter's first rest a median 8 s,
+    12% over 30 s: the pros' own (8 s, 13%). The fight features at 5-10: orders a fighter a minute 6.04 (4.12; 7.22) and
+    standing 0.45 (0.53; 0.32) nearer, resolved; units alone 0.41 (0.29; 0.20) and the spread 21.8 (16.7; 14.0) further,
+    resolved: the far orders didn't bring them back. The fight gap by window -0.08 at 0-5 (resolved) to -0.10 at 15-20,
+    all -0.021 [-0.115, +0.100]. Where the alone comes from (re-simulated, each lone fighter's last order in the
+    records): units last moved by the calm layer are 0.066 of all fighter samples alone (CB280a's alone 0.171, CL282a's
+    0.228), but the layer doesn't make them alone: of its orders in CL281a, 89% of those to one unit and 66% to 2-3
+    were to units alone already (5 s later 82%, 64%), where the pros' were 51% and 68%; and 39% of Gary's calm orders
+    go to one unit, 17% of the pros'. What it changes is where the lone units stand: moved off the rally a lone new unit
+    no longer gathers with the next ones (not shown yet). Not folded; the user's call.
 - **The commit model asked about its data's clusters (2026-11-19; every build: gt0.18, gz0.12, gp0.13, gt0.45dev,
   gz0.29dev, gp0.36dev).** Why: half the commit model's questions at 5-10 minutes (52%, NF279a) were about clusters of
   1-3 units, where the army data has only clusters of 4 supply or more (ingest/army_dataset.py clusters, MIN_SUP), and
