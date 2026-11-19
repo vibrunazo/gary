@@ -2133,7 +2133,10 @@ plan and the full log).
   commit model's once they join a cluster. Baseline round CB280a (gt1dev gt0.45dev against gz1dev, 16 games, gg at
   10%: the first with both), written before it: the commit questions all about 4 supply or more; a new fighter's
   first rest may be longer (a bunch under 4 supply is asked nothing, and nothing else moves it), standing at 5-10
-  minutes the same or higher than NF279a's 0.49 (eval/calm_check.py); read for direction only.
+  minutes the same or higher than NF279a's 0.49 (eval/calm_check.py); read for direction only. Result: won 8, lost 8,
+  every game ended by a gg (8 each way); standing 0.47 (NF279a 0.49), a new fighter's first rest a median 12 s, 27%
+  over 30 s (16 s, 31%): not longer; short orders 0.34 a fighter a minute (0.31). Gap score T by window 0.21 0.34 0.39
+  0.35 0.38 0.42. The baseline for the dev build's rounds from here.
 - **League games end when a side types gg (2026-11-18, the user's call; issue #62).** Why: the pros leave a lost game;
   Gary's games ran to 30:00 whoever had won (most would-gg games did), so the late windows compared the end of dead
   games with the pros' live ones, and the commit model, learned from pros who leave, has few of the states a finish
