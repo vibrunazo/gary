@@ -2091,6 +2091,17 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **What leaves Gary's units alone, first read (2026-11-19; TODO.md c, after calm's fold).** Why: units alone at 5-10
+  minutes 0.41 in CL282a (eval/gap_windows.py's per-minute mean; CB280a 0.29, the pros 0.20) and the army's spread 22
+  tiles (14). Per fighter sample (re-simulated, 5-10 minutes, CL282a's 16 games against 40 pro games) Gary's fighters
+  are alone 0.228, the pros' 0.068. By type: marines 0.087 (pros 0.035), wraiths 0.046 (0.004), vultures 0.038 (0.007),
+  medics 0.031 (0.007), tanks 0.015 (0.002); out of home 0.140 (0.032), moving 0.140 (0.051); by age every band, the
+  units 90 s or older 0.074 (0.014). By the layer whose order a lone unit last had (the records): the calm layer 0.06
+  (marines 0.029, vultures 0.017, wraiths 0.014), the commit layer 0.05 (wraiths 0.011), never ordered 0.05 (marines
+  0.019, medics 0.012, wraiths 0.009, vultures 0.009), the role layer 0.02. The calm layer moves units that were alone
+  already (above), so its share says more about how many lone units Gary has than about what makes them; a wraith
+  alone is a cluster of its own for both layers (army.py AIR_MIN: one Wraith), where the pros' wraiths are almost never
+  alone. Open: why Gary has the lone units in the first place (new units never ordered, single flyers sent alone).
 - **The army at home at 15-20 minutes, read (2026-11-19; TODO.md c).** Why: the fight features had Gary's army at home
   0.57 of the time at 15-20 minutes for the pros' 0.43. With CB280a and NF279a (32 games) against the pros' modern TvZ
   games: not the army's size (at 30-50 supply 0.57 home for the pros' 0.45, at 50-80 0.51 for 0.41), nor the bases
