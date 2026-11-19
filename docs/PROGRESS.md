@@ -2121,7 +2121,10 @@ plan and the full log).
   still see every bunch. An input counted as its data counts it, adopted on its check: a check game (gt1dev against
   gz1dev, Fighting Spirit 4004) asked the Terran's commit model 47 times, every one about 4 units or more; parity
   recorded again, the other tests pass. What becomes of the small bunches is the calm layer's (below) and the
-  commit model's once they join a cluster.
+  commit model's once they join a cluster. Baseline round CB280a (gt1dev gt0.45dev against gz1dev, 16 games, gg at
+  10%: the first with both), written before it: the commit questions all about 4 supply or more; a new fighter's
+  first rest may be longer (a bunch under 4 supply is asked nothing, and nothing else moves it), standing at 5-10
+  minutes the same or higher than NF279a's 0.49 (eval/calm_check.py); read for direction only.
 - **League games end when a side types gg (2026-11-18, the user's call; issue #62).** Why: the pros leave a lost game;
   Gary's games ran to 30:00 whoever had won (most would-gg games did), so the late windows compared the end of dead
   games with the pros' live ones, and the commit model, learned from pros who leave, has few of the states a finish
