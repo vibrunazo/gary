@@ -6,6 +6,7 @@ half second before, the terrain, the age and the biggest bunch) and then gary/po
   rate   every SAMPLE frames, around each bunch of calm fighters (no seen enemy fighter within CALM_SIGHT): each calm
          fighter labeled over the next LABEL frames from the player's unit commands (the re-simulator's, OpenBW's unit
          IDs as the game's), gary/policy/calm.py NAMES; cmd_to NaN
+  (--far: only where snapshots, at the far point commands to calm bunches under SMALL supply, for the calm_far model)
   where  at every short point command mostly for calm fighters (one a second for the same units: a pro's spam is one
          decision), centered on the commanded calm units' middle: no labels (-1), cmd_to the click from that middle
          (tiles, mirrored as the rows) on each commanded unit. A pro's short order is one command for a median 10 units,
@@ -25,7 +26,7 @@ from pathlib import Path
 import numpy as np
 
 from eval import monitor, priority
-from gary.policy.calm import MAP_EXTRA, MOVED, NAMES, POINT_ORDERS, RECLICK, army_cell, snapshots
+from gary.policy.calm import MAP_EXTRA, MOVED, NAMES, POINT_ORDERS, RECLICK, SMALL, army_cell, snapshots
 from gary.policy.roles import AGAIN, EXTRA, MAX_UNITS
 from ingest.response_dataset import Seen, select
 
@@ -63,7 +64,7 @@ def _job(job: tuple) -> dict:
     from gary.policy.roles import RACE_SHELTERS, Ground, extra_features, own_extras, terrain_features
     from ingest.reissue_labels import _resim
     from ingest.role_dataset import HALLS
-    path, end, sha1, race, player = job
+    path, end, sha1, race, player, far = job
     out = {"sha1": sha1, "error": None, "rows": [], "extra": [], "labels": [], "to": [], "state": [], "time": [],
            "where": []}
     fighter = lambda u: supply_x2(u["type"]) > 0 and not is_worker(u["type"]) and not is_building(u["type"])
@@ -93,7 +94,7 @@ def _job(job: tuple) -> dict:
             seen = Seen(g, slot)
             first_seen: dict[int, int] = {}
             last = min(end or MAX_MIN * 1440, MAX_MIN * 1440)
-            events = [(f, None) for f in range(SAMPLE, last - LABEL + 1, SAMPLE)]
+            events = [] if far else [(f, None) for f in range(SAMPLE, last - LABEL + 1, SAMPLE)]
             events += [(r["frame"], r) for r in cmds if is_point(r) and SAMPLE <= r["frame"] < last - LABEL]
             events.sort(key=lambda e: (e[0], e[1] is not None))
             kept: dict[frozenset, tuple[int, float, float]] = {}
@@ -157,8 +158,10 @@ def _job(job: tuple) -> dict:
                     continue                       # (a command mostly for units in contact: the role model's)
                 cx, cy = sum(u["x"] for u in us) / len(us), sum(u["y"] for u in us) / len(us)
                 a, b = army_cell(cmd["x"], cmd["y"], mw, mh), army_cell(cx, cy, mw, mh)
-                if max(abs(a[0] - b[0]), abs(a[1] - b[1])) >= MOVED:
-                    continue                       # (far: the commit model's)
+                if (max(abs(a[0] - b[0]), abs(a[1] - b[1])) >= MOVED) != far:
+                    continue                       # (short for the where data; far for the far data)
+                if far and sum(supply_x2(u["type"]) for u in us) >= SMALL:
+                    continue                       # (a far order for a cluster the commit model is asked about)
                 key = frozenset(u["tag"] for u in us)
                 before = kept.get(key)
                 if before and f - before[0] < 24 and math.dist(before[1:], (cmd["x"], cmd["y"])) <= RECLICK:
@@ -187,13 +190,15 @@ def main() -> None:
     ap.add_argument("--games", type=int, default=300)
     ap.add_argument("--era", choices=("old", "modern", "both"), default="modern")
     ap.add_argument("--parallel", type=int, default=4)
-    ap.add_argument("--out", help="default: data/interim/calm/calm_<race>_<matchups>.npz")
+    ap.add_argument("--far", action="store_true", help="the far data: where snapshots alone, at the far point commands "
+                    "to calm bunches under SMALL supply (the calm layer's far points, for the calm_far model)")
+    ap.add_argument("--out", help="default: data/interim/calm/calm[_far]_<race>_<matchups>.npz")
     priority.add_argument(ap)
     args = ap.parse_args()
     priority.apply(args.priority)
     from ingest.inventory import data_root
     matchups = tuple(args.matchups.split(","))
-    jobs = select(args.games, args.race, args.era, matchups)
+    jobs = [(*j, args.far) for j in select(args.games, args.race, args.era, matchups)]
     with ProcessPoolExecutor(args.parallel) as pool:
         results = list(monitor.track(pool.map(_job, jobs, chunksize=1), len(jobs), "games"))
     n = sum(len(r["rows"]) for r in results)
@@ -213,7 +218,7 @@ def main() -> None:
             rows[i, :k], extra[i, :k], labels[i, :k], to[i, :k], state[i, :k] = rr[:k], e[:k], y[:k], t[:k], s[:k]
             count[i], time_s[i], game[i], where[i] = k, ts, gi, w
             i += 1
-    out = Path(args.out) if args.out else data_root() / "interim" / "calm" / f"calm_{args.race}_{'_'.join(matchups)}.npz"
+    out = Path(args.out) if args.out else data_root() / "interim" / "calm" / f"calm{'_far' if args.far else ''}_{args.race}_{'_'.join(matchups)}.npz"
     out.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(out, rows=rows, extra=extra, labels=labels, cmd_to=to, state=state, count=count, time=time_s,
                         game=game, where=where, sha1=np.array([r["sha1"] for r in results]), names=np.array(NAMES))

@@ -25,8 +25,8 @@ import torch
 import torch.nn.functional as F
 
 from eval import monitor, priority
-from gary.policy.roles import (AGAIN, DECISIONS, KEY_DIMS, OFFSET_BINS, ROLES, RoleModel, RoleNet, key_onehot, offset_bin,
-                               offset_of, tensors)
+from gary.policy.roles import (AGAIN, DECISIONS, KEY_DIMS, OFFSET_DIRS, OFFSET_EDGES, ROLES, RoleModel, RoleNet, key_onehot,
+                               offset_bin, offset_of, tensors)
 from eval.micro_roles import NEAR
 from ingest.inventory import data_root
 
@@ -164,12 +164,15 @@ def batch(data, idx, device, with_move: bool = False, with_offset: bool = False,
     return out
 
 
+EDGES = [OFFSET_EDGES]                  # (the drawn offset head's distances, --offset-edges)
+
+
 def evaluate(net, data, device, names=ROLES) -> dict:
     net.eval()
     pred, true, err, still, moved_role = [], [], [], [], []
     with_offset = getattr(net, "offset", None) is not None and "offset" in COLS
     with_move = "move" in COLS and net.move is not None
-    off_err, off_zero, off_len = [], [], []
+    off_err, off_zero, off_len, off_ce = [], [], [], []
     with torch.no_grad():
         for s in range(0, len(data[0]), 512):
             got = batch(data, np.arange(s, min(s + 512, len(data[0]))), device, with_move, with_offset)
@@ -180,7 +183,10 @@ def evaluate(net, data, device, names=ROLES) -> dict:
                 if off.shape[-1] != 2:            # (a drawn head: a point drawn at its odds, its distance from the pros')
                     b = torch.multinomial(torch.softmax(off[m], -1), 1)[:, 0].cpu().numpy() if m.any() else []
                     off = torch.zeros_like(to)
-                    off[m] = torch.as_tensor([offset_of(k) for k in b], dtype=to.dtype, device=to.device).reshape(-1, 2)
+                    off[m] = torch.as_tensor([offset_of(k, EDGES[0]) for k in b], dtype=to.dtype,
+                                             device=to.device).reshape(-1, 2)
+                    off_ce.append(F.cross_entropy(net(*inputs, with_offset=True)[-1][m], offset_bin(to[m], EDGES[0]),
+                                                  reduction="none").cpu().numpy())
                     off_len.append(off[m].norm(dim=-1).cpu().numpy())
                 off_err.append((off[m] - to[m]).norm(dim=-1).cpu().numpy())
                 off_zero.append(to[m].norm(dim=-1).cpu().numpy())
@@ -218,6 +224,7 @@ def evaluate(net, data, device, names=ROLES) -> dict:
         if off_len:
             out["offset"]["drawn_tiles"] = round(float(np.median(np.concatenate(off_len))), 2)
             out["offset"]["pros_tiles"] = round(float(np.median(z)), 2)
+            out["offset"]["log_loss"] = round(float(np.concatenate(off_ce).mean()), 4)
     for k, r in enumerate(names):
         tp = int(((pred == k) & (true == k)).sum())
         out[r] = {"share": round(float((true == k).mean()), 3),
@@ -252,6 +259,8 @@ def main() -> None:
     ap.add_argument("--offset-bins", action="store_true",
                     help="with --again: the offset head drawn over direction and distance bins (gary/policy/roles.py "
                          "offset_bin), not a mean point")
+    ap.add_argument("--offset-edges", help="with --offset-bins: the distances' edges, tiles, comma-joined (default "
+                    "gary/policy/roles.py OFFSET_EDGES; the calm layer's far points: gary/policy/calm.py FAR_EDGES)")
     ap.add_argument("--keys", action="store_true",
                     help="each unit's control-group key as an input (ingest/key_labels.py's data)")
     ap.add_argument("--weights-of", nargs="+", metavar="MODEL",
@@ -268,6 +277,7 @@ def main() -> None:
         for path in args.weights_of:
             weights_of(path)
         return
+    EDGES[0] = tuple(float(x) for x in args.offset_edges.split(",")) if args.offset_edges else OFFSET_EDGES
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(0)
     attended = "keep" if args.unattended_keep else bool(args.attended)
@@ -284,13 +294,14 @@ def main() -> None:
     config = {"net": {"d": args.d, "layers": args.layers, "heads": 4, "n_roles": len(names),
                       "n_extra": args.extra or int(train[1].shape[-1]) + (KEY_DIMS if args.keys else 0),
                       "move": bool(args.move), "offset": bool(args.again),
-                      "offset_bins": OFFSET_BINS if args.offset_bins else 0}, "keys": bool(args.keys),
+                      "offset_bins": OFFSET_DIRS * (len(EDGES[0]) - 1) if args.offset_bins else 0},
+              "offset_edges": list(EDGES[0]), "keys": bool(args.keys),
               "data": args.data, "roles": names, "attended": attended, "budget": bool(args.budget),
               "weights": [round(float(x), 6) for x in w]}
     net = RoleNet(**config["net"]).to(device)
     opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=0.01)
     rng = np.random.default_rng(0)
-    best, best_state, history = -1.0, None, []
+    best, best_state, history = -float("inf"), None, []
     for epoch in monitor.track(range(args.epochs), args.epochs, "epochs"):
         order = rng.permutation(len(train[0]))
         total = 0.0
@@ -310,7 +321,7 @@ def main() -> None:
                 if not m.any():
                     move_loss = move_loss + off.sum() * 0
                 elif args.offset_bins:
-                    move_loss = move_loss + F.cross_entropy(off[m], offset_bin(to[m]))
+                    move_loss = move_loss + F.cross_entropy(off[m], offset_bin(to[m], EDGES[0]))
                 else:
                     move_loss = move_loss + F.smooth_l1_loss(off[m], to[m])
             role_loss = F.cross_entropy(logits.reshape(-1, len(names)), labels.reshape(-1), weight=weights,
@@ -325,9 +336,13 @@ def main() -> None:
         # decisions mean F1 (a decision named wrongly is a needless command)
         f1 = lambda r: 2 * res[r]["recall"] * res[r]["precision"] / max(1e-9, res[r]["recall"] + res[r]["precision"])
         # (a dataset of its own names, the calm one: gary/policy/calm.py, scored on those of them it has)
-        score = np.mean([f1(r) if decisions else res[r]["recall"]
-                         for r in [r for r in ("fire", "close_in", "pull_back", "retreat") if r in names]
-                         + ([AGAIN] if args.again else [])])
+        # (a dataset of points alone, the calm layer's far one: by the offset head's held-out log-loss)
+        if not (train[2] >= 0).any() and "log_loss" in res.get("offset", {}):
+            score = -res["offset"]["log_loss"]
+        else:
+            score = np.mean([f1(r) if decisions else res[r]["recall"]
+                             for r in [r for r in ("fire", "close_in", "pull_back", "retreat") if r in names]
+                             + ([AGAIN] if args.again else [])])
         history.append({"epoch": epoch, "loss": round(total / len(order), 4), "val": res, "score": round(float(score), 3)})
         print(f"epoch {epoch:2d} loss {total / len(order):.3f} val acc {res['accuracy']:.3f} "
               + " ".join(f"{r} {res[r]['recall']:.2f}/{res[r]['precision']:.2f}" for r in names[:5]), flush=True)

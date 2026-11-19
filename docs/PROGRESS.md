@@ -2170,6 +2170,18 @@ plan and the full log).
     calm bunches under 4 supply (762 in 60 games), 44% head within 45 degrees of the army and 13% land within 8 tiles of
     its middle. So the missing piece is a far decision with its own where for the small bunches, which the calm data
     already labels (far, 2.8% of its labels) but without points.
+  - *Far orders for the small bunches (the user's call, 2026-11-19).* The far data (ingest/calm_dataset.py --far):
+    where snapshots at the pros' far point commands to calm bunches under 4 supply, 300 games, 13,890 commands, the
+    clicks a median 37 tiles out; the calm_far model (runs/calm_far, a role network's drawn head over 16 directions
+    and the distances gary/policy/calm.py FAR_EDGES, train/roles.py --offset-edges, its epoch chosen by the head's
+    held-out log-loss: the 4th, it overfits after). On held-out commands, per command: log-loss 4.318 against the
+    shares' 4.655 and uniform 4.852, the direction 2.495 against 2.678 and 2.773: it knows more of where the pros send
+    a small bunch than the short head knows of its short orders; a drawn point a median 52 tiles from the pros' bin,
+    the shares' 63. Play: the standing units of a calm bunch that no cluster the commit model is asked about holds
+    draw the calm model's far at their mean odds, then go in one click to a point drawn from calm_far's averaged odds.
+    A check game: 43 short orders, 2 far. Round CL282a (gt1dev+calm against gz1dev, 16 games, against CB280a and
+    CL281a), written before it: short orders as CL281a's (about 1.4); units alone at 5-10 minutes back to CB280a's 0.29
+    or lower (CL281a 0.38, the pros 0.20) and the spread to 16.7 or lower (20.1, 14.0); standing as CL281a's or lower.
 - **The commit model asked about its data's clusters (2026-11-19; every build: gt0.18, gz0.12, gp0.13, gt0.45dev,
   gz0.29dev, gp0.36dev).** Why: half the commit model's questions at 5-10 minutes (52%, NF279a) were about clusters of
   1-3 units, where the army data has only clusters of 4 supply or more (ingest/army_dataset.py clusters, MIN_SUP), and

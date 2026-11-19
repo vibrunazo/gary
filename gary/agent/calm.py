@@ -33,6 +33,11 @@ class Calm:
         self.g = g
         self.model = RoleModel.load(model_for("calm", g.matchup, g.race.letter))
         self.k = list(self.model.config["roles"]).index(AGAIN)
+        self.k_far = list(self.model.config["roles"]).index("far")
+        try:                                     # the far points (ingest/calm_dataset.py --far): optional
+            self.far = RoleModel.load(model_for("calm_far", g.matchup, g.race.letter))
+        except SystemExit:
+            self.far = None
         self.rng = random.Random(0)
         self.next = 0
         self.prev: dict[int, tuple[float, float]] = {}
@@ -84,7 +89,8 @@ class Calm:
         for u in own:
             if u["completed"] and supply_x2(u["type"]) > 0 and not is_worker(u["type"]) and not is_building(u["type"]):
                 self.first_seen.setdefault(u["tag"], now)
-        fx, fy = (-1 if g.flip[0] else 1), (-1 if g.flip[1] else 1)
+        army = [u for u in own if u["completed"] and u["type"] in g.army_types]
+        asked = {u["tag"] for c in g.army._clusters(army) for u in c}     # (the units the commit model is asked about)
         with_map = self.model.config["net"]["n_extra"] > EXTRA     # (a model with the map extras: gary/policy/calm.py)
         time_s = obs["frame"] * 42 / 1000
         for rows, tags, _, calm in snapshots(obs, g.slot, g.flip, supply_x2, is_worker, is_building, MAX_UNITS):
@@ -98,7 +104,7 @@ class Calm:
                 t = g.army.tracker                 # (the map's size in pixels, as the army tracker keeps it)
                 extra = np.concatenate([extra, map_extras(tags, positions, self._ground(), t.mw, t.mh, g.flip)], 1)
             odds = self.model.rates(self.model.predict(rows, extra, time_s))
-            ps, standing = [], []
+            ps, pf, standing, small = [], [], [], []
             for i, t in enumerate(tags[:MAX_UNITS]):
                 if t not in calm:
                     continue
@@ -108,29 +114,45 @@ class Calm:
                 ps.append(1 - (1 - float(q[self.k])) ** n)     # (its odds over the half seconds since its last draw)
                 if by_tag[t]["order"] in STANDING:
                     standing.append(i)
+                    if t not in asked:
+                        small.append(i)
+                        pf.append(1 - (1 - float(q[self.k_far])) ** n)
+            # far: the standing units no cluster the commit model is asked about holds (under SMALL supply), at their mean
+            # far odds, to the calm_far model's point (the pros send such bunches far: docs/PROGRESS.md 2026-11-19)
+            if small and self.far is not None and self.rng.random() < float(np.mean(pf)):
+                self._order(rows, extra, time_s, small, by_tag, tags, float(np.mean(pf)), self.far, "far", now)
+                standing = [i for i in standing if i not in small]
             # one decision a bunch, as the pros give one command to a bunch (a median 10 units): at its units' mean odds
             p = float(np.mean(ps)) if ps else 0.0
             go = bool(standing) and self.rng.random() < p
             if LOG.on and ps:
-                LOG.add(f"calm_{g.race.letter.lower()}", frame=now, units=len(ps), standing=len(standing), p=p, go=go)
-            if not go:
-                continue
-            us = [by_tag[tags[i]] for i in standing]
-            cx, cy = sum(u["x"] for u in us) / len(us), sum(u["y"] for u in us) / len(us)
-            bins = self.model.offset_odds(rows, extra, time_s)
-            if bins is not None:                 # (its point from the bunch's middle, as the data's: drawn at its units' odds)
-                w = bins[standing].mean(0)
-                b = min(int(np.searchsorted(np.cumsum(w), self.rng.random() * w.sum(), side="right")), len(w) - 1)
-                dx, dy = (v * 32 for v in offset_of(b))
-            else:
-                dx, dy = self.model.predict_offset(rows, extra, time_s)[standing].mean(0) * 32
-            x, y = max(0.0, cx + fx * dx), max(0.0, cy + fy * dy)
-            for k in range(0, len(us), MAX_GROUP):
-                part = [u["tag"] for u in us[k:k + MAX_GROUP]]
-                self.queue.append(Intent("ARMY_MOVE", part, (int(x), int(y)), {"p": p}, "army"))
-            LOG.decision(g.hi.side, "calm", now, f"move to ({int(x) // 32},{int(y) // 32})", p,
-                         inputs={"units": len(us)}, by="model: the calm model's again (short order), drawn a bunch",
-                         then="queued")
+                LOG.add(f"calm_{g.race.letter.lower()}", frame=now, units=len(ps), standing=len(standing), p=p, go=go,
+                        small=len(small))
+            if go:
+                self._order(rows, extra, time_s, standing, by_tag, tags, p, self.model, "again", now)
+
+    def _order(self, rows, extra, time_s, idx: list[int], by_tag: dict, tags: list[int], p: float, model, what: str,
+               now: int) -> None:
+        """The units idx to a point drawn from the model's offset odds averaged over them, from their middle; one click
+        (or one per MAX_GROUP)."""
+        g = self.g
+        fx, fy = (-1 if g.flip[0] else 1), (-1 if g.flip[1] else 1)
+        us = [by_tag[tags[i]] for i in idx]
+        cx, cy = sum(u["x"] for u in us) / len(us), sum(u["y"] for u in us) / len(us)
+        bins = model.offset_odds(rows, extra, time_s)
+        if bins is not None:                     # (drawn at their averaged odds, as the data's points: from the middle)
+            w = bins[idx].mean(0)
+            b = min(int(np.searchsorted(np.cumsum(w), self.rng.random() * w.sum(), side="right")), len(w) - 1)
+            dx, dy = (v * 32 for v in offset_of(b, model.edges))
+        else:
+            dx, dy = model.predict_offset(rows, extra, time_s)[idx].mean(0) * 32
+        t = g.army.tracker
+        x, y = min(max(0.0, cx + fx * dx), t.mw - 1), min(max(0.0, cy + fy * dy), t.mh - 1)
+        for k in range(0, len(us), MAX_GROUP):
+            part = [u["tag"] for u in us[k:k + MAX_GROUP]]
+            self.queue.append(Intent("ARMY_MOVE", part, (int(x), int(y)), {"p": p}, "army"))
+        LOG.decision(g.hi.side, "calm", now, f"{what}: move to ({int(x) // 32},{int(y) // 32})", p,
+                     inputs={"units": len(us)}, by=f"model: the calm model's {what}, drawn a bunch", then="queued")
 
     def _send(self, tags: list[int], point, p: float) -> str:
         x, y = int(point[0]), int(point[1])

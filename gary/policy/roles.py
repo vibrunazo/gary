@@ -201,21 +201,22 @@ OFFSET_EDGES = (0.0, 2.0, 4.0, 6.0, 9.0, 13.0, 20.0)
 OFFSET_BINS = OFFSET_DIRS * (len(OFFSET_EDGES) - 1)
 
 
-def offset_bin(off: torch.Tensor) -> torch.Tensor:
-    """(..., 2) offsets in tiles -> their bins (direction * distances + distance)."""
-    n = len(OFFSET_EDGES) - 1
+def offset_bin(off: torch.Tensor, edges: tuple = OFFSET_EDGES) -> torch.Tensor:
+    """(..., 2) offsets in tiles -> their bins (direction * distances + distance); edges: the distances' (a model's
+    config "offset_edges": the calm layer's far points have their own, gary/policy/calm.py FAR_EDGES)."""
+    n = len(edges) - 1
     ang = torch.atan2(off[..., 1], off[..., 0]) % (2 * math.pi)
     k = torch.clamp((ang / (2 * math.pi) * OFFSET_DIRS + 0.5).long() % OFFSET_DIRS, 0, OFFSET_DIRS - 1)
-    edges = torch.as_tensor(OFFSET_EDGES[1:-1], dtype=off.dtype, device=off.device)
-    dist = torch.bucketize(off.norm(dim=-1), edges)
+    inner = torch.as_tensor(edges[1:-1], dtype=off.dtype, device=off.device)
+    dist = torch.bucketize(off.norm(dim=-1), inner)
     return k * n + torch.clamp(dist, 0, n - 1)
 
 
-def offset_of(b: int) -> tuple[float, float]:
+def offset_of(b: int, edges: tuple = OFFSET_EDGES) -> tuple[float, float]:
     """A bin's point, tiles: its direction, the middle of its distances."""
-    n = len(OFFSET_EDGES) - 1
+    n = len(edges) - 1
     k, j = divmod(int(b), n)
-    r = (OFFSET_EDGES[j] + OFFSET_EDGES[j + 1]) / 2
+    r = (edges[j] + edges[j + 1]) / 2
     a = 2 * math.pi * k / OFFSET_DIRS
     return r * math.cos(a), r * math.sin(a)
 
@@ -270,6 +271,11 @@ class RoleModel:
         model = cls(net.to(device), ck["config"])
         model.path = str(path)
         return model
+
+    @property
+    def edges(self) -> tuple:
+        """A drawn offset head's distances (offset_of, offset_bin)."""
+        return tuple(self.config.get("offset_edges", OFFSET_EDGES))
 
     def save(self, path: str | Path) -> None:
         torch.save({"state": self.net.state_dict(), "config": self.config}, path)
@@ -347,6 +353,7 @@ class RoleModel:
         rows), or None for a model without one."""
         if not self.config["net"].get("offset_bins"):
             return None
+        # (the bins' distances: self.edges)
         return torch.softmax(torch.as_tensor(self.predict_offset(rows, extra, time_s, budget, keys)), -1).numpy()
 
 

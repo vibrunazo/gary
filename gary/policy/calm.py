@@ -34,6 +34,10 @@ GRID = 16                     # (ingest/army_dataset.py GRID)
 POINT_ORDERS = {14}           # an order command with a point that places a unit (attack-move); right-click on ground too
 
 
+FAR_EDGES = (0.0, 12.0, 20.0, 28.0, 40.0, 56.0, 80.0, 112.0, 160.0)   # tiles: the far points' distances (the calm_far
+                              # model's drawn head, train/roles.py --offset-edges)
+SMALL = 8                     # (supply x2) a bunch under this the commit model isn't asked about (gary/agent/army.py
+                              # MIN_SUP): its far orders are the calm layer's, to the calm_far model's points
 MAP_EXTRA = 4                 # the calm model's own extras after the role model's: the way to the main's ramp top and to
                               # the map's middle (mirrored as the rows, / GROUND_SCALE): placement out of contact is
                               # geography, which the role extras give only as distances (the nearest Command Center apart)
