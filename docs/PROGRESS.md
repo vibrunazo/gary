@@ -2147,6 +2147,16 @@ plan and the full log).
     calm fighters a fighter a minute (eval/calm_check.py, 5-10 minutes) from 0.34 to 1-2 (the pros 1.59), severalfold,
     which 16 games show; standing 0.47 lower, toward the pros' 0.28; a new fighter's first rest under CB280a's 12 s.
     Wins not a verdict (a fidelity change; it also moves units out of position at random where the head knows nothing).
+    Results (CL281a against CB280a, 16 paired games; eval/calm_check.py at 5-10 minutes, against 40 pro games):
+    short orders to standing calm fighters 1.43 a fighter a minute (0.34; the pros 1.58), far 0.86 (1.10; 0.88),
+    standing 0.43 (0.47; 0.29), standing time in stretches of 30 s or more 0.46 (0.60; 0.28), a new fighter's first
+    rest a median 11 s, 21% over 30 s (12 s, 27%; 8 s, 13%): the rate is the pros' and every standing measure moved
+    toward them. The fight features at 5-10 (eval/gap_windows.py, 90% intervals): orders a fighter a minute 5.74
+    (4.12; 7.22) and standing 0.47 (0.53; 0.32) nearer, both resolved; but units alone 0.38 (0.29; 0.20) and the
+    army's spread 20.1 tiles (16.7; 14.0) further, both resolved, and Hp lost to harass 329 (87; 137) unresolved. The
+    window's fight gap +0.076 [-0.040, +0.215], all windows +0.008 [-0.062, +0.095]; won 7, lost 6, 3 at time (8, 8).
+    So the layer moves units as often as the pros do, and as its where head knows little, it scatters them: the
+    expected cost, now measured. Not folded.
 - **The commit model asked about its data's clusters (2026-11-19; every build: gt0.18, gz0.12, gp0.13, gt0.45dev,
   gz0.29dev, gp0.36dev).** Why: half the commit model's questions at 5-10 minutes (52%, NF279a) were about clusters of
   1-3 units, where the army data has only clusters of 4 supply or more (ingest/army_dataset.py clusters, MIN_SUP), and
