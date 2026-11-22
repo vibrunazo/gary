@@ -2152,6 +2152,16 @@ plan and the full log).
     CL282a), written before it: the army layer's orders to 8 or more from 0.21 toward the pros' 0.48 and to one unit
     from 0.24 down (the calm layer's small ones still in it); departures from the rally alone from 0.52 toward 0.21;
     units alone at 5-10 below 0.41; late arrivals and spread read for direction.
+    Results (HS284a against CL282a, 16 paired games; won 7, lost 5, 4 at time): the orders are the pros' size now. Of
+    the commit layer's orders at 5-10 minutes (the order log's origin), 43% to 8 units or more and 6% to one (a check
+    game before: 22% and 17%; the pros' far orders 48% and 12%); the calm layer's, by design small, 56% to one unit
+    (the pros' short orders 17%: Gary has more lone units for it to move). The army's spread at 5-10 minutes 19.8 tiles
+    (21.8; the pros 14.0), nearer, resolved; the fight gap over all windows -0.072 [-0.125, -0.025], nearer, resolved
+    (by window unresolved, 20-30 minutes +0.09 to +0.11). But units alone 0.40 (0.41) unchanged, and departures from
+    the rally alone 0.64 (0.52): a cluster's order now takes its far units too, so a unit leaving the rally leaves with
+    units that weren't standing there, which that measure doesn't count as together; it was a proxy, units alone the
+    measure. Kept: the orders are a player's now. What leaves units alone is elsewhere: the calm layer's moves of lone
+    units, the units never ordered, the role layer's and the rules' single sends (above).
 - **The army at home at 15-20 minutes, read (2026-11-19; TODO.md c).** Why: the fight features had Gary's army at home
   0.57 of the time at 15-20 minutes for the pros' 0.43. With CB280a and NF279a (32 games) against the pros' modern TvZ
   games: not the army's size (at 30-50 supply 0.57 home for the pros' 0.45, at 50-80 0.51 for 0.41), nor the bases
