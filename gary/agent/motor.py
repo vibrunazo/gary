@@ -92,7 +92,8 @@ def box_around(hi, pts: list[tuple[int, int]], m: int, shift: bool = False) -> N
 
 
 SELECT_MAX = 12                          # units a selection holds (the game's limit)
-ADDS = 2                                 # shift+boxes added to an army order's selection before its one order
+ADDS = 4                                 # shift+boxes (and the camera moves to reach them) added to an army order's
+                                         # selection before its one order
 
 
 def _names(units: list[dict]) -> str:
@@ -833,13 +834,19 @@ class DirectMotor:
             # docs/PROGRESS.md 2026-11-22)
             if sel and len(obs["selection"]) < SELECT_MAX and d.get("adds", 0) < ADDS:
                 taken = set(obs["selection"]) | set(d["done"])
-                more = [u for u in mine if u["tag"] in set(d["tags"]) - taken and screen_of(obs, u["x"], u["y"])]
+                rest = [u for u in mine if u["tag"] in set(d["tags"]) - taken]
+                more = [u for u in rest if screen_of(obs, u["x"], u["y"])]
+                mx = sum(u["x"] for u in mine if u["tag"] in set(sel)) / len(sel)
+                my = sum(u["y"] for u in mine if u["tag"] in set(sel)) / len(sel)
                 if more:
-                    mx = sum(u["x"] for u in mine if u["tag"] in set(sel)) / len(sel)
-                    my = sum(u["y"] for u in mine if u["tag"] in set(sel)) / len(sel)
                     more.sort(key=lambda u: math.dist((u["x"], u["y"]), (mx, my)))
                     box_around(hi, [self.g.hi.aim(obs, u) for u in more[:SELECT_MAX - len(obs["selection"])]], 10,
                                shift=True)
+                    d["adds"] = d.get("adds", 0) + 1
+                    return
+                if rest:                        # (off screen: the camera to the nearest of them, the selection kept;
+                    u = min(rest, key=lambda u: math.dist((u["x"], u["y"]), (mx, my)))   # the box at the next look)
+                    hi.camera_minimap(u["x"], u["y"])
                     d["adds"] = d.get("adds", 0) + 1
                     return
             d["added"], d["adds"] = d.get("adds", 0), 0

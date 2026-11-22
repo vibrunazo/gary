@@ -18,8 +18,8 @@ Since 2026-10-15 every piece of the self-play loop is being built crude before a
 learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the league isn't trained
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-22): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
-(gt0.19), Zerg as `gz1` (gz0.13) and Protoss as `gp1` (gp0.14, crude); learning is trained and judged in `gt1dev`
-(gt0.47dev), `gp1dev` (gp0.37dev) and `gz1dev` (gz0.30dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.20), Zerg as `gz1` (gz0.14) and Protoss as `gp1` (gp0.15, crude); learning is trained and judged in `gt1dev`
+(gt0.48dev), `gp1dev` (gp0.38dev) and `gz1dev` (gz0.31dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -2144,6 +2144,14 @@ plan and the full log).
     own order. Also: the army layer's orders labelled "army" in the records are the calm layer's too (its intents carry
     no origin); the one-unit share counts both. Kept (it does what a player does and costs nothing measured); what
     would make an order one selection is a key for the cluster (the grouping provider), open.
+  - *The order's units off screen too (2026-11-22; every build: gt0.20, gz0.14, gp0.15, gt0.48dev, gz0.31dev, gp0.38dev;
+    parity recorded again).* Before the one order, the camera goes to the order's nearest unit off screen, the selection
+    kept, and the next look shift+boxes it in, up to 4 such steps and 12 units (motor.py ADDS). A check game: of the
+    commit layer's 60 orders, 49 to 8 units or more and 1 to one unit (HS283a's game: 16 of 72 and 12 of 72); the calm
+    layer's stay small, by design (its bunches). Round HS284a (gt1dev gt0.48dev against gz1dev, 16 games, against
+    CL282a), written before it: the army layer's orders to 8 or more from 0.21 toward the pros' 0.48 and to one unit
+    from 0.24 down (the calm layer's small ones still in it); departures from the rally alone from 0.52 toward 0.21;
+    units alone at 5-10 below 0.41; late arrivals and spread read for direction.
 - **The army at home at 15-20 minutes, read (2026-11-19; TODO.md c).** Why: the fight features had Gary's army at home
   0.57 of the time at 15-20 minutes for the pros' 0.43. With CB280a and NF279a (32 games) against the pros' modern TvZ
   games: not the army's size (at 30-50 supply 0.57 home for the pros' 0.45, at 50-80 0.51 for 0.41), nor the bases
