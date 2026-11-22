@@ -2102,6 +2102,18 @@ plan and the full log).
   already (above), so its share says more about how many lone units Gary has than about what makes them; a wraith
   alone is a cluster of its own for both layers (army.py AIR_MIN: one Wraith), where the pros' wraiths are almost never
   alone. Open: why Gary has the lone units in the first place (new units never ordered, single flyers sent alone).
+  - *Where the lone units come from (2026-11-22; CB280a, before calm, against 40 pro games, 5-12 minutes, re-simulated).*
+    Ruled out: the rally itself. A new fighter first stands as far from the biggest bunch as the pros' (a median 33
+    tiles, the pros' 18; within 8 tiles 0.19, 0.36), but alone there 0.39 (the pros' 0.12; 0.42 in CL282a, so not the
+    calm layer); and the buildings' rally points are spread as the pros' (the new units' first move targets in one
+    minute, the farthest two apart a median 2.8 tiles, the pros' 2.6; Gary rallies each building with its own minimap
+    click, as the pros must: Brood War selects one building at a time). The difference is how units leave the rally:
+    Gary's alone 0.49 of the time, with 1-2 others 0.38, with 3 or more 0.13; the pros' 0.21, 0.33 and 0.46, after
+    standing about as long (a median 17 s, 15 s). By the order that moved them off (the records): the commit layer 270
+    departures, 93 of them alone; the role layer 85, 63 alone; the reinforce rule 25, 21 alone; the load rule 20, all
+    alone. A likely mechanism for the commit layer's share: a cluster spans 5 by 5 army cells (about 40 tiles; as the
+    army data clusters), so a unit at the rally belongs to the main army's cluster 20 tiles off, gets its order, and
+    walks to the target alone (the late arrivals at attacks, 4x the pros', eval/attacks.py, would be the same thing).
 - **The army at home at 15-20 minutes, read (2026-11-19; TODO.md c).** Why: the fight features had Gary's army at home
   0.57 of the time at 15-20 minutes for the pros' 0.43. With CB280a and NF279a (32 games) against the pros' modern TvZ
   games: not the army's size (at 30-50 supply 0.57 home for the pros' 0.45, at 50-80 0.51 for 0.41), nor the bases
