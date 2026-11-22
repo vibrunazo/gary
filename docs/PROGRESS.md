@@ -2162,6 +2162,12 @@ plan and the full log).
     units that weren't standing there, which that measure doesn't count as together; it was a proxy, units alone the
     measure. Kept: the orders are a player's now. What leaves units alone is elsewhere: the calm layer's moves of lone
     units, the units never ordered, the role layer's and the rules' single sends (above).
+    The never-ordered ones (the user's call, 2026-11-22; HS284a, re-simulated against the records): 0.056 of fighter
+    samples are lone fighters no order ever reached, 87% of them under 30 s old (walking to the rally 49%, just
+    arrived 42%; 60% at home, an enemy fighter near 2%): new units on their way, where the pros' new units under 30 s
+    are alone 0.039 of their samples. A small excess (about 0.02 of the 0.15 between Gary's 0.215 and the pros' 0.068
+    per sample); the rest is in units already ordered, by the calm layer (moving lone units: 56% of its orders to one
+    unit) and the commit layer, and in having more small bunches in the first place.
 - **The army at home at 15-20 minutes, read (2026-11-19; TODO.md c).** Why: the fight features had Gary's army at home
   0.57 of the time at 15-20 minutes for the pros' 0.43. With CB280a and NF279a (32 games) against the pros' modern TvZ
   games: not the army's size (at 30-50 supply 0.57 home for the pros' 0.45, at 50-80 0.51 for 0.41), nor the bases
