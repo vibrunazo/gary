@@ -2114,6 +2114,14 @@ plan and the full log).
     alone. A likely mechanism for the commit layer's share: a cluster spans 5 by 5 army cells (about 40 tiles; as the
     army data clusters), so a unit at the rally belongs to the main army's cluster 20 tiles off, gets its order, and
     walks to the target alone (the late arrivals at attacks, 4x the pros', eval/attacks.py, would be the same thing).
+    Checked and wrong: the commit layer's far orders go to compact groups (the farthest unit a median 3.5 tiles from
+    the group's middle, the pros' 3.9; over 12 tiles in 2% of orders, the pros' 16%). What differs is their size: the
+    hands split a cluster's order into selections, each given the order on its own (motor.py _run_army_order: a control
+    group only when all its members get the order, else up to 4 drag boxes of the units on screen), so of the commit
+    layer's far orders 22% go to one unit, 28% to 2-3, 29% to 4-7, 20% to 8 or more; the pros' 12%, 17%, 22% and 48%
+    (Brood War selects 12 at most). A straggler gets an order of its own and walks alone. A hands change (a selection
+    built up to 12 with shift before the one order, as players do) would touch the interface and the live path;
+    judged on its own check (the order sizes, departures from the rally together, units alone), not on rounds.
 - **The army at home at 15-20 minutes, read (2026-11-19; TODO.md c).** Why: the fight features had Gary's army at home
   0.57 of the time at 15-20 minutes for the pros' 0.43. With CB280a and NF279a (32 games) against the pros' modern TvZ
   games: not the army's size (at 30-50 supply 0.57 home for the pros' 0.45, at 50-80 0.51 for 0.41), nor the bases
