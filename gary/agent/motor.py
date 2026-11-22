@@ -842,7 +842,7 @@ class DirectMotor:
                                shift=True)
                     d["adds"] = d.get("adds", 0) + 1
                     return
-            d["adds"] = 0
+            d["added"], d["adds"] = d.get("adds", 0), 0
             if g.executor.army_select == "portrait" and sel and len(sel) < len(obs["selection"]) and not d.get("narrowed"):
                 # the box took more than the order's units (drones and overlords at the rally point): a ctrl+click
                 # on the portrait of the commonest of them keeps that type only (the player's way)
@@ -866,7 +866,8 @@ class DirectMotor:
                 from gary.decision_log import LOG
                 LOG.decision(hi.side, "motor", hi.frame, "army order", by=d.get("origin") or ("hunt" if d.get("hunt") else t.intent.source),
                              inputs={"tags": [int(s) for s in sel], "to": [int(d["x"]) // 32, int(d["y"]) // 32],
-                                     "attack": bool(d["attack"])})
+                                     "attack": bool(d["attack"]), "via": d.get("via", "box"), "adds": d.get("added", 0),
+                                     "left": len(set(d["tags"]) - set(d["done"]))})
             t.stage = "start"
             return
         d["tags"] = [s for s in d["tags"] if not g.leases.handed(s)]
@@ -880,8 +881,10 @@ class DirectMotor:
         key = self.key_within({u["tag"] for u in left}, {u["tag"] for u in mine}, FITS)
         if key is not None:                      # (a key whose members all get the order: the key, then the order)
             hi.hotkey_recall(key)
+            d["via"] = f"key {key}"
             t.stage = "selected"
             return
+        d["via"] = "box"
         cx = sorted(u["x"] for u in left)[len(left) // 2]
         cy = sorted(u["y"] for u in left)[len(left) // 2]
         here = [u for u in left if screen_of(obs, u["x"], u["y"])]

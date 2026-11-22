@@ -2132,6 +2132,18 @@ plan and the full log).
     with the old hands), written before it: the commit layer's far orders to one unit from 22% toward the pros' 12%,
     to 8 or more from 20% toward 48%; departures from the rally alone from 49% toward 21%; units alone at 5-10 minutes
     below CL282a's 0.41 (the pros 0.20).
+    Results (HS283a against CL282a, 16 paired games): no measurable change in what it was for. The army layer's orders
+    to one unit 0.23 (0.24), to 8 or more 0.15 (0.21); departures from the rally alone 0.53 (0.52), with 3 or more 0.12
+    (0.14); units alone 0.39 at 5-10 minutes (0.41), [-0.19, +0.02]; standing and orders a fighter a minute the same.
+    (The fight gap at 15-30 minutes came out nearer the pros, -0.10 to -0.14 resolved, which this change doesn't
+    explain: more games went to 30:00, 8 for 1, so not credited to it.) Why, from a check game with the order log now
+    saying how each selection was made (motor.py "via" and "adds"): the shift-adds almost never act (5 of 117 orders),
+    as the first box already takes every unit of the order on screen; the commit layer's decisions are about clusters
+    of a median 11 units (78% of them 8 or more), each sent in about three orders (72 orders for 23 decisions: 12 to one
+    unit, 44 to 2-7, 16 to 8 or more), its units spread over several control groups and screens, each key or box its
+    own order. Also: the army layer's orders labelled "army" in the records are the calm layer's too (its intents carry
+    no origin); the one-unit share counts both. Kept (it does what a player does and costs nothing measured); what
+    would make an order one selection is a key for the cluster (the grouping provider), open.
 - **The army at home at 15-20 minutes, read (2026-11-19; TODO.md c).** Why: the fight features had Gary's army at home
   0.57 of the time at 15-20 minutes for the pros' 0.43. With CB280a and NF279a (32 games) against the pros' modern TvZ
   games: not the army's size (at 30-50 supply 0.57 home for the pros' 0.45, at 50-80 0.51 for 0.41), nor the bases
