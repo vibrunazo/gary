@@ -17,9 +17,9 @@ rather than scripted, because the replay pipeline made that the quicker way to a
 Since 2026-10-15 every piece of the self-play loop is being built crude before any is polished: a
 learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the league isn't trained
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
-Where it stands (2026-11-19): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
-(gt0.18), Zerg as `gz1` (gz0.12) and Protoss as `gp1` (gp0.13, crude); learning is trained and judged in `gt1dev`
-(gt0.46dev), `gp1dev` (gp0.36dev) and `gz1dev` (gz0.29dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+Where it stands (2026-11-22): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
+(gt0.19), Zerg as `gz1` (gz0.13) and Protoss as `gp1` (gp0.14, crude); learning is trained and judged in `gt1dev`
+(gt0.47dev), `gp1dev` (gp0.37dev) and `gz1dev` (gz0.30dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -2122,6 +2122,16 @@ plan and the full log).
     (Brood War selects 12 at most). A straggler gets an order of its own and walks alone. A hands change (a selection
     built up to 12 with shift before the one order, as players do) would touch the interface and the live path;
     judged on its own check (the order sizes, departures from the rally together, units alone), not on rounds.
+  - *Army orders to fuller selections (the user's call, 2026-11-22; every build: gt0.19, gz0.13, gp0.14, gt0.47dev,
+    gz0.30dev, gp0.37dev; parity recorded again).* The hands: before an army order, the order's other units on screen
+    are shift+boxed into the selection, up to 12, then the one order (motor.py; the interface's box takes shift, its
+    units added to the selection as the game does, the live path's the same); and a control group is used when most of
+    its living members (FITS, 0.8) get the order, not only all of them (army orders only: a fight's order, decided unit
+    by unit, still takes a key whose members all have it). Two check games: one-unit orders 24% and 20% (one game each,
+    too few to read). The check, round HS283a (gt1dev gt0.47dev against gz1dev, 16 games, against CL282a, the same build
+    with the old hands), written before it: the commit layer's far orders to one unit from 22% toward the pros' 12%,
+    to 8 or more from 20% toward 48%; departures from the rally alone from 49% toward 21%; units alone at 5-10 minutes
+    below CL282a's 0.41 (the pros 0.20).
 - **The army at home at 15-20 minutes, read (2026-11-19; TODO.md c).** Why: the fight features had Gary's army at home
   0.57 of the time at 15-20 minutes for the pros' 0.43. With CB280a and NF279a (32 games) against the pros' modern TvZ
   games: not the army's size (at 30-50 supply 0.57 home for the pros' 0.45, at 50-80 0.51 for 0.41), nor the bases

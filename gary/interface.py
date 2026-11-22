@@ -468,13 +468,13 @@ class HumanInterface:
         self.pending.append(_Pending(land, kind, args, LOG.owner.get(self.side, "?")))
         return self._game_result(land)
 
-    def box(self, sx0: int, sy0: int, sx1: int, sy1: int) -> ActionResult:
-        """Drag-select a screen rectangle."""
+    def box(self, sx0: int, sy0: int, sx1: int, sy1: int, shift: bool = False) -> ActionResult:
+        """Drag-select a screen rectangle; shift: its units added to the selection (12 at most, as the game allows)."""
         if not (self._on_screen(sx0, sy0) and self._on_screen(sx1, sy1)):
             self.stats["rejected_by_interface"] += 1
             return ActionResult(False, "offscreen")
         w = max(abs(sx1 - sx0), abs(sy1 - sy0), 16)
-        return self._schedule_click(sx1, sy1, w, "box", x0=sx0, y0=sy0)
+        return self._schedule_click(sx1, sy1, w, "box", x0=sx0, y0=sy0, shift=shift)
 
     def right_click(self, sx: int, sy: int, queued: bool = False) -> ActionResult:
         """Smart command at a screen point: move, attack, gather, follow."""
@@ -731,6 +731,9 @@ class HumanInterface:
             x1, y1 = self._to_map(a.args["sx"], a.args["sy"])
             tags = g.box_select(self.slot, x0, y0, x1, y1)
             act = f"drag box: {len(tags)} unit{'s' * (len(tags) != 1)}" if tags else "drag box: nothing"
+            if a.args.get("shift") and self.selection and tags:
+                tags = (self.selection + [t for t in tags if t not in self.selection])[:12]
+                act = f"shift+drag box: {len(tags)} selected"
             if tags and self._send(C.select(tags)):
                 self.selection = tags
         elif a.kind == "right_click":

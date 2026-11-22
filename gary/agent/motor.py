@@ -85,9 +85,14 @@ def hit_point(hi, slot: int, obs: dict, u: dict) -> tuple[int, int]:
     return x, y
 
 
-def box_around(hi, pts: list[tuple[int, int]], m: int) -> None:
+def box_around(hi, pts: list[tuple[int, int]], m: int, shift: bool = False) -> None:
     hi.box(max(0, min(p[0] for p in pts) - m), max(0, min(p[1] for p in pts) - m),
-           min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + m), min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + m))
+           min(hi.p.viewport[0] - 1, max(p[0] for p in pts) + m), min(hi.p.viewport[1] - 1, max(p[1] for p in pts) + m),
+           shift=shift)
+
+
+SELECT_MAX = 12                          # units a selection holds (the game's limit)
+ADDS = 2                                 # shift+boxes added to an army order's selection before its one order
 
 
 def _names(units: list[dict]) -> str:
@@ -130,11 +135,15 @@ class DirectMotor:
         for, close-in deaths 15 a game against 9.9, rounds GT3a and GT40c against L40a)."""
         return set(self.g.hi.hotkeys.get(key, [])) if key in self.groups else set()
 
-    def key_within(self, tags: set[int], alive: set[int]) -> int | None:
-        """The biggest key whose living members (2 or more) all get this order: one key recalls them, as the pros
-        give an order to an army key by key (the rest selected as before)."""
-        keys = [(len(m & alive), k) for k, m in ((k, self.members(k)) for k in self.groups)
-                if len(m & alive) >= 2 and m & alive <= tags]
+    def key_within(self, tags: set[int], alive: set[int], share: float = 1.0) -> int | None:
+        """The key with the most of this order's units among its living members (2 or more), this share of them or more
+        (all for a fight's order, decided unit by unit; FITS for an army order's): one key recalls them, as the pros give
+        an order to an army key by key (the rest selected as before)."""
+        # (or most of them, FITS: a player orders a key whose stragglers come along; with all of them only, a cluster
+        # wider than the screen went out box by box, 22% of the commit layer's far orders to one unit for the pros' 12%,
+        # docs/PROGRESS.md 2026-11-22)
+        keys = [(len(m & alive & tags), k) for k, m in ((k, self.members(k)) for k in self.groups)
+                if len(m & alive & tags) >= 2 and len(m & alive & tags) >= share * len(m & alive)]
         return max(keys)[1] if keys else None
 
     def adopt_groups(self) -> None:
@@ -818,6 +827,22 @@ class DirectMotor:
             if self._unhand(t):
                 return
             sel = [s for s in obs["selection"] if s in set(d["tags"])]
+            # the order's other units on screen shift+boxed into the selection, up to 12, before the one order (a player
+            # builds the group, then orders it: an order a box cost 22% of the commit layer's far orders to one unit, the
+            # pros' 12%, and 20% to 8 or more for 48%; the units left the rally alone 49% of the time, the pros' 21%:
+            # docs/PROGRESS.md 2026-11-22)
+            if sel and len(obs["selection"]) < SELECT_MAX and d.get("adds", 0) < ADDS:
+                taken = set(obs["selection"]) | set(d["done"])
+                more = [u for u in mine if u["tag"] in set(d["tags"]) - taken and screen_of(obs, u["x"], u["y"])]
+                if more:
+                    mx = sum(u["x"] for u in mine if u["tag"] in set(sel)) / len(sel)
+                    my = sum(u["y"] for u in mine if u["tag"] in set(sel)) / len(sel)
+                    more.sort(key=lambda u: math.dist((u["x"], u["y"]), (mx, my)))
+                    box_around(hi, [self.g.hi.aim(obs, u) for u in more[:SELECT_MAX - len(obs["selection"])]], 10,
+                               shift=True)
+                    d["adds"] = d.get("adds", 0) + 1
+                    return
+            d["adds"] = 0
             if g.executor.army_select == "portrait" and sel and len(sel) < len(obs["selection"]) and not d.get("narrowed"):
                 # the box took more than the order's units (drones and overlords at the rally point): a ctrl+click
                 # on the portrait of the commonest of them keeps that type only (the player's way)
@@ -852,7 +877,7 @@ class DirectMotor:
                       f"to ({d['x']}, {d['y']}) ({d['p']:.0%} sure it should move; fight estimate {d['fight']:+.0%})")
             g.task = None
             return
-        key = self.key_within({u["tag"] for u in left}, {u["tag"] for u in mine})
+        key = self.key_within({u["tag"] for u in left}, {u["tag"] for u in mine}, FITS)
         if key is not None:                      # (a key whose members all get the order: the key, then the order)
             hi.hotkey_recall(key)
             t.stage = "selected"

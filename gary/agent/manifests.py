@@ -328,7 +328,7 @@ MANIFESTS: dict[str, dict] = {
     # dropped after three tries, half of all it gave, in gz1dev's games; as gz0.26dev)
     # gz0.9: the mutalisk raid's flock takes the selection's flyers not in it yet (2026-11-12, as gz0.25dev: it re-added the same flock every tick in the live client)
     # gz0.11 (2026-11-17): the motor's move and attack-move clicks on ground the game's hit test finds empty (as gt0.17)
-    "gz1": {"version": "gz0.12", "race": "Z", "posture": "zerg", "leases": "enforced", "balance": True, "rotate": True,
+    "gz1": {"version": "gz0.13", "race": "Z", "posture": "zerg", "leases": "enforced", "balance": True, "rotate": True,
             "grouping": "types",
             "macro": {**_LEARNED, "builds": ["alarm"], "decoder": "dice", "odds_mass": 1.0, "hatch_mass": 0.5, "park": True, "pace": True,
                       "tech_min_p": 0.10, "wait_min_p": 0.05, "own_supply": True, "rax_by": 165 * 24, "history": "pro", "style": "roll",
@@ -357,7 +357,7 @@ MANIFESTS: dict[str, dict] = {
     # gp0.10: a building that waits for what is on its way (a Pylon warping in at its base, the parked builders) queued as a unit for its busy producer, the macro deciding on meanwhile, its money kept (macro.py queued_builds, 2026-11-11)
     # gp0.9: the macro's two fixes of 2026-11-11 (macro.py plan: an expansion refused while its town hall is on its way; a build beyond the parked builders waits as a unit for its busy building, not held 30 s as the goal; gt0.33dev)
     # gp0.12 (2026-11-17): the motor's move and attack-move clicks on ground the game's hit test finds empty (as gt0.17)
-    "gp1": {"version": "gp0.13", "race": "P", "posture": "normal", "leases": "enforced", "balance": True, "builder_back": True,
+    "gp1": {"version": "gp0.14", "race": "P", "posture": "normal", "leases": "enforced", "balance": True, "builder_back": True,
             "macro": {"provider": "learned", "model": "runs/macro_exp/P_all_v2all/model.pt", "builds": [], "decoder": "dice",
                       "odds_mass": 1.0, "expand_mass": 1.0, "park": True, "supply_ahead": True, "parked_max": 3,
                       "gas_waits": True, "style": "roll", "look_seen": True, "unit_count": True, "history_styles": "v2"},
@@ -1223,7 +1223,7 @@ def manifest_of(name: str | dict) -> dict:
 # its own Science Vessels followed them (14 a game in TvZ; 3-6% of fight moves landed on a unit, eval/pipe_table.py)
 MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords+hunt4+split+static+roles30+lone"
                                   "+addonroom+gamequeue+softguard+widespot+seenall+armyseen+builtcount+unitcount"
-                                  "+pendown"), "version": "gt0.18"}
+                                  "+pendown"), "version": "gt0.19"}
 # gt1dev: the Terran Gary that learning is trained and judged in (AGENTS.md): gt1 with the role model deciding in
 # contact as well (attended pro units with their re-issues as a decision, again, Gary's own order rate as input, its
 # moves kept current, several orders a turn) and the army on control groups by type, a key's units drawing their
@@ -1383,11 +1383,15 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # gt0.46dev (2026-11-19, the user's call): calm folded in (gary/agent/calm.py: out of contact, a bunch of standing
 # fighters given the pros' short orders and, under 4 supply, their far ones; CL282a: a new fighter's first rest 8 s
 # for 12, the pros' 8; units alone and the army's spread further from the pros, the next item; docs/PROGRESS.md)
+# 2026-11-22, every build (gt0.19, gz0.13, gp0.14, gt0.47dev, gz0.30dev, gp0.37dev): the hands give an army order to
+# fuller selections (motor.py: the order's other units on screen shift+boxed in, up to 12, before the one order; a
+# control group used when most of its members get the order): 22% of the commit layer's far orders had gone to one
+# unit, the pros' 12%, and Gary's units left the rally alone 49% of the time, the pros' 21% (docs/PROGRESS.md)
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
                                      "+parkmany+tvzmodes+staysieged+modemodel+minemodel+retreatfar+nofloor+calm"),
-                       "version": "gt0.46dev"}
+                       "version": "gt0.47dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
@@ -1470,7 +1474,7 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # weights out (eval/pipe_table.py: made against asked 0.77-1.07 with it, 0.27-0.53 without; RR274a, TD275a)
 MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+eggs+allstyles+gaswaits+parkmany"
                                      "+pvzroles+mirrorroles+ownhist+builtcount+pendown+tiles+place+transferahead+rates"),
-                       "version": "gz0.29dev"}
+                       "version": "gz0.30dev"}
 
 # gp0.4dev: gp1 without the stop-gaps over its learned layers (unscripted: the hunt, a Pylon ahead of production) and
 # its army on control groups by type (grouping, as gt1dev's and gz1's): the Protoss's dev build, where its learning is
@@ -1593,7 +1597,7 @@ MANIFESTS["gz1dev"] = {**manifest_of("gz1+unscripted+eggs+allstyles+gaswaits+par
 # 0.73-1.09 with rates, 0.13-0.62 without; retreats 6 tiles past the group, its units 1.1 tiles farther for 0.4)
 MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcount+archons+storm+pendown+place"
                                      "+fightrules+aircluster+coming+comingbuild+savecoming+tiles+transferahead+rates+retreatfar"),
-                       "version": "gp0.36dev"}
+                       "version": "gp0.37dev"}
 
 
 def fight_model_path(m: dict, matchup: str, race: str) -> Path | None:
