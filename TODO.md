@@ -23,8 +23,8 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   5. The bridge's new fields over LAN (tools/parity.py): done, 1:1 in every field, but stim and ammo only at zero.
   6. The docs: this section, docs/PROGRESS.md's top summary (rl1), docs/ARCHITECTURE.md §6.8 (the pro-frequency
      departure): done.
-  Found in Phase 0, left for after the remeasure: gt1dev can't start a game outside TvZ (option calm has only a TvZ
-  model; gp1dev's PvT rounds against gt1dev would fail).
+  Found in Phase 0 and fixed after the remeasure (gt0.50dev): gt1dev couldn't start a game outside TvZ (option calm
+  had only a TvZ model); the calm layer stands aside there now.
 - **Phase 1 (4 weeks, in front):** the TvZ strategic trunk and five templated questions, with the gate written in
   docs/REFOCUS.md §4.3. Beside it (weeks 2-4), the three-arm army persistence test.
 - **Maintenance cap:** other fidelity work only for regressions caught in watched games. Paused: (c)'s unstarted

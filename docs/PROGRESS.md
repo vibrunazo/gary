@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-23): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.21), Zerg as `gz1` (gz0.15) and Protoss as `gp1` (gp0.16, crude); learning is trained and judged in `gt1dev`
-(gt0.49dev), `gp1dev` (gp0.39dev) and `gz1dev` (gz0.32dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.50dev), `gp1dev` (gp0.39dev) and `gz1dev` (gz0.32dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held, on the Terran's fight roles (rl1), was in gt1dev from gt0.6dev to gt0.35dev: gt0.36dev replaced it with
@@ -2187,6 +2187,11 @@ plan and the full log).
   the playing build. The deficit reads as on 2026-11-11: gt1 keeps the stop-gaps that each measurably won (the bank
   escape, the caps, the static guard, the SCV cap) and the hunt that ends its games (60 won), while gt1dev leads at
   30:00 in 30 games it doesn't end. This is the standing Phase 1 starts from.
+- **gt1dev plays outside TvZ again (2026-11-23, gt0.50dev, the user's call after the remeasure).** Since gt0.46dev
+  option calm loaded its model at the start of every game and only TvZ has one, so gt1dev couldn't start a TvT or PvT
+  game (gp1dev's PvT rounds against it included). The calm layer now stands aside where it has no model (a note in the
+  records; gary/agent/calm.py), its job nobody's there, as before it. Checked: gt1dev against gt1 (TvT) and gp1dev
+  against gt1dev (PvT), 6 minutes each, play; parity unchanged (the playing builds), smoke, live and matchups pass.
 - **The army's and the calm layer's draws seeded by the game (2026-11-23; #64; docs/REFOCUS.md Phase 0, step 1; every
   build: gt0.21, gz0.15, gp0.16, gt0.49dev, gz0.32dev, gp0.39dev).** Why: the army layer seeded its draws (the commit
   model's dice) from g.seed, which nothing sets, so for a given slot every game drew from the same stream; the calm layer

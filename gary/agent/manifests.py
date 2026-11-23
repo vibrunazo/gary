@@ -1393,11 +1393,13 @@ MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords
 # 2026-11-23, every build (gt0.21, gz0.15, gp0.16, gt0.49dev, gz0.32dev, gp0.39dev): the army layer's and the calm
 # layer's draws seeded by the game's seed and the side's slot (#64: the army read g.seed, which nothing set, the
 # calm layer Random(0): the same streams in every game)
+# gt0.50dev (2026-11-23): the calm layer stands aside in a matchup with no calm model (it has TvZ's only): gt1dev
+# couldn't start a TvT or PvT game since gt0.46dev
 MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping+together+rl1+unscripted+huntadvice"
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
                                      "+parkmany+tvzmodes+staysieged+modemodel+minemodel+retreatfar+nofloor+calm"),
-                       "version": "gt0.49dev"}
+                       "version": "gt0.50dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,

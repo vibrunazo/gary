@@ -31,7 +31,13 @@ class Calm:
         from gary.agent.manifests import model_for
         from gary.policy.roles import RoleModel
         self.g = g
-        self.model = RoleModel.load(model_for("calm", g.matchup, g.race.letter))
+        self.queue: list[Intent] = []
+        try:                                     # (a matchup with no calm model: the layer steps aside, its job nobody's,
+            self.model = RoleModel.load(model_for("calm", g.matchup, g.race.letter))   # as before it; until
+        except SystemExit:                       # 2026-11-23 gt1dev couldn't start a game outside TvZ)
+            self.model = None
+            g.say(f"calm: no calm model for {g.race.letter} in {g.matchup}: the layer stands aside")
+            return
         self.k = list(self.model.config["roles"]).index(AGAIN)
         self.k_far = list(self.model.config["roles"]).index("far")
         try:                                     # the far points (ingest/calm_dataset.py --far): optional
@@ -45,7 +51,6 @@ class Calm:
         self.drawn_at: dict[int, int] = {}       # unit -> frame of its last draw
         self.first_seen: dict[int, int] = {}
         self.ground = None
-        self.queue: list[Intent] = []
 
     def _ground(self):
         from gary.policy.roles import Ground
@@ -61,6 +66,8 @@ class Calm:
         return self.ground or None
 
     def step(self, obs: dict, mine: list[dict], done: list[dict]) -> str | None:
+        if self.model is None:
+            return None
         g, now = self.g, self.g.hi.frame
         while self.queue:                        # (one click a turn: the hands)
             it = self.queue.pop(0)
