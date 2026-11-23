@@ -2187,6 +2187,36 @@ plan and the full log).
   the playing build. The deficit reads as on 2026-11-11: gt1 keeps the stop-gaps that each measurably won (the bank
   escape, the caps, the static guard, the SCV cap) and the hunt that ends its games (60 won), while gt1dev leads at
   30:00 in 30 games it doesn't end. This is the standing Phase 1 starts from.
+- **Phase 1 begins: the enemy-plan belief, offline (2026-11-23; docs/REFOCUS.md §3.1; train/plan_belief.py).** Why:
+  the strategy card's reactive directives and the coaching answers both need P(enemy plan | what Gary has seen), and
+  the gate's first condition is that it beats a time-and-map base rate. Built from what exists: the macro training set
+  (every second of each pro game, what each player saw of the other), the belief model's own sighting features
+  (gary/policy/belief.py: each Zerg type in sight now and the most at once over 30 s, 90 s, 3 min and ever, and so on)
+  plus the map, the Zerg's plan from taxonomy/plans.py (opening, hatcheries, first tech; 11 classes, every one of the
+  17,176 TvZ games labelled), boosted trees as eval/judge.py's. Written before the first fit (the advisor's points):
+  grouped 5-fold over the 3,059 modern games (each scored once by a model that never saw it), both eras with the modern
+  weighted ten to one, at 4, 6 and 8 minutes on the games still running, "other" (rare plans and games that ended
+  undecided) left out of scoring; the joint plan and its three parts, each against the floor (the modern plans' shares
+  on that map among games still running), answers.py's read for the tech part, and a ceiling (the same model fed the
+  Zerg's true units). A first try overfit the games (a game gives 16 samples of one label: 0.99-1.00 training
+  accuracy, 0.53-0.67 held out, log-loss 5-8), so the trees are regularized (200 samples a leaf, a slower rate, L2).
+  On the pros' held-out games (Brier, lower is better; model / floor / ceiling): the joint plan 0.499 / 0.595 / 0.421
+  at 4:00, 0.468 / 0.590 / 0.359 at 6:00, 0.450 / 0.581 / 0.398 at 8:00, the model better than the floor at each minute
+  (-0.096, -0.122, -0.131, every interval clear of zero): the gate's first condition holds on the pros. By part: the
+  hatcheries gain most (-0.083, -0.128, -0.132), the opening less (-0.083, -0.042, -0.034); the tech nothing at 4:00
+  (no Zerg tech building seen yet in 84% of games; the ceiling 0.076 for the floor's 0.121), as answers.py at 6:00
+  (0.073, answers 0.072), better at 8:00 (0.036, answers 0.052, the ceiling 0.029). Saved: runs/plan_belief/
+  TvZ_T_20261123-131911 (a new kind; nothing loads it in play).
+  The same model on Gary's own games (RD285a and HS284a re-simulated, 112 games; the Zerg's plan from its true units by
+  plans.py's rule, the first Lurker standing for Lurker Aspect), the check most likely to change the plan, and it does:
+  Gary had seen a Zerg tech building by 4:00 in 0% of its games (the pros 15%), by 6:00 in 5% (60%), by 8:00 in 20%
+  (77%). The model's Brier there rises with time, 0.429, 0.534, 0.646, worse than the pros' floor (0.480, 0.477, 0.472)
+  from 6:00: having seen nothing by 8:00 is evidence for a pro, who looks, and none for Gary, who doesn't. And gz1 and
+  gz1dev play one plan (hatchery first, 3 hatcheries, spire first) in 85 of the 112 games, so the plan shares of Gary's
+  own games (0.363) beat every model. Two consequences for Phase 1: the belief can't be judged, or used, until Gary
+  scouts (the seen / confirmed absent / unscouted states of REFOCUS §3.1 exist exactly for this: absence counts only
+  where Gary looked); and a fixed set of Zerg plans to play against (the four scripted archetypes) is needed to judge
+  any of it, as gz1's one plan teaches nothing. What to do first is the user's call.
 - **gt1dev plays outside TvZ again (2026-11-23, gt0.50dev, the user's call after the remeasure).** Since gt0.46dev
   option calm loaded its model at the start of every game and only TvZ has one, so gt1dev couldn't start a TvT or PvT
   game (gp1dev's PvT rounds against it included). The calm layer now stands aside where it has no model (a note in the
