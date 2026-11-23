@@ -2119,8 +2119,8 @@ plan and the full log).
       722-1,046 at 8:00-10:00, supply blocked at 96/100 at 9:00. On 2026-11-12 (gt0.35dev, bio) the same opponent
       left it five bases and 61 SCVs.
     - The Zerg (style 42, "hatchery first, 2 hatcheries, spire first"): lost, the computer ended it at 14:45 (60,488 to
-      38,831 in the client's score). It sat on 11 to 16 Drones from 3:00 to 13:00 (the pros of that style are far past
-      that by 6:00): the macro's favourite Drone waited for money early (68 waits by 4:00), then the model drew
+      38,831 in the client's score). It sat on 11 to 16 Drones from 3:00 to 13:00 (not compared with the pros of that
+      style here): the macro's favourite Drone waited for money early (68 waits by 4:00), then the model drew
       Zerglings, a Lair, a Spire and from 6:00 Mutalisks; supply blocked at 26/26, 34/34 and 42/42 (5, 6 and 8 minutes),
       gas banked 790 at 8:00; 31 of its units died at 12:00, a Hatchery at 13-14.
     - The Protoss (style 22, "nexus first, stargate first"): the best of the three, 50 Probes, four Nexuses and 148/179
