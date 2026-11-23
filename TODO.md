@@ -4,7 +4,32 @@ Open work is tracked in the [GitHub issues](https://github.com/vibrunazo/gary/is
 grouped by area, newest thinking first (reconciled with the code on 2026-10-25). When an item is done its issue is
 closed and its line leaves this file; docs/PROGRESS.md keeps what was done and how it measured.
 
-## Direction (2026-11-12): judged per situation, in every matchup
+## Direction (2026-11-23): docs/REFOCUS.md v2.0 (the user's call)
+
+The plan in docs/REFOCUS.md: build the upper layers of docs/ARCHITECTURE.md that don't exist yet (an enemy-plan
+belief, a persistent strategy card, branches chosen by the pros' conditional choice frequencies, templated
+explanations from the records) inside gt1dev, on its existing seams, the TvZ Terran first; no new build line, no
+delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays parked.
+
+- **Phase 0 (3-5 days): measurement and housekeeping.** Nothing in the dev build changes but the seed fix until the
+  remeasure is in.
+  1. #64 seeds: done (the army's and the calm layer's draws from the game's seed; every build, gt0.21, gt0.49dev).
+  2. gt1dev against gt1 remeasured: two 96-game rounds against gz1, paired (RD285a gt0.49dev, RP285a gt0.21; --gg 0;
+     MDE 0.11 written first; fidelity per window): running.
+  3. answers.py counted in a full gt1dev round: done (HS284a: 158 forced goals, 3.7% of the macro's decisions, 94
+     turret vetoes, no tech scans, in 16 games).
+  4. One watched live game per race: done (2026-11-23; docs/PROGRESS.md).
+  5. The bridge's new fields over LAN (tools/parity.py): done, 1:1 in every field, but stim and ammo only at zero.
+  6. The docs: this section, docs/PROGRESS.md's top summary (rl1), docs/ARCHITECTURE.md §6.8 (the pro-frequency
+     departure): done.
+  Found in Phase 0, left for after the remeasure: gt1dev can't start a game outside TvZ (option calm has only a TvZ
+  model; gp1dev's PvT rounds against gt1dev would fail).
+- **Phase 1 (4 weeks, in front):** the TvZ strategic trunk and five templated questions, with the gate written in
+  docs/REFOCUS.md §4.3. Beside it (weeks 2-4), the three-arm army persistence test.
+- **Maintenance cap:** other fidelity work only for regressions caught in watched games. Paused: (c)'s unstarted
+  items (the army at home at 15-20, the PvT tanks) and units alone (below).
+
+## The previous direction (2026-11-12): judged per situation, in every matchup (superseded 2026-11-23)
 
 After the three live games (docs/PROGRESS.md): the rounds and the gap score never showed that Gary's tanks don't
 siege against a Zerg, and one viewing did. The work is judged by what a pro would do in the situation Gary is in
@@ -38,10 +63,11 @@ c. The upstream decisions ahead of the remaining abilities: the army's positioni
    layer (the user's call): folded into gt1dev (gt0.46dev; a new fighter's first rest the pros' 8 s). Army orders now go
    to whole clusters (gt0.48dev and every build: the commit orders the pros' size, the spread nearer). Units alone
    unchanged (0.40, the pros 0.20; read in docs/PROGRESS.md, parked 2026-11-22: the calm layer's one-unit orders the
-   next lever). Next: home at 15-20 (the old army stays home twice the pros'), the PvT tanks.
-d. One live game a race, watched, before more decoder work.
+   next lever). Paused 2026-11-23 under REFOCUS's maintenance cap: home at 15-20 (the old army stays home twice the
+   pros'), the PvT tanks.
+d. One live game a race, watched, before more decoder work: done 2026-11-23 (Phase 0, step 4).
 e. gt1dev against gt1 measured again (paired, and the fidelity measures per window: -0.188 [-0.302, -0.078] on
-   2026-11-11), since promotion turns on it.
+   2026-11-11), since promotion turns on it: Phase 0, step 2 (RD285a, RP285a).
 f. A 16-game round read only for a severalfold change in a rate, never for a ranking (the judge's ranking moves
    about 0.06 between rounds of one build).
 
