@@ -191,7 +191,7 @@ file, and holds the order in which it gets paid.
 | **Strategy Compiler** | Turn a natural-language request into a valid *z*: resolve build names via the taxonomy (§7.3) and sample a real human *z* from that cluster. Ask for clarification or reject if impossible. | text → `StrategySpec` | LLM model/prompt versions; template library |
 | **Replay Extractor** | Turn a replay into *z* for one player: build order, timing targets, style statistics. Optionally suggest branches for human review. | `.rep` → `StrategySpec` | screp-only (commands) vs. resim (full state) |
 | **Opponent Model** | Infers hidden information from what the player has actually seen. Main output: a probability distribution over the opponent's *z* cluster (from the build taxonomy, §7.3), plus other beliefs (army size, tech, proxy). **Never reads hidden game state.** | `Observation`, `Fact[]` → `Belief[]` | NN belief model (default; trained on replays with hindsight labels), Bayesian/symbolic, fine-tuned decision model |
-| **Strategy Layer** | **Plan Supervisor:** hard branch rules and constraints from *z* (always on; e.g. no switching in strict mode). **Strategy Selector:** picks among allowed branches using learned win-rate statistics conditioned on beliefs and context (§6.8). Logs every switch with its evidence. | `Fact[]`, `Belief[]`, *z* → `z_active` | `supervisor_branch` slot providers: rules, stats table (§6.8), NN intent head, fine-tuned decision model |
+| **Strategy Layer** | **Plan Supervisor:** hard branch rules and constraints from *z* (always on; e.g. no switching in strict mode). **Strategy Selector:** picks among allowed branches using learned win-rate statistics conditioned on beliefs and context (§6.8; its first version scores by the pros' conditional choice frequencies instead, the departure noted there). Logs every switch with its evidence. | `Fact[]`, `Belief[]`, *z* → `z_active` | `supervisor_branch` slot providers: rules, stats table (§6.8), NN intent head, fine-tuned decision model |
 | **Policy** | Perception → intent → human-interface actions, conditioned on *z*, *h* and interface state. Hard limits are applied as action masks. | obs, `z_active`, *h*, `InterfaceState` → `Intent`, `HumanAction` | Backbone size/architecture, training recipe, checkpoint |
 | **Macro Executor** | Turns the active *z* segment into production, tech, supply and building-placement actions. | `z_active`, `Fact[]`, `InterfaceState` → `HumanAction` | `scripted` (build queue plus placement library; default early on), `neural` (the policy does macro itself) |
 | **Attention Arbiter** | Gives every executor's actions **one** APM bucket and **one** camera. Decides whose action goes next. Emits arbiter events (e.g. "macro starved for 9 s during fight"). | candidate `HumanAction`s → one `HumanAction` per step | Priority rules (default), profile-weighted, learned (later) |
@@ -473,6 +473,17 @@ How the code maps onto these executors, the finer layers below them (fight inten
 - Both run through the same arbiter and interface, so they can be compared directly (§9.2).
 
 ### 6.8 Learned symbolic strategy: the Strategy Selector
+
+> **Departure, adopted 2026-11-23 (docs/REFOCUS.md v2.0, §3.2 and §6 item 7).** The first version of the selector
+> does **not** decide by win rates. It scores branches by the pros' conditional choice frequency
+> P_pro(branch | belief, context), from the same backed-off counted table, with a support floor (at least 25 modern
+> games after backoff, else the parent cell) and the cell's `n` printed. Observational pro win rates are confounded
+> (pros pick options when they are already favourable), and win rates from Gary's own games against weak opponents
+> taught v0.19's selector the two-Barracks cheese (1.5% of pro games). So three quantities are kept apart in tables,
+> records and explanations: what the pros do (the deciding score, with `n` and an interval), how those pro games ended
+> (printed as context, never decided on), and what the branch does for Gary (the paired-branch outcome difference from
+> `eval/pairs.py` on Gary's own games: the only evidence allowed to override the pros' frequency later). The win-rate
+> rule below is the design this departs from, kept for the later versions that earn it.
 
 A symbolic decision-maker that **learns by counting outcomes**. It's the same idea as a fighting-game AI that tries jump / block / attack against an unknown enemy move, records which response worked, and picks the best next time. Formally it's a **contextual bandit** over a lookup table. Every number it uses can be printed.
 

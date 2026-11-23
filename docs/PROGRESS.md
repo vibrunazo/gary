@@ -22,9 +22,12 @@ Where it stands (2026-11-23): one Gary for every race (the refactor, 2026-10-20)
 (gt0.49dev), `gp1dev` (gp0.39dev) and `gz1dev` (gz0.32dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
-that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
-on paired branches with the forced arm locked at the pros' hazard, learned offline: at chance on 1,004
-pairs so far (docs/SELF_PLAY.md).
+that held, on the Terran's fight roles (rl1), was in gt1dev from gt0.6dev to gt0.35dev: gt0.36dev replaced it with
+the role model learned from the pros' units with siege, unsiege and mines (tvzmodes), since rl1 has no siege. RL is
+parked (TODO.md); the army's commit decision on paired branches, learned offline, was at chance on 1,004 pairs
+(docs/SELF_PLAY.md). Since 2026-11-23 the direction is docs/REFOCUS.md v2.0 (TODO.md, Direction): Phase 0 (the
+remeasure and housekeeping), then the TvZ strategic trunk (an enemy-plan belief, a persistent strategy card, branches
+by the pros' conditional choice frequencies, templated explanations) in front, with a three-arm army test beside it.
 
 | Phase | Status | What exists | What's missing for its exit criteria |
 |---|---|---|---|
@@ -36,7 +39,7 @@ pairs so far (docs/SELF_PLAY.md).
 | P2b First playable | ◐ | Full games against people, offline, via the bridge (two human games so far, both lost by Gary; their failure lists shaped v0.26-v0.27 and the classifier); learned macro steered by build style, the style chosen per map (v0.19) | Build timings within tolerance (≥18/20 unharassed runs); supply blocks and idle production under harass within the human band |
 | P2c Debug viewer | ● | POV viewer with cursor, clicks and every action in words; videos | Trace overlays beyond actions |
 | P3 BC full game | ◐ | Separate imitation models for macro, army movement and fights, for the Terran and (Gary-Z) the Zerg; a role model learned before contact as well as in it, each side; belief models of the enemy army, each side (frozen; off by 11.7 supply on league games against 5.9 on pros: Gary's armies aren't the pros'); a value network for the Terran (`gary/policy/value.py`); the humanlikeness classifier and its pro-distance table (`eval/humanlike.py`) | One policy with intent and belief heads, the Opponent Model; Gary closer to the pros in the classifier's table (it tells them apart at AUC 0.99+) |
-| **P4 RL** | **◐ (current)** | RL on fights (scenarios, episodes): the first run that held (rl1, the Terran's roles, in gt1dev); macro from branches (nothing: a decision is worth sd 130 against chaos's 512); per game: the strategy selector (v0.19: losses 57 → 30 of 333), the early-defense switch; the self-play skeleton: both sides on the one agent, the league (`eval/league.py`: paired 96-game rounds, the gap to modern pros with its spread), the dev manifests without stop-gaps, the TvZ pairing balanced (38% each side); the army's commit decision on locked paired branches, learned offline (`train/commit_pairs.py`: at chance on 1,004 pairs); a stop-gap imitated from its advice (the hunt: `huntadvice`, `--rule-labels`) | A learned layer beating its imitation start in 96 paired games on the commit decision; Gary-Z's commit pairs; Elo gain at equal humanlikeness |
+| P4 RL | ◐ (parked) | RL on fights (scenarios, episodes): the first run that held (rl1, the Terran's roles; in gt1dev until gt0.36dev, replaced by the imitation role model with siege and mines); macro from branches (nothing: a decision is worth sd 130 against chaos's 512); per game: the strategy selector (v0.19: losses 57 → 30 of 333), the early-defense switch; the self-play skeleton: both sides on the one agent, the league (`eval/league.py`: paired 96-game rounds, the gap to modern pros with its spread), the dev manifests without stop-gaps, the TvZ pairing balanced (38% each side); the army's commit decision on locked paired branches, learned offline (`train/commit_pairs.py`: at chance on 1,004 pairs); a stop-gap imitated from its advice (the hunt: `huntadvice`, `--rule-labels`) | A learned layer beating its imitation start in 96 paired games on the commit decision; Gary-Z's commit pairs; Elo gain at equal humanlikeness |
 | P5 Explain, P5b Broadcast | — | (The POV viewer's action overlay is a start) | |
 | P6 Deploy | ◐ | Remastered bridge for offline games, 1:1 with OpenBW (a LAN replay re-simulates to the same state) | Pro blind-test sessions; the bridge's known bugs (a supply depot placed a tile off at expansions) |
 
@@ -51,7 +54,7 @@ pairs so far (docs/SELF_PLAY.md).
 | Macro decisions | What to build, train, research, and when | Learned from the pros (the shared Terran model over every matchup's games, both eras, the matchup, year and map as inputs); the model's units queued in the building two deep (gt0.9); stop-gaps on top in gt1 (the pros' caps, the SCV cap, the bank escape, the under-half rule, summed odds for one-offs and expansions, answers to lurkers and mutalisks, the early-pool posture: AGENTS.md's register); gt1dev without the caps, SCV cap and bank escape, drawing from the model's odds (dice) | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ○ | — |
 | Macro executor | Carries out macro decisions: placement, production, gas, mining (§5) | Shared Executor with a Terran and a Zerg plug (refactor Phase 1): any Terran building, unit, add-on (placed where it fits, gt0.6), research, upgrade, expansion; trains into a busy building's queue (gt0.9); Zerg larva and building morphs, drone builds, overlords ahead (gz1) | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Army decisions | Where armies go, move vs attack, whether a fight is worth taking | Clusters with commitments (keep, engage, move), learned from the pros, drawn from their odds; the static guard a nudge on engages into static defense (gt0.10); the hunt far ahead and squad search, the overlord hunt (stop-gaps, off in gt1dev, where the hunt runs in advice mode); control groups by type in gt1dev and gz1 | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ○ | ○ | — |
-| Micro | Unit control in fights: stim, spread, siege, focus fire, spells | A role per unit every half second: by hand rules in contact in gt1 (RoleAhead), by the model learned from the pros' units in gt1dev (attended units, the again decision, several orders a turn, its RL run rl1); before contact the role model in both; stim learned from the pros; marines loaded into bunkers by rule | ◐ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | — | — | — | — |
+| Micro | Unit control in fights: stim, spread, siege, focus fire, spells | A role per unit every half second: by hand rules in contact in gt1 (RoleAhead), by the model learned from the pros' units in gt1dev (attended units, the again decision, several orders a turn; its RL run rl1 until gt0.36dev, then the model with siege, unsiege and mines); before contact the role model in both; stim learned from the pros; marines loaded into bunkers by rule | ◐ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | — | — | — | — |
 | Scouting | Finding out what the opponent does | One worker at 9 SCVs to the enemy start locations | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | — | — | — |
 | Reflexes | Quick reactions outside the plan (worker defense, repair, retreat) | Scripted worker pull, 3 workers per attacker, not against flyers or more than 8 zerg supply (v0.26); unfinished buildings get a new SCV; SCVs repair a bunker under attack, and 3 a threatened turret (v0.27); burrowed lurkers near Gary's fighters scanned (v0.22) | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | — | — | — |
 | Attention arbiter | One camera and one APM budget shared by all tasks (§6.7) | One task at a time in a fixed priority order (Gary-Z's turns as its rotate option); leases enforced by priority since v0.10 | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
@@ -60,7 +63,7 @@ pairs so far (docs/SELF_PLAY.md).
 | Replay pipeline | Inventory, build orders, resim, desync checks (§7.1–7.2) | 92k replays indexed (18.9k Remastered era); TvZ, ZvZ, TvT re-simulated, Protoss mostly its modern games; fog-of-war views | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
 | Build taxonomy | Build styles discovered from replays (§7.3) | TvZ clusters with readable rules; style labels for ~45% of players | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
 | Training sets | Data for the learned models | Macro, army (v5 for TvZ: known enemy buildings, cells unseen, static defense) and fight sets for all six matchups; the response sets (`ingest/response_dataset.py`): the pros' units' roles before contact and in it, each side | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | — | — |
-| Learning beyond imitation | Outcome-weighted learning, reinforcement learning | A value network (reads who is ahead); the roles RL (rl1, the first run that held, in gt1dev); the army's commit decision on locked paired branches learned offline (`train/commit_pairs.py`: at chance so far); a stop-gap's advice as labels (`--rule-labels`); the rules in docs/SELF_PLAY.md | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | — | — | — |
+| Learning beyond imitation | Outcome-weighted learning, reinforcement learning | A value network (reads who is ahead; the league's gg since 2026-11-18); the roles RL (rl1, the first run that held, in gt1dev until gt0.36dev); the army's commit decision on locked paired branches learned offline (`train/commit_pairs.py`: at chance so far); a stop-gap's advice as labels (`--rule-labels`); the rules in docs/SELF_PLAY.md | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | — | — | — |
 | POV viewer | Watch any game from Gary's screen (`viewer/`) | Cursor, clicks, every action in words; Remastered replays; videos | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | — |
 | Trace | Gary's decisions and reasons, recorded (§6.5) | Decision log with model probabilities and fight estimates; POV action log; the learned layers' decisions per league game (`gary/decision_log.py`: inputs, the drawn decision, its log-probability) | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | — |
 | Evaluation | Matches against opponents, many seeds, a scoreboard (§9) | `eval/league.py`: Terran against Zerg, paired 96-game rounds on the ladder maps; `eval/gap_windows.py`: the gap to modern pros per window with a bootstrap spread; `eval/attacks.py`: the attacks' trade and what began each; `eval/humanlike.py`; `eval/scenarios.py`; `eval/why.py` on every game's records | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ○ | ○ | — |
@@ -81,7 +84,7 @@ definition in gary/agent/manifests.py and in the entries of "Next" below:
   the model's odds (gt0.11dev), its buildings placed beyond a full main (widespot, gt0.12dev), the macro model's inputs as its replays count
   them (seenall, gt0.13dev), the army model's counts as its dataset's (armyseen, gt0.14dev), its
   building history as the replays count it (builtcount, gt0.15dev), its unit counts too (unitcount, gt0.16dev), the pros' build styles by
-  their shares (styleroll, gt0.17dev), without the early-pool posture (noalarm, gt0.18dev), the macro model trained with every game's style (stylev2, gt0.19dev), the workers on gas its decision (gastarget, gt0.20dev), against a Protoss its PvT role model (pvtroles, gt0.21dev), its siege and mines there (pvtmodes, modedice, gt0.22dev), against a Terran its TvT role model (mirrorroles, gt0.23dev), its macro model trained with every matchup's styles (allstyles, gt0.24dev).
+  their shares (styleroll, gt0.17dev), without the early-pool posture (noalarm, gt0.18dev), the macro model trained with every game's style (stylev2, gt0.19dev), the workers on gas its decision (gastarget, gt0.20dev), against a Protoss its PvT role model (pvtroles, gt0.21dev), its siege and mines there (pvtmodes, modedice, gt0.22dev), against a Terran its TvT role model (mirrorroles, gt0.23dev), its macro model trained with every matchup's styles (allstyles, gt0.24dev); rl1 replaced by the role model with siege, unsiege and mines (tvzmodes, gt0.36dev); the later versions in the entries below.
 - **gz0.1-gz0.2** (2026-10-20/22): the Zerg on the shared agent, then its army on control groups by type.
   **gz1dev**: gz1 without its stop-gaps (gz0.2dev), its overlord history its own (gz0.3dev), seenall (gz0.4dev), enemy HP as its data (zfullhp, gz0.5dev), its eggs counted as its data
   (eggs, gz0.6dev), the drones on gas its macro model's decision (zgastarget, gz0.7dev), its buildings' history its own (ownbuilds, gz0.8dev), three builds parked at once and the gas head reading waiting decisions (parkmany, gaswaits, gz0.9dev), against a Protoss its PvZ role model (pvzroles, gz0.10dev), one macro model for every matchup with every matchup's styles and against a Zerg its ZvZ role model (allstyles, mirrorroles, gz0.11dev), its own decision history (ownhist, gz0.12dev).
@@ -2091,6 +2094,53 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **Phase 0's audit, live games and bridge check (2026-11-23; docs/REFOCUS.md Phase 0, steps 3-5).**
+  - *How often answers.py decides in gt1dev (step 3; the records of HS284a, gt0.48dev against gz1dev, 16 games, no
+    new games).* It still runs in gt1dev (inherited from gt1; option `unscripted` doesn't turn it off). 158 forced
+    macro goals, 3.7% of the Terran's 4,266 macro decisions, 0 to 29 a game: Missile Turrets in a mineral line against
+    mutalisks 53, Science Facility 29, Science Vessels 28, Siege Tanks 24, Irradiate 11, Siege Mode 7, Control Tower 3,
+    Machine Shop 2, Academy 1 (the lurker answer's list in its order). 94 of the model's own decisions set aside, all
+    Missile Turrets (`allows`: one a base against lurkers, none outside a mineral line against mutalisks until each
+    line has its own). No tech scan of the Zerg's main (0 in 16 games: the plan was read before 6:30, or no Comsat).
+    The plan it read: lurkers in 6 games, mutalisks in 6, both in 2, neither in 2; its first forced goal at 6.3 to 9.5
+    minutes (one at 14.2). So it is a live owner of the Terran's tech and turrets in two games of three, which the
+    Phase 1 single-owner work removes one rule at a time.
+  - *One watched live game per race (step 4; the user's go for mouse and keys this session; gt0.49dev, gz0.32dev,
+    gp0.39dev, each 15 minutes against the computer Zerg on Fighting Spirit 1.3 in the real client; runs/live/p0_t,
+    p0_z, p0_p: replay, POV, records, trace, snapshots; watched by a client screenshot every 2.5 minutes, the per-minute
+    log and the records).* What was seen:
+    - Every order went through the bridge: 684 sent (4 retried, 2 waiting) for the Terran, 400 (2 retried, 3 dropped)
+      for the Zerg, 660 (30 retried, 8 waiting, 2 dropped) for the Protoss; no bridge fault.
+    - The Terran (style 2, "Factory and vultures"): one base to 3:45, two to 15:00, 57 SCVs at 10:00. It saw no enemy
+      fighter between 1:51 and 9:43; then its army of Vultures and Goliaths, out on the map 55 tiles from its
+      buildings (the commit layer's last moves), met 19 Hydralisks and 2 Lurkers at 9:44 and died over 15 s (21 deaths
+      at 9:45-11:20), and the Zerg walked into the natural: 57 SCVs at 10:00, 37 at 11:00, a Command Center lost.
+      From 6 to 11 minutes the macro drew 16 Vultures, 10 Goliaths and 2 Siege Tanks on 6 gas workers: gas banked
+      722-1,046 at 8:00-10:00, supply blocked at 96/100 at 9:00. On 2026-11-12 (gt0.35dev, bio) the same opponent
+      left it five bases and 61 SCVs.
+    - The Zerg (style 42, "hatchery first, 2 hatcheries, spire first"): lost, the computer ended it at 14:45 (60,488 to
+      38,831 in the client's score). It sat on 11 to 16 Drones from 3:00 to 13:00 (the pros of that style are far past
+      that by 6:00): the macro's favourite Drone waited for money early (68 waits by 4:00), then the model drew
+      Zerglings, a Lair, a Spire and from 6:00 Mutalisks; supply blocked at 26/26, 34/34 and 42/42 (5, 6 and 8 minutes),
+      gas banked 790 at 8:00; 31 of its units died at 12:00, a Hatchery at 13-14.
+    - The Protoss (style 22, "nexus first, stargate first"): the best of the three, 50 Probes, four Nexuses and 148/179
+      supply at 15:00, gas banked 546-618 at 8:00-10:00. Its 30 retried orders were one spot: a Forge and Photon Cannons
+      at (93-94, 14) that the game wouldn't place twice ("its Probe stopped and nothing started"), tried again and again
+      (a placement fault to read).
+    - The client's screen stayed on each side's main in every screenshot, while Gary's own camera (its POV log) is at
+      its first spot only 11-13% of the time: the bridge doesn't move the client's view to Gary's camera, so watching a
+      live game means watching Gary's POV (viewer/), not the client's window.
+    - The computer Zerg varies (its 2026-11-12 games were passive): these three are anecdotes, read for what a viewer
+      notices, not measures. Noted for the remeasure and Phase 1: no scouting between 2 and 10 minutes, and a strategy
+      that doesn't read the enemy's plan (the Terran met Hydralisk-Lurker with Vultures and Goliaths), which is what the
+      enemy-plan belief and the strategy card are for.
+  - *The bridge 1:1 with OpenBW, its new fields included (step 5).* A LAN game, gt1dev against an idle second client
+    (Fighting Spirit 1.3, 12 minutes; runs/live/p0_lan), its replay re-simulated in OpenBW and compared with the bridge's
+    snapshots each second (adapters/scr_bridge/tools/parity.py): 682 snapshots, 120,471 unit comparisons, 0 mismatches
+    in every field (stim, ammo and ammo_max with the rest), no unit in one game only, the players' minerals, gas and
+    supply equal throughout. The new fields read without error and agree, but only at zero: nothing stimmed (no enemy
+    fighters to stim against) and there were no Reavers or Carriers, so their non-zero values are still unverified;
+    that needs a LAN game with a fight (a second Gary as the guest) or a Protoss with Reavers.
 - **gt1dev against gt1 remeasured (2026-11-23; docs/REFOCUS.md Phase 0, step 2; the user's approval).** Why: the
   standing -0.188 [-0.302, -0.078] is from 2026-11-11, before the mode and event models, the calm layer, the commit
   cluster minimum and the army hands; the promotion rule (AGENTS.md) turns on it. Written before it: two 96-game rounds
