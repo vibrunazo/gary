@@ -85,3 +85,6 @@ desktop.ini
 
 # point-of-view logs from live games (data, like replays)
 *.pov.jsonl
+
+# the Claude desktop app's local preview configuration
+.claude/
