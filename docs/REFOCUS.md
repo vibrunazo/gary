@@ -1,504 +1,412 @@
-# Gary — Neuro-Symbolic Refocus & Implementation Plan (RFC)
+# Gary — Strategic Trunk, Explainability & Control-Flow Plan (v2.0)
 
-Status: **Draft v1.1 for Multi-Agent Adversarial Review** (2026-11-22)  
-Scope: Standalone architectural refocus plan synthesizing codebase audits, empirical findings from `docs/PROGRESS.md`, `docs/CONTROL.md`, `docs/SELF_PLAY.md`, `TODO.md`, and `AGENTS.md`, record inspection, and verified neuro-symbolic AI/RL literature.  
-Audience: Project owner and reviewing AI agents debating pros, cons, risks, and implementation scope before code changes begin.
+Status: **Draft v2.0** (2026-11-23, revised after multi-agent review and source audit)  
+Scope: Implementation plan for completing the unbuilt upper layers of `docs/ARCHITECTURE.md` (§6.1, §6.8, §7.5, §7.6, §8) inside Gary's existing provider architecture, with pre-written gates, time boxes, and a staged games budget.  
+Audience: Project owner and implementing agents.
 
 ---
 
 ## Executive Summary
 
-Gary has built an unusually strong foundation for a StarCraft: Brood War AI: a genuine single-pair-of-human-hands interface (`gary/interface.py`), a 1:1 offline StarCraft: Remastered bridge (`adapters/scr_bridge/`), a 92k-replay pipeline with modern SC:R re-simulation (`resim/`, `ingest/`), deterministic branching games (`eval/pairs.py`), unified decision records (`gary/decision_log.py`, `eval/why.py`), and a race-agnostic agent core (`gary/race.py`, `gary/agent/executor.py`).
+Gary already has a strong foundation: a single pair of human hands (`gary/interface.py`), a 1:1 offline StarCraft: Remastered bridge (`adapters/scr_bridge/`), an indexed replay corpus (~92k replays total; ~18.9k modern SC:R era across matchups, including 2,683 modern TvZ games in `data/interim/taxonomy/v2/TvZ_Z.json`), deterministic branching games (`eval/pairs.py`), unified decision records (`gary/decision_log.py`, `eval/why.py`, `gary/policy/attribution.py`), a race-agnostic execution core (`gary/race.py`, `gary/agent/executor.py`), and a working per-situation diagnostic loop (`eval/judge.py`, `eval/pipe_table.py`).
 
-**However, the current development trajectory is unlikely to reach Gary's core product goals.** Over October–November 2026, Gary quietly inverted its intended neuro-symbolic architecture:
-1. In the playing builds (`gt1`, `gz1`), hand-coded symbolic **stop-gaps sat at the leaves and side-channels** (`RoleAhead`, `PullRule`, `LoadRule`, `hunt4`, `caps`, `bank_escape`, `answers.py`), overriding neural outputs and sequestering units—which broke credit assignment and made reinforcement learning (RL) impossible.
-2. In the dev builds (`gt1dev`, `gz1dev`, `gp1dev`), removing those leaf stop-gaps left **no symbolic strategic or tactical trunk**. Instead, Gary became a stack of ~10 independent, stateless behavior-cloning (BC) models (`MacroNet`, `ArmyNet/commit`, `CalmNet`, `CalmFarNet`, `RoleNet`, `ModeModel`, `EventModel`, `StimModel`, `CastModel`, `PlacementModel`) glued together by ~30 manifest flags and stochastic decoders.
-3. Because the active dev agent holds only a static style integer rolled at 0:00 and samples per-tick marginal odds, it suffers from compounding drift, cannot learn from full-game RL at workstation compute, and **cannot answer "why did you make that strategic choice?" in a way useful to someone learning StarCraft**.
+**Where the current trajectory succeeds and where it cannot reach the design goals:**
+- **G1 (tactical/execution fidelity):** The `TODO.md` (2026-11-12) judge-and-pipe loop is moving targeted fidelity metrics severalfold (e.g., Terran tanks sieging from 0% to 58–61% in TvZ fight moments; commit orders matching pro cluster sizes; calm first-rest matching the pros' 8 s). The bottom-up imitation stack is **not** a dead end and should **not** be torn down.
+- **G3 (steerability) and G5 (learner explainability):** More ability, pipe, and decoder fixes will **never** deliver G3 or G5, because the components they require are unbuilt: an enemy-plan belief in play (`TODO #40`), a persistent strategic plan / recipe card (`TODO #26`), a prompt-to-plan compiler (`ARCHITECTURE.md:191`), and discrete logged branch alternatives (`ARCHITECTURE.md` §8). In addition, `TODO.md`'s ability-by-matchup grid has no stopping rule, so local fidelity work continuously crowds out upper-stack work.
 
-**This plan proposes a targeted refocus—not a rewrite:**
-- **Keep** the hard-won infrastructure (human hands, SC:R bridge, replay/resim pipeline, deterministic branching, race-agnostic executor, and useful low-level neural perception/micro models).
-- **Flip the neuro-symbolic stack right-side up** into a modular **Neuro-Symbolic Sandwich**:
-  `NN Perception (Concept Bottleneck)` → `Factored Symbolic Strategic & Tactical Trunk (with Learned Concept-Conditioned Scoring)` → `Goal-Conditioned NN Leaf Executors (Exclusive Unit Ownership, Zero Leaf Stop-Gaps)` → `Human Interface & Attention Arbiter`.
-- **Add an offline Neural → Symbolic Discovery Loop** (phase-level OOD novelty detection + `ValueNet` residual concept invention + human/LLM library curation) so symbolic structure never freezes the meta or prevents hybrid builds.
-- **Prove the full loop on one matchup first (TvZ, Terran)**, gated by live human sparring games and counterfactual-verified learner Q&As, while keeping every component behind versioned swappable contracts so competing providers can be benchmarked empirically.
+**This plan is a priority and control-flow refocus executed incrementally inside the existing agent — not a clean-slate rewrite:**
+1. **No new build line (`gt_ns`) and no premature delete list.** Build the missing upper layers of `docs/ARCHITECTURE.md` on the existing provider seams (`gary/policy/belief.py`, `gary/agent/selector.py`, `gary/decision_log.py`, `gary/agent/manifests.py`) inside `gt1dev`. Existing modules and stop-gaps stay until a successor holds their `AGENTS.md` measure, removed **one at a time**.
+2. **Real control-flow shift up the stack:** Replace the current static `style` roll at 0:00 and unleased multi-rule macro contention with a persistent `StrategyState` (opening recipe card + reactive directives), a joint enemy-plan belief `P(enemy_z | seen)`, single-owner macro resource control, and structured coaching traces.
+3. **Three explicit additions/departures beyond `docs/ARCHITECTURE.md`:**
+   - **Pro conditional choice frequencies as V1 default scorer** ($P_{\text{pro}}(\text{branch} \mid \text{belief}, \text{context})$ with a support floor and printed `n`), explicitly departing from `ARCHITECTURE.md:194` (§6.8 win-rate tables) because observational pro win rates are confounded and self-play win rates against weak `gz1` previously taught style-4 cheese. Causal outcome overrides require randomized `eval/pairs.py` branches on Gary's own games.
+   - **Phase 1 (belief + recipe card + counted branching + 5 templated Q&As) moves to the foreground** with a pre-written gate and 4-week time box, capping other G1 fidelity work to regressions caught in watched games.
+   - **Held army intent tested empirically alongside Phase 1** via a staged 3-arm persistence ablation (current vs. learned hold/exit vs. minimal owned intent), rather than assuming a large hand-authored squad-option rewrite upfront.
+4. **Scope & cuts:** Build the vertical slice in **TvZ Terran** (tested against a fixed multi-archetype scripted Zerg suite as well as `gz1`/`gz1dev`), keep low-rate judge monitors on other matchups, and run **1 Zerg + 1 Protoss dev smoke game** through `contracts.py` before freezing schemas. **Remove** online bounded leaf RL (RL stays parked) and **defer** Phase 3 residual concept invention until Phase 1 passes its gate.
 
 ---
 
-## 1. Context & Design Goals
+## 1. Context, Design Goals & Honest Standing (2026-11-23)
 
-From `docs/ARCHITECTURE.md` (§1), Gary's purpose is to be a **sparring partner and training tool** for aspiring and strong StarCraft: Brood War players—not a superhuman tournament bot.
+From `docs/ARCHITECTURE.md` (§1), Gary's purpose is to be a **sparring partner and training tool** for StarCraft: Brood War players across all races and matchups—not a superhuman tournament bot.
 
-| Goal | Requirement | Current Standing (2026-11-22) |
+| Goal | Requirement (`ARCHITECTURE.md` §1) | Verified Standing (2026-11-23) |
 |---|---|---|
-| **G1. Real human-like opponent** | Coherent macro, timing, adaptation, and micro that feels like a real player rather than a script or superhuman bot | Partial: plays full 3-race games, but `eval/humanlike.py` separates Gary from pros at AUC 0.99+; live games expose glaring strategic/tactical incoherence |
-| **G2. Human hands in the action space** | Single camera, 12-unit selection, burst APM, reaction delay, hit-testing, fog memory, hidden enemy HP | **Built and strong** (`gary/interface.py`, 1:1 in OpenBW and SC:R) |
-| **G3. Steerable** | Prompt or replay compiles into a `StrategySpec` (*z*) followed reliably ("practice vs. 2-hatch muta 20 times") | Weak: only a static coarse `style` integer (`--style`) fixed at 0:00. Told a style, Terran holds the coarse label (100% in October readings) while inner milestones drift (Factory by 8:00 in 59% vs. pros' 88%; Starport in 10% vs. 55%); Zerg drops the style itself (50% and 17% on styles 0 and 4). No recipe card, no replay-to-plan, no prompt compiler |
-| **G4. Adjustable skill** | One system, multiple human skill bands via `HumanProfile` (*h*) | Unbuilt beyond partial pro-speed hand timings |
-| **G5. Faithfully explainable for learners** | Queryable causal trace answering *why* a strategic/tactical decision was made, what Gary believed, what alternatives lost, and what hand constraint intervened | **Blocked architecturally**: `eval/why.py` logs model odds, dice rolls, and feature-ablation deltas useful for debugging, not coaching |
-| **G6. Modular for experiments** | Swappable providers per pipeline slot selected by manifest and compared on shared harnesses | **Built** (`gary/agent/manifests.py`), though manifests have grown into 30-flag option chains |
+| **G1. Real human-like opponent** | Coherent macro, timing, adaptation, and micro that feels like a real player | **Partial & moving locally:** Plays full 3-race games; `eval/humanlike.py` distinguishes Gary at AUC 0.99+ (a classifier tell detector, not a distance), while pro-distance tables and `eval/judge.py` move on targeted fixes (tanks sieged 0% → 58–61%, cluster order sizes, 8 s first rest). Standing `gt1dev` vs. `gt1` (`-0.188 [-0.302, -0.078]`) is from **2026-11-11** (before `ModeModel` and `Calm`) and awaits remeasurement (`TODO.md` `(e)`). Strategic reactivity and multi-minute army coherence remain unbuilt. |
+| **G2. Human hands in the action space** | Single camera, 12-unit selection, burst APM, reaction delay, hit-testing, fog memory, hidden enemy HP | **Built and strong** (`gary/interface.py`, 1:1 in OpenBW and SC:R; LAN replay `tools/parity.py` check still open per `TODO.md:259–262`). |
+| **G3. Steerable** | Prompt or replay compiles into a `StrategySpec` (*z*) followed reliably ("practice vs. 2-hatch muta 20 times", 18/20 unharassed drills within tolerance) | **Partial / stalled:** Only a static coarse `style` integer (`--style`) fixed at 0:00. After October's `gt0.18dev` drift (Factory 59%, Starport 10%; Zerg style 4 17%), `gt0.20dev` (`gastarget`) reached **95%** style-1 Factory (pros 88%) and **81%** style-2 Starport (pros 69%), and `gz0.8dev`/`gz0.11dev` raised Zerg style 4 to **75%** and style 0 to **62%**. Still missing: concrete recipe cards/timings, strict 18/20 drill obedience (`ARCHITECTURE.md:456, 471`), `--from-replay` extraction, and a prompt compiler (`strategy_compile`). |
+| **G4. Adjustable skill** | One system, multiple human skill bands via `HumanProfile` (*h*) | **Partial:** `HumanProfile` exists for pro and lower bands (`ARCHITECTURE.md:19`); select-to-order timings fitted to pros, remaining hand/click/skill-band parameters unbuilt (`TODO #15`). |
+| **G5. Faithfully explainable for learners** | Queryable causal trace answering *why* a strategic/tactical decision was made, what Gary believed, what alternatives lost, and what hand constraint intervened | **Missing strategic state:** `gary/decision_log.py` (`records/v1`) and `gary/policy/attribution.py` (already excluding unactionable own-unit/supply/time groups) log model odds, dice rolls, interventions, and input ablations for debugging. Records hold no opponent-plan belief, no active recipe card, and no discrete strategic branch choices—so no narrator can produce useful coaching reasons (`TODO #41`). |
+| **G6. Modular for experiments** | Swappable providers per pipeline slot selected by manifest and compared on shared harnesses | **Built** (`gary/agent/manifests.py`: 154 registered option lambdas; `gt1dev` chains ~27 options over `gt1` over `v029`). |
 
 **Hard constraints (non-goals):**
-- **Workstation compute budget:** Solutions cannot require AlphaStar-scale distributed RL (Vinyals et al., 2019).
-- **Offline/custom play only:** Never Battle.net ladder; no Blizzard data or GPL code.
-- **Honest explanations only (`ARCHITECTURE.md` §3 Principle 5):** An LLM narrator may only verbalize what the decision records actually hold—never invent post-hoc StarCraft stories.
+- **Workstation compute budget:** No AlphaStar-scale distributed RL; RL remains parked (`TODO.md:143–145`).
+- **Offline/custom play only:** Never Battle.net ladder; no Blizzard game data or GPL code (`AGENTS.md`).
+- **Honest explanations only (`ARCHITECTURE.md` §3 Principle 5):** Templates and any future narrator may cite only logged decision records—never fabricate post-hoc StarCraft stories. No LLM on the live in-game decision path.
 
-### Concrete Illustration: Why Explainability Fails Today
+### Constructed Illustration: Why Explainability Fails Today
 
-From a representative dev-build game's decision records (`records/v1` schema in `gary/decision_log.py`, queried via `eval/why.py` and `gary/policy/attribution.py`), here is what the most honest possible narrator can say today vs. what a Brood War learner actually needs:
+*(Note: Constructed illustration matching the real `records/v1` schema in `gary/decision_log.py`—where `gt1dev` games genuinely log `layer: style, by: roll` and hundreds of `by: dice` macro/commit draws—not numbers traced to a single committed game file. Pro sample sizes reflect `data/interim/taxonomy/v2/TvZ_Z.json`.)*
 
-| Learner Question | Typical Record Evidence (`eval/why.py` + `attribution.py`) | Best Honest Answer Today | Target Answer After Refocus (Faithful to Records) |
+| Learner Question | Typical `records/v1` Evidence Today | Best Honest Answer Today | Target Answer After Phase 1 + Army Test (Faithful to Records) |
 |---|---|---|---|
-| *"Why did you open this build?"* | `layer: style, choice: 3, by: roll` | *"A die rolled style 3 at the modern pros' share."* | *"Map is Fighting Spirit; against unknown Zerg I opened 1-Rax FE into Bio+Tank (pro win rate 54%, n=312; alternative 1-1-1 is 47%, n=98)."* |
-| *"Why did you build a second Factory at 3:31?"* | First Factory at `p=0.80`; second by dice at `p=0.047` while Starport was `0.549`; zeroing `decisions so far` raises it to `0.80` | *"It wasn't the likely choice; a die came up on a 5% option."* | *"My opponent model puts 76% on 3-Hatch Lurker after seeing Hydralisk Den + Lair at 4:40 with no Spire; switching active tech target from pure Bio to `{bio: 0.6, tank: 0.4}` to get Siege Tanks before Lurkers hit."* |
-| *"Why did you attack at 10:15?"* | `commit: engage` drawn at `0.32` while `keep` was `0.42`; zeroing `money` moves it to `0.36` | *"Keeping was likelier; a die came up engage."* | *"Stim and +1 Attack finished (timing window active), my belief estimates Zerg has ~42 drones and <18 army supply after a fast 3rd, and squad regroup completed → initiated `TIMING_PUSH(enemy_natural)`."* |
-| *"What did you think I was doing?"* | *(none — no opponent plan belief runs in play; TODO #40)* | *"I don't form a belief about your strategy."* | *"At 5:15, seeing 2 hatcheries + Lair finishing and 100 gas mined puts 78% on 2-Hatch Muta (16% 3-Hatch Spire, 6% Lurker)."* |
-| *"Why didn't you stop my drop at 11:00?"* | Arbiter/hands trace logs camera location & APM saturation | *(Already partially answerable from hands trace!)* | *"Detected drop on minimap at 10:56, triggered `DEFEND(main)`, but my camera was on the front fight and APM bucket was empty for 2.8 s."* |
-
-**Core insight:** Building an LLM narrator on top of today's records would produce *faithful nonsense*. Explainability is not a missing UI layer at Phase 5—it is a structural property of whether the agent holds explicit strategic beliefs, plans, and options.
+| *"Why did you open this build?"* | `layer: style, choice: 1, by: roll` | *"A die rolled style 1 at the modern pros' share."* | *"On this map against unknown Zerg, I opened 1-Rax FE following pro replay card `R_142` (modern pros open this line in 62% of TvZ games on 4-player maps, `n=418`)."* |
+| *"Why did you add a Factory + Siege at 4:45?"* | `macro: Factory` drawn at `p=0.05` while `Starport` was `0.55`; zeroing `decisions so far` moves it | *"It wasn't the likely choice; a die came up on a 5% option."* | *"At 4:20 my scout saw Hydralisk Den + Lair with no Spire (`P(lurker_first)=0.74`, prior `0.056` in modern TvZ, `n=150` modern / `3,150` all-era). Activated directive `PREP_VS_LURKER`: pros add Factory + Siege within 60 s in 79% of similar sightings (`n=84`; secondary context: pro win rate 51%)."* |
+| *"What did you think I was doing at 5:15?"* | *(none — `belief.py` estimates army counts/supply only and is off by default; `TODO #40`)* | *"I don't form a belief about your strategy."* | *"At 5:15, seeing 2 hatcheries + Lair finishing and gas mined (3rd natural area confirmed empty at 4:50): `P(2h_muta)=0.76`, `P(3h_spire)=0.15`, `P(lurker)=0.06`, `P(other)=0.03`."* |
+| *"Why did your army pull back at 9:30?"* | `commit: move` drawn at `p=0.32` while `keep` was `0.42` | *"Keeping was likelier; a die came up move."* | *(After 3-arm army test, Arm 3):* *"Squad 1 exited `PUSH(enemy_natural)` into `DEFEND_HOME(main)` when 6 Mutalisks entered main vision at 9:28 (preemption rule; lease transferred cleanly)."* |
+| *"Why didn't you stop my drop at 11:00?"* | `hands`/`order` records already log camera & APM refusals | *(Partially answerable today)* | *"Drop entered vision at 10:56; `DEFEND_HOME(main)` issued orders, but camera was on front fight and APM bucket refused 4 orders over 2.8 s."* |
 
 ---
 
-## 2. Diagnosis: Why the Current Path Cannot Meet the Goals
+## 2. Source-Grounded Diagnosis
 
-### 2.1 The Inverted Neuro-Symbolic Stack (Why Leaf Stop-Gaps Killed RL)
+### 2.1 What Is Working vs. Where the Current Loop Hits a Ceiling
 
-`ARCHITECTURE.md` (§3 Principle 4) envisioned *"neural for skill and inference, symbolic for structure and decisions of record."* In practice, Gary evolved upside down:
-- **Messy leaves had symbolic overrides:** In `gt1`, `RoleAhead` hand-coded in-contact micro, `PullRule`/`LoadRule`/`RepairRule`/`ReinforceRule`/`DetectRule` held higher lease priority (`intents.py`: priority 3 vs. neural fight priority 2 vs. army priority 1), `hunt4` and `static` overrode army engagements, and `caps`/`bank_escape`/`answers.py` overrode `MacroNet`.
-- **Consequence for RL:** As observed empirically in `docs/SELF_PLAY.md` ("Learning beyond imitation"), neural outputs frequently never reached the units or were overwritten mid-execution. In the safe-RL shielding literature, Alshiekh et al. (2018) distinguish **preemptive shielding** (constraining the legal action/goal space *before* the policy chooses) from **post-posed overrides** (silently overwriting the policy's action *after* it chooses). Post-posed overrides break on-policy credit assignment and distort state-action attribution whenever the learner isn't cleanly separated from the overrider.
-- **Consequence for micro:** Hand-coding messy spatial/continuous behaviors (stutter-step, kiting, focus fire, splitting) is both brittle and plays against the exact strength of neural networks.
+The current `TODO.md` loop (`eval/judge.py` from 2026-11-12; `eval/pipe_table.py` from 2026-11-17) is **not** broken—in fact, `eval/judge.py` and three watched live computer games on 2026-11-12 exposed the Terran tank siege gap immediately, and `eval/pipe_table.py` (built five days later) diagnosed four of the week's five execution pipe faults. Meanwhile, `gt1dev` still carries four concrete structural gaps:
 
-### 2.2 Removing Stop-Gaps Left a Vacuum: Fragmented Marginal Behavior Cloning
+1. **Missing upper strategic state (blocks G3 & G5 completely):**
+   - `gt1dev` rolls a `style` ID at 0:00 (`styleroll`) and holds no recipe card, no timing schedule, no enemy-plan belief (`TODO #40`), and no reactive branch log.
+   - `gary/policy/belief.py` already computes multi-window (`30/90/180 s/ever`) fog memory and predicts per-type enemy army counts, workers, town halls, and `q50`/`q80` supply quantiles (though `predict()` currently omits workers and town halls from its returned dict), **not** the enemy's build/tech plan—and it is off by default in play (`PROGRESS.md:59`).
+   - `gary/agent/selector.py` is already v0.19's implementation of `ARCHITECTURE.md` §6.8 (Beta-posterior counted table with map backoff `BORROW=20` and Thompson sampling), but it was trained only against scripted Zergs without enemy-belief context and was bypassed in `gt1dev` via `styleroll` because it over-picked style 4 (1.5% of pro games).
+2. **Unleased multi-owner contention in Macro (and equal-priority overlap in Army):**
+   - **Lease truth in `gary/agent/intents.py:27–30, 54–60`:** Across strict priority tiers (`3: rule:/hands:` > `2: fight/roles` > `1: army/calm`), `Leases.free()` is **preemptive**—it filters out units held by strictly higher priorities *before* the lower layer decides. (`calm.py:68` asks as `"army"`, priority 1, below `roles`'s priority 2.) However, `priority(h[0]) > p` is strict, so **equal-priority** layers (`calm` vs. `army` at priority 1; `fight` vs. `roles` at priority 2) do not exclude each other.
+   - **Hidden inheritance in `gt1dev`:** `unscripted` (`manifests.py:1093–1096`) disables only `army.{static_odds, hunt, rules(except posts/raid)}`, `macro.{caps, bank_escape, supply_ahead}`, and `scv_saturation`. Because `gt1dev` inherits from `gt1` → `v029` (`manifests.py:261, 1393–1397`), **`gt1dev` still runs `"answers": True`, `rax_by`, `natural_bunker`, `expand_mass`, `under-half`, and the five priority-3 Terran fight rules (`pull`, `load`, `repair`, `detect`, `reinforce`)**.
+   - **No resource owner in Macro:** `macro.py` and `answers.py` make no lease calls; `posture.build`, `natural_bunker`, `answers.py`, `rax_by`, `under-half`, `odds_mass`/`expand_mass`, and `MacroNet(dice)` all share one mineral/gas pool and `g.task` slot.
+3. **Coherence limits of decoupled per-tick models without shared intent:**
+   - The active dev stack has fewer distinct model architectures than its option list implies (`Calm` reuses `RoleModel` at `gary/policy/calm.py:5`; event models live inside `ModeModel` at `gary/policy/modes.py:177`), and models maintain local trackers (`MacroTracker`, `ArmyTracker`, `Calm.prev`/`drawn_at`, `LearnedMacro` queues). What they lack is **shared multi-second/multi-minute intent**.
+   - **What the recent measurements actually show:**
+     - *Calm layer (`PROGRESS.md:2217–2273`):* `CL281a` reached 1.43 short orders/min (pros 1.58), first rest 11 s, `units alone` 0.38, direction log-loss 2.669 (vs. bins' shares 2.729, uniform 2.773). `CL282a` (folded into `gt0.46dev`) hit 1.24 short orders/min, first rest 8 s (pros 8 s), `units alone` 0.41, far head 2.495; `gt0.48dev` (`HS284a`) stands at `units alone` 0.40 (pros 0.20). Later reads showed scattering was driven primarily by *which bunches get orders* (median 2 units far from the army vs. pros' 7; 89% of 1-unit orders went to already-lone units), supporting group-level command ownership rather than claiming pure direction noise.
+     - *Retreats & tanks (`PROGRESS.md:99–102, 2409–2411`):* Within 2 s of a fight retreat, 37% received another retreat and **27–40%** switched to reposition, close-in, or fire; `retreatfar` (`gt0.43dev`) fixed the 3-tile destination, leaving retreat hold unbuilt (`TODO.md:31–32`). Army moves unsieging tanks mid-fight were fixed in `gt0.39dev` (`staysieged`).
+     - *Exposure bias vs. parity bugs:* Separate plain observation-parity fixes (`seenall`, `eggs`, `zfullhp`, held by `tests/test_inputs.py`, where `train/macro.py:41` already imports `gary.policy.macro.encode` and parity regressions came from live `HumanInterface` vs. C++ `gary_resim` unit accounting such as workers in refineries or units in bunkers) from missing-plan drift (e.g., Hydralisk Den drawn at 1–6% in 21/24 Zerg games, or belief error doubling from 5.9 on pros to 11.7 on Gary's own games).
+     - *Stale `-0.188` standing:* `gt1dev` trailing `gt1` by `-0.188 [-0.302, -0.078]` is from **2026-11-11** (predating `ModeModel` and `Calm`) and was accounted for in `PROGRESS.md:2976–3003` by the removed stop-gaps (`bank_escape -0.203`, `caps -0.109`, `static -0.062`, `scv_cap -0.047`) plus unfinished leads (`gp1dev` passed `+0.036 [-0.036, +0.109]` vs. `gp1`). Whether a deficit remains on `gt0.48dev` is an **open test** run in Phase 0.
+4. **No stopping rule on local tells & sparse human validation:**
+   - Only 4 games against a human opponent were played through 2026-10-19 (plus 3 watched computer games on 2026-11-12); ~25 changes landed under `#16` in early November without human play or comparison against `gt1` (`PROGRESS.md:1796–1799`). Without an explicit foreground priority, time box, and maintenance cap, G1 micro tells will always consume 100% of bandwidth.
 
-When `gt1dev`, `gz1dev`, and `gp1dev` rightly stripped out leaf stop-gaps (`unscripted`, `noalarm`, `styleroll`), nothing symbolic was built at the trunk to take over long-horizon coherence. Today `gt1dev` (`gary/agent/manifests.py`) stacks ~30 options across ~10 decoupled supervised models with no shared latent plan:
+### 2.2 Honest Empirical Learning Ledger
 
-1. **Compounding covariate shift and decoder whack-a-mole:** Pure behavioral cloning suffers from quadratic compounding error once closed-loop execution drifts off the expert state distribution (Ross, Gordon, & Bagnell, 2011). Gary's history in `docs/PROGRESS.md` reflects this directly: `belief.py` error doubles on Gary's own games (11.7 supply error vs. 5.9 on pros); off-plan low-probability draws corrupt the model's own decision history (e.g., a 1–6% Hydralisk Den drawn in 21 of 24 Zerg games made the model abandon Mutalisks, and the 4.7% second Factory above is the same class of event); and `MacroNet` required a cascade of exposure-bias patches (`dice`, `mass`, `expand_mass`, `parkmany`, `coming`, `comingbuild`, `savecoming`, `queued_builds`, `tech_min_p`, `gaswaits`, `ownhist`, `pendown`, `builtcount`, `unitcount`). Replacing `selector.py` with `styleroll` had a valid tactical reason (the old table trained on scripted Zergs over-picked cheesy style 4, 1.5% of pro games), but rolling a die discarded strategic reasoning along with the bias instead of counting outcomes from pro replays as `ARCHITECTURE.md` §6.8 designed.
-2. **Marginal matching ≠ coherent behavior (the `CalmNet` proof):** Because stateless per-tick classifiers marginalize over unobserved human intent, matching 1D marginal action rates produces incoherent noise. In `docs/PROGRESS.md` (2026-11-19), `CalmNet` matched the pros' short-order rate out of contact (1.43 vs. 1.58/min) and new-unit rest time (8 s vs. 8 s), **while its direction head achieved log-loss 2.67 vs. uniform 2.77**—nearly random Brownian motion that scattered units (`units alone` rose from 0.29 to 0.41, pros 0.20).
-3. **Uncoordinated army tug-of-war:** Four separate systems act on the same army without a shared squad goal: `ArmyNet/commit` (16×16 grid, 5 s), `CalmNet`/`CalmFarNet` (out of contact >12 tiles), `RoleNet` (within 12 tiles, 0.5 s Markov draws), and `ModeModel`/`EventModel`/`StimModel`/`CastModel`. Result: army moves unsieged tanks mid-fight, 37–40% of retreats were cancelled by the next fight turn within 2 s, units left rallies alone 49% of the time (pros 21%), and `gt1dev` trails `gt1` by `-0.188 [-0.302, -0.078]` in paired play.
-4. **Proxy optimization without a stopping rule:** "Would a pro do this here?" across every layer, race, and matchup has no natural stopping point (`PROGRESS.md` notes that a retrained humanlikeness classifier always finds the next tell). Five days on tank siege moved no top-level measure (`TODO.md`), ~25 consecutive changes landed without human play or comparison against the playing builds (`PROGRESS.md`, 2026-11-11), no single top-level trend series tracks progress across the past month, and months of headless `gap_windows.py` / `pipe_table.py` rounds missed that Terran tanks *never sieged against Zerg*—spotted immediately in three watched live games (`TODO.md`, 2026-11-12). Only four human games were played in seven weeks (last recorded on 2026-10-19).
-5. **The "fidelity must come first" counter-case is partly backwards:** A natural objection is *"a bot that plays poorly isn't worth explaining, so tactical fidelity must come before strategy/explainability."* That order fails on two counts: (a) strategic reasoning (plan, enemy-plan belief, counted pro tables) is computed from sightings and the replay database and is valid whether or not tanks siege perfectly; and (b) holding an explicit plan state in play is predicted to *eliminate* whole classes of off-plan tech draws and decoder patches directly, rather than fighting them one symptom at a time.
+Gary's past experiments (`docs/CONTROL.md`, `docs/SELF_PLAY.md`, `docs/PROGRESS.md`) show why RL stays parked and why V1 must rely on supervised perception, counted pro frequencies, and deterministic counterfactual checks:
 
-### 2.3 Empirical RL Ledger: Single-Tick Signal Drowns, Temporally Extended Signal Holds
-
-Gary's own experiments (`docs/CONTROL.md` step 7, `docs/SELF_PLAY.md`) already revealed where learning works and where it fails on workstation compute:
-
-| Learning Target | Timescale | Empirical Result in Gary | Takeaway |
+| Learning Experiment | Timescale | Measured Result in Gary | Honest Takeaway |
 |---|---|---|---|
-| Macro single-decision branch (`macro_rl.py`) | 1 build click | Effect `sd=130` vs. chaos `sd=512`; **50.0% held-out (noise)** | Single-tick macro RL is hopeless at this compute |
-| Per-unit fight roles (`league_loop.py`, 5 runs, ~4k pairs) | 0.5 s | 4 runs flat; the 1 small gain (`rl1`) was replaced in `gt0.36dev` by a relabeled imitation model lacking siege/mines (`manifests.py`, though `PROGRESS.md`'s top summary still lists `rl1`) | Unscoped per-tick micro RL fails when armies/rules interfere |
-| Commit paired branches (`commit_pairs.py`, 1,004 pairs) | 5 s grid draw | **0.46 held-out (chance)** even with locked arms + critic | Perturbing 1 grid tick while other layers roll dice drowns in noise |
-| **Whole-army coherent intent (`eval/army_effect.py`)** | **90 s held option** | **Effect `sd=650` vs. chaos `sd=210` (3× SNR, 62% > 2 SE)** | **Temporally extended options have strong learnable signal** |
-| **Per-game strategy choice (`selector.py`)** | **Whole game** | **Losses cut 57 → 30 of 333** | **Strategic-level outcome learning works cleanly** |
-| **Offline supervised perception/prediction** (`belief`, `value`, `placement`, `stim`, `modes`, `commit`) | Offline dataset | **Reliable, fast, well-calibrated on held-out pros** | **Supervised neural perception is a proven strength here** |
+| `train/macro_rl.py` | 1 build click | Effect `sd=130` vs. chaos `sd=512`; **50.0% held-out** | Single-click macro RL drowns in game variance |
+| `league_loop.py` roles (5 runs) | 0.5 s fights | 4 runs flat; `rl1` held once the model owned decisions in contact & passed the pipe check, then was replaced in `gt0.36dev` by `tvzmodes` because **`rl1` lacked siege, unsiege, and mines** (`manifests.py:997–999`; `PROGRESS.md` top summary still lists `rl1`) | Pipe ownership is necessary for RL, not sufficient for transfer |
+| Local fight scenarios (`rl2`, `rl3`, `#53`) | 10–20 s / 120 s scenarios | Beat `rl1` on 79 held-out scenarios (`+255`, `+268` vs. `+195`), **failed 96-game transfer** (`-0.036`, `-0.013`) | **Falsifies unshaped local-reward sub-episode RL** |
+| `train/commit_pairs.py` (1,004 pairs) | Commitments **locked at pro reversal hazard** (half reversed by 35–55 s) | **0.46 held-out (chance)**; constant-engage baseline matched learned scorers (`SELF_PLAY.md:507–514`) | Even locked army commitments are under-powered at 1k pairs (`MDE` limit) |
+| `eval/army_effect.py` *(since deleted)* | 90 s whole-army forced attack vs. hold | Effect `sd=650` vs. chaos `sd=210` over 77 moments (`SELF_PLAY.md:488`) | Shows whole-army attack/hold *matters*; does **not** prove intermediate option choices have learnable SNR |
+| `gary/agent/selector.py` (v0.19) | Whole game (per map) | Cut losses 57 → 30 of 333 against scripted Zergs—mostly by over-picking style 4 (1.5% of pro games) | **Warning:** self-play win-rate tables against weak/scripted opponents learn exploits/cheese |
+| Offline supervised models (`belief`, `value`, `placement`, `stim`, `modes`, `commit`) | Offline replay datasets | Fast, reproducible, well-calibrated on held-out pros | **Proven strength** on workstation compute |
 
-### 2.4 Scope Multiplier & Code Duplication
-
-Scaling an unfinished paradigm to 3 races × 6 matchups × 2 build lines (`gt1`/`gt1dev`, `gz1`/`gz1dev`, `gp1`/`gp1dev`) multiplied validation and maintenance costs by ~6× before proving G3 or G5 in a single matchup: one hands fix bumps six versions and re-records parity, 96 paired games only resolve 0.06–0.14 of paired score (`AGENTS.md`), and evaluation tooling has grown to 46 scripts in `eval/`. Simultaneously, feature calculation is duplicated in separate code (`ingest/macro_dataset.py` imports nothing from `gary/`), creating an ongoing input-parity tax (`tests/test_inputs.py`) that a single shared reader would eliminate.
+**Consequence:** RL stays **parked** (`TODO.md:143–145`). This plan does **not** run online leaf RL and does **not** rely on RL to pass Phases 0–2.
 
 ---
 
-## 3. Proposed Refocus: Six Integrated Solutions
+## 3. Architecture & Technical Design (Additive on Existing Seams)
 
-The refocus establishes a strict, principled division of labor across the pipeline, keeping every boundary behind a versioned, swappable provider contract.
+This design finishes `docs/ARCHITECTURE.md` (§6.1, §6.8, §7.5, §7.6, §8) on Gary's existing provider seams rather than creating a parallel stack:
 
 ```
-                         ┌──────────────────────────────────────────────────────┐
-                         │   OFFLINE NEURAL → SYMBOLIC DISCOVERY LOOP (Sol. 5)  │
-                         │  Pro replays + Self-play → Trajectory OOD Novelty +  │
-                         │  ValueNet Residual Analysis → Curated Concept/Option │
-                         │  Library (Factored Concepts, Phase Graphs, Cards)    │
-                         └─────────────────────────┬────────────────────────────┘
-                                                   │ versioned concepts & options
-                                                   ▼
-┌──────────────────────────────┐     ┌────────────────────────────────────────────┐
-│ TIER 1: NN PERCEPTION (Sol.2)│     │ TIER 2: SYMBOLIC TRUNK + LEARNED SCORING   │
-│ (Supervised from Resim)      │     │         (Sol. 1 & Sol. 3)                  │
-│ Raw fogged obs → Calibrated  ├────►│ • Factored StrategyState (opening card,    │
-│ named concepts & relations:  │only │   tech mix, posture, phase transitions)    │
-│ • P(enemy opening/tech/eco)  │named│ • Learned Branch Scorer (Counted Table /   │
-│ • Threat ETAs & relations    │con- │   EBM / Concept-MLP — strict bottleneck)   │
-│ • Map/choke/exposure facts   │cepts│ • Persistent Squad Options (STAGE, REGROUP,│
-└──────────────────────────────┘     │   PUSH, CONTAIN, HARASS, DEFEND, DISENGAGE)│
-                                     └─────────────────────┬──────────────────────┘
-                                                           │ active option + exclusive unit lease
-                                                           ▼
-┌──────────────────────────────┐     ┌────────────────────────────────────────────┐
-│ EXPLAINABILITY (Sol. 6)      │◄────┤ TIER 3: GOAL-CONDITIONED NN LEAVES (Sol. 4)│
-│ Structured records of        │     │ (Zero leaf stop-gaps stealing units!)      │
-│ beliefs, plan transitions,   │     │ • Option-conditioned RoleNet / micro skills│
-│ concept scores, alternatives │     │ • Mode/Stim/Cast models scoped to option   │
-│ & arbiter constraints →      │     │ • Plan-conditioned MacroNet + PlacementNN  │
-│ Counterfactual-tested Q&As   │     └─────────────────────┬──────────────────────┘
-└──────────────────────────────┘                           │ candidate actions
-                                                           ▼
-                                     ┌────────────────────────────────────────────┐
-                                     │ TIER 4: HUMAN HANDS & ARBITER (Kept as-is) │
-                                     │ Attention Arbiter (shares from Posture + h)│
-                                     │ HumanInterface (camera, 12-box, APM, Fitts)│
-                                     └────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PRE-GAME (G3): strategy_compile (text -> card lookup, ambiguity shown)  │
+│                or --from-replay <path> -> StrategySpec (opening_card)   │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     ▼
+┌─────────────────────────────────┐  ┌────────────────────────────────────┐
+│ OPPONENT BELIEF (Extends        │  │ STRATEGIC TRUNK (Extends           │
+│ gary/policy/belief.py, §7.5)    │  │ gary/agent/selector.py, §6.1/§6.8) │
+│ • Joint P(enemy_z | sightings)  ├─►│ • Persistent StrategyState         │
+│   over taxonomy/plans.py        │  │   (card, adherence, directives,    │
+│ • Seen / confirmed-absent /     │  │    transition history)             │
+│   unscouted state separation    │  │ • V1 Scorer: Pro conditional       │
+│ • Counts + q50/q80 + workers/TH │  │   choice freq P_pro(b|belief,ctx)  │
+└─────────────────────────────────┘  │   with min_n floor & printed n     │
+                                     └─────────┬─────────────────┬────────┘
+                                               │                 │
+                       ┌───────────────────────┘                 └──────────────────────┐
+                       ▼                                                                ▼
+┌──────────────────────────────────────────┐   ┌──────────────────────────────────────────┐
+│ MACRO EXECUTION (Single Resource Owner)  │   │ ARMY / TACTICS (3-Arm Test Alongside P1) │
+│ • Phase 1 A/B: z-conditioned MacroNet vs │   │ • Arm 1: current gt0.48dev               │
+│   preemptive resource reserve + tech mask│   │ • Arm 2: learned hold/exit on commit     │
+│ • Strict drills (18/20): scripted card   │   │ • Arm 3: 1–2 owned intents + ArmyNet     │
+│   queue (ARCHITECTURE.md:456, 471)       │   │   16×16 spatial target proposal          │
+│ • Legacy rules removed ONE AT A TIME     │   │ • Keeps RoleNet/Mode/Stim/Cast/Placement │
+└──────────────────────┬───────────────────┘   └────────────────────┬─────────────────────┘
+                       └─────────────────────┬──────────────────────┘
+                                             ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ HUMAN INTERFACE & ATTENTION ARBITER (Kept as-is: gary/interface.py)     │
+│ + STRUCTURED TRACE (gary/decision_log.py: join IDs + plan/belief/intent)│
+│ -> 5 Deterministic Templates (eval/coach.py) + 3-Part Verification (§8) │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+### 3.1 Joint Enemy-Plan Belief (Extending `gary/policy/belief.py`)
 
-### Solution 1: Flip to the "Neuro-Symbolic Sandwich" with Strict Ownership Boundaries
+- **Extend, don't replace:** Keep `BeliefMemory` (`30/90/180 s/ever`) and `BeliefModel`'s per-type counts + `q50`/`q80` supply quantiles; expose predicted enemy workers and town halls (already inside `out[:k]` at `belief.py:135–136`) in `predict()`.
+- **Joint plan distribution, not independent soft flags:** Predict one calibrated categorical distribution `P(enemy_z | sightings, time, map)` over the existing plan library (`taxonomy/plans.py`: `{pool, hatch} × {2h, 3h} × {spire, lurker, ling_pressure, hydra, other}`), respecting Brood War's mutually exclusive early tech/gas structure. Independent binary flags fed into a downstream MLP invite soft-probability leakage (Mahinpei et al., 2021; Havasi, Parbhoo, & Doshi-Velez, 2022) and are **not** used.
+- **Three-way fog visibility semantics:** Explicitly separate **seen** (with last-seen timestamp), **confirmed absent** (scout visited region at frame $t$ and observed no building/expansion), and **unscouted**—essential for explaining *"I assumed 2-hatch muta because my SCV saw no 3rd hatchery at 4:50"*.
+- **Two-provider bake-off (`ARCHITECTURE.md:763`):** Implement and compare behind one slot:
+  1. **Bayesian plan recognition** over tech-tree/build observations learned from replays (Synnaeve & Bessière, 2011), and
+  2. **Boosted trees / calibrated lightweight NN** (matching `eval/judge.py`'s model family).
+  Both must beat a **time-and-map base-rate prior** and `answers.py`'s current heuristic read on held-out per-minute Brier score and ECE.
+- **Honest sample budget & distribution-shift calibration:** `data/interim/taxonomy/v2/TvZ_Z.json` contains **2,683 modern TvZ games** (18,066 across all eras): 90.8% are spire-first (plan 0 alone is 58.9%) and only **5.6% (~150 modern games)** are lurker-first (17.5% across all eras; `docs/DATA_ERAS.md`). Report per-class calibration against class base rates, account for era shift explicitly, and calibrate on **Gary's own self-play re-simulations** as well as held-out pros (closing the observed 5.9 → 11.7 supply error shift).
 
-**Design:** Place neural networks where perception and messy continuous control live (bottom-up perception and top-down leaf skills), and place explicit symbolic structures in the strategic/tactical trunk—with **no symbolic leaf stop-gaps allowed to override or sequester units leased to an active NN skill**. Symbolic preemption happens only at explicit **option boundaries** (initiation/termination/interruption of a named option), never by stealthily intercepting clicks downstream.
+### 3.2 Persistent `StrategyState`, `strategy_compile`, & Pro-Frequency Branching (Extending `gary/agent/selector.py`)
 
-**Literature Grounding:**
-- **Kautz (2022)** (*The Third AI Summer*, AI Magazine) formalizes neuro-symbolic architectures; this design combines Kautz's `Neuro → Symbolic` (neural perception extracting structured concepts) with `Symbolic[Neuro]` / `Neuro | Symbolic` (symbolic strategic/option control invoking neural evaluators and neural skill subroutines).
-- **Silver et al. (2022)** (*Learning Neuro-Symbolic Skills for Bilevel Planning*, CoRL 2022, `arXiv:2206.10680`) demonstrate in continuous long-horizon robotics that pairing high-level symbolic operators/preconditions with learned low-level parameterized neural skills yields compositional long-horizon generalization that neither flat RL nor pure scripting achieves.
-- **Alshiekh et al. (2018)** (*Safe Reinforcement Learning via Shielding*, AAAI 2018, `arXiv:1708.08611`) formalize **preemptive** (scoping legal choices *before* policy selection) vs. **post-posed** (overwriting choices *after* selection) intervention. Gary's old stop-gaps acted as uncoordinated post-posed overrides; moving constraints to preemptive option scoping restores clean policy-execution alignment.
-- **Rudin (2019)** (*Stop explaining black box machine learning models for high stakes decisions and use interpretable models instead*, Nature Machine Intelligence) argues that post-hoc explanations of black boxes are structurally unfaithful and that decision accountability requires inherently interpretable structure at the decision boundary itself.
+- **Explicit `StrategyState` object:** Holds:
+  - `opening_card`: concrete ordered milestones & target times/supplies extracted from a real pro replay of the chosen style or `--from-replay <path>`;
+  - `adherence_mode`: `strict` (drill mode: no opportunistic switching, deterministic milestone adherence for 18/20 drills per `ARCHITECTURE.md:456, 471`) vs. `reactive` (standard sparring);
+  - `active_directives`: discrete, named reactive directives (e.g., `PREP_VS_MUTA`, `PREP_VS_LURKER`, `DEFEND_EARLY_POOL`) with start frame, triggering evidence IDs, and exit condition;
+  - `history`: append-only transition log of every card/directive change.
+- **Pre-game `strategy_compile` slot (G3 text prompts):** Constrained pre-game lookup/compiler turning a user request (e.g., `"1-rax FE bio+tank"` or `"practice vs 2-hatch muta"`) into a validated `StrategySpec` card from the taxonomy/replay catalogue, surfacing ambiguity or out-of-catalogue requests before game start. **No LLM inside the live game loop.**
+- **Explicit Departure from `ARCHITECTURE.md:194` (§6.8): Pro Conditional Choice Frequencies as V1 Scorer:**
+  - `ARCHITECTURE.md:194` and §6.8 specify picking branches via **win-rate statistics**. This plan **deliberately departs** from that for V1: observational pro win rates suffer from survivor/selection bias (pros skip turrets when already winning), and self-play win rates against weak `gz1` previously taught style-4 cheese (`selector.py`, §2.2).
+  - Instead, extend `gary/agent/selector.py`'s hierarchical shrinkage machinery to score branches in V1 by **pro conditional choice frequency** $P_{\text{pro}}(\text{branch} \mid \text{belief}, \text{context})$ with a written **support floor (`min_n ≥ 25` modern games after backoff, otherwise fall back to broader parent cell and print exact `n`)**.
+  - **Keep three quantities strictly separated** in tables, records, and explanations:
+    1. **What pros do** ($P_{\text{pro}}(\text{branch} \mid \text{belief}, \text{context})$, `n`, Wilson interval) — *V1 deciding score*;
+    2. **How those pro games ended** (observational win rate) — *printed as secondary context only, never decided on*;
+    3. **What the branch does for Gary** (paired-branch outcome delta from `eval/pairs.py` on Gary's own games) — *the only evidence permitted to override pro frequencies in future versions*.
+  - **No CRM on pro replays:** Counterfactual Risk Minimization (Swaminathan & Joachims, 2015) requires known logging propensities and no unobserved confounding, neither of which holds in pro replays. Where logged propensities are needed later, use Gary's own `records/v1` logs (`p`, `top`) or randomized `eval/pairs.py` branches.
+  - **Alternative glass-box scorers (swappable slot):** Support $\text{GA}^2\text{M}$ / EBM (Lou et al., 2013; Nori et al., 2019) for additive/pairwise branch families (e.g., turret counts, expansion timing) and depth-limited interaction trees where 3-way timing conjunctions matter. Do **not** adopt Concept Embedding Models (CEM) or an unconstrained `concept_mlp` on the live trunk: passing dense learned embeddings leaks unstated raw features, undermining G5 honesty. Keep Tier 3 leaves unconstrained on raw features and keep any unconstrained `ValueNet` **offline outside the decision path** (`ARCHITECTURE.md` §7.6).
 
-**Known Strengths, Limits, and Risks:**
-- *Strengths:* Directly aligns each subproblem with its inductive bias; makes strategic state inspectable and steerable by construction; restores exclusive unit ownership so NN micro skills can actually learn.
-- *Limits:* Adds interface contracts between tiers; any error at a tier boundary (e.g., bad concept definition or poorly scoped option) caps downstream quality.
-- *Risks:* **Inter-level blame ambiguity** (when a push fails, was Perception wrong, was the Trunk wrong to push, or did the NN Leaf micro poorly?) and **engineering complexity** if contracts are over-designed before validating on one matchup.
+### 3.3 Single-Owner Macro Migration (One Rule at a Time)
 
-**Alternatives Considered & Why Not Picked:**
-1. *End-to-end deep RL (e.g., AlphaStar, Vinyals et al., 2019; Pluto):* Requires orders-of-magnitude more compute than a workstation, sacrifices G5 (faithfully explainable strategy), and makes fine-grained steering (G3) brittle.
-2. *Pure programmatic/logic policies down to leaves (`VIPER`, Bastani, Pu, & Solar-Lezama, 2018, `arXiv:1805.08328`; `NUDGE`, Delfosse et al., 2023, `arXiv:2306.01439`):* Great for discrete low-dimensional domains, but cannot express fluid continuous spatial micro (stutter-stepping, splitting vs. splash, kiting) in Brood War.
-3. *Keeping leaf stop-gaps (`gt1` paradigm):* Empirically proven in Gary to kill NN credit assignment and block RL.
+When the strategic trunk is active, **one owner must control macro resources and one-off tech/branch decisions** (removing the two-master conflict between `MacroNet`, `answers.py`, `natural_bunker`, `rax_by`, `under-half`, and `odds_mass`/`expand_mass`). However, per `AGENTS.md`, we do **not** bundle multiple rule removals with a new layer in one opaque diff:
 
----
+1. **Audit first (Phase 0):** Count how often `answers.py` actually decides in one full `gt1dev` league round's records.
+2. **Log-only soak (Phase 1a):** Run `belief` + `opening_card` log-only beside `gt1dev`, tagging every macro decision as `on_card`, `off_card`, or `delayed(money | busy_building | hands)` to measure whether off-plan draws come from low-odds dice or hands/money bottlenecks.
+3. **One-at-a-time rule removal (Phase 1b):** Disable conflicting legacy macro rules (`answers.py`, `natural_bunker`, `rax_by`, `odds_mass`/`expand_mass`, `under-half`) **individually**, verifying each against its `AGENTS.md` measure as the trunk assumes ownership.
+4. **Two-arm Macro Execution A/B (Phase 1c):** Directly settle whether neural conditioning alone holds a build card as well as preemptive masking:
+   - **Arm A (AlphaStar *z*-conditioned `MacroNet`):** Condition `MacroNet` on remaining card milestones + enemy belief (Vinyals et al., 2019), with the trunk handling card/directive switches and logging why.
+   - **Arm B (Preemptive Resource Reserve + Tech Mask):** Trunk holds a formal `reserved_for_milestones` mineral/gas budget and hard-masks `MacroNet`'s one-off tech/expansion/research outputs unless the active card/directive permits them (preemptive scoping in Alshiekh et al., 2018's sense).
+   - **Strict drills (`adherence_mode="strict"`):** Use a deterministic milestone/scripted macro queue (`ARCHITECTURE.md:456, 471`, Churchill & Buro, 2011) if stochastic sampling cannot guarantee ≥18/20 unharassed timing runs.
 
-### Solution 2: Strict Concept Bottleneck Perception (Opponent Model + Relational Predicates)
+### 3.4 Tactical Army Layer: 3-Arm Persistence Test First
 
-**Design:** Build a dedicated **Concept Perception Layer** trained via supervised learning on fog-filtered pro re-simulations (where Gary's pipeline already excels) plus deterministic geometric/relational extractors:
-- **Factored Opponent Model (`P(enemy_concepts | seen)`):** Instead of predicting only raw enemy army supply (`gary/policy/belief.py`), predict calibrated probability distributions over:
-  - *Enemy opening & active tech lines* (multi-label, e.g., `early_pool`, `fast_3rd_hatch`, `spire_muta`, `lurker_tech`, `hive_tech`)
-  - *Estimated hidden economy & army* (`enemy_workers`, `enemy_bases`, `enemy_army_supply` with uncertainty intervals)
-  - *Imminent threat windows* (`P(ling_hit_within_45s)`, `P(muta_hit_within_60s)`, `P(lurker_fielded)`)
-- **Relational Tactical Concepts:** Not just flat counts, but object/region relations (e.g., `army_advantage_at_front`, `my_army_closer_to_natural_than_enemy`, `base_mineral_line_air_exposed`, `timing_window_active[stim_+1]`, `enemy_natural_static_heavy`).
-- **Strict Bottleneck Rule at Runtime:** The Strategic Trunk's branch scorer receives **only** these named symbolic concepts and calibrated probabilities—no raw hidden-layer bypass vectors.
+Rather than jumping directly to 9 hand-authored squad options with hand-tuned thresholds (which previously mirrored `gather` and `retreatfar`), test the smallest mechanisms first **alongside Phase 1**:
 
-**Literature Grounding:**
-- **Koh et al. (2020)** (*Concept Bottleneck Models*, ICML 2020, `arXiv:2007.04612`) establish that forcing predictions through supervised human-named concepts enables both inherent transparency and **test-time human intervention** (manually correcting a concept cleanly updates downstream decisions).
-- **Delfosse et al. (2024)** (*Interpretable Concept Bottlenecks to Align Reinforcement Learning Agents* — `SCoBots`, NeurIPS 2024, `arXiv:2401.05821`) extend CBMs to RL using **successive and relational concept layers**, showing that relational concepts (beyond raw object counts) are essential for sequential control and expose subtle reward/goal misalignments.
-- **Mahinpei et al. (2021)** (*Promises and Pitfalls of Black-Box Concept Learning Models*, ICML XAI Workshop, `arXiv:2106.13314`) and **Havasi, Parbhoo, & Doshi-Velez (2022)** (*Addressing Leakage in Concept Bottleneck Models*, NeurIPS 2022) prove that **concept leakage** occurs whenever soft concept probabilities or residual shortcuts smuggle unmodeled raw features past the bottleneck—destroying concept semantics and breaking interventions. They identify *insufficient concept sets* and *inexpressive concept predictors* as the root causes.
-- **Marconato et al. (2023)** (*Not All Neuro-Symbolic Concepts Are Created Equal: Analysis and Mitigation of Reasoning Shortcuts*, NeurIPS 2023, `arXiv:2305.19951`) show that jointly trained NeSy systems frequently converge to **reasoning shortcuts**—achieving high task accuracy by mapping concepts to unintended semantics. Training concept extractors with **direct hindsight supervision from re-simulated ground truth** (rather than purely weak end-to-end game-outcome supervision) directly mitigates reasoning shortcuts.
+- **Arm 1 (Control):** Current `gt0.48dev` (`army.py` + `calm.py` + `roles.py`).
+- **Arm 2 (Learned Hold / Exit Only):** Add explicit persistence/termination (deliberation-costed / matched to the pros' measured reversal hazard in `SELF_PLAY.md:489–493`; Harb et al., 2018) to `army.py`'s existing commitments and `roles.py`'s retreats (`TODO.md:31–32`) without introducing a new option vocabulary.
+- **Arm 3 (Minimal Owned Intent + Spatial Heatmap):** Introduce 1–2 persistent, unit-leased tactical intents (e.g., `DEFEND_HOME` and `PUSH_OR_PRESSURE`) with explicit lifecycle identity (`id`, `start`, `end`, `preempt`, `lease`), **retaining `ArmyNet`'s `16×16` heatmap as the spatial target proposal** inside the intent so spatial precision is not lost. Refactor `gary/agent/grouping.py` only if Arm 3 needs squad-owned control groups.
+- **Pass criteria:** Retreat survival and distance, `units alone`, late arrivals at attacks, **Q&A #4 (*"Why did your army attack / pull back here?"*)**, and paired game score vs. `gt0.48dev` (`AGENTS.md` promotion rule).
+- **Separate offline check (0 games):** Before adding any upgrade-timing criterion (e.g., attacking on Stim/+1), measure on existing league rounds whether Gary actually mistimes attacks relative to Stim/+1 compared with pros, and verify whether `commit` already receives research state as an input.
+- **Future leaf-coherence candidate (not in Phase 1):** If a held intent plus `RoleNet` still exhibits 2–4 s micro dithering after the 3-arm test, evaluate **Action Chunking (`ACT`, Zhao et al., 2023)** as a bounded Tier 3 imitation upgrade. Do **not** run online local-reward leaf RL (`#53`).
 
-**Known Strengths, Limits, and Risks:**
-- *Strengths:* Free, abundant ground-truth supervision from 19k+ modern re-simulated games; calibrated beliefs immediately unlock *"What did you think I was doing?"*; direct supervision prevents reasoning shortcuts; enables true human intervention for coaching/drills.
-- *Limits:* **Accuracy-faithfulness tradeoff:** if key Brood War concepts are missing from the vocabulary, a strict bottleneck will underperform an unconstrained neural policy until those concepts are added.
-- *Risks:* **Distribution shift on Gary's own games** (already observed in `belief.py`: 5.9 error on pros vs. 11.7 on Gary's league games—requires calibrating/augmenting on Gary's own self-play re-simulations too); **soft-probability leakage** if downstream neural branch scorers overfit calibration artifacts of `P(concept)`.
+### 3.5 Explainability & Three-Part Faithfulness Verification (`ARCHITECTURE.md` §8)
 
-**Alternatives Considered & Why Not Picked:**
-1. *Post-hoc feature ablation on flat networks (`gary/policy/attribution.py`):* Zeroing correlated columns (`decided`, `money`) creates out-of-distribution inputs, yields correlation rather than strategic cause, and cannot answer opponent-belief questions (Rudin, 2019).
-2. *Live Side-Channel / Residual CBMs (Havasi et al., 2022):* Allowing a raw neural bypass into the live branch scorer recovers accuracy at the cost of unexplainable decisions whenever the side-channel dominates. **Compromise:** Keep an unconstrained `ValueNet` *offline* to detect missing concepts (Solution 5), and support a side-channel scorer as an **experimental manifest option** solely to measure the exact Elo cost of the strict bottleneck.
-
----
-
-### Solution 3: Factored Compositional Strategy + Persistent Tactical Options (Solving Explosion & Rigidity)
-
-**Design:** Address three coupled problems simultaneously—combinatorial explosion, rigid whole-game build buckets ("Bio vs. Mech" missing hybrids & transitions), and uncoordinated 4-way army control:
-
-1. **Factored, Phase-Level `StrategyState` (Replacing Static `style` IDs):**
-   - **Non-parametric anchor (`opening_card`):** A real pro replay's build milestones & timings (e.g., from the chosen style or user-supplied replay) giving crisp G3 drill steerability and concrete "on-plan / late-by-15s" accounting.
-   - **Composable multi-label tech & posture state (not mutually exclusive enums):**
-     - `active_tech_lines`: soft weights / multi-hot set (e.g., `{bio: 0.65, tank: 0.35, starport: 0.2}`) — natively represents Bio+Tank hybrids, 1-1-1, Vulture-Bio, and mid-game Bio → Mech switches without enumerating $N$ rigid build buckets.
-     - `posture`: `{greedy, standard, timing_pressure, defensive, all_in}`.
-     - `active_directives`: reusable sub-plan DAG nodes triggered by beliefs/facts (e.g., `PREP_VS_MUTA(turrets_per_base=2)`, `DEFEND_EARLY_POOL`, `TECH_TRANSITION(siege_tanks)`, `TAKE_EXPANSION(third)`).
-   - **Phase transitions:** Strategy is a **trajectory** (`Opening → Midgame → Lategame`), logging every branch/transition event with its triggering concepts and alternatives.
-
-2. **Persistent Squad-Level Tactical Options (Replacing `Commit` + `Calm` + `Hunt4`):**
-   - Lift army decisions from 200 individual units and 5 s 16×16 grid dice rolls to **1–4 named squads** holding temporally extended **Options** (`STAGE`, `REGROUP`, `TIMING_PUSH`, `CONTAIN`, `HARASS`, `DEFEND`, `DISENGAGE`, `SCOUT`, `CLEAR_FINISH`).
-   - Each option specifies:
-     - **Initiation preconditions** (over named concepts),
-     - **Target / parameters** (base, choke, region),
-     - **Termination & preemption predicates** (e.g., `REGROUP` ends when ≥80% squad gathered or 15 s elapsed; `DISENGAGE` holds until ≥6 tiles clear of threat so `RoleNet` stops cancelling retreats after 0.5 s; `DEFEND(main)` preempts `STAGE`),
-     - **Exclusive unit lease** passed down to the Tier 3 NN leaf executor.
-
-3. **Learned Concept-Conditioned Branch Scoring (Avoiding $O(V^d)$ Table Explosion):**
-   - Never enumerate a flat Cartesian lookup table over `map × spawn × build × enemy × phase`.
-   - Score candidate strategic branches / squad options using **swappable glass-box or concept-bottleneck scorers** taking only the named concepts:
-     - *Provider A (V1 baseline):* **Counted Pro & Self-Play Tables with hierarchical Bayesian shrinkage** (including sighting-to-response tables, e.g., *"after seeing Spire, pros build ≥1 turret/base within 60 s in p% (n)"*—converting `answers.py` from an ad-hoc stop-gap into a data-counted, printable branch rule).
-     - *Provider B:* **Explainable Boosting Machines (EBM / $\text{GA}^2\text{M}$)** — additive + pairwise-interaction boosted models over named concepts that generalize across unseen feature combinations while exposing exact per-concept additive logit contributions.
-     - *Provider C:* **Concept-Only Small MLP / Contextual Bandit** — updated offline via counterfactual risk minimization / propensity-weighted or paired-branch outcomes at the option/game timescale (where SNR is 3× higher than single ticks).
-
-**Literature Grounding:**
-- **Sutton, Precup, & Singh (1999)** (*Between MDPs and semi-MDPs: A framework for temporal abstraction in reinforcement learning*, Artificial Intelligence) formalize **Options** $(I_\omega, \pi_\omega, \beta_\omega)$ as temporally extended macro-actions over semi-MDPs, reducing horizon length and improving credit assignment.
-- **Bacon, Harb, & Precup (2017)** (*The Option-Critic Architecture*, AAAI 2017, `arXiv:1609.05140`) formalize option termination gradients (an option terminates when switching beats continuing), grounding why explicit termination/persistence stops the 0.5 s flip-flopping seen in Gary's retreats and tank sieges.
-- **Ontiveros et al. (2025)** (*Grounding Methods for Neural-Symbolic AI*, IJCAI 2025, `arXiv:2507.08216`) analyze the **grounding bottleneck** ($O(E^k)$ combinatorial explosion under exhaustive grounding) and show that **lifted / parameterized grounding** (reasoning over abstract groups/classes and instantiating lazily per query) keeps neuro-symbolic inference tractable. Operating on 1–4 squads and 2–5 bases instead of 200 units is relational lifting by design.
-- **Nori et al. (2019)** (*InterpretML: A Unified Framework for Machine Learning Interpretability*, `arXiv:1909.09223`) introduce **Explainable Boosting Machines ($\text{GA}^2\text{M}$)**, showing glass-box additive models with pairwise interactions match boosted-tree accuracy while giving exact, faithful per-feature attributions without flat table explosion.
-- **Swaminathan & Joachims (2015)** (*Batch Learning from Logged Bandit Feedback through Counterfactual Risk Minimization*, JMLR / ICML 2015) establish propensity-weighted offline policy evaluation and variance regularization for learning from **confounded observational logs**—directly addressing `ARCHITECTURE.md` §6.8's confounding warning on pro replay win rates.
-
-**Known Strengths, Limits, and Risks:**
-- *Strengths:* Eliminates both grounding explosion ($O(E^k)$) and Cartesian table explosion ($O(V^d)$); supports hybrid builds and mid-game transitions natively; directly produces teachable strategic and tactical explanations; elevates army decisions to the 30–90 s timescale where `eval/army_effect.py` proved 3× SNR.
-- *Limits:* Requires defining a clean, compact initial vocabulary of factored concepts and ~8–9 squad options; replay win-rate tables remain observationally confounded until validated via self-play interventions.
-- *Risks:* **Option design brittleness** (poorly chosen termination thresholds can make squads sluggish or indecisive); **over-engineering V1** if factored strategy and squad options are built simultaneously rather than staged (Phase 1 strategy slice → Phase 2 squad options).
-
-**Alternatives Considered & Why Not Picked:**
-1. *Flat decision trees or unfactored lookup tables:* Explodes as $O(V^d)$ with every added context feature, leaving most cells empty.
-2. *Whole-game mutually exclusive build enums (`Bio` vs. `Mech`):* Cannot represent hybrids, mid-game switches, or new seasonal meta builds cleanly.
-3. *Joint online Option-Critic RL (Bacon et al., 2017):* Suffers from severe multi-level non-stationarity and option collapse at workstation compute (see Solution 4).
-
----
-
-### Solution 4: Goal-Conditioned Neural Leaf Executors & Bilevel Training (Unblocking Learning)
-
-**Design:** Keep neural networks as the **sole owners of messy low-level execution**, conditioned explicitly on the active symbolic goal/option from Tier 2:
-- **Micro / Fight Leaves:** Condition `RoleNet` (and `ModeModel`/`StimModel`/`CastModel`) on the squad's active `Option` (`TIMING_PUSH`, `CONTAIN`, `DISENGAGE`, `HARASS`, `DEFEND`, `STAGE`). While a squad is leased to an option, **no leaf stop-gap steals its units or vetoes its orders.**
-- **Macro Execution Leaf:** Condition `MacroNet` on the active `StrategyState` (or let a clean preemptive milestone scheduler emit high-priority tech/branch milestones while `MacroNet` + `PlacementModel` handle continuous unit/supply/expansion flow without conflicting side-overrides like `bank_escape` or `caps`).
-- **Handling Unlearned Micro Skills During Transition (No Silent Hijacks):** Jobs that no NN currently outputs (e.g., loading bunkers, repairing turrets, pulling workers against early lings, scanning cloaked lurkers) are refactored into **explicit, bounded leaf-skill providers occupying their own named options** (e.g., `DEFEND_WORKER_PULL`, `GARRISON_BUNKER`, `REPAIR_DEFENSE`)—so unit leases are explicit, visible in the trace, and **each skill can be swapped 1-for-1 for a learned NN provider** when trained, without ever interfering with `RoleNet`'s leased combat units.
-- **Bilevel / Alternating Training Protocol:**
-  - Never train Tier 2 (Trunk) and Tier 3 (Leaves) jointly via online RL.
-  - **Leaf training:** Freeze the Trunk. Train each NN leaf skill via supervised imitation on option-filtered pro replays, optionally followed by **bounded local skill RL** on 15–45 s sub-episodes with option-specific rewards (e.g., `DISENGAGE` rewarded for survival + distance gained; `HARASS` for worker damage per unit lost; `ENGAGE` for local fight trade) where the leaf has 100% unit control.
-  - **Trunk training:** Freeze the Leaves. Update branch scorers via offline counterfactuals / paired option branches / game-level outcomes.
-
-**Literature Grounding:**
-- **Levy et al. (2019)** (*Learning Multi-Level Hierarchies with Hindsight* — `HAC`, ICLR 2019, `arXiv:1712.00948`) formally analyze **multi-level non-stationarity in HRL**: when lower-level policies update concurrently with higher-level policies, the high-level transition function $T_{i|\pi_{i-1}}$ shifts continuously, destabilizing learning. Decoupling levels via bilevel/alternating training (and hindsight goal relabeling when lower levels achieve alternative outcomes) directly resolves this instability.
-- **Silver et al. (2022)** (`arXiv:2206.10680`) similarly separate low-level skill acquisition from high-level bilevel planning using explicit skill contracts.
-- **Ross, Gordon, & Bagnell (2011)** (`DAgger`, AISTATS 2011) show that closed-loop covariate shift in BC is reduced when policies are trained on states visited under their own rollouts—which becomes tractable once rollouts are bounded to 15–45 s option episodes.
-
-**Known Strengths, Limits, and Risks:**
-- *Strengths:* Fixes the exact broken-pipe problem that killed RL in `gt1`; reduces micro RL horizon from 30 minutes to 15–45 s localized objectives; preserves playability during migration via explicit, swappable option-scoped skill slots.
-- *Limits:* Goal-conditioning `RoleNet` and `MacroNet` requires relabeling pro replay datasets with inferred option/phase tags (a noisy offline labeling step).
-- *Risks:* **Option-label noise** in pro replays (e.g., distinguishing pro `CONTAIN` from `TIMING_PUSH` heuristically) could dilute goal-conditioned imitation; **bounded skill RL may still face high variance** under human-hand noise (camera/click scatter)—this must be tested empirically with pipe checks before scaling compute.
-
-**Alternatives Considered & Why Not Picked:**
-1. *Unconditioned `RoleNet` + `CalmNet` + `Commit` (status quo):* Marginalizes over conflicting goals, producing scattered moves and cancelled retreats.
-2. *Simultaneous end-to-end hierarchical RL across all tiers:* Known to suffer from non-stationarity (Levy et al., 2019) and empirically failed across 10+ runs in Gary's compute regime.
-
----
-
-### Solution 5: Offline Neural → Symbolic Knowledge Induction Loop
-
-**Design:** Ensure the symbolic vocabulary is **living, not frozen**, so new seasonal builds, hybrids, and hidden tactical contexts can flow from neural models into the symbolic library:
-1. **Phase-Level Trajectory Embeddings + OOD Novelty Detection:** Replace `taxonomy/label_all.py`'s frozen 0–8 min kNN projection with a sequence encoder over sliding game phases (opening 0–4 min, midgame 4–10 min, lategame 10+ min). New replay packs are scored against existing cluster densities; **out-of-distribution (OOD) pockets are explicitly flagged as `"novel/unclassified"`** rather than silently forced into old buckets. When enough replays accumulate in a novel pocket, the pipeline emits a cluster card + distilled rule + LLM-proposed name for human review.
-2. **Residual-Driven Concept Invention (`ARCHITECTURE.md` §7.6):** Periodically compare an **unconstrained offline `ValueNet`** (or unconstrained policy trained on new replays) against the **concept-only Trunk model**. Identify game states with large systematic residuals (`V_unconstrained - V_concepts`). Cluster high-residual states in neural latent space, compute feature attributions, and have an LLM + human inspect example replays inside vs. outside the cluster to propose a missing relational concept (e.g., `cross_spawn`, `cliff_exposed_natural`, `valkyrie_bio_hybrid`). **Strict promotion gate:** a candidate concept enters the symbolic library *only* if adding it reduces held-out prediction residuals after multiple-comparison correction.
-3. **Curated Library Compression & Documentation (Offline Wake-Sleep):** Mine recurring multi-step build blocks and tactical patterns across winning pro games and compress them into named reusable modules in the strategy library (with auto-generated + human-reviewed descriptions), then retrain the Concept Perception NNs to recognize them.
-
-**Literature Grounding:**
-- **Ellis et al. (2021)** (*DreamCoder: Bootstrapping Inductive Program Synthesis with Wake-Sleep Library Learning*, PLDI 2021, `arXiv:2006.08381`) introduce the wake-sleep cycle alternating between task execution (wake), library compression of recurring abstractions (sleep-abstraction), and retraining a neural recognition model to invoke them (sleep-dreaming).
-- **Grand et al. (2024)** (*LILO: Learning Interpretable Libraries by Compressing and Documenting Code*, ICLR 2024, `arXiv:2310.19791`) combine symbolic compression with LLM-driven auto-documentation (`AutoDoc`), showing that naming and documenting discovered abstractions makes them usable by both humans and neural synthesizers.
-- **Liang et al. (2025)** (*VisualPredicator: Learning Abstract World Models with Neuro-Symbolic Predicates for Robot Planning*, ICLR 2025 Spotlight, `arXiv:2410.23156`) demonstrate neuro-symbolic predicate invention from sensory trajectories for planning, showing improved OOD generalization over flat hierarchical RL.
-
-**Known Strengths, Limits, and Risks:**
-- *Strengths:* Directly answers the "new builds invented every season" problem; prevents symbol bloat by promoting only concepts that measurably shrink residuals; keeps humans in control of explanation quality.
-- *Limits:* **Not fully autonomous.** Unlike DreamCoder/LILO (which have exact deterministic program verifiers), Brood War has noisy, confounded outcomes; automated predicate invention without human/statistical gating will invent spurious correlations.
-- *Risks:* **Overfitting residuals** to a small replay pack or to quirks of Gary-vs-Gary self-play rather than real human StarCraft; **maintenance burden** if the concept vocabulary churns faster than models can be retrained.
-
-**Alternatives Considered & Why Not Picked:**
-1. *Static hand-authored taxonomy (`plans.py` + frozen kNN in `label_all.py`):* Blind to seasonal meta shifts and mid-game transitions.
-2. *Pure unsupervised clustering on raw timings (`discover.py` alone):* Empirically unstable on Zerg (2 to 23 clusters, two-thirds unclustered) and blind to strategic outcomes.
-3. *Fully autonomous online symbol invention:* Beyond current SOTA in noisy adversarial RTS (see Section 5).
-
----
-
-### Solution 6: Counterfactual-Verified Coaching Explainability Built *Now* (Not Deferred to P5)
-
-**Design:** Move explainability from "Phase 5 after everything else is finished" to a **Phase 1 architectural forcing function**:
-- Extend `gary/decision_log.py` with structured record types matching `ARCHITECTURE.md` §6.5: `concept_belief`, `strategy_state`, `branch_select` (concept contributions + alternative scores + replay `n`/CI), `option_event` (start/continue/terminate/preempt + reason), alongside existing `arbiter`/`hands`/`order` constraint records.
-- Build **five deterministic explanation templates first** (zero LLM hallucination risk) answering:
-  1. *Why this opening / strategy plan?*
-  2. *What did you think I was doing at minute M, and from what evidence?*
-  3. *Why did you build/tech/expand (or hold back) at minute M?*
-  4. *Why did you push / hold / retreat / harass at minute M?*
+- **Trace schema extension (`gary/decision_log.py`, `records/v1`):** Add a monotonically increasing `id` and `parent_id` linking `plan_belief` → `strategy_state` / `branch_select` → `intent_event` → `lease` → `order` → `fate`, so pipe drops are visible directly in the trace.
+- **Five deterministic templates first (`eval/coach.py` or `eval/why.py --ask`, no LLM in V1):**
+  1. *Why this opening / strategy card?*
+  2. *What did you think I was doing at minute M, and from what evidence (seen vs. confirmed-absent vs. unscouted)?*
+  3. *Why did you build / tech / expand (or delay) at minute M?*
+  4. *Why did your army attack / hold / pull back at minute M?*
   5. *Why did you miss a defense / supply block / timing?*
-- **Automated Faithfulness Test (`ARCHITECTURE.md` §8):** Leverage Gary's deterministic branching engine (`eval/pairs.py`) as a **counterfactual verifier**: if an explanation cites concept/fact $F$ as decisive at frame $t$, replay frame $t$ with $F$ intervened/flipped and verify that the trunk's chosen branch actually changes.
-- Add an optional **LLM Narrator provider** on top of the verified templates only after the templated answers pass faithfulness and human coaching utility checks.
-
-**Literature Grounding:**
-- **Rudin (2019)** (inherent interpretability over post-hoc rationalization); **Koh et al. (2020)** (intervention accuracy as the gold standard of concept faithfulness).
-
-**Known Strengths, Limits, and Risks:**
-- *Strengths:* Prevents silent drift away from G5; turns explainability into an automated CI-like check via counterfactual replays; templates eliminate LLM fabrication risk in V1.
-- *Limits:* Deterministic templates are terse and cover a bounded set of question types until a grounded LLM narrator is layered on top; explanations can only be as insightful as the concepts in Tier 1–2.
-- *Risks:* **False sense of completeness** if templates pass counterfactual tests on trivial concepts (e.g., citing a tautological fact like *"I built a depot because I was supply-blocked"*) rather than strategic concepts useful to a learner—which is why human sparring review of the answers is a mandatory Phase 1 gate.
-
-**Alternatives Considered & Why Not Picked:**
-- *Waiting for "complete records" before building explanations:* Current `records/v1` logs (`gary/decision_log.py`) are already complete for what the layers do—they lack *strategic reasons*, not log fields.
-- *Prompting an LLM over raw replay summaries:* Violates Principle 5 ("records, not stories"); hallucinates plausible StarCraft prose unrelated to actual decision causality.
+  *(Display answers linked to the exact timestamp/frame in `viewer/` to avoid the navigation cost found by Penney et al., 2018.)*
+- **Three separate verification metrics (replacing single-flip "80%" kill line):**
+  1. **Execution Join Integrity (automated):** Fraction of logged strategic/tactical branch decisions whose downstream leases/orders actually executed without silent override or pipe drop (directly checks the `TODO.md:15–16` failure mode).
+  2. **Decision Faithfulness (1 ms in-memory, no game rollout):** Re-query the trunk on the saved input state with valid upstream belief/sighting edits to find the **minimal abductive set** of facts whose change flips the branch (handles overdetermined decisions cleanly, where single-concept flips fail).
+  3. **Truth, Outcome Consequence & Human Utility:**
+     - *Ground-truth belief accuracy:* compare every cited belief after the game against true opponent build (`ARCHITECTURE.md:853`) vs. base rate;
+     - *Outcome counterfactual (when asked "what would have happened if X instead of Y?"):* repeated `eval/pairs.py --repeats` branches with stated horizon (Madumal et al., 2020);
+     - *Blind human evaluation:* compare templated answers against answers generated from today's `gt1dev` records over ≥25 held-out moments from 5+ games on (a) blind next-branch prediction accuracy and (b) coaching usefulness rubric (user + ideally 1–2 outside BW players).
 
 ---
 
-## 4. Implementation Plan in the Current Gary Codebase
+## 4. Codebase Inventory, Contracts, Staged Plan & Games Budget
 
-### 4.1 Keep / Refactor / Delete & Rebuild Inventory
+### 4.1 Codebase Inventory (No Premature Deletions)
 
-| Codebase Area | Action | Rationale & Specific Details |
+| Codebase Area | Action | Rationale |
 |---|---|---|
-| `gary/interface.py`, `gary/commands.py`, `gary/orders.py`, `gary/mapinfo.py`, `gary/terrain.py`, `gary/walls.py` | **KEEP** | Core G2 human hands & map geometry; battle-tested and 1:1 with SC:R |
-| `adapters/scr_bridge/`, `viewer/` | **KEEP** | Live Remastered play and POV debugging; add concept/option overlays to `viewer/` later |
-| `resim/`, `ingest/inventory.py`, `ingest/cmdcache.py`, `ingest/build_orders.py`, `ingest/ladder_maps.py` | **KEEP** | 92k replay & modern SC:R re-simulation pipeline is a core asset |
-| `gary/race.py`, `gary/races.py`, `gary/terran.py`, `gary/zerg.py`, `gary/protoss.py`, `gary/agent/executor.py`, `*_executor.py`, `gary/agent/motor.py`, `gary/agent/grouping.py` | **KEEP** | Race-agnostic execution substrate; stop polishing Protoss/Zerg edge cases during Phase 1–2, but keep `tests/test_matchups.py` and `tests/test_live.py` green |
-| `eval/match.py`, `eval/pairs.py`, `eval/paired.py`, `eval/league.py`, `eval/why.py`, `eval/monitor.py`, `gary/decision_log.py` | **KEEP & EXTEND** | Add structured `concept_belief`, `strategy_state`, `branch_select`, `option_event` record types; add counterfactual intervention runner to `eval/pairs.py`; add template Q&A CLI (`eval/coach.py` or `eval/why.py --ask`) |
-| `gary/policy/placement.py`, `gary/policy/stim.py`, `gary/policy/cast.py`, `gary/policy/modes.py`, `gary/policy/value.py` | **KEEP & RE-SCOPE** | Keep `PlacementModel` + `ProTiles` as clean neural spatial skills; keep `ValueNet` for offline residual discovery & `--gg`; scope `ModeModel`/`StimModel`/`CastModel` strictly inside active squad options |
-| `gary/policy/belief.py` | **REFACTOR / UPGRADE** | Expand from raw enemy-supply regressor into full `ConceptPerceptionProvider` predicting factored `enemy_opening`, `enemy_tech_lines`, `threat_timings`, and `enemy_eco_army` with calibration checks; wire into play by default |
-| `gary/agent/manifests.py`, `gary/agent/gary.py` | **REFACTOR** | Introduce clean typed slot contracts for the 4 tiers (`perception`, `strategy`, `tactics`, `skills`, `arbiter`); stop chaining 30+ flat option flags; create a clean `gt_ns` manifest line while keeping legacy `gt1` reproducible for A/B comparison |
-| `gary/agent/intents.py`, `gary/agent/arbiter.py` | **REFACTOR** | Separate **Tactical Squad Options** (persistent, 10–60 s, owning unit leases & attention hints) from low-level motor commands; allow active Posture + `HumanProfile` (*h*) to set arbiter attention shares (`ARCHITECTURE.md` §6.7) |
-| `gary/policy/macro.py`, `gary/agent/macro.py` | **REFACTOR** | Extract a **single shared feature/concept encoder** used by both `ingest/` and `gary/` (eliminating duplicated feature logic); accept `StrategyState` (recipe-card milestones + factored tech/posture targets) instead of a single static `style` ID |
-| `gary/policy/roles.py`, `gary/agent/roles.py`, `gary/agent/fight.py` | **REFACTOR** | Condition `RoleNet` on the active Squad Option; move unlearned rules (`PullRule`, `LoadRule`, `RepairRule`, `DetectRule`) into explicit option-scoped leaf-skill slots rather than silent priority-3 hijacks |
-| `taxonomy/discover.py`, `taxonomy/plans.py`, `taxonomy/label_all.py`, `gary/styles.py` | **REFACTOR (Phase 3)** | Upgrade to phase-level trajectory embeddings + OOD novelty flag + residual-driven concept cards; keep `v2` catalogue backward-compatible during Phase 1–2 |
-| `gary/agent/posture.py`, `gary/agent/answers.py`, `gary/agent/selector.py` | **RETIRE & REBUILD** | Replace ad-hoc hardcoded `EarlyPoolPostureV1..V6`, hardcoded `LURKER_ANSWER`/`MUTA_ANSWER`, and old 1.16 map-only `StrategySelector` with the unified **Tier 2 Symbolic Strategy Trunk** (factored `StrategyState` + counted pro/self-play tables + swappable glass-box branch scorers) |
-| `gary/agent/calm.py`, `gary/policy/calm.py` | **DELETE / RETIRE (Phase 2)** | Out-of-contact positioning belongs to persistent Squad Options (`STAGE`, `REGROUP`), not random-direction local jitter |
-| `gary/agent/army.py` (`commit` 5 s grid dice, `hunt4`, `static` overrides) & `gary/agent/army_rules.py` | **REBUILD (Phase 2)** | Replace uncoordinated 5 s grid dice + side-override `hunt4` with **Tier 2 Squad Tactical Options** (keep `ArmyNet`'s spatial heatmaps optionally as a *target-location scorer* provider inside an option!) |
-| Legacy dead/superseded scripts (`gary/policy/fight_cmd.py`, `gary/policy/fight.py`, `gary/policy/switch.py`, `gary/policy/plan.py`, `v02`–`v028` manifest clutter) | **ARCHIVE / PRUNE** | Clean out unused prototypes once parity tests are scoped to active manifests |
+| `gary/interface.py`, `gary/commands.py`, `gary/orders.py`, `gary/mapinfo.py`, `gary/terrain.py`, `gary/walls.py`, `adapters/scr_bridge/`, `viewer/` | **KEEP** | Core G2 human hands, SC:R bridge, and POV viewer (add frame-jump links for Q&As later) |
+| `resim/`, `ingest/*`, `train/macro.py`, `gary/race.py`, `gary/races.py`, `gary/terran.py`, `zerg.py`, `protoss.py`, `gary/agent/executor.py`, `*_executor.py`, `gary/agent/motor.py` | **KEEP** | Replay/resim pipeline (note: `train/macro.py:41` already imports `gary.policy.macro.encode`; parity bugs live in live-vs-resim observation accounting `#50`, not duplicated encoders) and race-agnostic core |
+| `gary/policy/fight.py`, `gary/policy/fight_cmd.py`, `gary/policy/plan.py`, `gary/policy/switch.py` | **KEEP (LIVE)** | Actively imported by `fight.py`, `calm.py`, `zerg_roles.py`, `posture.py`, `arbiter.py`, and `manifests.py` |
+| `gary/policy/placement.py`, `stim.py`, `cast.py`, `modes.py`, `roles.py`, `value.py`, `attribution.py` | **KEEP** | Working low-level neural models, offline critic (`--gg` + Phase 3 audit), and input attribution |
+| `gary/policy/belief.py` | **KEEP & EXTEND** | Add joint `P(enemy_z | seen)` over `taxonomy/plans.py` + seen/absent/unscouted memory; expose workers & town halls in `predict()` |
+| `gary/agent/selector.py` | **KEEP & EXTEND** | Already v0.19's §6.8 Beta-posterior table; extend with belief/context keys and pro conditional choice frequencies (`P_pro` + `min_n`) |
+| `gary/decision_log.py`, `eval/why.py`, `eval/judge.py`, `eval/pipe_table.py`, `eval/pairs.py`, `eval/style_adherence.py`, `eval/gap_windows.py` | **KEEP & EXTEND** | Add trace join `id`/`parent_id`, structured belief/strategy/intent records, 1 ms in-memory trunk counterfactual query, and `eval/coach.py` templates |
+| `gary/agent/army.py`, `gary/agent/calm.py` | **FIX SEEDS & TEST** | Fix `#64` RNG seeding (`army.py:159` `game_seed`, `calm.py:41` hardcoded `Random(0)`); test persistence / minimal owned intent in the 3-arm ablation before retiring anything |
+| `gary/agent/grouping.py` | **REFACTOR IF NEEDED** | Refactor only if Arm 3 / Phase 2 requires persistent squads to own hotkeys (`TypeGrouping` currently re-assigns by unit type) |
+| `gary/agent/answers.py`, `gary/agent/posture.py`, `gary/agent/macro.py` legacy decoders (`odds_mass`, `expand_mass`, `under-half`, `rax_by`, `natural_bunker`) | **RETIRE ONE AT A TIME ON MEASURE** | Keep in place during log-only soak; disable individually per `AGENTS.md` only as the Phase 1 trunk holds each rule's own measure |
+| `gary/agent/manifests.py` | **EXTEND CLEANLY** | Register Phase 1 trunk/belief/macro options inside `gt1dev` (no `gt_ns` fork); keep every option cleanly composable and reproducible |
 
-### 4.2 Modularity & Plug-and-Play Contracts
+**Stop-Gap Accountability (`AGENTS.md`):** Every existing stop-gap (`lords`, `hunt4`/`split`, `static`/`softguard`, `caps`, `scv_saturation`, `under-half`, `bank_escape`, `mass`/`expand_mass`, `answers.py`, `early_pool` posture) keeps its `AGENTS.md` entry and exit measure. In particular, finishing won games (`hunt4`) is **not** relabeled as a permanent scripted trunk rule—it remains an explicit tracked stop-gap until a learned or explicitly measured successor replaces it.
 
-Every tier boundary stays a typed protocol in `gary/agent/contracts.py` (selected via `gary/agent/manifests.py`) so no single architectural bet is hardcoded:
+### 4.2 Typed Contracts (`gary/agent/contracts.py`)
+
+Contracts live behind swappable manifest slots, carry explicit identity/lifecycle state, and seed all stochastic providers from `g.game_seed` (`#64`):
 
 ```python
-class ConceptPerceptionProvider(Protocol):
-    """Tier 1: Raw fogged obs -> calibrated named concepts & relational facts."""
-    def update(self, obs: dict, mapinfo) -> ConceptState: ...
+@dataclass(frozen=True)
+class SightingState:
+    seen: dict[str, tuple[int, int]]        # entity/tech -> (count, last_frame)
+    confirmed_absent: dict[str, int]        # region/feature -> last_checked_frame
+    unscouted: frozenset[str]               # regions/timings never checked
 
-class StrategyTrunkProvider(Protocol):
-    """Tier 2a: ConceptState -> factored StrategyState (opening card, tech mix, posture, directives) + trace."""
-    def step(self, concepts: ConceptState, current: StrategyState) -> tuple[StrategyState, list[TraceRecord]]: ...
+@dataclass(frozen=True)
+class PlanBelief:
+    frame: int
+    plan_probs: dict[str, float]            # joint P(enemy_z | sightings) over taxonomy/plans.py
+    expected_counts: dict[int, float]       # from BeliefModel
+    workers_est: float
+    town_halls_est: float
+    supply_q50: float
+    supply_q80: float
+    sightings: SightingState
+    record_id: int
+
+@dataclass(frozen=True)
+class Directive:
+    id: str                                 # e.g., "PREP_VS_MUTA"
+    params: dict[str, Any]
+    started_frame: int
+    exit_condition: str
+    trigger_record_id: int
+
+@dataclass
+class StrategyState:
+    card_id: str                            # replay/spec ID
+    opening_card: list[dict[str, Any]]      # ordered milestones (item, supply/time target)
+    adherence_mode: Literal["strict", "reactive"]
+    active_directives: list[Directive]
+    history: list[dict[str, Any]]           # transition events with record_ids
+
+@dataclass(frozen=True)
+class CandidateBranch:
+    name: str
+    params: dict[str, Any]
+
+@dataclass(frozen=True)
+class TacticalIntent:
+    id: str                                 # persistent identity across frames
+    kind: str                               # e.g., "DEFEND_HOME", "PUSH_OR_PRESSURE"
+    units: tuple[int, ...]
+    target: tuple[int, int] | None          # may be supplied by ArmyNet 16x16 heatmap
+    params: dict[str, Any]
+    started_frame: int
+    end_condition: str
+    preempt_by: tuple[str, ...]
+    lease_id: str
+    attention_hint: float | None = None     # optional arbiter/G4 hook
+
+class PlanBeliefProvider(Protocol):
+    def update(self, obs: dict, mapinfo, rng) -> PlanBelief: ...
 
 class BranchScorerProvider(Protocol):
-    """Plug-in scorer inside Tier 2a/2b: evaluates legal branches strictly from ConceptState."""
-    # Swappable providers: "counted_table", "ebm_ga2m", "concept_mlp", "side_channel_ablation"
-    def score(self, concepts: ConceptState, options: list[str]) -> dict[str, BranchScore]: ...
+    # Swappable: "pro_freq_table", "ebm_ga2m", "interaction_tree"
+    def score(self, belief: PlanBelief, strategy: StrategyState,
+              candidates: list[CandidateBranch]) -> dict[str, dict[str, Any]]: ...
 
-class TacticalOptionProvider(Protocol):
-    """Tier 2b: ConceptState + StrategyState -> persistent SquadOptions with unit leases & termination."""
-    def step(self, concepts: ConceptState, strategy: StrategyState, squads: list[Squad]) -> list[SquadOption]: ...
-
-class LeafSkillProvider(Protocol):
-    """Tier 3: Executes one SquadOption over its leased units -> candidate HumanActions (no side-overrides)."""
-    # Swappable providers: "role_net_cond", "role_net_rl", "bounded_rule_skill"
-    def act(self, option: SquadOption, obs: dict, hands: InterfaceState) -> list[Candidate]: ...
+class StrategyTrunkProvider(Protocol):
+    def step(self, belief: PlanBelief, current: StrategyState,
+             rng) -> tuple[StrategyState, list[dict[str, Any]]]: ...
 ```
 
-This directly guarantees **experimental falsifiability**: e.g., to test whether a strict concept bottleneck loses strength vs. a leaky neural network, you swap `BranchScorerProvider` between `ebm_ga2m` (strict concepts) and `side_channel_ablation` (concepts + raw `ValueNet` embedding) on the exact same manifest, seeds, and opponent.
+**Schema Freeze Rule:** Do **not** freeze `contracts.py` until **one Zerg (`gz1dev`) and one Protoss (`gp1dev`) dev game** execute end-to-end through the interfaces (even with minimal stub providers), ensuring schemas remain race-keyed with no Terran-only assumptions baked in.
 
-### 4.3 Staged Implementation Roadmap (TvZ Terran Vertical Slice First)
+### 4.3 Staged Schedule, Written Gates & Games Budget
 
-> **Scope discipline:** Pause tuning PvT, PvZ, PvP, ZvZ, and TvT edge cases until TvZ passes Phase 1 and Phase 2 acceptance gates. Keep `tests/test_matchups.py` and `tests/test_live.py` green so the race-agnostic core does not rot.
+> **Recommended Games Budget:** **~360–550 headless games total** across Phase 0, Phase 1, and the parallel 3-arm army test (~4–6 standard league rounds over ~5 weeks), structured behind cheap 16-game and 48-game screening gates so failing arms stop early rather than burning 96-game rounds unnecessarily.
 
-#### Phase 0 — Plumbing & Clean Slate (1 week)
-- Unify feature/concept extraction into one shared module imported by both `ingest/` and `gary/` (for the new concept and strategy pipelines).
-- Define `gary/agent/contracts.py` (`ConceptState`, `StrategyState`, `SquadOption`, `BranchScore`) and register the new `gt_ns` manifest line in `gary/agent/manifests.py`.
-- Reconcile standing repo rules with the user (see Section 6.2).
+| Stage | Time Box | Headless Games Budget | Live / Smoke Games | Purpose & Hard Stop / Gate |
+|---|---|---|---|---|
+| **Phase 0: Anchor & Plumbing** | **3–5 days** | **96 paired** (`gt0.48dev` vs. `gt1`, matched `--gg`) | **3 watched** (T/Z/P) + **1 SC:R LAN** (`tools/parity.py`) | Replace stale 2026-11-11 `-0.188` baseline; validate live bridge; count `answers.py` firings in 1 league round; fix `#64` RNG seeds (`army.py:159`, `calm.py:41`). |
+| **Phase 1: TvZ Strategic Trunk & Q&As** *(Foreground track; other G1 fidelity capped to watched-game regressions)* | **4 weeks** | **32 soak** (16 vs `gz1dev` + 16 vs 4 scripted Zergs) + **40 strict drills** (20/arm, fast) + **48–96 paired** (Macro Arm A vs Arm B) = **120–168 games** | **2 smoke** (`gz1dev`, `gp1dev` on contracts) + **5+ live/blind-eval games** | Ship joint `P(enemy_z \| seen)`, `StrategyState` + `--from-replay` + `strategy_compile`, pro-frequency tables (`min_n`), one-at-a-time macro rule isolation, 5 templates, and 3-part verification. |
+| **Parallel Track: 3-Arm Army Persistence Test** *(Runs alongside Phase 1)* | **Weeks 2–4** | **48 screening** (16/arm on matched seeds vs `gz1dev`) + **96 paired** (winner vs `gt0.48dev`; +96 only if Arm 2 vs Arm 3 is within MDE) = **144–240 games** | Included in Phase 1 live games | Settle whether Arm 2 (hold-only) or Arm 3 (minimal owned intent + `16×16` heatmap) fixes retreat survival, `units alone`, late arrivals, and Q&A #4—deciding Phase 2's shape. |
+| **Phase 2: Shaped by Parallel Test + Early G4 Check** | **Post-Week 4** | Budgeted from Phase 1 / Parallel Test outcomes | 2-profile sanity check | Only expand tactical intent vocabulary (to 3–5 event-grounded modes) if Arm 2 fails Q&A #4 or coherence. Run 1 early G4 test: same recipe card under pro vs. lower `HumanProfile` *h*. |
+| **Phase 3: Concept Discovery / OOD Taxonomy** | **Deferred** | **0 games** until triggered | — | Deferred until Phase 1 passes. First step when triggered: **offline** held-out replay ceiling audit (`ARCHITECTURE.md` §7.6: symbolic trunk vs. unconstrained `ValueNet`/policy, 0 games). |
 
-#### Phase 1 — TvZ Strategic Vertical Slice: Prove G3 + G5 Fast (2 weeks)
-1. **Supervised Factored Opponent Concept Model (TvZ Terran):** Train boosted trees / lightweight NN on fog-filtered modern TvZ resim to output calibrated `P(enemy_opening)`, `P(enemy_tech_lines: spire/lurker/fast_3rd/early_pool)`, `E[enemy_workers, enemy_army]`, and `P(imminent_threat)`. Gate: held-out Brier score / ECE calibration curve per minute (2:00–12:00) + calibration check on Gary-vs-Gary games.
-2. **Factored `StrategyState` + Replay Recipe Card:** Sample a real pro TvZ game of the chosen build (or accept `--from-replay <path>`, directly delivering G3's *"play the build from this replay"*) as the concrete opening timing anchor, paired with factored `active_tech_lines` and `posture`. First run **log-only** alongside `MacroNet`—marking every decision on-card, off-card, or late-and-by-what (money, busy building, hands: already recorded)—then let the Strategy Trunk hold one-off tech, expansion, and reactive defense milestones in place of `odds_mass`/`tech_min_p`/`answers.py`, driven by **counted pro matchup and sighting tables** (e.g., *"after first seeing a Spire, pros build a turret within 60 s in p% (n)"*, turning ad-hoc answers into printable data-counted rules).
-3. **Five Templated Learner Q&As + Counterfactual Replay Verifier:** Implement `eval/coach.py` over the structured decision records (no LLM yet). Verify via `eval/pairs.py` counterfactual replay: removing or flipping the cited concept/fact changes the trunk's chosen branch.
-4. **Acceptance Gate:** Play **3 live TvZ games** (human vs. `gt_ns`) and inspect the 5 Q&As per game. Must pass counterfactual faithfulness, hold belief calibration, and feel meaningfully more coherent/teachable than `gt1dev`. If answers are still unhelpful, we learn that in 2 weeks rather than at P5.
+#### Fixed Multi-Archetype Zerg Test Suite (Preventing `gz1dev` Overfitting)
+To ensure Phase 1's opponent belief and reactive directives do not overfit to `gz1dev`'s quirks (~3× pro Lurkers, ~2× Scourge, 56% style adherence), add a small fixed **4-archetype scripted Zerg suite** for TvZ screening alongside `gz1dev`:
+1. Early pool / 9-pool ling rush
+2. 2-hatch ling pressure
+3. 2-hatch Mutalisk
+4. 3-hatch Lurker
 
-#### Phase 2 — Tactical Squad Options & Clean NN Leaf Ownership (2–3 weeks)
-1. **Persistent Squad Options:** Implement `TacticalOptionProvider` (`STAGE`, `REGROUP`, `TIMING_PUSH`, `CONTAIN`, `HARASS`, `DEFEND`, `DISENGAGE`, `SCOUT`, `CLEAR_FINISH`) using `BranchScorerProvider` (`counted_table` / `ebm_ga2m`) over relational tactical concepts. Retire `calm.py`, `hunt4`, and uncoordinated 5 s `commit` grid draws.
-2. **Goal-Conditioned NN Leaves:**
-   - Condition `RoleNet` (and `ModeModel`/`StimModel`) on the active Squad Option; enforce exclusive unit leases (no priority-3 rule hijacks).
-   - Wrap remaining unlearned micro jobs (`Pull`, `Load`, `Repair`, `Detect`) as explicit, isolated option-scoped leaf skills (`bounded_rule_skill`) so they are traceable and replaceable 1-for-1.
-3. **Bilevel Verification & Bounded Leaf RL Pilot:**
-   - Freeze Tier 2 Trunk. Run the pipe check (`train/roles_rl.py --pipe`) on option-leased units (verify shifted logits cleanly move execution and local reward with zero stop-gap interference).
-   - Run one **bounded local skill RL test** (e.g., 20 s `ENGAGE` or `DISENGAGE` sub-episodes) to test whether clean unit ownership + bounded horizons finally unlock leaf RL gains on workstation compute.
-4. **Acceptance Gate:** `gt_ns` closes won games cleanly without `--gg`, matches or beats `gt1` in 96 paired TvZ games (or falls within pre-written MDE while decisively winning on human live-game feel), and passes Q&A #4 (*"Why did you attack/hold/retreat?"*) in 3 live human games.
-
-#### Phase 3 — Offline Neural → Symbolic Discovery Loop & Ceiling Audit (2 weeks)
-1. **Measure the Faithfulness vs. Strength Ceiling:** Train `ebm_ga2m` (strict concepts) vs. `side_channel_ablation` (concepts + unconstrained `ValueNet` representation) on held-out TvZ replays and self-play paired branches. Quantify the exact residual gap!
-2. **First Residual-Driven Concept Invention Pass (`ARCHITECTURE.md` §7.6):** Cluster top residual games/moments, inspect with LLM + human review, implement 2–3 newly discovered relational concepts, and verify they shrink held-out residuals.
-3. **Phase-Level OOD Novelty Detector (`taxonomy/` v3):** Train a lightweight trajectory encoder on sliding phases; verify that holding out one known modern build (e.g., 1-1-1 or 3-hatch lurker) triggers the OOD novelty alert instead of silently merging into another cluster.
-
-#### Phase 4 — Skill Slider (*h*), LLM Narrator, and Multi-Race Scaling
-- Fit `HumanProfile` (*h*) across lower rating bands (APM, reaction delay, arbiter macro/micro shares, concept-noise/lapse rates) so G4 works.
-- Layer an optional LLM Narrator strictly citing verified record IDs over Phase 1–2 templates.
-- Port the exact same contracts (`ConceptState`, `StrategyState`, `SquadOption`) to Zerg (`gz_ns`) and Protoss (`gp_ns`) using race-keyed tables and data.
+#### Pre-Written Phase 1 Acceptance Gate (Evaluated at Week 4 Time Box)
+All four conditions must be logged and reported at Week 4 before extending Phase 1 or opening Phase 2:
+1. **Opponent Belief Calibration:** Winning belief provider (Bayesian vs. boosted tree) beats the time-and-map base-rate prior on held-out modern TvZ Brier score at 4:00, 6:00, and 8:00, holds calibration on Gary's own self-play games, and classifies all 4 scripted Zerg archetypes above base rate by their scout timing.
+2. **Steering (G3):** Winning macro arm (Arm A *z*-conditioned vs. Arm B masked/reserved budget, or strict-mode scripted queue) completes **≥18/20** unharassed strict drills within timing tolerance, matches or improves `eval/style_adherence.py` per style over `gt0.48dev`, and runs both `--from-replay <path>` and text-prompt `strategy_compile` end-to-end.
+3. **Explainability Faithfulness & Coaching Utility (G5):**
+   - Execution-join integrity **≥95%** (trunk decisions trace cleanly to downstream leases/orders without silent pipe drops);
+   - 1 ms minimal abductive flip succeeds on **100%** of logged branch switches;
+   - **Blind evaluation** over ≥25 held-out moments from ≥5 games (comparing Phase 1 templates vs. today's `gt1dev` records) shows higher blind next-branch prediction accuracy and passes the learner usefulness rubric.
+4. **Strength & Fidelity Guardrail (`AGENTS.md` promotion rule):** Fidelity per window (`eval/gap_windows.py`) not measurably worse than `gt0.48dev`, and paired score vs. fixed `gz1dev` within pre-written MDE (`±0.08` at 48 games; if within `±0.08` and close, extend to 96 games with MDE `±0.06`). Same `--gg` setting on both sides.
 
 ---
 
-## 5. Honest SOTA Limits, Open Research Questions & Candidate Novel Solutions
+## 5. Open Empirical Questions, Disagreements Settled by Tests & Future Directions
 
-### 5.1 Brutal Honesty: Where Published SOTA Stops vs. Where Gary Lives
+### 5.1 Disagreements Settled by Measurement (Not Debate)
 
-Reviewing agents should **not** assume the cited literature has solved StarCraft scale. Every major neuro-symbolic paper cited in Section 3 was demonstrated on vastly simpler environments:
-
-| Literature Family | Verified Benchmarks in Published Papers | Gap to Full-Game StarCraft: Brood War |
+| Question | What Decides It | When |
 |---|---|---|
-| `DreamCoder` (Ellis et al., 2021) / `LILO` (Grand et al., 2024) | List processing, regexes, Logo graphics, ARC-like puzzles | Deterministic worlds with exact pass/fail verifiers; BW has 30-min noisy, confounded, adversarial outcomes |
-| `SCoBots` (Delfosse et al., 2024) / `NUDGE` (Delfosse et al., 2023) | Atari (*Pong*, *Seaquest*, *Kangaroo*) | Fully observable 2D arcade, tiny object counts, no tech trees or hidden adversarial plans |
-| `Silver et al. (2022)` / `VisualPredicator` (Liang et al., 2025) | Tabletop robotics (4–10 blocks, kitchen pick-and-place) | Single-agent, 5–20 step horizons, crisp boolean postconditions (`Holding(A)`), no real-time multi-front attention bottleneck |
-| `AlphaStar` (Vinyals et al., 2019) | Full-game SC2 (Grandmaster) | Pure black-box neural + massive distributed TPU league; fails G5 (explainability) and workstation compute |
+| Does `gt0.48dev` still trail `gt1` by `-0.188` after `ModeModel`, `Calm`, and cluster-order fixes? | 96 paired games (`gt0.48dev` vs. `gt1`) + fidelity per window | Phase 0 |
+| How often does `answers.py` actually fire in `gt1dev` today? | Record count over one complete `gt1dev` league round | Phase 0 |
+| Does conditioning `MacroNet` on the recipe card (AlphaStar *z*) hold a requested build as reliably as preemptive resource reservation + tech masking? | Phase 1 2-arm test: 20 unharassed drills/arm + `eval/style_adherence.py` + 48–96 paired games | Phase 1 |
+| Does holding existing commitments/retreats (Arm 2) solve retreat cancellations and lone units, or are owned tactical intents (Arm 3) required for coherence and Q&A #4? | Parallel 3-arm test (48 screen → 96–192 paired games) + Q&A #4 check | Parallel w/ Phase 1 |
+| Does Gary mistime attacks against Stim/+1 compared to pros (and does `commit` see research state)? | Offline audit on existing league records + `gary/policy/army.py` input check (0 games) | Phase 1 |
+| What is the prediction/value cost of a strictly symbolic trunk vs. an unconstrained model? | Offline held-out TvZ replay bake-off (`ARCHITECTURE.md` §7.6: trunk vs. unconstrained `ValueNet`/policy, 0 games) | Phase 3 Trigger |
+| Is there learnable outcome SNR in intermediate tactical option choices (beyond 77-moment whole-army attack vs. hold)? | Effect-size check (`docs/SELF_PLAY.md` method) before ever training an outcome option scorer | Post-Phase 2 (only if RL unparks) |
 
-**Implication:** Building Gary is **not** pet-project engineering—it is a genuine stress test of whether the Neuro-Symbolic Sandwich scales to real-time, partially observable, adversarial, continuous-control systems.
+### 5.2 SOTA Context & Future Directions (Post-Phase 1)
 
-### 5.2 Five Open Questions We Must Answer Empirically
+Every general neuro-symbolic paper cited in earlier drafts (`DreamCoder`, `LILO`, `SCoBots`, `NUDGE`, `Silver et al.`, `VisualPredicator`) was demonstrated on deterministic puzzles, Atari, or tabletop robotics—not 30-minute partially observable adversarial RTS. The closest direct precedents for Gary's components come from the **RTS / Brood War and XAI literature**:
+- **Opponent modeling:** Bayesian build-tree plan recognition (Synnaeve & Bessière, 2011) and neural Brood War defogging (Synnaeve et al., 2018).
+- **Build-order planning & steering:** Deterministic/search build scheduling for strict drills (Churchill & Buro, 2011; Justesen & Risi, 2017) and AlphaStar's replay-statistic *z*-conditioning (Vinyals et al., 2019).
+- **Skill bands (G4):** Training/calibrating on human skill bands rather than only injecting noise into a pro model (Maia: McIlroy-Young et al., 2020), once rated lower-band replays are checked in the inventory.
+- **Causal & navigable explanations (G5):** Causal contrastive explanations validated by human task-prediction in StarCraft II (Madumal et al., 2020), POV-linked foraging support (Penney et al., 2018), and human concept-transfer evaluation (Schut et al., 2023).
+- **Offline policy improvement & action smoothness (if needed later):** Offline RL over human replays (AlphaStar Unplugged: Mathieu et al., 2023) and Action Chunking (`ACT`: Zhao et al., 2023) for short-horizon micro coherence.
 
-1. **Q1 (Faithfulness vs. Strength Ceiling):** How large is the performance gap between a strict 30–60 concept bottleneck and an unconstrained neural evaluator in Brood War? Does the residual flatten after ~40 relational concepts, or does BW contain irreducible tacit spatial intuition that caps a strict bottleneck well below strong human play?
-2. **Q2 (Soft Concept Leakage in Sequential Play):** When Perception outputs continuous probabilities (`P(2h_muta) = 0.62`), can downstream learned branch scorers (`ebm_ga2m`, `concept_mlp`) remain genuinely faithful under intervention, or do they exploit subtle calibration correlations as hidden leakage (Havasi et al., 2022; Marconato et al., 2023)?
-3. **Q3 (Interruptible Multi-Front Options under Shared Human Hands):** How should concurrent squad options (`TIMING_PUSH` at front + `DEFEND` drop in main + `MACRO` at home) share a single camera/APM bottleneck (`Attention Arbiter`) so that human-like mistakes emerge without corrupting option-level credit assignment?
-4. **Q4 (Causal vs. Confounded Strategy Selection):** Pro replay win rates are heavily confounded (pros choose an all-in *because* they read a winning state). How accurately can propensity weighting (Swaminathan & Joachims, 2015) + limited workstation self-play interventions separate causal counter-play from observational bias?
-5. **Q5 (Bounded Leaf RL Viability):** Once leaf stop-gaps are removed and options isolate 15–45 s localized goals, does RL over NN micro leaves (`RoleNet`) actually beat imitation + rules under human-hand noise, or does human-interface stochasticity still swamp local policy gradients?
-
-### 5.3 Where Novel Solutions May Be Needed (Candidate Directions Beyond Literature)
-
-If/when off-the-shelf methods hit walls on Q1–Q5, four candidate novel mechanisms fit Gary's unique capabilities:
-
-1. **Counterfactual-Replay-Verified Concept Discovery (Addressing Q4 & DreamCoder's Verifier Gap):**
-   - Unlike standard observational datasets, Gary has a **deterministic branching OpenBW simulator** (`eval/pairs.py`). When offline residual clustering + LLM inspection proposes a candidate causal concept/rule (*"against Nexus-first on cross spawn, switching to 2-Fac Vulture beats standard bio"*), Gary can automatically run **targeted paired counterfactual branches** on 30–50 matching game states—turning observational hypotheses into cheap *interventional causal verification* before promoting a concept to the symbolic library.
-2. **Anchor-and-Delta Dual Strategy Representation (Addressing Q1 & New Meta Builds):**
-   - Represent any build as `(exemplar_trajectory_anchor, factored_symbolic_deltas)`—a real pro replay supplies the concrete fine-grained timings (handling arbitrary novel seasonal builds immediately), while the factored symbolic layer expresses *deviations and transitions* relative to that anchor (`+2 turrets because P(muta) > 0.7`, `+Siege Tank transition because Lurker scouted`). This preserves 100% expressiveness for new builds while keeping explanations crisp (*"Following replay X's 1-Rax FE, except I added 2 turrets early because..."*).
-3. **Attention-Budgeted Semi-MDP Options (Addressing Q3):**
-   - Extend classical options $(I_\omega, \pi_\omega, \beta_\omega)$ with an **attention-share request** $a_\omega \in [0, 1]$ handed to the `Attention Arbiter` (modulated by `HumanProfile` *h*), and log **effective attention received** per option execution. Option-level credit assignment and explanations explicitly separate *"bad option choice"* from *"good option starved of APM by a simultaneous drop."*
-4. **Intervention-Driven Interactive Refinement (Addressing Q1 & G5 Together):**
-   - During post-game human sparring reviews, when a player challenges Gary's trace (*"No, seeing a 3:10 Lair with 2 hatcheries means 2-hatch muta, not 3-hatch lurker"* or *"You should have disengaged here"*), capture the human correction as a structured **concept or branch preference record** (`annotate/`), directly fine-tuning the Perception calibrator or Branch Scorer on high-leverage real-game errors without full RL retraining.
+**Future directions parked beyond Phase 1 (trigger-gated):**
+1. **Attention-budgeted intents (`ARCHITECTURE.md` §6.7 + G4):** Attach `attention_hint` to active intents and log effective attention received from `Attention Arbiter` so explanations separate *"bad plan"* from *"plan starved of APM by a drop."*
+2. **Offline residual concept discovery (`ARCHITECTURE.md` §7.6 + §7.7 guide mining):** Triggered only if the offline held-out replay ceiling audit finds large systematic residuals after Phase 1; pair candidate concepts with `eval/pairs.py` repeated branches (MDE-sized) before promotion.
+3. **Interactive post-game trace refinement:** Capture structured user corrections on bad beliefs/branches during human sparring reviews as supervised fine-tuning records.
+4. **LLM Narrator over verified templates:** Added only after Phase 1–2 templates pass blind usefulness and faithfulness checks, strictly citing record IDs.
 
 ---
 
-## 6. Adversarial Multi-Agent Review Kit
+## 6. Standing Repo Decisions & Explicit Departures
 
-This section is explicitly structured so multiple reviewing agents can debate, red-team, and refine this plan before implementation starts.
-
-### 6.1 Falsifiable Hypotheses & Kill Criteria
-
-| Core Bet | Verification Test | Kill / Pivot Trigger | Fallback Action |
-|---|---|---|---|
-| **H1 (Phase 1):** Factored Opponent Model + Recipe Card + Counted Tables produce genuinely useful learner coaching answers | 3 live human TvZ games + 5 Q&As evaluated by the user + counterfactual replay check | Counterfactual consistency < 80%, OR user judges answers still unhelpful/generic after Phase 1 (2–3 weeks) | Inspect whether failure is in concept granularity (add relational concepts) or recipe-card adherence (tighten strict-mode macro execution) |
-| **H2 (Phase 2):** Persistent Squad Options + conditioned NN leaves eliminate army tug-of-war without leaf stop-gaps | 96 paired TvZ games vs. `gt1` + 3 live games + `pipe_table.py` | `gt_ns` trails `gt1` by > 0.10 paired score AND feels worse in live games after option tuning | Keep symbolic options for strategic timing/regrouping, but use `ArmyNet` heatmaps as a continuous target proposal inside `TIMING_PUSH`/`CONTAIN` |
-| **H3 (Phase 2):** Removing leaf stop-gaps + bounding horizon to 15–45 s options unlocks positive leaf RL signal | Pipe check + held-out option-episode A/B pairs (MDE written upfront) | Shifted logits move commands, yet 2 bounded RL runs end at chance on held-out episodes | Accept that workstation RL stays at **Tier 2 (options/strategy)** only; keep Tier 3 leaves purely supervised + `DAgger`-style filtered imitation |
-| **H4 (Phase 3):** Strict concept bottleneck stays close to unconstrained neural strength | Held-out TvZ replay prediction + 96 paired games: `ebm_ga2m` (strict) vs. `side_channel_ablation` | Strict concept bottleneck loses > 0.12 paired score even after 2 residual concept-invention iterations | Adopt a **calibrated hybrid** where strict concepts own *strategic branches* (build/tech/expand/push-or-hold) while continuous spatial features assist *where* to execute |
-
-### 6.2 Standing Repo Decisions to Reopen
-
-| Standing Rule | Recorded Rationale | Proposed Change in Refocus |
+| Decision | Standing Repo Rule | v2.0 Policy |
 |---|---|---|
-| **Work every matchup at once** (`TODO.md`, 2026-11-12) | One matchup hides bugs others expose | Keep race-agnostic code & `test_matchups.py`; build & prove Phase 1–3 in **TvZ Terran only** first |
-| **All symbolic rules are "stop-gap debt"** (`AGENTS.md`) | Decisions should eventually be learned | Replace binary with a **3-way classification**: (1) *Leaf overrides* = debt (eliminate); (2) *Data-counted symbolic trunk rules & option contracts* = core architecture (keep & grow); (3) *Temporary option-scoped rule skills* = tracked for 1-for-1 NN leaf replacement |
-| **Fidelity before wins** (`AGENTS.md`) | Prevent abandoning pro-like changes due to execution bugs | Keep as a guardrail against discarding valid fidelity fixes, **add a stopping rule**: marginal gap metrics (`gap_windows.py`, `pipe_table.py`) are anomaly detectors, not the work queue; prioritize faults seen in live/watched games or blocking coaching Q&As |
-| **Narrator waits for "complete records"** (`ARCHITECTURE.md` §8) | Prevent hallucinated reasons | Build templated Q&As + counterfactual replay verifier **in Phase 1** as the architectural compass |
-| **Two builds per race (`gt1` vs. `gt1dev`)** | Dev build judges learning without stop-gaps | Freeze `gt1` as baseline; stop adding marginal BC patches to `gt1dev`; build the refocused architecture cleanly as `gt_ns` |
-| **Headless rounds as primary loop** | Need paired statistical power | Run **≥1 live human or watched game per milestone** before running 48/96-game headless rounds |
-
-### 6.3 Shared Evaluation Rubric
-
-Proposals and revisions should be evaluated against six criteria:
-1. **Coaching Utility (G5):** Would a D/C/B-rank Brood War learner actually learn StarCraft from Gary's post-game answers, and are those answers counterfactually faithful?
-2. **Coherence & Sparring Feel (G1):** Does it eliminate visible bot-like incoherence (scattered rallies, cancelled retreats, ignoring scouted tech, failing to finish won games)?
-3. **Steerability & Intervenability (G3):** Can a user request a specific build, replay, or adaptive branch reliably?
-4. **Learnability / Pipe Cleanliness:** Does it preserve exclusive unit control and clean credit assignment for future NN/RL improvements?
-5. **Time-to-Falsifiable-Signal:** How quickly (in weeks, on workstation compute) can the core riskiest assumption be tested and either validated or killed?
-6. **Modularity (G6):** Can individual components (perception, branch scorer, option policy, leaf skills) be swapped and A/B tested via manifest without rewrites?
+| **1. Build line & macro ownership** | `gt1` vs. `gt1dev` (`AGENTS.md`); `gt1dev` inherits `answers`, `rax_by`, `natural_bunker`, `under-half` | **No `gt_ns` fork and no delete list.** Build `ARCHITECTURE.md`'s upper layers on existing `gt1dev` seams. Count `answers.py` first, soak log-only, then remove conflicting macro rules **one at a time** on their `AGENTS.md` measures until the active trunk has one resource owner. |
+| **2. Matchup scope** | Every matchup at once (`TODO.md`, 2026-11-12) | Build the vertical slice in **TvZ Terran** (tested against the 4-archetype scripted Zerg suite + `gz1`/`gz1dev`), keep low-rate judge monitors on other matchups, and run **1 Zerg + 1 Protoss dev smoke game** through `contracts.py` before freezing schemas. |
+| **3. Tactical layer** | Positioning & finishing (`TODO.md` `(c)`) | Run the **3-arm persistence test first** alongside Phase 1 (Arm 1 current, Arm 2 hold-only, Arm 3 minimal owned intent + `16×16` heatmap), adding Q&A #4 as a pass criterion; measure any upgrade-timing gap separately before gating on it. |
+| **4. Reinforcement learning** | RL parked (`TODO.md:143–145`); offline counterfactuals only (`AGENTS.md`) | **Remove online bounded leaf RL.** Keep RL parked; any future return uses offline methods (AWR/IQL/AlphaStar Unplugged) after effect-size SNR is measured. |
+| **5. Phase 3 discovery loop** | Unstarted (`ARCHITECTURE.md` §7.6) | **Defer** until Phase 1 passes its gate; first step when triggered is an offline 0-game ceiling audit. |
+| **6. Priority order & stopping rule** | `TODO.md` Direction `(a)–(f)` (G1 fidelity work) | **Phase 1 in front** as the foreground track with a 4-week time box and pre-written gate; cap other G1 fidelity work to regressions caught in watched games; run the 3-arm army test alongside after Phase 0's remeasure. |
+| **7. V1 trunk scorer *(explicit departure from `ARCHITECTURE.md:194`)*** | `ARCHITECTURE.md` §5/§6.8 specifies win-rate statistics | **Depart to pro conditional choice frequencies** $P_{\text{pro}}(\text{branch} \mid \text{belief}, \text{context})$ with support floor `min_n` for V1; print observational win rate as non-deciding context only; allow outcome overrides only from randomized `eval/pairs.py` branches on Gary's own games. |
 
 ---
 
-## 7. Verified References
+## 7. References & Verification Status
 
-Every citation below was verified directly against published proceedings / arXiv records for exact authorship, venue, and supported claims:
+Each entry states honestly how it was checked (`search-verified` = verified title, authors, venue, year, and core claims against web search / abstract records; `analogy` = structural analogy rather than direct methodological guarantee).
 
-1. **Alshiekh, M., Bloem, R., Ehlers, R., Könighofer, B., Niekum, S., & Topcu, U. (2018).** *Safe Reinforcement Learning via Shielding.* AAAI 2018 (`arXiv:1708.08611`). — Formalizes preemptive vs. post-posed runtime shielding; grounds why post-posed leaf overrides distort policy-execution alignment compared to preemptive option scoping.
-2. **Bacon, P.-L., Harb, J., & Precup, D. (2017).** *The Option-Critic Architecture.* AAAI 2017 (`arXiv:1609.05140`). — Formalizes option initiation, intra-option policies, and termination gradients; grounds option persistence/termination design.
-3. **Bastani, O., Pu, Y., & Solar-Lezama, A. (2018).** *Verifiable Reinforcement Learning via Policy Extraction* (`VIPER`). NeurIPS 2018 (`arXiv:1805.08328`). — Policy extraction into decision trees; cited as an alternative programmatic-policy paradigm suited to discrete trunks but insufficient for continuous BW micro leaves.
-4. **Delfosse, Q., Shindo, H., Dhami, D. S., & Kersting, K. (2023).** *Interpretable and Explainable Logical Policies via Neurally Guided Symbolic Abstraction* (`NUDGE`). NeurIPS 2023 (`arXiv:2306.01439`). — Neurally guided differentiable logic policies on Atari; cited as an alternative pure-logic paradigm and SOTA scope benchmark.
-5. **Delfosse, Q., Sztwiertnia, S., Rothermel, M., Stammer, W., & Kersting, K. (2024).** *Interpretable Concept Bottlenecks to Align Reinforcement Learning Agents* (`SCoBots`). NeurIPS 2024 (`arXiv:2401.05821`). — Introduces successive and relational concept bottlenecks in RL to enable human inspection, pruning, and alignment; evaluated on Atari.
-6. **Ellis, K., Wong, C., Nye, M., Sablé-Meyer, M., Cary, L., Morales, L., Hewitt, L., Solar-Lezama, A., & Tenenbaum, J. B. (2021).** *DreamCoder: Bootstrapping Inductive Program Synthesis with Wake-Sleep Library Learning.* PLDI 2021 (`arXiv:2006.08381`). — Wake-sleep abstraction compression + neural recognition model; motivates offline library growth while highlighting its exact-verifier assumption.
-7. **Grand, G., Wong, L., Bowers, M., Olausson, T. X., Liu, M., Tenenbaum, J. B., & Andreas, J. (2024).** *LILO: Learning Interpretable Libraries by Compressing and Documenting Code.* ICLR 2024 (`arXiv:2310.19791`). — Combines symbolic abstraction compression (`Stitch`) with LLM auto-documentation (`AutoDoc`) to build human-readable concept libraries.
-8. **Havasi, M., Parbhoo, S., & Doshi-Velez, F. (2022).** *Addressing Leakage in Concept Bottleneck Models.* NeurIPS 2022 (OpenReview `tglniD_fn9`). — Diagnoses concept leakage and broken interventions from insufficient concept sets and soft probability encoding; introduces Side-Channel CBMs (used here as our offline/ablation benchmark for measuring the strength ceiling).
-9. **Kautz, H. (2022).** *The Third AI Summer.* AI Magazine, 2022 (AAAI Robert S. Engelmore Memorial Lecture). — Canonical taxonomy of neuro-symbolic integration patterns (`Neuro → Symbolic`, `Symbolic[Neuro]`, `Neuro | Symbolic`, etc.).
-10. **Koh, P. W., Nguyen, T., Tang, Y. S., Mussmann, S., Pierson, E., Kim, B., & Liang, P. (2020).** *Concept Bottleneck Models.* ICML 2020 (`arXiv:2007.04612`). — Foundational CBM formulation establishing concept-level transparency and test-time human intervention.
-11. **Levy, A., Konidaris, G., Platt, R., & Saenko, K. (2019).** *Learning Multi-Level Hierarchies with Hindsight* (`HAC`). ICLR 2019 (`arXiv:1712.00948`). — Analyzes multi-level non-stationarity in hierarchical RL when lower and higher policies co-adapt; grounds staged/bilevel training and hindsight goal relabeling.
-12. **Liang, Y., Kumar, N., Tang, H., Weller, A., Tenenbaum, J. B., Silver, T., Henriques, J. F., & Ellis, K. (2025).** *VisualPredicator: Learning Abstract World Models with Neuro-Symbolic Predicates for Robot Planning.* ICLR 2025 Spotlight (`arXiv:2410.23156`). — Neuro-symbolic predicate invention for abstract world models in robotics planning; illustrates both modern predicate-invention direction and current tabletop-scale SOTA limits.
-13. **Mahinpei, A., Clark, J., Lage, I., Doshi-Velez, F., & Pan, W. (2021).** *Promises and Pitfalls of Black-Box Concept Learning Models.* ICML 2021 Workshop on Explainable AI (`arXiv:2106.13314`). — Demonstrates how soft concept representations leak non-concept information, undermining faithfulness.
-14. **Marconato, E., Teso, S., Vergari, A., & Passerini, A. (2023).** *Not All Neuro-Symbolic Concepts Are Created Equal: Analysis and Mitigation of Reasoning Shortcuts.* NeurIPS 2023 (`arXiv:2305.19951`). — Formalizes reasoning shortcuts (high accuracy via corrupted concept semantics); motivates direct hindsight supervision of Gary's concept extractors from re-simulated ground truth.
-15. **Nori, H., Jenkins, S., Koch, P., & Caruana, R. (2019).** *InterpretML: A Unified Framework for Machine Learning Interpretability.* (`arXiv:1909.09223`). — Introduces Explainable Boosting Machines ($\text{GA}^2\text{M}$), glass-box additive + pairwise interaction models avoiding flat Cartesian table explosion while maintaining exact feature attribution.
-16. **Ontiveros, R. C., Giannini, F., Gori, M., Marra, G., & Diligenti, M. (2025).** *Grounding Methods for Neural-Symbolic AI.* IJCAI 2025 (`arXiv:2507.08216`). — Formalizes the combinatorial grounding bottleneck in NeSy systems and parameterized/lifted grounding trade-offs.
-17. **Ross, S., Gordon, G. J., & Bagnell, J. A. (2011).** *A Reduction of Imitation Learning and Structured Prediction to No-Regret Online Learning.* AISTATS 2011 (`DAgger`). — Establishes compounding covariate shift in behavioral cloning and why closed-loop state coverage matters.
-18. **Rudin, C. (2019).** *Stop explaining black box machine learning models for high stakes decisions and use interpretable models instead.* Nature Machine Intelligence, May 2019. — Argues against post-hoc black-box explanations in favor of inherently interpretable decision models.
-19. **Silver, T., Athalye, A., Tenenbaum, J. B., Lozano-Pérez, T., & Kaelbling, L. P. (2022).** *Learning Neuro-Symbolic Skills for Bilevel Planning.* CoRL 2022 (`arXiv:2206.10680`). — Combines symbolic operators with learned continuous low-level skills for long-horizon robotics planning.
-20. **Sutton, R. S., Precup, D., & Singh, S. (1999).** *Between MDPs and semi-MDPs: A framework for temporal abstraction in reinforcement learning.* Artificial Intelligence, 1999. — Foundational formalization of temporally extended options and semi-MDPs.
-21. **Swaminathan, A., & Joachims, T. (2015).** *Batch Learning from Logged Bandit Feedback through Counterfactual Risk Minimization.* JMLR / ICML 2015. — Propensity-weighted off-policy learning and variance regularization for confounded logged outcomes.
-22. **Vinyals, O., Silver, D., & the DeepMind AlphaStar Team (2019).** *Grandmaster level in StarCraft II using multi-agent reinforcement learning.* Nature, November 2019. — Demonstrates full-game StarCraft mastery via black-box multi-agent deep RL with massive league compute; serves as the pure-neural contrast point.
+### Brood War, RTS & Imitation / Offline RL
+1. **Churchill, D., & Buro, M. (2011).** *Build Order Optimization in StarCraft.* AIIDE 2011. (`search-verified`) — Branch-and-bound build-order scheduling; precedent for strict-mode drill execution (`ARCHITECTURE.md:456`).
+2. **Justesen, N., & Risi, S. (2017).** *Continual Online Evolutionary Planning for In-Game Build Order Adaptation in StarCraft.* GECCO 2017. (`search-verified`) — Online build-order adaptation in StarCraft: Brood War.
+3. **Synnaeve, G., & Bessière, P. (2011).** *A Bayesian Model for Plan Recognition in RTS Games applied to StarCraft.* AIIDE 2011 (`arXiv:1111.3735`). (`search-verified`) — Direct Brood War precedent for Bayesian opponent build-tree inference from noisy partial sightings (Phase 1 baseline provider).
+4. **Synnaeve, G., Lin, Z., Gehring, J., Gant, D., Mella, V., Khalidov, V., Carion, N., & Usunier, N. (2018).** *Forward Modeling for Partial Observation Strategy Games — A StarCraft Defogger.* NeurIPS 2018 (`arXiv:1812.00054`). (`search-verified`) — Neural hidden/future state estimation from partial Brood War observations.
+5. **Vinyals, O., Babuschkin, I., Czarnecki, W. M., Mathieu, M., Dudzik, A., Chung, J., Choi, D. H., Powell, R., Ewalds, T., Georgiev, P., et al. (2019).** *Grandmaster level in StarCraft II using multi-agent reinforcement learning.* Nature 575, 350–354. (`search-verified`) — Replay-statistic *z*-conditioning (Phase 1 Macro Arm A baseline) and pure-neural scale contrast.
+6. **Mathieu, M., Ozair, S., Srinivasan, S., Gulcehre, C., Zhang, S., et al. (2023).** *AlphaStar Unplugged: Large-Scale Offline Reinforcement Learning.* `arXiv:2308.03526`. (`search-verified`) — Offline RL benchmark over human StarCraft II replays; reference point if Gary later unparks offline RL.
+7. **McIlroy-Young, R., Sen, S., Kleinberg, J., & Anderson, A. (2020).** *Aligning Superhuman AI with Human Behavior: Chess as a Model System* (`Maia`). KDD 2020 (`arXiv:2006.01855`). (`search-verified`) — Demonstrates predicting human decisions per skill band rather than adding noise to a pro policy (future G4 design).
+8. **Ross, S., & Bagnell, D. (2010)** / **Ross, S., Gordon, G. J., & Bagnell, J. A. (2011).** *Efficient Reductions for Imitation Learning* (AISTATS 2010) and *A Reduction of Imitation Learning and Structured Prediction to No-Regret Online Learning* (`DAgger`, AISTATS 2011, `arXiv:1011.0686`). (`search-verified`) — Establishes compounding covariate shift in behavioral cloning (note: DAgger's own remedy requires an interactive expert oracle unavailable for pro replays).
+9. **Zhao, T. Z., Kumar, V., Levine, S., & Finn, C. (2023).** *Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware* (`ACT`). RSS 2023 (`arXiv:2304.13705`). (`search-verified`) — Action chunking over short sequences to reduce per-step imitation compounding error (candidate Tier 3 leaf direction if held intents still dither).
+
+### Explainability, Glass-Box Models & Concept Bottlenecks
+10. **Madumal, P., Miller, T., Sonenberg, L., & Vetere, F. (2020).** *Explainable Reinforcement Learning through a Causal Lens.* AAAI 2020. (`search-verified`) — Causal contrastive ("why X instead of Y?") explanations validated in a 120-participant StarCraft II study on task prediction, satisfaction, and trust.
+11. **Penney, S., Dodge, J., Hilderbrand, C., Anderson, A., Simpson, L., & Burnett, M. (2018).** *Toward Foraging for Understanding of StarCraft Agents: An Empirical Study.* CHI 2018 (`arXiv:1711.08019`). (`search-verified`) — Shows experienced StarCraft players face high information-foraging costs inspecting agents, motivating timestamp/POV-linked explanations.
+12. **Schut, L., Tomasev, N., McGrath, T., Hassabis, D., Paquet, U., & Kim, B. (2023).** *Bridging the Human-AI Knowledge Gap: Concept Discovery and Transfer in AlphaZero.* `arXiv:2310.16410`. (`search-verified`) — Evaluates explanations by whether human players actually improve from them.
+13. **Rudin, C. (2019).** *Stop explaining black box machine learning models for high stakes decisions and use interpretable models instead.* Nature Machine Intelligence 1, 206–215. (`search-verified`) — Motivates inherently inspectable strategic branch decisions over post-hoc input perturbation alone.
+14. **Lou, Y., Caruana, R., Gehrke, J., & Hooker, G. (2013)** & **Nori, H., Jenkins, S., Koch, P., & Caruana, R. (2019).** *Accurate Intelligible Models with Pairwise Interactions* (KDD 2013) and *InterpretML: A Unified Framework for Machine Learning Interpretability* (`arXiv:1909.09223`). (`search-verified`) — Introduces $\text{GA}^2\text{M}$ and EBM (swappable glass-box branch scorer for additive/pairwise features; note ≥3-way conjunctions require trees).
+15. **Koh, P. W., Nguyen, T., Tang, Y. S., Mussmann, S., Pierson, E., Kim, B., & Liang, P. (2020).** *Concept Bottleneck Models.* ICML 2020 (`arXiv:2007.04612`). (`search-verified`) — Concept-level transparency and test-time intervention (static classification; adapted with care to temporal partial-observability beliefs).
+16. **Mahinpei, A., Clark, J., Lage, I., Doshi-Velez, F., & Pan, W. (2021)** & **Havasi, M., Parbhoo, S., & Doshi-Velez, F. (2022).** *Promises and Pitfalls of Black-Box Concept Learning Models* (`arXiv:2106.13314`) and *Addressing Leakage in Concept Bottleneck Models* (NeurIPS 2022). (`search-verified`) — Demonstrates soft-probability leakage when passing continuous concept probabilities into learned downstream classifiers, motivating discrete/joint plan beliefs and dropping `concept_mlp`.
+17. **Marconato, E., Teso, S., Vergari, A., & Passerini, A. (2023).** *Not All Neuro-Symbolic Concepts Are Created Equal: Analysis and Mitigation of Reasoning Shortcuts.* NeurIPS 2023 (`arXiv:2305.19951`). (`search-verified`) — Motivates direct hindsight supervision of belief/concept extractors from re-simulated ground truth.
+
+### Options, Shielding Terminology & Neuro-Symbolic Analogies
+18. **Sutton, R. S., Precup, D., & Singh, S. (1999).** *Between MDPs and semi-MDPs: A framework for temporal abstraction in reinforcement learning.* Artificial Intelligence 112, 181–211. (`search-verified`) — Foundational options framework $(I_\omega, \pi_\omega, \beta_\omega)$.
+19. **Bacon, P.-L., Harb, J., & Precup, D. (2017)** & **Harb, J., Bacon, P.-L., Klissarov, M., & Precup, D. (2018).** *The Option-Critic Architecture* (AAAI 2017, `arXiv:1609.05140`) and *When Waiting is not an Option: Learning Options with a Deliberation Cost* (AAAI 2018, `arXiv:1709.04571`). (`search-verified`) — Option termination and explicit deliberation costs to prevent rapid switching (Arm 2/Arm 3 persistence design).
+20. **Alshiekh, M., Bloem, R., Ehlers, R., Könighofer, B., Niekum, S., & Topcu, U. (2018).** *Safe Reinforcement Learning via Shielding.* AAAI 2018 (`arXiv:1708.08611`). (`search-verified`) — Provides the preemptive-vs-post-posed shielding terminology used for macro action masking (note: Alshiekh et al. prove RL convergence is preserved under both placements when actions are properly credited; Gary's past RL failures came from silent non-execution / unasked decisions and variance, documented in `docs/SELF_PLAY.md`).
+21. **Swaminathan, A., & Joachims, T. (2015).** *Batch Learning from Logged Bandit Feedback through Counterfactual Risk Minimization.* ICML / JMLR 2015 (`arXiv:1502.02362`). (`search-verified`) — Cited specifically to note why logged-bandit propensity methods do **not** apply to observational pro replays (no logged propensities, unobserved confounding) and belong only where logging propensities are recorded (`records/v1` / paired branches).
+22. **Kautz, H. (2022)** (*The Third AI Summer*, AI Magazine), **Silver, T., et al. (2022)** (*Learning Neuro-Symbolic Skills for Bilevel Planning*, CoRL 2022, `arXiv:2206.10680`), **Castellano Ontiveros, R., Giannini, F., Gori, M., Marra, G., & Diligenti, M. (2025)** (*Grounding Methods for Neural-Symbolic AI*, IJCAI 2025, `arXiv:2507.08216`), **Ellis, K., et al. (2021)** (*DreamCoder*, PLDI 2021, `arXiv:2006.08381`), **Grand, G., et al. (2024)** (*LILO*, ICLR 2024, `arXiv:2310.19791`), and **Liang, Y., et al. (2025)** (*VisualPredicator*, `arXiv:2410.23156`). (`search-verified`, **analogy only**) — High-level framing analogies for neuro-symbolic composition, relational aggregation, and future offline library growth; none operate at StarCraft: Brood War scale.
