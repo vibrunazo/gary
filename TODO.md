@@ -29,8 +29,11 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   written in docs/REFOCUS.md §4.3. Beside it (weeks 2-4), the three-arm army persistence test.
   1. The enemy-plan belief, offline (train/plan_belief.py): beats the floor on the pros' held-out games at 4, 6 and 8
      minutes (joint Brier -0.10 to -0.13); on Gary's own games worse than the floor from 6:00, as Gary has seen the
-     Zerg's tech by 6:00 in 5% of games (the pros 60%) and gz1 plays one plan in 76% of them. Next, the user's call:
-     scouting and the seen / confirmed absent / unscouted states first, and the four scripted Zerg plans to judge on.
+     Zerg's tech by 6:00 in 5% of games (the pros 60%) and gz1 plays one plan in 76% of them. The sighting states
+     (gary/policy/sightings.py, ingest/sighting_dataset.py) committed, checked on 12 games, not built in full, not in
+     play. **Phase 1 stopped 2026-11-23 for the round-two review** of docs/REFOCUS.md; the order agreed before the stop:
+     the three sighting states, the Zerg plan suite (label each game's plan as played), the scouting measure, scouting,
+     the belief re-scored against the suite.
 - **Maintenance cap:** other fidelity work only for regressions caught in watched games. Paused: (c)'s unstarted
   items (the army at home at 15-20, the PvT tanks) and units alone (below).
 
