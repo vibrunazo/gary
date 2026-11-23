@@ -35,9 +35,10 @@ c. The upstream decisions ahead of the remaining abilities: the army's positioni
    floor off in gt1dev (gt0.44dev) and league games ended at the critic's gg (the user's calls); the standing read:
    out of contact no layer gives a standing unit a short order (eval/calm_check.py: the pros 1.59 a fighter a minute,
    Gary 0.31), and half the commit questions were about clusters smaller than its data's (fixed, gt0.45dev). The calm
-   layer (the user's call): folded into gt1dev (gt0.46dev; a new fighter's first rest the pros' 8 s). Next: what
-   leaves Gary's units alone (0.41 at 5-10 minutes, the pros 0.20) and spreads the army; then home at 15-20 (the old
-   army stays home twice the pros'), the PvT tanks.
+   layer (the user's call): folded into gt1dev (gt0.46dev; a new fighter's first rest the pros' 8 s). Army orders now go
+   to whole clusters (gt0.48dev and every build: the commit orders the pros' size, the spread nearer). Units alone
+   unchanged (0.40, the pros 0.20; read in docs/PROGRESS.md, parked 2026-11-22: the calm layer's one-unit orders the
+   next lever). Next: home at 15-20 (the old army stays home twice the pros'), the PvT tanks.
 d. One live game a race, watched, before more decoder work.
 e. gt1dev against gt1 measured again (paired, and the fidelity measures per window: -0.188 [-0.302, -0.078] on
    2026-11-11), since promotion turns on it.
