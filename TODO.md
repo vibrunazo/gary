@@ -14,8 +14,9 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
 - **Phase 0 (3-5 days): measurement and housekeeping.** Nothing in the dev build changes but the seed fix until the
   remeasure is in.
   1. #64 seeds: done (the army's and the calm layer's draws from the game's seed; every build, gt0.21, gt0.49dev).
-  2. gt1dev against gt1 remeasured: two 96-game rounds against gz1, paired (RD285a gt0.49dev, RP285a gt0.21; --gg 0;
-     MDE 0.11 written first; fidelity per window): running.
+  2. gt1dev against gt1 remeasured: done (RD285a gt0.49dev, RP285a gt0.21, 96 paired games against gz1, --gg 0, MDE
+     0.11): -0.219 [-0.294, -0.141] by supply, measurably worse (2026-11-11: -0.188); nearer the pros in every window
+     (all features -0.06 to -0.21, resolved) and on the build per style. Not promoted: gt1 stays the playing build.
   3. answers.py counted in a full gt1dev round: done (HS284a: 158 forced goals, 3.7% of the macro's decisions, 94
      turret vetoes, no tech scans, in 16 games).
   4. One watched live game per race: done (2026-11-23; docs/PROGRESS.md).
@@ -67,7 +68,8 @@ c. The upstream decisions ahead of the remaining abilities: the army's positioni
    pros'), the PvT tanks.
 d. One live game a race, watched, before more decoder work: done 2026-11-23 (Phase 0, step 4).
 e. gt1dev against gt1 measured again (paired, and the fidelity measures per window: -0.188 [-0.302, -0.078] on
-   2026-11-11), since promotion turns on it: Phase 0, step 2 (RD285a, RP285a).
+   2026-11-11), since promotion turns on it: done 2026-11-23 (Phase 0, step 2: -0.219 [-0.294, -0.141], nearer the pros
+   in every window).
 f. A 16-game round read only for a severalfold change in a rate, never for a ranking (the judge's ranking moves
    about 0.06 between rounds of one build).
 

@@ -2155,6 +2155,38 @@ plan and the full log).
   interval was +-0.11); under it, "not measurably worse" in the promotion rule's sense. Fidelity per window for each arm
   against the modern pros (eval/gap_windows.py, macro and fight), the build per style (eval/style_adherence.py), the
   bank and the decision rate from the records.
+  Results (96 paired games each, both against gz1 gz0.15, every game to 30:00):
+
+  | | won | lost | at time (ahead, even, behind) |
+  |---|---|---|---|
+  | gt1dev gt0.49dev (RD285a) | 16 | 20 | 60 (30, 17, 13) |
+  | gt1 gt0.21 (RP285a) | 60 | 15 | 21 (11, 2, 8) |
+
+  The paired score (eval/paired.py, gt1dev minus gt1): by supply -0.219 [-0.294, -0.141] (t -4.60; this pairing's own
+  minimum detectable effect 0.119), by the Terran's critic -0.219 [-0.312, -0.128], by both critics -0.276 [-0.360,
+  -0.192]. Measurably worse, by about twice the 0.11 written first; against 2026-11-11's -0.188 [-0.302, -0.078] no
+  measurable change. The fidelity measures go the other way. The gap to the modern pros by window (eval/gap_windows.py,
+  gt1 / gt1dev, lower nearer): all features 0.297 / 0.191 at 0-5 minutes, 0.272 / 0.210 at 5-10, 0.393 / 0.224 at
+  10-15, 0.441 / 0.277 at 15-20, 0.428 / 0.321 at 20-25, 0.621 / 0.411 at 25-30, gt1dev nearer in every window and
+  every interval clear of zero; the macro features nearer in every window (-0.075 to -0.289, all resolved); the fight
+  features nearer at 10-25 minutes (-0.158 to -0.181, resolved), unresolved at 0-5 (-0.074 [-0.202, +0.045]), 5-10
+  (+0.030 [-0.006, +0.061]) and 25-30 (-0.041 [-0.204, +0.075]). The pooled "all minutes" row reads the other way
+  (+0.121 [+0.085, +0.161]): gt1 won 60 games early, so its pooled minutes are mostly early ones, where every build's
+  gap is smaller, while gt1dev's run to 30:00; the per-window rows are the measure the promotion rule names. The build
+  per style (eval/style_adherence.py): gt1dev plays the style it is told, 1 in 100% of 56 games, 2 in 97% of 32, 3 in
+  6 of 8, its key items' times near the pros of that style (style 2: Factory 3.0 minutes, the pros' 2.5; Machine Shop
+  4.3, 4.1; Starport 4.6, 4.1); gt1's selector told it style 4 in all 96 games and it played standard bio (style 1) in
+  all of them, so it is judged against no style it plays. The bank (minerals / gas, mean over the window's
+  game-minutes; gt1dev, gt1, the pros): 155 / 362, 257 / 186, 279 / 272 at 5-10; 495 / 501, 599 / 394, 837 / 521 at
+  10-15; 1,587 / 592, 779 / 574, 2,205 / 978 at 15-20; 2,223 / 990, 214 / 1,482, 3,366 / 1,707 at 20-25 (gt1dev nearer
+  in minerals from 15 minutes on; gt1 spends its minerals and banks gas late). Macro decisions a minute: gt1dev 16.3 at
+  5-10 and 18.3 at 10-20, gt1 20.7 and 21.0.
+  Promotion (AGENTS.md): condition 1, nearer the pros or as near in every window, holds on the gap by window (the fight
+  features at 0-10 and 25-30 as near, unresolved), on the build per style and mostly on the bank; condition 2, not
+  measurably worse in 96 paired games, fails (-0.219, the interval clear of zero, twice the written effect). gt1 stays
+  the playing build. The deficit reads as on 2026-11-11: gt1 keeps the stop-gaps that each measurably won (the bank
+  escape, the caps, the static guard, the SCV cap) and the hunt that ends its games (60 won), while gt1dev leads at
+  30:00 in 30 games it doesn't end. This is the standing Phase 1 starts from.
 - **The army's and the calm layer's draws seeded by the game (2026-11-23; #64; docs/REFOCUS.md Phase 0, step 1; every
   build: gt0.21, gz0.15, gp0.16, gt0.49dev, gz0.32dev, gp0.39dev).** Why: the army layer seeded its draws (the commit
   model's dice) from g.seed, which nothing sets, so for a given slot every game drew from the same stream; the calm layer
