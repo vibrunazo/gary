@@ -44,13 +44,13 @@ From `docs/ARCHITECTURE.md` (§1), Gary's purpose is to be a **sparring partner 
 
 ### Concrete Illustration: Why Explainability Fails Today
 
-Inspecting an actual dev-style game's decision records (`match.records.jsonl`, schema `records/v1`) shows what the most honest possible narrator can say today vs. what a Brood War learner actually needs:
+From a representative dev-build game's decision records (`records/v1` schema in `gary/decision_log.py`, queried via `eval/why.py` and `gary/policy/attribution.py`), here is what the most honest possible narrator can say today vs. what a Brood War learner actually needs:
 
-| Learner Question | Actual Record Evidence (`eval/why.py` + `attribution.py`) | Best Honest Answer Today | Target Answer After Refocus (Faithful to Records) |
+| Learner Question | Typical Record Evidence (`eval/why.py` + `attribution.py`) | Best Honest Answer Today | Target Answer After Refocus (Faithful to Records) |
 |---|---|---|---|
-| *"Why did you open this build?"* | `layer: style, choice: 3, by: roll` (line 2) | *"A die rolled style 3 at the modern pros' share."* | *"Map is Fighting Spirit; against unknown Zerg I opened 1-Rax FE into Bio+Tank (pro win rate 54%, n=312; alternative 1-1-1 is 47%, n=98)."* |
-| *"Why did you build a second Factory at 3:31?"* | First Factory at `p=0.80` (line 404); second by dice at `p=0.047` while Starport was `0.549`; zeroing `decisions so far` raises it to `0.80` (line 590) | *"It wasn't the likely choice; a die came up on a 5% option."* | *"My opponent model puts 76% on 3-Hatch Lurker after seeing Hydralisk Den + Lair at 4:40 with no Spire; switching active tech target from pure Bio to `{bio: 0.6, tank: 0.4}` to get Siege Tanks before Lurkers hit."* |
-| *"Why did you attack at 10:15?"* | `commit: engage` drawn at `0.32` while `keep` was `0.42`; zeroing `money` moves it to `0.36` (line 3483) | *"Keeping was likelier; a die came up engage."* | *"Stim and +1 Attack finished (timing window active), my belief estimates Zerg has ~42 drones and <18 army supply after a fast 3rd, and squad regroup completed → initiated `TIMING_PUSH(enemy_natural)`."* |
+| *"Why did you open this build?"* | `layer: style, choice: 3, by: roll` | *"A die rolled style 3 at the modern pros' share."* | *"Map is Fighting Spirit; against unknown Zerg I opened 1-Rax FE into Bio+Tank (pro win rate 54%, n=312; alternative 1-1-1 is 47%, n=98)."* |
+| *"Why did you build a second Factory at 3:31?"* | First Factory at `p=0.80`; second by dice at `p=0.047` while Starport was `0.549`; zeroing `decisions so far` raises it to `0.80` | *"It wasn't the likely choice; a die came up on a 5% option."* | *"My opponent model puts 76% on 3-Hatch Lurker after seeing Hydralisk Den + Lair at 4:40 with no Spire; switching active tech target from pure Bio to `{bio: 0.6, tank: 0.4}` to get Siege Tanks before Lurkers hit."* |
+| *"Why did you attack at 10:15?"* | `commit: engage` drawn at `0.32` while `keep` was `0.42`; zeroing `money` moves it to `0.36` | *"Keeping was likelier; a die came up engage."* | *"Stim and +1 Attack finished (timing window active), my belief estimates Zerg has ~42 drones and <18 army supply after a fast 3rd, and squad regroup completed → initiated `TIMING_PUSH(enemy_natural)`."* |
 | *"What did you think I was doing?"* | *(none — no opponent plan belief runs in play; TODO #40)* | *"I don't form a belief about your strategy."* | *"At 5:15, seeing 2 hatcheries + Lair finishing and 100 gas mined puts 78% on 2-Hatch Muta (16% 3-Hatch Spire, 6% Lurker)."* |
 | *"Why didn't you stop my drop at 11:00?"* | Arbiter/hands trace logs camera location & APM saturation | *(Already partially answerable from hands trace!)* | *"Detected drop on minimap at 10:56, triggered `DEFEND(main)`, but my camera was on the front fight and APM bucket was empty for 2.8 s."* |
 
@@ -307,7 +307,7 @@ The refocus establishes a strict, principled division of labor across the pipeli
 - *Risks:* **False sense of completeness** if templates pass counterfactual tests on trivial concepts (e.g., citing a tautological fact like *"I built a depot because I was supply-blocked"*) rather than strategic concepts useful to a learner—which is why human sparring review of the answers is a mandatory Phase 1 gate.
 
 **Alternatives Considered & Why Not Picked:**
-- *Waiting for "complete records" before building explanations:* Current records (`match.records.jsonl`) are already complete for what the layers do—they lack *strategic reasons*, not log fields.
+- *Waiting for "complete records" before building explanations:* Current `records/v1` logs (`gary/decision_log.py`) are already complete for what the layers do—they lack *strategic reasons*, not log fields.
 - *Prompting an LLM over raw replay summaries:* Violates Principle 5 ("records, not stories"); hallucinates plausible StarCraft prose unrelated to actual decision causality.
 
 ---
