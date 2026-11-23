@@ -2091,6 +2091,16 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **gt1dev against gt1 remeasured (2026-11-23; docs/REFOCUS.md Phase 0, step 2; the user's approval).** Why: the
+  standing -0.188 [-0.302, -0.078] is from 2026-11-11, before the mode and event models, the calm layer, the commit
+  cluster minimum and the army hands; the promotion rule (AGENTS.md) turns on it. Written before it: two 96-game rounds
+  on the ladder maps (12 seeds a map, 4004-4015, 30 minutes, priority low, parallel 4), RD285a gt1dev (gt0.49dev)
+  against gz1 and RP285a gt1 (gt0.21) against gz1, paired game by game (eval/paired.py, by supply, the critics' grade
+  beside it). Both with --gg 0: only the dev builds' critics can resign (gt1's and gz1's read other features), so with
+  gg on only one arm could leave. Minimum detectable effect: 0.11 of the paired score (the 2026-11-11 pairing's own 90%
+  interval was +-0.11); under it, "not measurably worse" in the promotion rule's sense. Fidelity per window for each arm
+  against the modern pros (eval/gap_windows.py, macro and fight), the build per style (eval/style_adherence.py), the
+  bank and the decision rate from the records.
 - **The army's and the calm layer's draws seeded by the game (2026-11-23; #64; docs/REFOCUS.md Phase 0, step 1; every
   build: gt0.21, gz0.15, gp0.16, gt0.49dev, gz0.32dev, gp0.39dev).** Why: the army layer seeded its draws (the commit
   model's dice) from g.seed, which nothing sets, so for a given slot every game drew from the same stream; the calm layer
