@@ -144,6 +144,20 @@ def gary_game(job: tuple):
     return Xs[idx], idx, reads, tech_seen, plan_of(t, lings, n), map_name
 
 
+def sight_job(job):
+    from ingest.sighting_dataset import _job
+    return _job(job)
+
+
+def sight_at(sg, t: int) -> np.ndarray:
+    """A game's sighting features at second t (NaN without them)."""
+    from gary.policy.sightings import N
+    if sg is None:
+        return np.full(N, np.nan, np.float32)
+    k = np.where(sg[1] == t)[0]
+    return sg[2][k[0]] if len(k) else np.full(N, np.nan, np.float32)
+
+
 def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, workers: int) -> None:
     """The saved model (--save) on Gary's own games: how often the enemy's tech was seen by each minute (Gary against
     the pros), and the model's Brier against the pros' floor and against Gary's own games' plan shares."""
@@ -154,7 +168,10 @@ def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, work
     ids = {tuple(parts(v)): k for k, v in names.items()}
     jobs = [(str(p), race, enemy, p.parent.name) for r in rounds for p in sorted((REPO / "runs" / "league" / r).rglob("*.rep"))]
     with ProcessPoolExecutor(workers) as pool:
-        games = [g for g in monitor.track(pool.map(gary_game, jobs), len(jobs), "Gary's games") if g is not None]
+        games = list(monitor.track(pool.map(gary_game, jobs), len(jobs), "Gary's games"))
+        sights = list(pool.map(sight_job, [(j[0], j[0], race, enemy) for j in jobs])) if saved.get("sightings") else [None] * len(jobs)
+    keep_g = [k for k, g in enumerate(games) if g is not None]
+    games, sights = [games[k] for k in keep_g], [sights[k] for k in keep_g]
     other = next(k for k, v in names.items() if v == "other")
     ys = [ids.get(tuple(g[4]), other) for g in games]
     print(f"{len(games)} of Gary's games; the enemy's plans: {Counter(names[y] for y in ys).most_common(6)}")
@@ -162,12 +179,15 @@ def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, work
     own = own / own.sum()
     for minute in MINUTES:
         X, y, seen_tech, fl = [], [], [], []
-        for g, yy in zip(games, ys):
+        for g, yy, sg in zip(games, ys, sights):
             k = np.where(g[1] == minute * 60)[0]
             if not len(k):
                 continue
             m = clean_name(g[5])
-            X.append(np.concatenate([g[0][k[0]], [maps.index(m) if m in maps else 0]]))
+            extra = []
+            if saved.get("sightings"):
+                extra = sight_at(sg, minute * 60)
+            X.append(np.concatenate([g[0][k[0]], extra, [maps.index(m) if m in maps else 0]]))
             y.append(yy); seen_tech.append(g[3][k[0]]); fl.append(floors[str(minute)].get(m, floors[str(minute)]["all"]))
         if not X:
             continue
@@ -237,6 +257,9 @@ def main() -> None:
     ap.add_argument("--matchup", default="TvZ")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--limit", type=int, help="only this many games (a try)")
+    ap.add_argument("--sightings", action="store_true",
+                    help="with the sighting states (gary/policy/sightings.py; their dataset ingest/sighting_dataset.py "
+                         "built first; not built yet: Phase 1 stopped 2026-11-23 for the round-two review)")
     ap.add_argument("--save", action="store_true", help="also fit on every game and save model.pkl")
     ap.add_argument("--out")
     ap.add_argument("--gary", nargs="+", metavar="ROUND",
@@ -259,6 +282,13 @@ def main() -> None:
     with ProcessPoolExecutor(args.workers) as pool:
         loaded = list(monitor.track(pool.map(load, [j[0] for j in jobs], chunksize=8), len(jobs), "games"))
     counts = Counter(clean_name(j[3]) for j in jobs)        # (a map with MAP_MIN games its own category, the rest one:
+    sights, nan_sight = None, None
+    if args.sightings:                 # (gary/policy/sightings.py: where the player looked; NaN where not built)
+        from gary.policy.sightings import N
+        from inventory import data_root
+        sd = np.load(data_root() / "interim" / "sightings" / f"{args.matchup}_{args.race}.npz")
+        sights = {(str(r), int(t)): f for r, t, f in zip(sd["rel_path"], sd["t"], sd["features"])}
+        nan_sight = np.full(N, np.nan, np.float32)
     maps = ["other map"] + sorted(m for m, c in counts.items() if c >= MAP_MIN)[:250]   # the trees take 255 at most)
     rows = defaultdict(list)
     for g, (job, res) in enumerate(zip(jobs, loaded)):
@@ -268,7 +298,8 @@ def main() -> None:
         modern = job[2].startswith("cwal/")
         m = maps.index(clean_name(job[3])) if clean_name(job[3]) in maps else 0
         for k in range(len(idx)):
-            rows["Xs"].append(np.concatenate([Xs[k], [m]]))
+            sx = sights.get((job[2], int(idx[k])), nan_sight) if sights is not None else []
+            rows["Xs"].append(np.concatenate([Xs[k], sx, [m]]))
             rows["Xt"].append(np.concatenate([Xt[k], [m]]))
             rows["t"].append(idx[k]); rows["g"].append(g); rows["y"].append(job[4]); rows["modern"].append(modern)
             rows["map"].append(m); rows["read"].append(reads[k]); rows["tech_seen"].append(tech_seen[k])
@@ -342,7 +373,8 @@ def main() -> None:
                 if (at & (A["map"] == mi)).sum() >= FLOOR_MIN:
                     floors[str(minute)][mname] = share(at & (A["map"] == mi))
             tech[str(minute)] = float(A["tech_seen"][at].mean())
-        pickle.dump({"model": clf, "maps": maps, "names": names, "floors": floors, "tech_seen": tech},
+        pickle.dump({"model": clf, "maps": maps, "names": names, "floors": floors, "tech_seen": tech,
+                     "sightings": bool(args.sightings)},
                     open(out / "model.pkl", "wb"))
     (out / "report.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
     for minute, res in report["minutes"].items():
