@@ -2103,8 +2103,12 @@ plan and the full log).
     Missile Turrets (`allows`: one a base against lurkers, none outside a mineral line against mutalisks until each
     line has its own). No tech scan of the Zerg's main (0 in 16 games: the plan was read before 6:30, or no Comsat).
     The plan it read: lurkers in 6 games, mutalisks in 6, both in 2, neither in 2; its first forced goal at 6.3 to 9.5
-    minutes (one at 14.2). So it is a live owner of the Terran's tech and turrets in two games of three, which the
-    Phase 1 single-owner work removes one rule at a time.
+    minutes (one at 14.2). Against gz1 (RD285a, the remeasure's gt1dev round, 96 games): 1,199 forced goals, 3.0% of
+    39,572 macro decisions, 989 of them Missile Turrets in a mineral line against mutalisks (about ten a game), then
+    Science Vessels 62, Siege Tanks 42, Academy 33, Engineering Bay 19, Irradiate 16, Science Facility 14; 653 of the
+    model's decisions set aside; 20 tech scans; the plan read mutalisks in 68 games, lurkers in 11, both in 6, neither
+    in 11. So it is a live owner of the Terran's turrets and much of its tech in most games, which the Phase 1
+    single-owner work removes one rule at a time, on its AGENTS.md measure.
   - *One watched live game per race (step 4; the user's go for mouse and keys this session; gt0.49dev, gz0.32dev,
     gp0.39dev, each 15 minutes against the computer Zerg on Fighting Spirit 1.3 in the real client; runs/live/p0_t,
     p0_z, p0_p: replay, POV, records, trace, snapshots; watched by a client screenshot every 2.5 minutes, the per-minute
