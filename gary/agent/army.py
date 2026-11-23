@@ -156,7 +156,9 @@ class LearnedArmy:
         # learns from drawn decisions and their probabilities, logged), instead of the likeliest cell
         # away when most of the odds lie away, said twice (Gary-Z's likeliest-cell army stood at home)
         self.draw = draw
-        self.rng = np.random.default_rng(g.hi.slot * 7919 + int(getattr(g, "seed", 0) or 0))
+        # (the game's seed and the side's slot: until 2026-11-23 it read g.seed, which nothing sets, so every game's
+        # army draws came from the same stream for a slot, #64)
+        self.rng = np.random.default_rng(g.hi.slot * 7919 + int(g.game_seed or 0))
         self.record: list | None = None        # a paired episode's arm: its drawn decisions, kept here
         self._seen: dict = {}                  # what the last question saw, in brief (the game's records)
         self.shadow = None                     # an A/B pair's other model: its odds of each choice, recorded

@@ -38,7 +38,7 @@ class Calm:
             self.far = RoleModel.load(model_for("calm_far", g.matchup, g.race.letter))
         except SystemExit:
             self.far = None
-        self.rng = random.Random(0)
+        self.rng = random.Random(f"calm/{g.game_seed}/{g.hi.slot}")   # (the game's and the side's: it was 0, #64)
         self.next = 0
         self.prev: dict[int, tuple[float, float]] = {}
         self.prev_frame: int | None = None

@@ -17,9 +17,9 @@ rather than scripted, because the replay pipeline made that the quicker way to a
 Since 2026-10-15 every piece of the self-play loop is being built crude before any is polished: a
 learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the league isn't trained
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
-Where it stands (2026-11-22): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
-(gt0.20), Zerg as `gz1` (gz0.14) and Protoss as `gp1` (gp0.15, crude); learning is trained and judged in `gt1dev`
-(gt0.48dev), `gp1dev` (gp0.38dev) and `gz1dev` (gz0.31dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+Where it stands (2026-11-23): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
+(gt0.21), Zerg as `gz1` (gz0.15) and Protoss as `gp1` (gp0.16, crude); learning is trained and judged in `gt1dev`
+(gt0.49dev), `gp1dev` (gp0.39dev) and `gz1dev` (gz0.32dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held is on the Terran's fight roles (rl1, in gt1dev); the army's commit decision is the target now,
@@ -2091,6 +2091,18 @@ plan and the full log).
   turns are 0.75% for the pros' 0.45% on theirs. Next: the army layer's moves of a sieged line (the judge's moments
   by who last moved the tank), and mines the same way (an event model on the judge's inputs). Options, not folded
   in: the two matchups' judges agree on the direction (ranking and flipping) and not on the share.
+- **The army's and the calm layer's draws seeded by the game (2026-11-23; #64; docs/REFOCUS.md Phase 0, step 1; every
+  build: gt0.21, gz0.15, gp0.16, gt0.49dev, gz0.32dev, gp0.39dev).** Why: the army layer seeded its draws (the commit
+  model's dice) from g.seed, which nothing sets, so for a given slot every game drew from the same stream; the calm layer
+  used Random(0). Now both from the game's seed (Gary.game_seed, set by build_gary, as the fight layer and the
+  executor's placement already were) and the side's slot. A plain bug fix, adopted on its check, between rounds: built
+  fresh (eval.match Match, gt1dev against gz1dev, Fighting Spirit), seed 4004 twice gives the same first draws (army
+  0.803 and 0.357 for the two sides, calm 0.408), seed 4005 others (0.788, 0.097; calm 0.966), and the slot-1 army
+  stream of seed 4005 no longer equals seed 4004's (0.788 against 0.357; the old code gave both the same); every parity
+  game's hashes changed (recorded again), smoke, pairs, live and matchups pass. Every baseline from before is replayed
+  from here. Found with it, not changed (the user's rule: nothing else in the dev build before the remeasure): gt1dev
+  can't start a game outside TvZ, as option calm has a model only for TvZ (eval.match gt1dev against gt1dev: "no trained
+  calm model for T in TvT"), so gp1dev's PvT rounds against gt1dev would fail too.
 - **What leaves Gary's units alone, first read (2026-11-19; TODO.md c, after calm's fold).** Why: units alone at 5-10
   minutes 0.41 in CL282a (eval/gap_windows.py's per-minute mean; CB280a 0.29, the pros 0.20) and the army's spread 22
   tiles (14). Per fighter sample (re-simulated, 5-10 minutes, CL282a's 16 games against 40 pro games) Gary's fighters
