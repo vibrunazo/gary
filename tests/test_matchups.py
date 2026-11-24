@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import re
 import sys
 import tempfile
@@ -21,9 +22,9 @@ sys.path.insert(0, str(REPO))
 MAP = "KnockOut 1.4"
 SEED = 7001
 MINUTES = 3
-TERRAN = "gt1"
-ZERG = "gz1"
-PROTOSS = "gp1"
+TERRAN = os.environ.get("GARY_TEST_T", "gt1")        # (the dev builds too: GARY_TEST_T=gt1dev GARY_TEST_Z=gz1dev
+ZERG = os.environ.get("GARY_TEST_Z", "gz1")          # GARY_TEST_P=gp1dev, as tests/test_inputs.py)
+PROTOSS = os.environ.get("GARY_TEST_P", "gp1")
 # matchup -> (side A's manifest, side B's), or the reason it isn't played
 MATCHUPS = {"TvZ": (TERRAN, ZERG), "ZvZ": (ZERG, ZERG), "TvT": (TERRAN, TERRAN),
             "PvT": (PROTOSS, TERRAN), "PvZ": (PROTOSS, ZERG), "PvP": (PROTOSS, PROTOSS)}

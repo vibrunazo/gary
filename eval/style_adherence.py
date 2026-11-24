@@ -167,6 +167,34 @@ def main():
             print(f"    Gary's first times (median minute, share of games by 8:00): {timings([t for _, t in g])}")
             if s in pros:
                 print(f"    modern pros of style {s} on these maps ({len(pros[s])}):  {timings(pros[s])}")
+            if "--arm0" in sys.argv and s in pros:
+                arm0(s, [t for _, t in g], pros[s])
+
+
+def arm0(style, gary: list[dict], pros: list[dict]) -> None:
+    """Arm 0 (docs/REFOCUS.md §3.3, round two): today's build scored on a card's own measure. The card, written before
+    it was computed (2026-11-23): the told style's milestones, each key item the style's modern pros on these maps make
+    by 8:00 in at least half their games, at their median first time. Per milestone: Gary's absolute error from the card
+    (median, minutes) and how often it has it by 8:00, against the same for the pros of the style (their spread around
+    their own median: what a card held as well as a pro holds it would show)."""
+    rows, ratios = [], []
+    for f in FEATS:
+        pv = [t[f] for t in pros if f in t]
+        if len(pv) < 0.5 * len(pros):
+            continue
+        card = float(np.median(pv))
+        gv = [t[f] for t in gary if f in t]
+        pe = float(np.median([abs(v - card) for v in pv])) / 60
+        ge = float(np.median([abs(v - card) for v in gv])) / 60 if gv else float("nan")
+        rows.append(f"{f} {card / 60:.1f}: Gary {ge:.2f} ({len(gv) / max(1, len(gary)):.0%}), pros {pe:.2f} "
+                    f"({len(pv) / len(pros):.0%})")
+        if gv and pe > 0:
+            ratios.append(ge / pe)
+    print(f"    arm 0, the card of style {style} (milestone at its median minute: median error in minutes, share by 8:00): "
+          + "; ".join(rows))
+    if ratios:
+        print(f"    arm 0: Gary's error over the pros' spread, median over milestones {np.median(ratios):.1f}x "
+              f"(range {min(ratios):.1f}-{max(ratios):.1f})")
 
 
 if __name__ == "__main__":

@@ -44,7 +44,8 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   8. Only if Arm 0 leaves a gap: strict drills and the macro A/B (40 + 96-192).
   9. Templates, the execution join, the blind evaluation (live and held-out games).
   10. Gate 4's round on the whole Phase 1 build (96 against gz1, gg off, RD285a's seeds, margin 0.118).
-  Begun 2026-11-23 and stopped for the round-two review: the plan belief offline (beats the floor on the pros' held-out
+  Steps 1-3 done 2026-11-23 at 0 games (docs/PROGRESS.md); waiting for the user's approval before step 4, step 5's
+  choice and the retreat hold. Before them, begun 2026-11-23 and stopped for the round-two review: the plan belief offline (beats the floor on the pros' held-out
   games, worse than it on Gary's from 6:00, as Gary doesn't look) and the first sighting states (committed, not in play).
 - **The army (narrowed in round two):** no hold on the commit model's commitments (measured as not missing); the retreat
   hold as a pipe fix judged on eval/pipe_table.py in 16 games, at any time; an owned army intent only after the 0-game

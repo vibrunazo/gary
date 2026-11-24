@@ -138,9 +138,10 @@ def load(job: tuple):
     return Xs[idx], Xt[idx], idx, reads, n, tech_seen
 
 
-def enemy_plan(replay: str, enemy: str, matchup: str, slot: int, duration_s: float) -> str | None:
+def enemy_plan(replay: str, enemy: str, matchup: str, name: str, duration_s: float) -> str | None:
     """The enemy's plan in one of Gary's replays by the pros' rule (taxonomy/label_all.py: its build items from the
-    replay's commands, ingest/build_orders.py), the player in the given slot, or None."""
+    replay's commands, ingest/build_orders.py), the player of that name (the re-simulator's slots are start slots,
+    screp's ids the players' order: they differ), or None."""
     import hashlib
     import tempfile
     sys.path.insert(0, str(REPO / "taxonomy"))
@@ -151,8 +152,8 @@ def enemy_plan(replay: str, enemy: str, matchup: str, slot: int, duration_s: flo
     from label_all import P_TECH_BY, protoss_plan, terran_plan, zerg_plan
     cache = Path(tempfile.gettempdir()) / "gary_plan_cmds"
     game = load_game(find_screp(None), Path(replay), hashlib.sha1(replay.encode()).hexdigest(), cache)
-    p = next((q for q in game["players"] if not q["observer"] and q["id"] == slot), None)
-    if p is None:
+    p = next((q for q in game["players"] if not q["observer"] and q["name"] == name), None)
+    if p is None or p["race"] != enemy:
         return None
     items = extract_player([c for c in game["cmds"] if c[P] == p["id"]], enemy)[0]
     row = {"items": items, "duration_s": duration_s}
@@ -193,7 +194,8 @@ def gary_game(job: tuple):
     reads = [answers_read(ever[t]) for t in idx]
     tech_seen = ever[idx][:, TECH_BUILDINGS].sum(1) > 0
     try:
-        plan = enemy_plan(replay, enemy, matchup, int(d["slots"][1 - i]), float(n))
+        name = next(p["name"] for p in header["players"] if p["slot"] == d["slots"][1 - i])
+        plan = enemy_plan(replay, enemy, matchup, name, float(n))
     except Exception:  # noqa: BLE001
         return None
     return Xs[idx], idx, reads, tech_seen, plan, map_name, int(d["slots"][i])
@@ -223,7 +225,7 @@ def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, work
     from ladder_maps import clean_name
     saved = pickle.load(open(model_dir / "model.pkl", "rb"))
     clf, maps, names, floors, pro_tech = saved["model"], saved["maps"], saved["names"], saved["floors"], saved["tech_seen"]
-    enemy = [r for r in matchup.split("v") if r != race][0]
+    enemy = enemy_of(matchup, race)
     ids = {v: k for k, v in names.items()}
     jobs = [(str(p), race, enemy, p.parent.name, matchup) for r in rounds
             for p in sorted((REPO / "runs" / "league" / r).rglob("*.rep"))]
@@ -272,12 +274,17 @@ def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, work
               f"answers.py's read {cell(rd[keep], yt[keep])}, Gary's other games' shares {cell(tech(own)[keep], yt[keep])}")
 
 
+def enemy_of(matchup: str, race: str) -> str:
+    """The other race of the matchup (in a mirror, the same)."""
+    a, b = matchup.split("v")
+    return b if a == race else a
+
+
 def jobs_for(race: str, matchup: str):
     """(job, sha1, rel_path, map, plan id, the player's slot) for every game of the matchup whose enemy has a plan
     label."""
     from inventory import data_root
-    races = matchup.split("v")
-    enemy = races[1] if races[0] == race else races[0]
+    enemy = enemy_of(matchup, race)
     labels = json.load(open(REPO / "data" / "interim" / "taxonomy" / "v2" / f"{matchup}_{enemy}.json", encoding="utf-8"))
     assign = labels["assignments"]
     root = data_root() / "interim" / "macro" / "v1"
@@ -357,12 +364,12 @@ def main() -> None:
     if args.sightings:                 # (gary/policy/sightings.py: where the player looked)
         from inventory import data_root
         sd = np.load(data_root() / "interim" / "sightings" / f"{args.matchup}_{args.race}.npz")
-        sights = {(str(r), int(t)): f for r, t, f in zip(sd["rel_path"], sd["t"], sd["features"])}
+        sights = {(str(r), int(sl), int(t)): f for r, sl, t, f in zip(sd["rel_path"], sd["slot"], sd["t"], sd["features"])}
         # a game without its sighting states is left out, not filled with NaN: built for one era only, the missing
         # values told the trees the era (round two, docs/REFOCUS.md §3.1)
-        have = {r for r, _ in sights}
+        have = {(r, sl) for r, sl, _ in sights}
         before = sum(1 for res in loaded if res is not None)
-        loaded = [res if res is not None and job[2] in have else None for job, res in zip(jobs, loaded)]
+        loaded = [res if res is not None and (job[2], job[5]) in have else None for job, res in zip(jobs, loaded)]
         print(f"sighting states for {sum(1 for res in loaded if res is not None)} of {before} games")
     maps = ["other map"] + sorted(m for m, c in counts.items() if c >= MAP_MIN)[:250]   # the trees take 255 at most)
     rows = defaultdict(list)
@@ -373,9 +380,9 @@ def main() -> None:
         modern = job[2].startswith("cwal/")
         m = maps.index(clean_name(job[3])) if clean_name(job[3]) in maps else 0
         for k in range(len(idx)):
-            sx = sights[(job[2], int(idx[k]))] if sights is not None else []
-            if sights is not None and (job[2], int(idx[k])) not in sights:
+            if sights is not None and (job[2], job[5], int(idx[k])) not in sights:
                 continue                   # (the game ended before this sample in the re-play)
+            sx = sights[(job[2], job[5], int(idx[k]))] if sights is not None else []
             rows["Xs"].append(np.concatenate([Xs[k], sx, [m]]))
             rows["Xt"].append(np.concatenate([Xt[k], [m]]))
             rows["t"].append(idx[k]); rows["g"].append(g); rows["y"].append(job[4]); rows["modern"].append(modern)
@@ -384,8 +391,11 @@ def main() -> None:
     games = np.unique(A["g"])
     modern_games = np.unique(A["g"][A["modern"]])
     rng = np.random.default_rng(0)
-    fold_of = dict(zip(rng.permutation(modern_games), np.arange(len(modern_games)) % FOLDS))
-    fold = np.array([fold_of.get(g, -1) for g in A["g"]])           # (-1: an old-era game, training only)
+    # folds by the replay (in a mirror both players' views of one game are two jobs, kept in one fold)
+    rel_of = np.array([jobs[g][2] for g in A["g"]])
+    modern_rels = np.unique(rel_of[A["modern"]])
+    fold_of = dict(zip(rng.permutation(modern_rels), np.arange(len(modern_rels)) % FOLDS))
+    fold = np.array([fold_of.get(r, -1) for r in rel_of])           # (-1: an old-era game, training only)
     w = np.where(A["modern"], MODERN_WEIGHT, 1.0)
     def cat(X):                                                     # (the map, a category: the last column of each)
         c = np.zeros(X.shape[1], bool)

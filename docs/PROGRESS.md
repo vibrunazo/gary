@@ -18,16 +18,17 @@ Since 2026-10-15 every piece of the self-play loop is being built crude before a
 learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the league isn't trained
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-23): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
-(gt0.21), Zerg as `gz1` (gz0.15) and Protoss as `gp1` (gp0.16, crude); learning is trained and judged in `gt1dev`
-(gt0.50dev), `gp1dev` (gp0.39dev) and `gz1dev` (gz0.32dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.22), Zerg as `gz1` (gz0.15) and Protoss as `gp1` (gp0.16, crude); learning is trained and judged in `gt1dev`
+(gt0.51dev), `gp1dev` (gp0.39dev) and `gz1dev` (gz0.32dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held, on the Terran's fight roles (rl1), was in gt1dev from gt0.6dev to gt0.35dev: gt0.36dev replaced it with
 the role model learned from the pros' units with siege, unsiege and mines (tvzmodes), since rl1 has no siege. RL is
 parked (TODO.md); the army's commit decision on paired branches, learned offline, was at chance on 1,004 pairs
-(docs/SELF_PLAY.md). Since 2026-11-23 the direction is docs/REFOCUS.md v2.0 (TODO.md, Direction): Phase 0 (the
-remeasure and housekeeping), then the TvZ strategic trunk (an enemy-plan belief, a persistent strategy card, branches
-by the pros' conditional choice frequencies, templated explanations) in front, with a three-arm army test beside it.
+(docs/SELF_PLAY.md). Since 2026-11-23 the direction is docs/REFOCUS.md v2.1 (TODO.md, Direction): Phase 0 (the
+remeasure and housekeeping, done), then Phase 1 in front, scouting first and then the TvZ strategic trunk (an
+enemy-plan belief, a persistent strategy card, branches by the pros' conditional choice frequencies, templated
+explanations), with the army's retreat hold beside it.
 
 | Phase | Status | What exists | What's missing for its exit criteria |
 |---|---|---|---|
@@ -2217,6 +2218,86 @@ plan and the full log).
   scouts (the seen / confirmed absent / unscouted states of REFOCUS §3.1 exist exactly for this: absence counts only
   where Gary looked); and a fixed set of Zerg plans to play against (the four scripted archetypes) is needed to judge
   any of it, as gz1's one plan teaches nothing. What to do first is the user's call.
+- **Phase 1 steps 1-3, at 0 new games (2026-11-23; docs/REFOCUS.md v2.1 §4.3; the user's order: stop after step 3).**
+  *Step 1, the plain fixes (gt1 gt0.22, gt1dev gt0.51dev; parity recorded again: play changed in the TvZ games on the
+  two 4-start maps, the others only by the version string in their logs, the Zerg mirror byte-identical, so gz1's
+  streams did not move and RD285a stays gate 4's baseline).* The enemy's main is known in one shared place for every
+  race (`g.enemy_main`, gary/policy/sightings.py EnemyMain: an enemy building within 20 tiles of a start and nearer it
+  than any other, or the one start left once the others were found empty; a building overrides a start found empty).
+  Before, only the scout under option `watch` set it, so answers.py's tech scan could fire only on maps with one enemy
+  start. Its check at 0 games: re-played over RD285a's 96 replays from Gary's own view, the main is known by 6:30 in 96
+  of 96, none wrong. `tech_scan` is tagged STOP-GAP with its AGENTS.md entry. Enemy buildings are recorded by tag and
+  type, so a morph (a Hatchery into a Lair) is a sighting. train/plan_belief.py: Gary's games labelled by the pros'
+  rule (the enemy's build items from the replay's commands; the re-simulator's slots are start slots, not screp's
+  player ids, so the player is matched by name); the inputs without the player's own supply and workers, with the
+  Lurker egg and the seconds since each type was first seen; tech seen means a Spire, Greater Spire or Den (a Lair
+  tells no plan); calibration error (ECE) reported; the `--sightings` categorical mask per matrix and games without
+  sighting states left out (no era leak through NaN); folds by replay (a mirror's two views in one fold); Gary's
+  comparators fitted on other games (the pros', or Gary's other games). ingest/sighting_dataset.py finds the player by
+  its slot (mirror-safe, checked on ZvZ) and lists its failures. tests/test_matchups.py takes the dev builds by
+  environment (GARY_TEST_T/Z/P) and passes all 6 matchups with both the playing and the dev builds.
+  The belief refitted in full (runs/plan_belief/TvZ_T_20261123-212915), on the pros' held-out modern games (Brier
+  model / floor, ECE): the joint plan 0.464 / 0.594 at 4:00, 0.405 / 0.590 at 6:00, 0.374 / 0.582 at 8:00 (model -
+  floor -0.131, -0.185, -0.208, every interval clear of zero; ECE 0.048, 0.051, 0.025), better than the first fit
+  (-0.096, -0.122, -0.131): the first-seen times, not the player's own build, carry it. On Gary's 112 games of RD285a
+  and HS284a, labelled by the pros' rule, the Zerg's plans are spread (hatchery 3-hatch spire 30, pool 3-hatch spire
+  25, other 13, pool 2-hatch spire 13, hatchery 2-hatch spire 10, lurker first 9, hydralisks 5: the "one plan in 85 of
+  112" was another rule's); the joint is still worse than the pros' floor at 4:00 and 6:00 (1.045 and 0.976 against
+  0.921 and 0.924), even at 8:00 (0.931 / 0.930), and Gary's other games' shares (0.839) beat both; the tech part at
+  8:00 is better than the floor (0.239 / 0.383) and level with answers.py's read (0.239).
+  *Step 2, the counts (eval/scouting.py: one pass a replay, both players' views, the same function for the pros and for
+  Gary; 300 modern pro games a matchup, all six; RD285a and HS284a).* A Comsat scan is no unit in the observation (a
+  pro game: the Comsat loses 50 energy and the scanned main turns visible, no sweep); its point is the replay's
+  command (screp; the re-simulator's unit commands don't carry it). The plan's tech seen by 5, 6, 7, 8 minutes given
+  that it stood (Lair apart; n about 300 a cell): TvZ pros 26%, 56%, 67%, 72% (Spire 25/55/64/66%, Den 26/44/39/36%,
+  Lair 32/56/65/71%), Gary in RD285a 2%, 1%, 11%, 16%. Other views: ZvT 24-37%, PvT 41-67%, TvP 17-42%, PvZ 17-76%, ZvP
+  33-64%, TvT 53-83%, ZvZ 54-76%, PvP 12-45%. By what means it was first seen: the TvZ pros' scans 48%, fighters 27%,
+  SCVs 19%; Gary's scans 79% of 19 sights. Protoss by Observers and Probes (PvT 31% and 33%), Zerg by Overlords and
+  Zerglings (ZvP 43% and 15%, ZvZ 42% and 44%). The pros' scans in TvZ: 3.47 a game by 10:00, first at a median 6:07
+  (in 228 of 300 games), at the Zerg's natural 32%, other bases 27%, main 20%; Gary 1.56, first at 7:09 (53 of 96),
+  most of them the Detect rule's and the hunt's (the field 49%, its own bases 31%, the main 11%). The scans' hazard,
+  per minute of a Comsat with a scan's energy: the TvZ pros 1.52 before they have seen the plan's tech, 1.37 after;
+  TvT 1.34 and 1.36; TvP 1.07 and 1.23; spread over the Comsat's age (TvZ 230, 241, 248, 205, 117 scans at 0-1, 1-2,
+  2-3, 3-4, 4+ minutes): the timing hardly depends on what was seen, the condition REFOCUS §6 row 8 writes for a
+  sampler of the pros' timings. The first worker at the enemy main (within 20 tiles of its start, nearer it than its
+  natural): the TvZ pros in 230 of 300 at a median 2:49, staying 24 s (quartiles 12-42); Gary in 84 of 96 at 2:38,
+  24 s (20-28). The pros' SCV saw the plan's tech first in 19% of TvZ games, so their stay is not what sees the tech:
+  the scan is. The main known by 6:30: TvZ pros 88% (3 wrong of 300), Gary 100%. Enemy in sight at 3:00-6:00 (any
+  enemy unit): TvZ pros 107 s, Gary 101 s.
+  answers.py's goals: 989 turret goals asked in RD285a (10.3 a game, in 73 games), 495 (50%) followed by a turret
+  placed within 30 s; the model's own turret decisions 1,509; 1,892 turret placements sent (19.7 a game). HS284a: 53
+  asked, 42% followed.
+  Arm 0 (the card written before computing: the told style's milestones, each key item the style's modern pros on the
+  ladder maps make by 8:00 in half their games, at their median time; eval/style_adherence.py --arm0): Gary's median
+  error over the pros' own spread around the card, over milestones, 1.4x for style 1 (56 games), 2.1x for style 2
+  (32), 2.0x for style 3 (8); worst the early fixed items (style 2: the Factory 0.47 min against the pros' 0.08, the
+  turret 0.62 / 0.13; style 3: the Vulture 0.83 / 0.10, the Starport 0.57 / 0.12). Arm 0 leaves a gap: step 8's drills
+  and A/B are not ruled out.
+  The army's cluster-stealing read (§3.4; RD285a's records, defined before computing: a unit in an army engage sent
+  within 30 s by a later army order to a target 12 tiles or more away, by another cluster's order if the two orders'
+  unit sets overlap under half): of 65,268 engaged units, 17% re-sent by another cluster's order, 17% by their own
+  cluster's; of the 2,318 units that died alone (21% of 11,289 deaths), 8% were held by the army layer. The cluster
+  key for one selection (PROGRESS above) stays open.
+  Stim and +1 against the attacks (eval/upgrade_timing.py; attacks by eval/attacks.py; an upgrade done at its order
+  plus its research time): Stim done at a median 5:45 (Gary, 63 of 96) and 5:43 (150 pros); attacks from 5:00 before it
+  3% (pros 11%), within 60 s after it 4% (6%); the first attack from 5:00 a median +149 s after it (+158 s); +1 at
+  7:26 (8:25), the first attack +45 s after it (+38 s). Gary does not mistime its attacks against Stim or +1: no
+  upgrade-timing criterion.
+  *Step 3, the sighting states rebuilt (gary/policy/sightings.py; §4.2's SightingState: seen, confirmed_absent,
+  unscouted, per region its last look's frame and cover; 14 features, every race alike).* What a look is came from step
+  2: a unit within 8 tiles of a base's center (the first version) caught 18-73% of the pros' sights of standing enemy
+  tech and called 9-55% of its looks where the tech was out of sight. A look is now the share of a region (its points
+  every 2 tiles within 14 of its center, nearer it than any other base) within sight of the player's units and
+  buildings (Brood War's sight radii by type, cliffs ignored) or of a scan, whose point look() is given (in play Gary's
+  own, in the data the command's). Checked against what was in sight (a building counted in sight with its center 2.5
+  tiles beyond a radius, as any part of it shows): it catches 78-92% of the pros' sights in every view and calls 1-3%
+  of its looks wrongly (TvT 13% and TvP 10%, not looked into), Gary's 82% and 2%. The plan's tech is
+  confirmed absent only by a look covering half the region or more. ingest/sighting_dataset.py builds them with the
+  scans (a Comsat's energy drop matched to the replay's command), checked on 12 games of TvZ, ZvZ and PvT (a few
+  seconds each; not built in full, not wired into play). Smoke and parity recorded again.
+  Left for the user (REFOCUS §4.3: wait for approval): step 4's 16-game suite read; step 5's scouting, where the counts
+  say the pros' scan timing hardly depends on what they have seen (a tagged sampler of their timings, by §6 row 8's
+  condition) and the SCV's stay is not what sees the tech (`watch` not indicated); the 16-game retreat hold.
 - **gt1dev plays outside TvZ again (2026-11-23, gt0.50dev, the user's call after the remeasure).** Since gt0.46dev
   option calm loaded its model at the start of every game and only TvZ has one, so gt1dev couldn't start a TvT or PvT
   game (gp1dev's PvT rounds against it included). The calm layer now stands aside where it has no model (a note in the
