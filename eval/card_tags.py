@@ -32,7 +32,7 @@ def game_tags(job):
     rep, rnd, cards, race_letter = job
     sys.argv = ["x", "--race", race_letter]
     from eval.style_adherence import gary_items
-    from gary.policy.card import CardTagger, is_one_off, race_costs
+    from gary.policy.card import CardTagger, is_one_off, item_of, race_costs
     from gary.race import Race
     race = Race.of(race_letter)
     recs = Path(rep[:-4] + ".records.jsonl")
@@ -60,7 +60,7 @@ def game_tags(job):
     dec, mil = [], []
     for f, _, kind, x in sorted(events, key=lambda e: (e[0], e[1])):
         if kind == "start":
-            tagger.start(x["name"], f)
+            tagger.start(item_of(x["name"]), f)   # (a replay counts each build command: one re-issued counts again)
         elif kind == "decision":
             if x.get("in"):
                 money = (x["in"].get("m", money[0]), x["in"].get("gas", money[1]))

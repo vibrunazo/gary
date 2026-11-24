@@ -46,7 +46,10 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   10. Gate 4's round on the whole Phase 1 build (96 against gz1, gg off, RD285a's seeds, margin 0.118).
   Steps 1-3 done 2026-11-23 at 0 games; steps 4 and 5 (the scan sampler, option `scansample`, a STOP-GAP in place of
   the learned scan model) and the retreat hold done 2026-11-24 at 48 games, with step 6's re-score of the belief on
-  their games (docs/PROGRESS.md). Waiting for the user's approval before step 6's log-only soak and step 7.
+  their games (docs/PROGRESS.md). Step 6 (the belief without sightings, the card and its tags, option `shadow`, 0 games)
+  and step 7a (option `noanswers`, 16 games: the macro model answers the Spire and lurkers alone; answers.py's turret
+  veto and forced Siege Mode are what it adds) done 2026-11-24. Waiting for the user's approval before step 7b (the
+  trunk's directive) and step 8.
 - **The army (narrowed in round two):** no hold on the commit model's commitments (measured as not missing); the retreat
   hold (option `retreathold`) as a pipe fix: 16 games 2026-11-24, retreats made/asked 0.13 to 0.26 (the pros 0.78), as
   written, but the units no farther from the enemy 2 s later than without it (eval/retreat_gain.py); kept off, for the

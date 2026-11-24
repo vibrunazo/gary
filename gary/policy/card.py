@@ -55,7 +55,15 @@ def load_cards(path: str | Path) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+REPLAY_NAMES = {"ComSat": "Comsat Station"}              # (a replay item's name -> the macro choice's)
+
+
 def item_of(choice: str) -> str:
+    """One name for an item, whether a macro choice's or a replay item's (ingest/build_orders.py names upgrades
+    "Terran Infantry Weapons", the macro "Infantry Weapons")."""
+    choice = REPLAY_NAMES.get(choice, choice)
+    if choice.startswith("Terran "):
+        choice = choice[len("Terran "):]
     return ALIASES.get(choice, choice)
 
 

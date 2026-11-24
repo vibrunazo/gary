@@ -8,6 +8,8 @@ before it):
   against the Spire   the first Missile Turret; the turrets ordered by 150 s after the Spire (its 80 s and a mutalisk's 28 s, and
                       their flight)
   against lurkers     the first detection (a ComSat, a Science Vessel or a Missile Turret); the first ComSat; Siege Mode
+Added after step 7a's games (not written before them): the turrets ordered within 10 minutes of the tech (answers.py
+vetoes turrets beyond one a base), and against lurkers the first Science Vessel.
 Never within 10 minutes of the tech (or before the game's end): "never", apart.
 
     python -m eval.answer_time --rounds SC291a9 SC291a1 SC291a0 SC291a4 --pros
@@ -45,6 +47,13 @@ def first_after(items: list[dict], names, t0: float) -> float | None:
     return min(ts) - t0 if ts else None
 
 
+def turrets_within(items: list[dict], t0: float, duration_s: float) -> int | None:
+    """Missile Turrets ordered from FROM_S to WITHIN_S after t0 (None: the game ended before)."""
+    if duration_s < t0 + WITHIN_S:
+        return None
+    return sum(1 for it in items if it["name"] == "Missile Turret" and FROM_S <= it["t"] <= t0 + WITHIN_S)
+
+
 def measure(t_items: list[dict], z_items: list[dict], duration_s: float) -> dict | None:
     """One game: the Zerg's plan and the answers' delays."""
     from label_all import zerg_plan
@@ -56,14 +65,16 @@ def measure(t_items: list[dict], z_items: list[dict], duration_s: float) -> dict
             return None
         return {"plan": plan, "tech": tech, "t0": t0, "left_s": duration_s - t0,
                 "turret": first_after(t_items, ("Missile Turret",), t0),
-                "turrets_by": sum(1 for it in t_items if it["name"] == "Missile Turret" and FROM_S <= it["t"] <= t0 + TURRETS_BY_S)}
+                "turrets_by": sum(1 for it in t_items if it["name"] == "Missile Turret" and FROM_S <= it["t"] <= t0 + TURRETS_BY_S),
+                "turrets_10m": turrets_within(t_items, t0, duration_s)}
     if tech == "lurker first":
         t0 = next((it["t"] for it in z_items if it["name"] == "Lurker Aspect"), None)
         if t0 is None:
             return None
         return {"plan": plan, "tech": tech, "t0": t0, "left_s": duration_s - t0,
                 "detect": first_after(t_items, DETECT, t0), "comsat": first_after(t_items, ("ComSat", "Comsat Station"), t0),
-                "siege": first_after(t_items, ("Tank Siege Mode",), t0)}
+                "siege": first_after(t_items, ("Tank Siege Mode",), t0),
+                "vessel": first_after(t_items, ("Science Vessel",), t0), "turrets_10m": turrets_within(t_items, t0, duration_s)}
     return {"plan": plan, "tech": tech}
 
 
@@ -108,20 +119,26 @@ def report(name: str, games: list[dict]) -> None:
         got = [v for v in vals if v is not None]
         return (f"median {np.median(got):+.0f} s (n {len(got)}), never {sum(v is None for v in vals)} of {n_running}"
                 if got else f"never {len(vals)} of {n_running}")
+    def tens(gs):
+        v = [g["turrets_10m"] for g in gs if g.get("turrets_10m") is not None]
+        return (f"turrets within {WITHIN_S // 60} min of the tech median {np.median(v):.0f} (n {len(v)}, "
+                f"{', '.join(str(x) for x in sorted(v)) if len(v) <= 12 else 'quartiles ' + ' '.join(f'{q:.0f}' for q in np.percentile(v, [25, 75]))})"
+                if v else "turrets within the window: no game ran long enough")
     sp = [g for g in games if g.get("tech") == "spire first" and g.get("left_s", 0) >= TURRETS_BY_S]
     lu = [g for g in games if g.get("tech") == "lurker first" and g.get("left_s", 0) >= 60]
     print(f"{name}: {len(games)} games ({len(sp)} spire first, {len(lu)} lurker first running past their tech)")
     if sp:
         print(f"  against the Spire: first turret {cell([g['turret'] for g in sp], len(sp))}; turrets by "
               f"{TURRETS_BY_S} s after it, median {np.median([g['turrets_by'] for g in sp]):.0f} "
-              f"(none {np.mean([g['turrets_by'] == 0 for g in sp]):.0%})")
+              f"(none {np.mean([g['turrets_by'] == 0 for g in sp]):.0%}); {tens(sp)}")
         for plan in sorted({g["plan"] for g in sp}):
             q = [g for g in sp if g["plan"] == plan]
             print(f"    {plan} ({len(q)}): first turret {cell([g['turret'] for g in q], len(q))}, turrets by "
                   f"{np.median([g['turrets_by'] for g in q]):.0f}")
     if lu:
         print(f"  against lurkers: first detection {cell([g['detect'] for g in lu], len(lu))}; first ComSat "
-              f"{cell([g['comsat'] for g in lu], len(lu))}; Siege Mode {cell([g['siege'] for g in lu], len(lu))}")
+              f"{cell([g['comsat'] for g in lu], len(lu))}; Siege Mode {cell([g['siege'] for g in lu], len(lu))}; Science Vessel "
+              f"{cell([g['vessel'] for g in lu], len(lu))}; {tens(lu)}")
 
 
 def main() -> None:

@@ -2218,6 +2218,94 @@ plan and the full log).
   scouts (the seen / confirmed absent / unscouted states of REFOCUS §3.1 exist exactly for this: absence counts only
   where Gary looked); and a fixed set of Zerg plans to play against (the four scripted archetypes) is needed to judge
   any of it, as gz1's one plan teaches nothing. What to do first is the user's call.
+- **Phase 1 step 7a: the results (2026-11-24; 16 games, as written below).** NA292a\*, gt1dev+scansample+noanswers+shadow
+  against the suite, paired game by game with SC291a\* (answers on). The option did what it says: no decision by
+  answers.py in the 16 games (7-10 a game in SC's spire and lurker games: turrets in a mineral line against mutalisks;
+  against lurkers a Factory, Machine Shop, Siege Mode, tanks, a Starport, Control Tower, Science Facility, vessels and
+  Irradiate). eval/answer_time.py:
+
+  | | first turret after the Spire | turrets by 150 s | turrets within 10 min* | first detection after Lurker Aspect | ComSat | Siege Mode | turrets within 10 min* (lurker) |
+  |---|---|---|---|---|---|---|---|
+  | step 7a, answers off | +83 s (8 of 8) | 6 | 11 (3 games: 6, 11, 12) | -24 s (4 of 4) | -24 s | +246 s (4 of 4) | 9 (3, 8, 9, 11) |
+  | step 5, answers on | +83 s (8 of 8) | 6 | 9 (2 games: 1, 9) | -24 s (4 of 4) | -24 s | +172 s (4 of 4) | 5 (2, 4, 6) |
+  | the modern pros (ladder maps) | +96 s (never 3%) | 6 (none 7%) | 10 (quartiles 8-12) | +34 s | +34 s | +174 s | 5 (2-8) |
+
+  \* added after the games, not written before them; only games still running 10 minutes after the tech.
+  What was written holds: the first turret by +150 s in 8 of 8 spire games (6 needed) with 6 turrets by then (3), a
+  detection within +90 s of Lurker Aspect in 4 of 4 (3). The macro model answers the Spire and the lurkers alone once
+  Gary scouts. More than that: answers.py's first turret was the model's own. The games are the same until the first
+  decision answers.py forces, and at each of those (345 s, 348 s, 359 s ...) the model's draw in the paired game took a
+  Missile Turret too, so the first answers are identical game by game; the ComSat came by the dice or the odds' sum
+  before Lurker Aspect in both. Where they differ: without answers.py's veto on turrets beyond one a base, Gary builds
+  more turrets (turret decisions in the records 7-29 a spire game against 2-16; within 10 minutes of the Spire 11 against 9, the pros 10, so
+  not past the pros' on the games that ran that long), and Siege Mode comes 74 s later against lurkers (+246 s, the
+  pros +174 s; answers.py forced it). No Science Vessel within 10 minutes of Lurker Aspect in either (the pros: 16 of
+  126). Results second: won 9, lost 2, 5 to time (step 5: 10, 4, 2).
+  The live shadow over the 16 games: 228 plan records and the card's tags. The belief's odds of the true tech: spire
+  first 0.79-0.96 at 4:00, 0.93-1.0 at 6:00, 1.0 at 8:00 (8 games); lurker first 0.04-0.16 at 4:00, 0.04 / 0.73 / 0.04 /
+  0.16 at 6:00, 0.85 / 0.40 / 0.13 / 0.84 at 8:00; zergling pressure 0.00-0.12 to 6:00, 0.32-0.34 at 8:00 (2 games running).
+  Its milestones agree with the offline pass (on time 153, delayed(odds) 19, hands 1; the Bunker delayed(odds) 9 of 14),
+  its first one-off decisions before 10:00 too (170 on the card, 137 off; offline 170 and 162, the replay's re-issued
+  commands). Answers.py can be measured off in a 96-game round when the user wants it (its entry's measure: results
+  and the time to the answer); by these 16 games its first answers are the model's, its turret veto and forced Siege
+  Mode what it adds.
+- **Phase 1 step 6: the belief chosen, the card's tags, the shadow (2026-11-24; 0 league games, the user's approval).**
+  *The sight model's 15% wrong calls in the step 5 games were not the scan's expiry.* Scans timed from their command
+  (ingest/sighting_dataset.py, eval/scouting.py: a look notices a scan up to 2 s late; a sweep, measured, shows from
+  about 8 frames after the command, always to 160, about half to 224, never past 256; SCAN_LASTS 168 from the command)
+  left the SC games at 16%. The wrong calls were the flat 2.5-tile slack for buildings (one game, a Marine beside a
+  Spire): the check now measures to the building's footprint (the races' SIZE tables). Wrong calls SC 15% to 1% (the
+  catch 90% to 83%), SU 1% to 0% (92% to 86%). The sighting dataset rebuilt with both and the belief refit with it
+  (runs/plan_belief/TvZ_T_20261124-123022): on the pros' held-out games joint Brier 0.462 / 0.408 / 0.367 at 4, 6, 8
+  minutes against 0.464 / 0.405 / 0.374 without sightings, the tech part 0.121 / 0.070 / 0.034 against 0.123 / 0.071 /
+  0.035: still next to nothing.
+  *Looked and unlooked (Gate 1's split; train/plan_belief.py --gary, the 32 games of steps 4 and 5 pooled).* Looked: the
+  plan's tech seen, or the enemy main known and looked at within 120 s with cover 0.5 or more. Prior-adjusted: the
+  model's odds over the pros' floor taken as a likelihood ratio, times the plan shares of the suite's other games
+  (Bayes with the suite's prior in place of the pros'). Brier, without sightings / with:
+
+  | | n | joint model | joint adjusted | the pros' floor | the suite's shares | tech model | tech adjusted | tech floor |
+  |---|---|---|---|---|---|---|---|---|
+  | 4:00 unlooked | 30 | 0.997 / 0.997 | 0.701 / 0.693 | 0.955 | 0.800 | 0.751 / 0.759 | 0.531 / 0.545 | 0.813 |
+  | 6:00 looked | 7 | 0.953 / 0.922 | 0.906 / 0.876 | 0.708 | 0.777 | 0.026 / 0.009 | 0.063 / 0.031 | 0.243 |
+  | 6:00 unlooked | 23 | 1.078 / 1.066 | 0.673 / 0.662 | 1.036 | 0.807 | 0.836 / 0.870 | 0.437 / 0.453 | 0.999 |
+  | 8:00 looked | 16 | 0.943 / 0.868 | 0.532 / 0.550 | 0.899 | 0.777 | 0.083 / 0.062 | 0.015 / 0.016 | 0.647 |
+  | 8:00 unlooked | 6 | 0.716 / 0.921 | 0.333 / 0.429 | 1.119 | 0.815 | | | |
+
+  Read: where Gary looked, the tech part is near certain and right (0.01-0.08 against the floor's 0.24-0.65); the joint
+  plan stays worse than the floor because the opening and hatcheries carry the pros' prior. Most of the 0.36-0.50
+  calibration error is that prior met on a suite of four even plans: adjusted to the suite's shares the joint Brier
+  falls 0.997 to 0.70 at 4:00 (ECE 0.44 to 0.28) and 1.078 to 0.67 at 6:00 unlooked (ECE 0.47 to 0.14), below the suite's
+  own shares from 6:00 looked at 8:00 (0.532 against 0.777). Unlooked, the model alone is no better than the floor, as
+  Gate 1 expects. The two beliefs differ by less than 16-30 games resolve, either way by cell, so the step logs the one
+  without sightings (the user's default for a tie; it also needs no sighting states in play): runs/plan_belief/
+  TvZ_T_20261123-212915, pinned in gary/agent/manifests.py SHADOW.
+  *The recipe card (gary/policy/card.py, eval/style_adherence.py --write-cards, runs/cards/TvZ_T_20261124.json).* Per
+  style, each one-off (a building, add-on, expansion, research or upgrade; not units, depots or turrets) the style's
+  modern pros on the ladder maps make by 8:00 in half their games or more, at their median time, due at that and their
+  90th percentile of distance from it (one pro in ten late; at their median deviation half the pros would be tagged
+  late). Pros a style: 1,555, 527, 310 and 22 (style 4). Style 1's card: Barracks 1:24, the second Command Center 2:42,
+  Refinery 3:06, Academy 3:42, Engineering Bay 3:48, Barracks 2 4:30, Stim Packs 4:36, Barracks 3 5:06, Bunker 5:30,
+  U-238 5:30, Factory 6:42, Starport 7:30.
+  *The card's tags over played games (eval/card_tags.py, from the records and the replays).* RD285a (96 games, styles 1,
+  2, 3: 56, 32, 8): 2,024 first one-off decisions, 47% on the card; off it 867 by the dice at median odds 0.08 (58%
+  under 0.10) and 199 by a rule, most Comsats, Barracks past the third, Control Towers, Refineries, upgrades.
+  Milestones due: on time 91%, delayed(odds) 8% (never decided), money and hands near 0, busy never; the Bunker on time
+  40, odds 24; the Starport 75 / 20; the second Command Center 79 / 14. The step 5 games (SC291a\*, 16, all style 1):
+  305 decisions, 54% on the card; off it 109 by the dice (median 0.07, 63% under 0.10) and 31 by a rule; milestones on
+  time 89%, delayed(odds) 10%, hands 1%; the Bunker delayed(odds) 9 of 12. So where Gary is late on its card it is the
+  model's odds that never pick the item, not money, a busy building or the hands; and half its one-off decisions are off
+  the card, mostly low-odds draws. (Replay items are named apart from the macro's choices, "ComSat" and "Terran
+  Infantry Weapons", and a replay counts a re-issued build command again: the offline pass now maps the names,
+  card.py item_of; the live tags, from the buildings started, are the truer of the two.)
+  *The shadow (option `shadow`, gary/agent/shadow.py, records "plan" and "card", gary/decision_log.py).* The belief
+  every 30 s from 2:30 to 10:00, as its data samples (top 5 plans, tech sums, the model's name), and the card's tags as
+  play goes. It draws from no random stream, so it needs none of its own: no order, no hands, no state another layer
+  reads; the model and cards files are pinned in the manifest. Checked at 0 league games: gt1dev+scansample with and
+  without it, Fighting Spirit, seed 4004, 10 minutes: every log identical apart from its own records (the views, the
+  traces, the records), 15 plan and 39 card records; the live odds within 0.018 of the offline model's on the same
+  rows (two samples 1 and 5 s late, the macro not stepped on the second). tests/test_smoke_game.py and
+  tests/test_parity.py pass. The 16-game soak the user allowed "if needed" wasn't: step 7a played with it on (below).
 - **Phase 1 step 7a, written before its games (2026-11-24; the user's approval of 16 games).** gt1dev+scansample+
   noanswers+shadow (option `noanswers`: answers.py off, its goals, vetoes and tech scan; option `shadow`: log-only, play
   unchanged) against gz1dev told styles 9, 1, 0, 4, the step 5 suite's seeds and maps (seed 4004 on Attitude SE,
@@ -2253,7 +2341,7 @@ plan and the full log).
   its targets to theirs; by 5:00 neither (the Comsat isn't up). The sampler scans more than the pros (4.56 a game
   against 3.47, their 1.52 a ready-Comsat minute against its 2.2): its rate counts every minute a Comsat is ready,
   and the pros' detection scans come from the same energy. The sight model's check called 15% of looks wrongly in
-  the SC games (2% in SU), not looked into (most likely a scan's sweep counted after it ended). Results: won 10, lost
+  the SC games (2% in SU): the building slack, not the scan (step 6, above). Results: won 10, lost
   4, 2 to time (step 4: 8, 5, 3); not the measure.
   *The retreat hold (RH291a\*, eval/pipe_table.py per round, pooled; eval/retreat_gain.py):* retreats made against
   the asked 0.26 (85,324 labelled unit-moments) against the paired step 4's 0.13 (95,334): twice, the pros' 0.78 still
