@@ -2218,6 +2218,17 @@ plan and the full log).
   scouts (the seen / confirmed absent / unscouted states of REFOCUS §3.1 exist exactly for this: absence counts only
   where Gary looked); and a fixed set of Zerg plans to play against (the four scripted archetypes) is needed to judge
   any of it, as gz1's one plan teaches nothing. What to do first is the user's call.
+- **Phase 1 steps 4-5 and the retreat hold, written before their games (2026-11-23; the user's approval of 48 games).**
+  Three rounds of 16, each the Zerg suite (gz1dev told style 9, 1, 0, 4 by option `told<N>`, 4 games a style on
+  Attitude SE, Fighting Spirit, KnockOut and Odyssey-RE, seed 4004, gg on at 0.1, 30 minutes), so the three pair
+  game by game. *Step 4* (SU, gt1dev gt0.51dev, the tech scan on every map): the scouting measure (eval/scouting.py)
+  and each Zerg game's plan as played (the pros' rule). Expected: the plan's tech seen by 7:00 given it stood from
+  11% (RD285a) to 30% or more, the scan firing at 6:30 on every map; the told plan landed in about half the games.
+  *Step 5* (SC, gt1dev+scansample, against step 4's games): the plan's tech seen by 6:00 from step 4's toward the pros'
+  56%, by 8:00 toward 72%; scouting scans by 10:00 toward the pros' 2.7 a game; severalfold, so 16 games. *The
+  retreat hold* (RH, gt1dev+retreathold, against step 4's games; eval/pipe_table.py): retreats made against the asked
+  from 0.22 toward the pros' 0.78 (twice or more), the retreating units 2 s later at least as far from the enemy as
+  now (1.9 tiles). Wins are not the measure of any of the three.
 - **Phase 1 steps 1-3, at 0 new games (2026-11-23; docs/REFOCUS.md v2.1 §4.3; the user's order: stop after step 3).**
   *Step 1, the plain fixes (gt1 gt0.22, gt1dev gt0.51dev; parity recorded again: play changed in the TvZ games on the
   two 4-start maps, the others only by the version string in their logs, the Zerg mirror byte-identical, so gz1's

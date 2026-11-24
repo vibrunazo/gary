@@ -1004,6 +1004,14 @@ OPTIONS = {
     # roles.py: a retreat 6 tiles past the group's edge (the pros' median retreat), not the point at the enemy's reach
     # (two thirds under the 4 tiles that label a retreat: Gary retreated a fifth to a half as often as the pros against
     # its models' odds, eval/pipe_table.py 2026-11-17); every fight section with a role model
+    # retreathold (docs/REFOCUS.md §3.4, Phase 1): a retreat held for a stretch drawn from the pros' (roles.py
+    # RETREAT_STRETCH), a decoder: the unit's other draws meanwhile kept, not ordered
+    # scansample (docs/REFOCUS.md Phase 1 step 5; a STOP-GAP, AGENTS.md): scans at the pros' timings and targets
+    # (gary/agent/scouting.py), in place of answers.py's tech scan
+    "scansample": lambda m: m["macro"].update(scan_sample=True),
+    "retreathold": lambda m: [f.update(roles={**f.get("roles", {}), "retreat_hold": True})
+                              for f in [m["fight"]] + [v["fight"] for v in m.get("vs", {}).values() if "fight" in v]
+                              if f.get("provider") == "roles" and f.get("model")],
     "retreatfar": lambda m: [f.update(roles={**f.get("roles", {}), "retreat_far": True})
                                for f in [m["fight"]] + [v["fight"] for v in m.get("vs", {}).values() if "fight" in v]
                                if f.get("provider") == "roles" and f.get("model")],
@@ -1174,6 +1182,9 @@ def manifest_of(name: str | dict) -> dict:
     base, *options = name.split("+")
     m = copy.deepcopy(MANIFESTS[base])
     for o in options:
+        if o.startswith("told") and o[4:].isdigit():   # told<N>: the build style N told, as eval/match.py --style
+            m["told_style"] = int(o[4:])                 # (the Zerg suite's rounds, docs/REFOCUS.md §4.3)
+            continue
         OPTIONS[o](m)
     return m
 
@@ -1665,6 +1676,8 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
     m = manifest_of(manifest)
     g = Gary(hi, mapinfo, m["version"], verbose, m.get("race", "T"))
     g.game_seed = seed                            # (the rules that draw: fight.py CastRule)
+    if style is None and m.get("told_style") is not None:
+        style = m["told_style"]
     if style is not None:                         # (by id or by name, for this race in this matchup: gary/styles.py)
         from gary.styles import resolve
         style = resolve(g.matchup, g.race.letter, style)
@@ -1781,6 +1794,9 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
         if m["macro"].get("answers"):
             from gary.agent.answers import Answers
             g.macro.answers = Answers(g, **m["macro"].get("answer_options", {}))
+        if m["macro"].get("scan_sample") and mapinfo is not None and g.race.letter == "T":
+            from gary.agent.scouting import ScanSampler
+            g.macro.scouting = ScanSampler(g)
     if m["army"] is not None:
         if m["army"]["provider"] == "waves":
             g.army = WaveArmy(g)

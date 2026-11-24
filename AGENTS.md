@@ -229,6 +229,15 @@ odds become a choice: dice, hold, floors), and fixes of plain bugs.
   `gary/policy/sightings.py` EnemyMain). Replace with the learned scan model (the pros' scans as events, docs/REFOCUS.md
   §6 row 8). Measure: the scouting measure (docs/REFOCUS.md §4.3: Spire or Den seen by 5-8 minutes given that it stood,
   scans a minute and their targets) against the pros', with it and with the model.
+- **The scan sampler** (option `scansample`, on trial in gt1dev; `gary/agent/scouting.py`). While a Comsat has a
+  scan's energy (two once lurkers were seen, one kept for the Detect rule), a scan at the pros' rate of scouting scans
+  per ready-Comsat minute for the game minute, aimed at the enemy's main, natural or another base by the pros' shares
+  at that minute; a region half in sight in the last minute (`gary/policy/sightings.py`) is passed over. In place of
+  the tech scan while on. Scripted because no model decides scans, and the pros' scan timing hardly depends on what
+  they have seen (TvZ 1.52 scans a ready-Comsat minute before the plan's tech is seen, 1.37 after; eval/scouting.py,
+  2026-11-23), docs/REFOCUS.md §6 row 8's condition for a sampler. Replace with the learned scan model. Measure: the
+  scouting measure (Spire or Den seen by 5-8 minutes given that it stood, scans a minute and their targets) against
+  the pros'.
 - **The early-pool posture's builds** (in gt1; off in gt1dev since gt0.18dev, option noalarm: it went to rush defense in
   every game, half of them blind, and held the opening's gas and natural back; rush defense from scouting: bunker at the ramp, marines first, no
   expansion). Forces 454 decisions and blocks expansion 145 times in 48 games. Scripted for 9-pool and 12-pool

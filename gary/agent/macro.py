@@ -166,6 +166,7 @@ class LearnedMacro:
         # take a third base in 86% of TvZ games of 15 min+ (median 12.9 min) and Gary in almost none
         self.expand_mass: float | None = None
         self.answers = None                                 # answers.py Answers (option answers): the zerg's plan answered
+        self.scouting = None                                # gary/agent/scouting.py ScanSampler (option scansample)
         self.expand_odds = 0.0
         # odds_mass (option mass): the same for every one-off decision (a tech building, an add-on, research,
         # an upgrade): its odds summed over the decisions taken while it was possible; at this much it is the
@@ -217,9 +218,13 @@ class LearnedMacro:
                                  by=f"posture's build: {build.label}")
         if self.natural_bunker and self._natural_bunker(mine, me):
             return
+        if self.scouting is not None:              # (option scansample: scans at the pros' timings, gary/agent/scouting.py)
+            self.scouting.look(obs)
+            if self.goal is None and g.task is None and self.scouting.step(mine):
+                return
         if self.answers is not None:
             self.answers.observe(obs)
-            if self.goal is None and g.task is None and self.answers.tech_scan(mine):
+            if self.scouting is None and self.goal is None and g.task is None and self.answers.tech_scan(mine):
                 return
             if self.goal is None and (goal := self.answers.next_goal(obs, mine, done, me)) is not None:
                 self.goal = goal

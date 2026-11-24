@@ -121,6 +121,11 @@ PULL_HP = 0.5
 PULL_TILES = 1.5
 RETREAT_MARGIN = 3 * 32
 RETREAT_FAR = 6 * 32                 # option retreatfar: px past the group's edge (the pros' retreats: median 5.5 tiles)
+# option retreathold: a retreat sent is held for a stretch drawn from the pros' own, in half seconds (the TvZ Terran's
+# retreat labels, 39,484 stretches of the response dataset: quartiles 3, 4, 6 half seconds; 1 to 12+, the last bin
+# taking the rest); the unit's other draws meanwhile are kept, not ordered (docs/REFOCUS.md §3.4: within 2 s 37% of
+# the Terran's retreats got another retreat and 27-40% another role, PROGRESS 2026-11-18)
+RETREAT_STRETCH = [0.0, 0.038, 0.083, 0.224, 0.224, 0.149, 0.098, 0.060, 0.038, 0.024, 0.016, 0.011, 0.035]
 REPEAT = 24                          # the same role isn't given to a unit again within a second (but pull back)
 # option rates (RoleLearned): the model's odds are a half second's (TURN, the fight's ASK_EVERY); a unit's draw is over
 # the time since its last one, OVER_MAX at most (its turns came every 18 frames on average in a game, RA261a's seed
@@ -198,8 +203,11 @@ class RoleRules:
                  anchor: bool = False,
                  holds: bool = False, kite: bool = False, fire: str = "enemy", post: float | str | None = None,
                  vultures: bool = False, gap_post: bool = False, pull_hp: float = PULL_HP, surround: int = 0,
-                 refresh: bool = False, retreat_far: bool = False):
+                 refresh: bool = False, retreat_far: bool = False, retreat_hold: bool = False):
         self.g = g
+        self.retreat_hold = retreat_hold
+        self.held: dict[int, int] = {}               # (retreathold) unit -> the frame its retreat's stretch ends
+        self.hold_rng = None
         # option retreatfar: a retreat's point at least RETREAT_FAR past the group's edge (the pros' retreats run a
         # median 5.5 tiles, 7.7 at the 75th percentile, PvT): the role model's where head (2 s of the pros' average
         # moves, RoleLearned._act) put it a median 3 tiles from the unit, two thirds under the 4 tiles that label a
@@ -716,6 +724,14 @@ class RoleRules:
         if point is None:
             return None
         now = self.g.hi.frame
+        if role == "RETREAT" and self.retreat_hold:      # (one stretch for the group, as a pro's retreat command)
+            if self.hold_rng is None:
+                import random
+                self.hold_rng = random.Random(f"retreathold/{self.g.game_seed}/{self.g.hi.slot}")
+            w = RETREAT_STRETCH
+            half = self.hold_rng.choices(range(len(w)), weights=w)[0]
+            for u in group:
+                self.held[u["tag"]] = now + half * 12
         for u in group:
             self.told[u["tag"]] = (role, now)
             self.order_at[u["tag"]] = (int(point[0]), int(point[1]))
@@ -1126,6 +1142,8 @@ class RoleLearned(RoleRules):
             if self.rates and names[k] in g.race.modes:
                 self.mode_due.setdefault(u["tag"], (k, now))
             role = names[k].upper()
+            if self.retreat_hold and role != "RETREAT" and self.held.get(u["tag"], -1) > now:
+                role = "KEEP"                            # (its retreat's stretch: the draw kept, not ordered)
             if self.refresh and role == "KEEP" and u["tag"] in self.where:
                 told = self.told.get(u["tag"], ("", 0))[0]   # (a move kept current: sent on where the model moves it)
                 if told in ("RETREAT", "PULL_BACK", "REPOSITION") and self._stale(u, told, self.where[u["tag"]]):
