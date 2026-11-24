@@ -337,7 +337,7 @@ def main() -> None:
     ap.add_argument("--limit", type=int, help="only this many games (a try)")
     ap.add_argument("--sightings", action="store_true",
                     help="with the sighting states (gary/policy/sightings.py; their dataset ingest/sighting_dataset.py "
-                         "built first; not built yet: Phase 1 stopped 2026-11-23 for the round-two review)")
+                         "built first)")
     ap.add_argument("--save", action="store_true", help="also fit on every game and save model.pkl")
     ap.add_argument("--out")
     ap.add_argument("--gary", nargs="+", metavar="ROUND",

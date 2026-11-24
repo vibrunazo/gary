@@ -44,11 +44,13 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   8. Only if Arm 0 leaves a gap: strict drills and the macro A/B (40 + 96-192).
   9. Templates, the execution join, the blind evaluation (live and held-out games).
   10. Gate 4's round on the whole Phase 1 build (96 against gz1, gg off, RD285a's seeds, margin 0.118).
-  Steps 1-3 done 2026-11-23 at 0 games (docs/PROGRESS.md); waiting for the user's approval before step 4, step 5's
-  choice and the retreat hold. Before them, begun 2026-11-23 and stopped for the round-two review: the plan belief offline (beats the floor on the pros' held-out
-  games, worse than it on Gary's from 6:00, as Gary doesn't look) and the first sighting states (committed, not in play).
+  Steps 1-3 done 2026-11-23 at 0 games; steps 4 and 5 (the scan sampler, option `scansample`, a STOP-GAP in place of
+  the learned scan model) and the retreat hold done 2026-11-24 at 48 games, with step 6's re-score of the belief on
+  their games (docs/PROGRESS.md). Waiting for the user's approval before step 6's log-only soak and step 7.
 - **The army (narrowed in round two):** no hold on the commit model's commitments (measured as not missing); the retreat
-  hold as a pipe fix judged on eval/pipe_table.py in 16 games, at any time; an owned army intent only after the 0-game
+  hold (option `retreathold`) as a pipe fix: 16 games 2026-11-24, retreats made/asked 0.13 to 0.26 (the pros 0.78), as
+  written, but the units no farther from the enemy 2 s later than without it (eval/retreat_gain.py); kept off, for the
+  user's decision; an owned army intent only after the 0-game
   read of units taken from one cluster by another's order (§3.4), not a veto on Phase 2's top-down intents.
 - **Maintenance cap:** other fidelity work only for regressions caught in watched games. Paused: (c)'s unstarted
   items (the army at home at 15-20, the PvT tanks) and units alone (below).

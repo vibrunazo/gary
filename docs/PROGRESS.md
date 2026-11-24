@@ -2261,6 +2261,15 @@ plan and the full log).
   plan worse than the floor at 4:00 and 6:00 (0.997 and 1.016-1.082 against 0.955-0.959) and better at 8:00 (0.861
   and 0.900 against 0.959). The calibration error stays high on Gary's games (joint 0.36-0.50) against the pros'
   held-out 0.025-0.05.
+  *With the sighting states (2026-11-24, 0 games):* ingest/sighting_dataset.py over every TvZ game (16,480 of 16,490;
+  its first save crashed on a game over before its first sample, fixed) and the belief refit with them
+  (runs/plan_belief/TvZ_T_20261124-021923). On the pros' held-out games they add next to nothing: joint Brier 0.463 /
+  0.406 / 0.368 at 4, 6, 8 minutes against 0.464 / 0.405 / 0.374 without, the tech part 0.121 / 0.070 / 0.034 against
+  0.123 / 0.071 / 0.035 (most likely what the pros have seen of the enemy's buildings already tells the belief what where they
+  looked would). On Gary's games no better, a little worse with the sampler at 8:00: step 4 tech 0.768 / 0.716 / 0.175
+  (without 0.751 / 0.678 / 0.177), joint 1.006 / 0.998 / 0.861 (0.997 / 1.016 / 0.861); step 5 tech 0.768 / 0.628 /
+  0.252 (0.751 / 0.617 / 0.197), joint 1.006 / 1.077 / 0.915 (0.997 / 1.082 / 0.900); 16 games a round, so within
+  their noise. The belief without sightings stays the one to log in step 6.
 - **Phase 1 steps 4-5 and the retreat hold, written before their games (2026-11-23; the user's approval of 48 games).**
   Three rounds of 16, each the Zerg suite (gz1dev told style 9, 1, 0, 4 by option `told<N>`, 4 games a style on
   Attitude SE, Fighting Spirit, KnockOut and Odyssey-RE, seed 4004, gg on at 0.1, 30 minutes), so the three pair
