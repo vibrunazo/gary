@@ -23,7 +23,7 @@ class Shadow:
         from gary.policy.plan_belief import PlanBelief, PlanMemory
         self.g = g
         self.side = g.hi.side
-        enemy = g.matchup[-1] if g.matchup else None
+        enemy = g.enemy.race if getattr(g, "enemy", None) is not None else None
         self.belief = PlanBelief(REPO / belief_path) if belief_path and enemy and (REPO / belief_path).exists() else None
         self.memory = PlanMemory(enemy) if self.belief is not None else None
         self.next_s = FIRST_S

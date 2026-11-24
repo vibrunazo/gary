@@ -91,9 +91,11 @@ def main() -> None:
         Xs, idx, plan, m = g[0], g[1], g[4], clean_name(g[5])
         T, Z = items["T"], items["Z"]
         start = None
+        from build_orders import secs
         for k, t in enumerate(idx):
             t = int(t)
-            if T.get("Tank Siege Mode", 1e9) <= t:
+            rt = secs(24 * t)                    # (the replay items' clock: 42 ms a frame, the sample's at frame 24 t)
+            if T.get("Tank Siege Mode", 1e9) <= rt:
                 break
             odds = model.odds(Xs[k], m)
             tech = {}
@@ -102,11 +104,11 @@ def main() -> None:
             f = sight_at(sg, t)
             view = SightingView({}, {}, frozenset(), {}, is_looked(f), None)
             b = Belief(t * 24, odds, tech, view, {}, 0, "")
-            units = {n: 1 for n in ("Factory", "Machine Shop") if T.get(n, 1e9) <= t}
+            units = {n: 1 for n in ("Factory", "Machine Shop") if T.get(n, 1e9) <= rt}
             ctx = OwnContext(t * 24, "T", "Z", "TvZ", m, units, frozenset(), 0, 0, 0, 0)
             s = scorer.score(b, StrategyState(None, [], "reactive"), ctx, [CandidateBranch(BRANCH, {})])[BRANCH]
             if not isinstance(s, NotEnoughEvidence) and s.take:
-                start = (t, s, tech.get("lurker first", 0.0), view.looked)
+                start = (rt, s, tech.get("lurker first", 0.0), view.looked)
                 break
         lurk_t = Z.get("Lurker Aspect")
         den_lair = max(Z.get("Hydralisk Den", 1e9), Z.get("Lair", 1e9))

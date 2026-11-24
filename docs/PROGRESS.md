@@ -2225,16 +2225,23 @@ plan and the full log).
   (gt1dev+trunk, gz1dev+trunk, gp1dev+trunk: the matchups without a model or table say "not enough evidence" and play
   on), tests/test_parity.py unchanged, tests/test_smoke_game.py, and tests/test_pairs.py with the trunk on (the bots'
   deep copy).
-  *Starts:* PREP_VS_LURKER started in 3 of the 4 lurker-first games, at 8:01, 8:32 and 9:31 (+180 to +229 s after
-  Lurker Aspect), the dry run's three to the second; P_pro 0.80 (39 games, a Factory, looked) and 0.67 (36, a Machine
-  Shop, looked), the low-belief contrast 0.05 and 0.43. The fourth (Odyssey) as the dry run's check game: Gary's macro
-  ordered Siege Mode at 7:31, before the belief's sample would have started it, so not offered. False starts: none in
-  the 12 other games (the lurker tech ordered by each start). The 13 games without a start are NA's record for record
+  *Starts:* PREP_VS_LURKER started in 3 of the 4 lurker-first games, at 8:06, 8:36 and 9:36 on the replay's clock
+  (+185, +201 and +234 s after Lurker Aspect); P_pro 0.80 (39 games, a Factory, looked) and 0.67 (36, a Machine Shop,
+  looked), the low-belief contrast 0.05 and 0.43. The fourth (Odyssey): Gary's macro ordered Siege Mode before the
+  belief's sample would have started it, so not offered, and the trunk never owned its tanks or vessels. The dry run
+  had said Odyssey would start: a clock slip (replay items at 42 ms a frame, the samples at frame / 24, 0.8% apart,
+  4 s at 7:30); on one clock (eval/trunk_dryrun.py, eval/trunk_join.py fixed) it predicts all four, the three starts
+  within 2 s. False starts: none in the 12 other games, but a weak test: the belief's lurker odds never passed 0.30
+  there (zergling pressure 0.22-0.30, the spire games 0.05-0.19), so none reached a cell that could start it. The 13 games without a start are NA's record for record
   (the trunk's own records apart); the 3 with one part from NA's at the start (482, 512, 571 s): nothing else moved.
-  *The execution join (eval/trunk_join.py):* per item Gary lacked at the start, 15 of 15 started (a Machine Shop, Siege
-  Mode 3, the Siege Tanks 3, a Starport, Control Towers 2, Science Facilities 2, Science Vessels 3); per goal decision
-  (17, ask-again repeats included), 17 handed and followed by their fate (started); no drop, no decision without a
-  child. Each directive ended (every item had) 80 to 171 s after its start.
+  *The execution join (eval/trunk_join.py):* per item the trunk asked, 15 of 15 started (a Machine Shop, Siege Mode 3,
+  the Siege Tanks 3, a Starport, Control Towers 2, Science Facilities 2, Science Vessels 3; the items Gary made before
+  the trunk asked them have no decision, and every directive ended with every item had, 80 to 171 s after its start);
+  per goal decision (17, ask-again repeats included), 17 handed and followed by their fate; no drop, no decision
+  without a child. The last hop is by count, not id: 12 of the 17 have their own sent order naming the item between
+  the hand-off and the fate; the other 5 (a Starport, a Siege Mode, two Science Facilities, a vessel) were underway
+  from the macro's own earlier decision, their fate 0-3 s later, and made no duplicate (the tech buildings by 12:00 as
+  NA's or fewer).
   *Timings after Lurker Aspect, per game (seconds; NA -> TK):*
 
   | | Siege Mode | first Siege Tank | first Science Vessel | Science Facility |
@@ -2245,15 +2252,24 @@ plan and the full log).
   | Odyssey (no start) | +144 | +141 | +208 | +157 |
   | median of 4: step 7b / 7a / step 5 (answers on) / the pros | +216 / +246 / +172 / +174 | +224 / +230 / +180 / +157 | +292 / +292 / +258 / +256 | |
 
-  Read: the trunk carries the lurker answer end to end, every item started and joined, no false start; but it starts
-  late, +180 to +229 s after Lurker Aspect (the belief crosses the table's cells only once Gary has seen the Den or
-  the lurkers, and Gary's own Siege Mode often comes first), so it moves Siege Mode 15 to 50 s earlier and the tanks
-  and vessels not at all: the Science Facility, which the vessels wait on, came at the same second with it or without
-  (the macro's own, or the directive's ask at the moment the macro would have), and answers.py's earlier lurker answer
-  (step 5) came from reading a Den with a Lair at once, with no table between. What would move it: an earlier start (the
-  belief's samples every 30 s and its cells; the table's moments before Siege Mode only), and the vessels' chain (the
-  Starport and Science Facility asked earlier, not after the Siege Tanks). Results second: won 12, lost 2, 2 to time
-  (step 7a 9, 2, 5); the three games with a start went from time to won, 3 games.
+  *Where the time goes (replay clock; first sight from eval/scouting.py on the paired games, the branch_select records
+  per sample):* Attitude: Lurker Aspect 301, the Den first seen +91 s, the start +94 s after (at 6:31-7:01 the belief
+  0.27-0.29 with no Factory, P_pro 0.02; at 7:31 0.62 with a Factory, 0.43; at 8:01 0.85, taken), Siege Mode +33 s
+  after; Fighting Spirit: seen +23 s, the start +178 s after (the belief 0.65-0.73 and looked from 6:03, but no Factory:
+  P_pro 0.25 of 25 games; a Factory and no Machine Shop 0.43; the Machine Shop at 8:32, taken), Siege Mode +13 s;
+  KnockOut: seen +187 s (Gary didn't look), the start +47 s after (a Factory 0.43, then the Machine Shop), Siege Mode
+  +12 s. So the own stage is the main gate once Gary sees, and seeing in one game; the belief in one. That is the
+  table's event: Siege Mode within 120 s is rare for a pro with no Factory or Machine Shop, whatever they believe, so
+  the cell waits for Gary's own Factory and Machine Shop, and the directive's first items (a Factory, a Machine Shop)
+  were asked in 0 and 1 of the 3 games. The alternative left to decide: the event as the chain's next missing item
+  (a Factory for a pro with none) started within the window, so the stage stops gating the start.
+  *Read:* the trunk carries the lurker answer end to end, every item started and joined, no false start in games that
+  never came near one; but it starts late, +185 to +234 s after Lurker Aspect, so it moves Siege Mode 15 to 50 s earlier
+  and the tanks and vessels not at all, against the expectation written before the games (vessels earlier by tens of
+  seconds): the Science Facility, which the vessels wait on, came at the same second with it or without (the macro's
+  own, already underway when the directive asked it, in 2 of 3), and answers.py's earlier lurker answer (step 5) came
+  from reading a Den with a Lair at once. Results second: won 12, lost 2, 2 to time (step 7a 9, 2, 5); the three games
+  with a start went from time to won, 3 games.
 - **Phase 1 step 7b, written before its games (2026-11-24; the user's approval of 16 games).** The trunk (option
   `trunk`, gary/agent/trunk.py; the contracts in gary/agent/contracts.py with round two's amendments; the scorer
   gary/agent/selector.py ProFrequencyScorer) hands the lurker answer to a directive, PREP_VS_LURKER: a Factory, a

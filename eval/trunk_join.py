@@ -3,9 +3,12 @@
 followed down the trace by ids (gary/decision_log.py link): the macro's decision -> handed, queued, waiting or dropped
 -> started (the trunk's fate record).
 
-Denominators, written before step 7b's games (2026-11-24):
-  per item       each directive item Gary lacked when the directive started, once per game: started (a fate record
-                 under one of its decisions), or never (the game ran on, or ended first: apart)
+Denominators, written before step 7b's games (2026-11-24), the first as built:
+  per item       each directive item the trunk asked (a decision), once per game: started (a fate record under one of its
+                 decisions), or never (the game ran on, or ended first: apart). An item Gary lacked at the start and made
+                 before the trunk asked it has no decision: the directive's end (every item had) covers those
+The last hop is by count, not by id: a fate fires when Gary's count of the item rises, whoever ordered it (an item
+already underway from the macro's own decision gets its fate within seconds and no order of its own).
   per decision   each of the macro's decisions of a directive's item, the ask-again repeats included: what its own
                  children say (handed, queued, waiting, dropped, nothing) and whether a fate followed it
 A decision with no child record at all is a pipe drop: the macro took the goal and nothing was written of its end.
@@ -31,6 +34,7 @@ def main() -> None:
     ap.add_argument("--side", default="T")
     args = ap.parse_args()
     from eval.trunk_dryrun import items_of
+    from build_orders import secs
     item_out, dec_out, starts = Counter(), Counter(), []
     by_item = defaultdict(Counter)
     for rnd in args.rounds:
@@ -46,7 +50,7 @@ def main() -> None:
             game = Path(rec).parent.name[:12]
             Z = items_of(rec.replace(".records.jsonl", ".rep"))["Z"]
             for st in (r for r in rows if r.get("kind") == "strategy_state" and r.get("transition") == "start"):
-                t = st["f"] / 24
+                t = secs(st["f"])                       # (the replay items' clock: 42 ms a frame, not frame / 24)
                 truth = min(Z.get("Lurker Aspect", 1e9), max(Z.get("Hydralisk Den", 1e9), Z.get("Lair", 1e9))) <= t
                 ended = next((e for e in kids[st["id"]] if e.get("kind") == "strategy_state"), None)
                 sel = by_id.get(st.get("parent"), {})

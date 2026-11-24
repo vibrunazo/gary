@@ -49,7 +49,7 @@ class BeliefProvider:
     def __init__(self, g, path: str | None):
         from gary.policy.plan_belief import PlanBelief as Model, PlanMemory
         self.g = g
-        self.enemy = g.matchup[-1] if g.matchup else None
+        self.enemy = g.enemy.race if getattr(g, "enemy", None) is not None else None
         self.model = Model(REPO / path) if path and (REPO / path).exists() and self.enemy else None
         self._memory_cls = PlanMemory
         self.state = None                    # the sighting state: scansample's if it runs, else the trunk's own
@@ -131,7 +131,7 @@ class Trunk:
         self.belief = BeliefProvider(g, (cfg.get("plan_belief") or {}).get(key))
         tables = {b: REPO / p for b, p in ((cfg.get("tables") or {}).get(key) or {}).items() if (REPO / p).exists()}
         self.scorer = ProFrequencyScorer(tables)
-        enemy = g.matchup[-1] if g.matchup else None
+        enemy = g.enemy.race if getattr(g, "enemy", None) is not None else None
         self.directives = DIRECTIVES.get((g.race.letter, enemy), {})
         self.rng = random.Random(f"trunk/{g.game_seed}/{g.hi.slot}")
         card, card_id = [], None
@@ -154,7 +154,7 @@ class Trunk:
         g = self.g
         units = Counter(g.race.names.get(u["type"], str(u["type"])) for u in mine)
         res = frozenset(g.race.tech_names.get(t, str(t)) for t in g.researched)
-        return OwnContext(obs["frame"], g.race.letter, g.matchup[-1] if g.matchup else None, g.matchup,
+        return OwnContext(obs["frame"], g.race.letter, g.enemy.race if getattr(g, "enemy", None) is not None else None, g.matchup,
                           self.belief.map_name, dict(units), res, int(me.get("minerals", 0)), int(me.get("gas", 0)),
                           int(me.get("supply_used", 0)), int(me.get("supply_max", 0)))
 
