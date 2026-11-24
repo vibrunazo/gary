@@ -87,8 +87,8 @@ class ScanSampler:
             return False
         main = g.map.base_near(g.enemy_main)
         nat = g.map.natural_of(main)
-        mine_bases = {self.state.own, self.state.own_nat}
-        others = sorted((b for b in g.map.bases if b not in mine_bases and b is not main and b is not nat),
+        skip = [self.state.own, self.state.own_nat, main, nat]      # (Bases aren't hashable: by identity)
+        others = sorted((b for b in g.map.bases if not any(b is x for x in skip)),
                         key=lambda b: math.dist(b.center, main.center))[:OTHERS]
         other = min(others, key=lambda b: self.state._region(b).frame if self.state._region(b) else -1, default=None)
         places = [main, nat, other]

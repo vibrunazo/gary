@@ -2218,6 +2218,49 @@ plan and the full log).
   scouts (the seen / confirmed absent / unscouted states of REFOCUS §3.1 exist exactly for this: absence counts only
   where Gary looked); and a fixed set of Zerg plans to play against (the four scripted archetypes) is needed to judge
   any of it, as gz1's one plan teaches nothing. What to do first is the user's call.
+- **Phase 1 steps 4-5 and the retreat hold: the results (2026-11-24; 48 games, as written above).** The three rounds
+  pair game by game (the suite: gz1dev told styles 9, 1, 0, 4, four games each on Attitude SE, Fighting Spirit,
+  KnockOut and Odyssey-RE, seed 4004, gg on). An SC round first crashed at the sampler's first scan (a set of
+  bases: `Base` isn't hashable); fixed, and all 16 SC games played again. The told style by manifest (`told<N>`) was
+  refused by eval/match.py's name check at first (16 games never started; fixed before any was played).
+  *The suite as played (step 4, SU291a\*):* gz1dev landed on its told plan in 13 of 16 games by the pros' rule
+  (zergling pressure 3 of 4, the 2-hatchery spire 3, the 3-hatchery spire 3, the lurker first 4; the misses one
+  hatchery off). gt1dev won 8, lost 5, 3 to time.
+  *The scouting measure (eval/scouting.py; Spire, Greater Spire or Den seen by 5, 6, 7, 8 minutes given it stood,
+  n 11-12 games):*
+
+  | | 5:00 | 6:00 | 7:00 | 8:00 | scans by 10:00 | first scan | targets: main / natural / other / field / own |
+  |---|---|---|---|---|---|---|---|
+  | RD285a (gt0.49dev, the scan on 2 maps of 8) | 2% | 1% | 11% | 16% | 1.56 | 7:09 | 11 / 1 / 7 / 49 / 31% |
+  | step 4, gt0.51dev (the tech scan on every map) | 0% | 8% | 67% | 75% | 2.56 | 6:34 | 24 / 5 / 2 / 44 / 24% |
+  | step 5, + scansample | 0% | 50% | 75% | 75% | 4.56 | 5:42 | 30 / 19 / 22 / 22 / 7% |
+  | the TvZ pros (300 games) | 26% | 56% | 67% | 72% | 3.47 | 6:07 | 20 / 32 / 27 / 16 / 4% |
+
+  Step 4's fix did what was written (11% to 67% by 7:00); the sampler brings 6:00 to the pros' (50% against 56%) and
+  its targets to theirs; by 5:00 neither (the Comsat isn't up). The sampler scans more than the pros (4.56 a game
+  against 3.47, their 1.52 a ready-Comsat minute against its 2.2): its rate counts every minute a Comsat is ready,
+  and the pros' detection scans come from the same energy. The sight model's check called 15% of looks wrongly in
+  the SC games (2% in SU), not looked into (most likely a scan's sweep counted after it ended). Results: won 10, lost
+  4, 2 to time (step 4: 8, 5, 3); not the measure.
+  *The retreat hold (RH291a\*, eval/pipe_table.py per round, pooled; eval/retreat_gain.py):* retreats made against
+  the asked 0.26 (85,324 labelled unit-moments) against the paired step 4's 0.13 (95,334): twice, the pros' 0.78 still
+  three times that. The retreating units 2 s later a median 0.4 tiles farther from the nearest enemy fighter (step
+  4: 0.2), 4 tiles or more 12% in both, nearer 44% (43%): the hold keeps the retreat's label, it doesn't get the
+  units away. What was written: twice or more against the asked (yes, from 0.13; the 0.22 of earlier rounds was
+  another build's) and at least as far (yes, no farther).
+  *The sight model's wrong calls in TvT and TvP (0 games):* 64% of the wrong calls in TvT were an eye below the
+  building it was said to see (Brood War: a ground unit or building sees nothing on higher ground), and 45 of 49 in
+  TvP a Spider Mine given the default 7 tiles (3). With heights (gary/policy/sightings.py: ground eyes see their
+  height and lower, flyers and scans all) and the mine's 3, on 25-50 pro games a view: TvT 13% to 5%, TvP 10% to 7%,
+  the others 0-2%, the catch 77-86% as before.
+  *The plan belief re-scored on steps 4 and 5 (runs/plan_belief/TvZ_T_20261123-212915, no sightings; 16 games each;
+  Brier, comparators fitted on other games; "Gary's other games" here are the suite's other games, near even over
+  its four plans, which the pros' floor isn't):* the tech part beats the pros' floor at every minute in both (step 4
+  0.751 / 0.678 / 0.177 at 4, 6, 8 minutes against 0.813 / 0.823 / 0.798; step 5 0.751 / 0.617 / 0.197), level with
+  answers.py's read at 8:00 (0.149, 0.230) and ahead of it at 6:00 with the sampler (0.617 against 0.649); the joint
+  plan worse than the floor at 4:00 and 6:00 (0.997 and 1.016-1.082 against 0.955-0.959) and better at 8:00 (0.861
+  and 0.900 against 0.959). The calibration error stays high on Gary's games (joint 0.36-0.50) against the pros'
+  held-out 0.025-0.05.
 - **Phase 1 steps 4-5 and the retreat hold, written before their games (2026-11-23; the user's approval of 48 games).**
   Three rounds of 16, each the Zerg suite (gz1dev told style 9, 1, 0, 4 by option `told<N>`, 4 games a style on
   Attitude SE, Fighting Spirit, KnockOut and Odyssey-RE, seed 4004, gg on at 0.1, 30 minutes), so the three pair

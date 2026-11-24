@@ -132,7 +132,7 @@ def main() -> None:
     with ProcessPoolExecutor(args.workers) as pool:
         got = list(monitor.track(pool.map(_job, todo, chunksize=2), len(todo), "games"))
     failed = [r for r in got if isinstance(r[1], str)]
-    res = [r for r in got if not isinstance(r[1], str)]
+    res = [r for r in got if not isinstance(r[1], str) and len(r[1])]   # (a game over before the first sample: none)
     if failed:                                    # (every failure counted and listed, none dropped silently)
         reasons = Counter(r[1].split(":")[0] for r in failed)
         print(f"{len(failed)} of {len(todo)} games failed: {dict(reasons.most_common(6))}")
