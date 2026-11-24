@@ -7,7 +7,8 @@ and its line removed; a new one gets an issue and a line).
 
 ## Where things are
 
-- `gary/`: the agent (`gary/agent`: arbiter, executor and its race plugs, macro, army, fight, rules), the
+- `gary/`: the agent (`gary/agent`: arbiter, executor and its race plugs, macro, army, fight, rules; the strategic
+  trunk, `trunk.py` with `contracts.py` and `selector.py`'s pro-frequency scorer, option `trunk`), the
   race data (`gary/terran.py`, `zerg.py`, `protoss.py`, `race.py`), the learned models (`gary/policy`), the
   interface (human-like hands) and the game environment.
 - `eval/`: the launcher (`match.py`), league rounds (`league.py`, which keeps each round's feature rows), measures

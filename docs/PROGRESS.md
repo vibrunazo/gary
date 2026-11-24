@@ -2218,6 +2218,42 @@ plan and the full log).
   scouts (the seen / confirmed absent / unscouted states of REFOCUS §3.1 exist exactly for this: absence counts only
   where Gary looked); and a fixed set of Zerg plans to play against (the four scripted archetypes) is needed to judge
   any of it, as gz1's one plan teaches nothing. What to do first is the user's call.
+- **Phase 1 step 7b: the results (2026-11-24; 16 games, as written below).** TK293a\*, paired game by game with NA292a\*.
+  *Before the games (0 games):* step 7a's "no Science Vessel in any game" was the measure's (units read only to 8:00;
+  eval/answer_time.py fixed, above), so the user's vessel check found no bug in Gary. The trunk and its contracts as
+  written below; tests/test_matchups.py passes in all 6 matchups with the trunk on every race's dev build
+  (gt1dev+trunk, gz1dev+trunk, gp1dev+trunk: the matchups without a model or table say "not enough evidence" and play
+  on), tests/test_parity.py unchanged, tests/test_smoke_game.py, and tests/test_pairs.py with the trunk on (the bots'
+  deep copy).
+  *Starts:* PREP_VS_LURKER started in 3 of the 4 lurker-first games, at 8:01, 8:32 and 9:31 (+180 to +229 s after
+  Lurker Aspect), the dry run's three to the second; P_pro 0.80 (39 games, a Factory, looked) and 0.67 (36, a Machine
+  Shop, looked), the low-belief contrast 0.05 and 0.43. The fourth (Odyssey) as the dry run's check game: Gary's macro
+  ordered Siege Mode at 7:31, before the belief's sample would have started it, so not offered. False starts: none in
+  the 12 other games (the lurker tech ordered by each start). The 13 games without a start are NA's record for record
+  (the trunk's own records apart); the 3 with one part from NA's at the start (482, 512, 571 s): nothing else moved.
+  *The execution join (eval/trunk_join.py):* per item Gary lacked at the start, 15 of 15 started (a Machine Shop, Siege
+  Mode 3, the Siege Tanks 3, a Starport, Control Towers 2, Science Facilities 2, Science Vessels 3); per goal decision
+  (17, ask-again repeats included), 17 handed and followed by their fate (started); no drop, no decision without a
+  child. Each directive ended (every item had) 80 to 171 s after its start.
+  *Timings after Lurker Aspect, per game (seconds; NA -> TK):*
+
+  | | Siege Mode | first Siege Tank | first Science Vessel | Science Facility |
+  |---|---|---|---|---|
+  | Attitude SE (started 8:01) | +268 -> +218 | +238 -> +225 | +302 -> +304 | +261 -> +262 |
+  | Fighting Spirit (8:32) | +229 -> +214 | +223 -> +223 | +295 -> +302 | +250 -> +254 |
+  | KnockOut (9:31) | +264 -> +246 | +246 -> +252 | +288 -> +281 | +226 -> +226 |
+  | Odyssey (no start) | +144 | +141 | +208 | +157 |
+  | median of 4: step 7b / 7a / step 5 (answers on) / the pros | +216 / +246 / +172 / +174 | +224 / +230 / +180 / +157 | +292 / +292 / +258 / +256 | |
+
+  Read: the trunk carries the lurker answer end to end, every item started and joined, no false start; but it starts
+  late, +180 to +229 s after Lurker Aspect (the belief crosses the table's cells only once Gary has seen the Den or
+  the lurkers, and Gary's own Siege Mode often comes first), so it moves Siege Mode 15 to 50 s earlier and the tanks
+  and vessels not at all: the Science Facility, which the vessels wait on, came at the same second with it or without
+  (the macro's own, or the directive's ask at the moment the macro would have), and answers.py's earlier lurker answer
+  (step 5) came from reading a Den with a Lair at once, with no table between. What would move it: an earlier start (the
+  belief's samples every 30 s and its cells; the table's moments before Siege Mode only), and the vessels' chain (the
+  Starport and Science Facility asked earlier, not after the Siege Tanks). Results second: won 12, lost 2, 2 to time
+  (step 7a 9, 2, 5); the three games with a start went from time to won, 3 games.
 - **Phase 1 step 7b, written before its games (2026-11-24; the user's approval of 16 games).** The trunk (option
   `trunk`, gary/agent/trunk.py; the contracts in gary/agent/contracts.py with round two's amendments; the scorer
   gary/agent/selector.py ProFrequencyScorer) hands the lurker answer to a directive, PREP_VS_LURKER: a Factory, a
