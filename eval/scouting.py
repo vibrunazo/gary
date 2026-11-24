@@ -106,7 +106,7 @@ def game_events(job: tuple) -> list[dict] | str:
     from gary.env import Game
     from gary.mapinfo import MapInfo
     from gary.policy.army import is_building
-    from gary.policy.sightings import EnemyMain, SCAN_SEES as SEES, covered, sight_px
+    from gary.policy.sightings import EnemyMain, SCAN_SEES as SEES, covered, eye_heights, height_at, sight_px
     replay, tag, only_race = job
     try:
         g = Game.scenario(replay)
@@ -117,6 +117,7 @@ def game_events(job: tuple) -> list[dict] | str:
         g.step(24)
         obs = g.observe()
         mi = MapInfo.from_game(g)
+        heights = g.terrain()[1]
         halls = {}
         for u in obs["units"]:
             for race, types in HALLS.items():
@@ -201,7 +202,8 @@ def game_events(job: tuple) -> list[dict] | str:
                         b = mi.base_near((u["x"], u["y"])).center
                         proxy = any(math.dist(q, b) <= LOOK for q in pos) or any(math.dist(a, b) <= SCAN_SEES for a in recent)
                         p["looks"][f"{int(proxy)}{int(u['tag'] in vis_tags)}"] += 1
-                        model = bool(covered(np.array([(u["x"], u["y"])], np.float64), eyes, radii + BUILDING_SLACK)[0])
+                        model = bool(covered(np.array([(u["x"], u["y"])], np.float64), eyes, radii + BUILDING_SLACK,
+                                             eye_heights(heights, mine, recent), height_at(heights, [(u["x"], u["y"])]))[0])
                         p["sight"][f"{int(model)}{int(u['tag'] in vis_tags)}"] += 1
                 # the enemy's main, as the player could know it
                 if p["main_at"] is None and p["finder"].look(pos, vis) is not None:

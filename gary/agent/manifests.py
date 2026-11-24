@@ -1659,7 +1659,8 @@ def _against(m: dict, vs: dict) -> dict:
 def manifest_name(name: str) -> str:
     """For argparse (type=): a manifest name, with options, that exists."""
     base, *options = name.split("+")
-    if base not in MANIFESTS or base == "drill" or any(o not in OPTIONS for o in options):
+    if base not in MANIFESTS or base == "drill" or any(o not in OPTIONS and not (o.startswith("told") and o[4:].isdigit())
+                                                      for o in options):
         raise ValueError(name)
     return name
 

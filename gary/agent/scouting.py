@@ -47,7 +47,11 @@ class ScanSampler:
         self.g = g
         mu = "Tv" + g.enemy.race if getattr(g, "enemy", None) is not None else g.matchup
         self.rate, self.targets = RATE.get(mu, RATE["TvZ"]), TARGETS.get(mu, TARGETS["TvZ"])
-        self.state = SightingState(g.map, g.slot, g.main.center, mu[-1], is_building)
+        try:                                      # (the ground's heights: a unit sees nothing above it)
+            heights = g.hi.game.terrain()[1]
+        except Exception:                         # (no terrain where the game has none: every height seen)
+            heights = None
+        self.state = SightingState(g.map, g.slot, g.main.center, mu[-1], is_building, heights)
         self.rng = random.Random(f"scansample/{g.game_seed}/{g.hi.slot}")
         self.last = None
         self.next_look = 0

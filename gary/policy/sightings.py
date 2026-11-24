@@ -9,7 +9,9 @@ only where the player looked, and a stale look is not "never checked".
 
 A look is how much of a region the player had in sight: the share of its points (every STEP within REGION of its
 center, nearer it than any other base) within sight of a unit or building of the player's (SIGHT, Brood War's radii;
-cliffs ignored) or of a Comsat scan. A unit near the region's center was the first try, and the pros' games refuted it
+a ground unit or building sees nothing on higher ground, a flyer and a scan see every height) or of a Comsat scan.
+Without the heights, 64% of the model's wrong calls in TvT were an eye below the building it was said to see (the
+pros' games, 2026-11-23). A unit near the region's center was the first try, and the pros' games refuted it
 (docs/PROGRESS.md 2026-11-23, eval/scouting.py): it caught 18-73% of their sights of the enemy's tech, and 9-55% of
 its "looks" had tech standing out of sight. A scan is no unit in the observation (only the place it shows turns
 visible: checked on a pro game, 2026-11-23), so its point is given to look() (in play Gary's own scan, in the data the
@@ -33,7 +35,7 @@ ABSENT_COVER = 0.5            # a look this covering that found none of the plan
 # sight radii in tiles (Brood War's), by type; others DEFAULT_SIGHT (a building BUILDING_SIGHT)
 SIGHT = {0: 7, 1: 9, 2: 8, 3: 8, 5: 10, 30: 10, 7: 7, 8: 7, 9: 10, 11: 8, 12: 11, 32: 7, 34: 9, 58: 8,
          37: 5, 38: 6, 39: 7, 41: 7, 42: 9, 43: 7, 44: 11, 45: 10, 46: 10, 47: 5, 62: 10, 103: 8, 35: 4, 36: 4, 97: 4,
-         64: 8, 65: 7, 66: 8, 67: 7, 68: 8, 69: 8, 70: 8, 71: 9, 72: 11, 73: 6, 83: 10, 84: 9, 60: 9, 61: 7, 63: 10,
+         13: 3, 64: 8, 65: 7, 66: 8, 67: 7, 68: 8, 69: 8, 70: 8, 71: 9, 72: 11, 73: 6, 83: 10, 84: 9, 60: 9, 61: 7, 63: 10,
          106: 10, 124: 11, 131: 9, 132: 10, 133: 11, 154: 11, 156: 8, 162: 11, 144: 10, 146: 10}
 DEFAULT_SIGHT, BUILDING_SIGHT = 7, 9
 RECENT = 180                  # s: the other regions looked at within this
@@ -109,11 +111,40 @@ def region_points(mapinfo) -> list[np.ndarray]:
     return out
 
 
-def covered(pts: np.ndarray, eyes: np.ndarray, radii: np.ndarray) -> np.ndarray:
-    """(len(pts),) bool: each point within any eye's radius (eyes (n, 2) px, radii (n,) px)."""
+def covered(pts: np.ndarray, eyes: np.ndarray, radii: np.ndarray, eye_h: np.ndarray | None = None,
+            pt_h: np.ndarray | None = None) -> np.ndarray:
+    """(len(pts),) bool: each point within any eye's radius (eyes (n, 2) px, radii (n,) px), and with the heights
+    (eye_h (n,), pt_h (len(pts),)) not above the eye's."""
     if not len(eyes) or not len(pts):
         return np.zeros(len(pts), bool)
-    return (((pts[:, None, :] - eyes[None]) ** 2).sum(-1) <= radii[None] ** 2).any(1)
+    inside = ((pts[:, None, :] - eyes[None]) ** 2).sum(-1) <= radii[None] ** 2
+    if eye_h is not None and pt_h is not None:
+        inside &= eye_h[None, :] >= pt_h[:, None]
+    return inside.any(1)
+
+
+SEES_ALL = 9                  # an eye's height that sees every height (a flyer, a scan)
+
+
+def height_at(heights, points) -> np.ndarray:
+    """Ground heights (0 low, 1 middle, 2 high) at pixel points, from Game.terrain()'s minitile grid (None: none)."""
+    pts = np.asarray(points, np.float64).reshape(-1, 2)
+    if heights is None or not len(pts):
+        return None
+    ys = np.clip((pts[:, 1] // 8).astype(int), 0, heights.shape[0] - 1)
+    xs = np.clip((pts[:, 0] // 8).astype(int), 0, heights.shape[1] - 1)
+    return heights[ys, xs].astype(np.int16)
+
+
+def eye_heights(heights, units: list[dict], scans) -> np.ndarray | None:
+    """Each eye's height: a flyer's and a scan's SEES_ALL, a ground unit's or building's its ground's."""
+    if heights is None:
+        return None
+    from gary.races import FLYERS
+    h = height_at(heights, [(u["x"], u["y"]) for u in units])
+    h = h if h is not None else np.zeros(0, np.int16)
+    h = np.where([u["type"] in FLYERS for u in units], SEES_ALL, h) if len(units) else h
+    return np.concatenate([h, np.full(len(scans), SEES_ALL, np.int16)]).astype(np.int16)
 
 
 @dataclass
@@ -130,9 +161,10 @@ class SightingState:
     frame of its last look, which found none of the plan's tech), unscouted (the regions never looked at); and per
     region its last look (staleness and cover)."""
 
-    def __init__(self, mapinfo, slot: int, own_start: tuple[int, int], enemy: str, is_building) -> None:
+    def __init__(self, mapinfo, slot: int, own_start: tuple[int, int], enemy: str, is_building, heights=None) -> None:
         """mapinfo: the map's bases (the regions); slot: the player's; own_start: its main (px); enemy: the enemy's race
-        letter; is_building(type) -> bool."""
+        letter; is_building(type) -> bool; heights: Game.terrain()'s ground heights (None: every height seen)."""
+        self.heights = heights
         self.bases = list(mapinfo.bases)
         self.slot, self.enemy, self.mapinfo = slot, enemy, mapinfo
         self.own = min(self.bases, key=lambda b: math.dist(b.center, own_start))
@@ -142,6 +174,7 @@ class SightingState:
         self.kept = self.halls | self.plan_tech | set(OTHER_TECH[enemy])
         self.own_halls: set[int] = set()               # regions where the player has a town hall
         self.points = region_points(mapinfo)
+        self.point_h = [height_at(heights, p) for p in self.points]
         self.regions: dict[int, Region] = {}           # region -> its last look
         self._seen: dict[int, tuple[int, int]] = {}    # enemy type -> (most in sight at once, last frame)
         self.plan_first: int | None = None             # frame the plan's tech was first seen
@@ -171,6 +204,7 @@ class SightingState:
         pos = np.array([(u["x"], u["y"]) for u in mine] or [(-1e9, -1e9)], np.float64)
         eyes = np.array([(u["x"], u["y"]) for u in mine] + [tuple(p) for p in scans], np.float64).reshape(-1, 2)
         radii = np.array([sight_px(u["type"]) for u in mine] + [SCAN_SEES] * len(scans), np.float64)
+        eye_h = eye_heights(self.heights, mine, scans)
         counts: dict[int, int] = {}
         for u in enemy:
             if u["type"] in self.kept:
@@ -185,7 +219,8 @@ class SightingState:
             if self._mine(k):
                 continue
             near = ((eyes - b.center) ** 2).sum(1) <= (REGION + radii) ** 2 if len(eyes) else np.zeros(0, bool)
-            cover = float(covered(self.points[k], eyes[near], radii[near]).mean()) \
+            cover = float(covered(self.points[k], eyes[near], radii[near], eye_h[near] if eye_h is not None else None,
+                                  self.point_h[k]).mean()) \
                 if near.any() and len(self.points[k]) else 0.0
             there = [u for u in enemy if u["type"] in self.kept and math.dist((u["x"], u["y"]), b.center) <= REGION
                      and self.mapinfo.base_near((u["x"], u["y"])) is b]

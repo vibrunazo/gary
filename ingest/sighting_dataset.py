@@ -76,7 +76,8 @@ def _job(job: tuple):
         own_hall = next((u for u in obs["units"] if u["owner"] == slot and u["type"] in HALLS[race]), None)
         if own_hall is None:
             return rel, f"no {race} town hall of slot {slot}"
-        state = SightingState(MapInfo.from_game(g), slot, (own_hall["x"], own_hall["y"]), enemy, is_building)
+        state = SightingState(MapInfo.from_game(g), slot, (own_hall["x"], own_hall["y"]), enemy, is_building,
+                              g.terrain()[1])
         seen = Seen(g, slot)
         scans = Scans(path, slot) if race == "T" else None
 
