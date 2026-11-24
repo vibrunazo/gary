@@ -2243,11 +2243,14 @@ plan and the full log).
   s off, +141 to +222 s on), in 3 of 8 spire games off (4 on). Where off and on differ: without answers.py's veto on
   turrets beyond one a base, more turrets by 10:00 (spire games median 10 against 8, lurker games 10 against 8.5; the
   pros 5 within 10 minutes of Lurker Aspect, 10 of the Spire, the latter on only 3 of Gary's games that ran that long,
-  so unresolved), and Siege Mode a median 74 s later against lurkers (+246 s, the pros +174 s). No Science Vessel in
-  any of the 32 games: in step 5's lurker games answers.py decided 1-2 vessels and Irradiate, and Gary got the Science
-  Facility and Irradiate but never ordered a vessel (an execution leak, not looked into). So: the macro model doesn't
-  need answers.py for the first turrets or the ComSat, which it makes on its own clock whatever the Zerg plays, as
-  answers.py's did; the lurker answer (Siege Mode) is the one thing answers.py moved, earlier. Results second: won 9,
+  so unresolved), and the lurker answer later against lurkers: Siege Mode +246 s (on +172 s, the pros +174 s), the
+  first Siege Tank +230 s (+180 s, the pros +157 s), the first Science Vessel +292 s (+258 s, the pros +256 s, 87 of 126
+  within 10 minutes). (First written "no Science Vessel in any game, an execution leak": wrong, the measure's.
+  ingest/build_orders.py keeps units only to 8:00, so eval/answer_time.py read every vessel as never, for Gary and the
+  pros alike; it reads the units from the raw Train commands now, and Gary trained vessels in all 8 lurker games.)
+  So: the macro model doesn't need answers.py for the first turrets or the ComSat, which it makes on its own clock
+  whatever the Zerg plays, as answers.py's did; what answers.py moved is the lurker answer, Siege Mode, tanks and
+  vessels, earlier by 34-74 s. Results second: won 9,
   lost 2, 5 to time (step 5: 10, 4, 2). The four style-9 pairs (answers.py never fired) are identical record by record
   apart from the shadow's own records, whole games long: no drift from the shadow.
   The live shadow over the 16 games: 228 plan records and the card's tags. The belief's odds of the true tech: spire

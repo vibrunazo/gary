@@ -9,7 +9,9 @@ before it):
                       their flight)
   against lurkers     the first detection (a ComSat, a Science Vessel or a Missile Turret); the first ComSat; Siege Mode
 Added after step 7a's games (not written before them): the turrets ordered within 10 minutes of the tech (answers.py
-vetoes turrets beyond one a base), and against lurkers the first Science Vessel.
+vetoes turrets beyond one a base), and against lurkers the first Science Vessel and Siege Tank. Units are read from the
+raw Train commands: ingest/build_orders.py keeps units only to 8:00 (UNITS_UNTIL_S), so a vessel read from its items
+was "never" for Gary and the pros alike (2026-11-24).
 Never within 10 minutes of the tech (or before the game's end): "never", apart.
 
     python -m eval.answer_time --rounds SC291a9 SC291a1 SC291a0 SC291a4 --pros
@@ -54,8 +56,18 @@ def turrets_within(items: list[dict], t0: float, duration_s: float) -> int | Non
     return sum(1 for it in items if it["name"] == "Missile Turret" and FROM_S <= it["t"] <= t0 + WITHIN_S)
 
 
+def trains(cmds: list[tuple], pid: int, names) -> list[dict]:
+    """The player's Train commands for names, as items ({name, t}), at any time."""
+    from build_orders import secs
+    from cmdcache import F, N, P, T
+    return [{"name": c[N], "t": secs(c[F])} for c in cmds if c[P] == pid and c[T] == "Train" and c[N] in names]
+
+
+LATE_UNITS = ("Science Vessel", "Siege Tank (Tank Mode)")
+
+
 def measure(t_items: list[dict], z_items: list[dict], duration_s: float) -> dict | None:
-    """One game: the Zerg's plan and the answers' delays."""
+    """One game: the Zerg's plan and the answers' delays (t_items with LATE_UNITS' trains at any time)."""
     from label_all import zerg_plan
     plan = zerg_plan({"items": z_items, "duration_s": duration_s}, "TvZ")
     tech = plan.split(",")[-1].strip() if plan and "," in plan else plan
@@ -74,7 +86,9 @@ def measure(t_items: list[dict], z_items: list[dict], duration_s: float) -> dict
         return {"plan": plan, "tech": tech, "t0": t0, "left_s": duration_s - t0,
                 "detect": first_after(t_items, DETECT, t0), "comsat": first_after(t_items, ("ComSat", "Comsat Station"), t0),
                 "siege": first_after(t_items, ("Tank Siege Mode",), t0),
-                "vessel": first_after(t_items, ("Science Vessel",), t0), "turrets_10m": turrets_within(t_items, t0, duration_s)}
+                "vessel": first_after(t_items, ("Science Vessel",), t0),
+                "tank": first_after(t_items, ("Siege Tank (Tank Mode)",), t0),
+                "turrets_10m": turrets_within(t_items, t0, duration_s)}
     return {"plan": plan, "tech": tech}
 
 
@@ -89,10 +103,24 @@ def gary_game(rep: str):
         return None
     items = {r: extract_player([c for c in game["cmds"] if c[P] == ps[r]["id"]], r)[0] for r in "TZ"}
     dur = max((it["t"] for r in "TZ" for it in items[r]), default=0)
-    return measure(items["T"], items["Z"], dur)
+    t_items = [it for it in items["T"] if it["name"] not in LATE_UNITS] + trains(game["cmds"], ps["T"]["id"], LATE_UNITS)
+    return measure(t_items, items["Z"], dur)
 
 
-def pro_games() -> list[dict]:
+def pro_lurker_units(job):
+    """A pro lurker-first game's Terran trains of LATE_UNITS from its raw commands (None: unreadable)."""
+    rel, sha1, name = job
+    from cmdcache import load_game
+    from inventory import data_root, find_screp
+    try:
+        game = load_game(find_screp(None), data_root() / "raw" / rel, sha1, data_root() / "interim" / "cmdcache")
+    except Exception:  # noqa: BLE001
+        return None
+    pid = next((p["id"] for p in game["players"] if p["name"] == name and not p["observer"]), None)
+    return None if pid is None else trains(game["cmds"], pid, LATE_UNITS)
+
+
+def pro_games(workers: int = 4) -> list[dict]:
     from inventory import data_root
     from eval.league import ladder_maps
     import re
@@ -105,12 +133,25 @@ def pro_games() -> list[dict]:
         if not any(b in re.sub(r"[^a-z]", "", str(r.get("map", "")).lower()) for b in base):
             continue
         by[r["rel_path"]][r["race"]] = r
-    out = []
+    out, late = [], []
     for rows in by.values():
         if "T" in rows and "Z" in rows:
-            m = measure(rows["T"]["items"], rows["Z"]["items"], rows["T"]["duration_s"])
-            if m is not None:
-                out.append(m)
+            t_items = [it for it in rows["T"]["items"] if it["name"] not in LATE_UNITS]
+            m = measure(t_items, rows["Z"]["items"], rows["T"]["duration_s"])
+            if m is None:
+                continue
+            if m["tech"] == "lurker first":          # (its units after 8:00 from the raw commands)
+                late.append((len(out), rows["T"], rows["Z"]))
+            out.append(m)
+    jobs = [(t["rel_path"], t["sha1"], t["player"]) for _, t, _ in late]
+    with ProcessPoolExecutor(workers) as pool:
+        units = list(pool.map(pro_lurker_units, jobs))
+    for (k, t, z), u in zip(late, units):
+        if u is None:
+            out[k] = {"plan": out[k]["plan"], "tech": "unread"}
+            continue
+        t_items = [it for it in t["items"] if it["name"] not in LATE_UNITS] + u
+        out[k] = measure(t_items, z["items"], t["duration_s"])
     return out
 
 
@@ -137,8 +178,8 @@ def report(name: str, games: list[dict]) -> None:
                   f"{np.median([g['turrets_by'] for g in q]):.0f}")
     if lu:
         print(f"  against lurkers: first detection {cell([g['detect'] for g in lu], len(lu))}; first ComSat "
-              f"{cell([g['comsat'] for g in lu], len(lu))}; Siege Mode {cell([g['siege'] for g in lu], len(lu))}; Science Vessel "
-              f"{cell([g['vessel'] for g in lu], len(lu))}; {tens(lu)}")
+              f"{cell([g['comsat'] for g in lu], len(lu))}; Siege Mode {cell([g['siege'] for g in lu], len(lu))}; Siege Tank "
+              f"{cell([g['tank'] for g in lu], len(lu))}; Science Vessel {cell([g['vessel'] for g in lu], len(lu))}; {tens(lu)}")
 
 
 def main() -> None:
@@ -156,7 +197,7 @@ def main() -> None:
             games = [g for g in monitor.track(pool.map(gary_game, reps), len(reps), "games") if g is not None]
         report(args.label or " ".join(args.rounds), games)
     if args.pros:
-        report("the modern TvZ pros on the ladder maps", pro_games())
+        report("the modern TvZ pros on the ladder maps", pro_games(args.workers))
 
 
 if __name__ == "__main__":
