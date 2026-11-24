@@ -2236,6 +2236,22 @@ plan and the full log).
   --card (a spec saved beside the replay; not "ok": no game). Option `noarmy` for the drills' opponent (no army layer:
   its fighters stay where made; the arbiter's one unguarded army call fixed). Checked: a 6-minute strict drill (style 1,
   Fighting Spirit) met its 10 milestones due by 6:00 within 19 s; parity, smoke and pairs pass.
+  *Changed before any drill or suite game (a review of the plan, 0 games):* the drills' grader read Gary's items only
+  to 8:00 (style 1's Factory and Starport fall after): it reads the whole game now; the strict window (not before
+  t - tol) holds for every card item, the Barracks, the Bunker and the expansion too, not only the one-offs. The mask's
+  MASK_P, 0.10, counted before the suite from step 7a-7b's records (32 games, all style 1): off the card before its
+  horizon, with odds under 0.10, the Comsat 20 of 50 decisions, the infantry upgrades 29 of 49, the Barracks after the
+  third 41 of 51; but those are no key items of the taxonomy (taxonomy/discover.py KEY_ITEMS), so the card says nothing
+  of them: reactive mode masks only what the card covers (a key item and count under half the style's pros make by
+  8:00), which leaves the first Machine Shop (8 under 0.10, 3 over) and Science Facility (6, 10), and never a Comsat.
+  The reserve: the strict smoke game had 20 SCVs at 6:00, the same game without the card 24; a Command Center
+  milestone's 400 minerals held whole for 30 s before its emission stopped the SCVs, so the reserve is now what the
+  income (the workers at the macro's MINING) won't bring by each milestone's emission, summed in order, and none once
+  a milestone is emitted (its goal's own check holds it): 22 SCVs at 6:00 (an SCV waits about 10 s for the first
+  Barracks on time). Pre-flight games, not drills (seed 4100, 11 minutes, against gz1dev+noarmy): one strict game of
+  each style (1 Attitude, 2 KnockOut, 3 Odyssey), and the two sources end to end through eval/match.py: --strategy
+  "practice standard bio vs hatch first 2 hatch muta" (Fighting Spirit) and --from-replay a modern pro's Attitude game
+  (the player's card, nearest style 1, 14 milestones), each graded against its own spec (eval/drills.py --games).
   *The drills' tolerance, written before any drill (eval/drills.py):* a milestone is met when Gary's own order of it
   (the replay's commands) is within max(its tol, 15 s) of its time, tol being the card's (the style's pros' 90th
   percentile of distance); a drill passes when every milestone of its card is met. Gate 2: 18 of 20.

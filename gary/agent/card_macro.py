@@ -7,9 +7,10 @@ median time t (the replay's clock: 42 ms a frame) and with tol, the pros' 90th p
 
   emit      a milestone not had by EMIT_AHEAD_S before its time is the macro's goal (after the trunk's directives' goals;
             in strict mode it takes the place of a goal of the model's own that waits)
-  reserve   from RESERVE_S before its emission, a milestone's money is spoken for: its minerals in Gary.committed() (the
+  reserve   for RESERVE_S before its emission (not after), a milestone's money is spoken for: of its minerals what the
+            income (the workers at MINING) won't bring by then, summed in the milestones' order, in Gary.committed() (the
             one reserve: a milestone placed, parked, queued or the goal is counted there already or by the goal's own
-            check, so it leaves the reserve), its gas in the macro's kept money
+            check, so it leaves the reserve); its gas whole, in the macro's kept money
   mask      before the card's horizon (its last milestone's time and tol), the model's one-off draws (tech buildings,
             add-ons, research, upgrades: macro.py _one_off) that are off the card are passed over: in reactive mode those
             the card covers (a style's card covers the taxonomy's key items, taxonomy/discover.py KEY_ITEMS: off it, under
@@ -160,18 +161,25 @@ class CardPlan:
         held = {(goal["act"], goal["id"])} if goal else set()
         held |= {(b["act"], b["id"]) for b in g.macro.queued_builds} | {k for k, _ in g.macro.queued}
         held |= {(None, ut) for ut, *_ in g.reserved} | {(None, t.unit_type) for t in g.parked}
-        from gary.agent.macro import EXPAND
-        sm = sg = 0
+        from gary.agent.macro import EXPAND, MINING
+        income = MINING * sum(1 for u in mine if u["type"] == g.race.worker)     # minerals a second
+        need = sm = sg = 0
         for m, at in self._open(mine):
             if f < at - RESERVE_S * 24:
                 break
+            if f >= at:                     # (emitted: the goal's own check holds its money from then; one past its
+                continue                    # time that can't start yet held its money for minutes, the SCVs waiting)
             act, uid = self.item[m["item"]]
             ut = g.race.town_hall if act == EXPAND else uid
             if (act, uid) in held or (None, ut) in held or g.building(ut):
                 continue
             c = g.executor.cost_of(act, uid)
-            sm, sg = sm + c[0], sg + c[1]
-        return sm, sg
+            # (minerals: what the income won't bring by each one's emission, summed in order; a Command Center's whole
+            # 400 held for 30 s stopped the SCVs, the strict smoke game's 20 at 6:00 to 24 without the card)
+            need += c[0]
+            sm = max(sm, need - income * (at - f) / 24)
+            sg += c[1]
+        return int(max(0, sm)), sg
 
     def mask(self, act: int, uid: int, p: float, one_off: bool, mine: list[dict]) -> str | None:
         """Why the model's draw of this decision is passed over, or None."""
