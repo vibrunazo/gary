@@ -1026,8 +1026,7 @@ class LearnedArmy:
             if not self.circle:
                 self.circle = []
                 self.scout_done = True
-                if self.watch:                  # (it stays: _watching())
-                    self.enemy_main = self.scout_targets[0] if self.scout_targets else (scout["x"], scout["y"])
+                if self.watch:                  # (it stays: _watching(); the main it circled is g.enemy_main)
                     return False
                 g.motor.start(Intent("SCOUT", [g.scout], g.main.minerals[0], {"to": g.main.minerals[0], "home": True}, "scout"))
                 return True
@@ -1073,7 +1072,7 @@ class LearnedArmy:
             elif f >= self.watch_next and (scout["order"] != 6 or (near and not self.dodged)):
                 # a tour of their main and natural, shift+clicked once (it walks it alone); again when
                 # it ends, or from the point farthest from zerglings that come near (once per approach)
-                main = getattr(self, "enemy_main", None) or (scout["x"], scout["y"])
+                main = g.enemy_main or (scout["x"], scout["y"])
                 nat = g.map.natural_of(g.map.base_near(main)).center
                 w, h = g.map.size
                 clip = lambda x, y: (int(min(max(x, 32), w - 32)), int(min(max(y, 32), h - 32)))
@@ -1096,7 +1095,7 @@ class LearnedArmy:
                 ch = tuple(_analysis(g)["natural_choke"])
             except Exception:
                 ch = g.natural.center
-            main = getattr(self, "enemy_main", None) or (g.enemy_starts[0] if g.enemy_starts else ch)
+            main = g.enemy_main or (g.enemy_starts[0] if g.enemy_starts else ch)
             their = g.map.natural_of(g.map.base_near(main)).center
             d = math.dist(ch, their) or 1
             self.post = (int(ch[0] + (their[0] - ch[0]) / d * POST_OUT), int(ch[1] + (their[1] - ch[1]) / d * POST_OUT))

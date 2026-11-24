@@ -1221,9 +1221,13 @@ def manifest_of(name: str | dict) -> dict:
 # gt0.17 (2026-11-17): a fight move or attack-move clicks ground the game's own hit test finds empty (motor.py
 # _ground_near): a flyer's click box is bigger than the box it was checked against, and Gary's retreats clicked on
 # its own Science Vessels followed them (14 a game in TvZ; 3-6% of fight moves landed on a unit, eval/pipe_table.py)
+# gt0.22 and gt0.51dev (2026-11-23): the enemy's main known in one shared place for every layer and race (g.enemy_main,
+# gary/policy/sightings.py EnemyMain: an enemy building at a start, or the one start left once the others were found
+# empty), not only under option watch: answers.py's tech scan (a STOP-GAP, AGENTS.md) could fire only on a map with one
+# enemy start (all 20 scans of RD285a on two maps of eight); the answers' turret lines sort by it too
 MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords+hunt4+split+static+roles30+lone"
                                   "+addonroom+gamequeue+softguard+widespot+seenall+armyseen+builtcount+unitcount"
-                                  "+pendown"), "version": "gt0.21"}
+                                  "+pendown"), "version": "gt0.22"}
 # gt1dev: the Terran Gary that learning is trained and judged in (AGENTS.md): gt1 with the role model deciding in
 # contact as well (attended pro units with their re-issues as a decision, again, Gary's own order rate as input, its
 # moves kept current, several orders a turn) and the army on control groups by type, a key's units drawing their
@@ -1399,7 +1403,7 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
                                      "+dice+styleroll+noalarm+gastarget"
                                      "+pvtroles+pvtmodes+modedice+mirrorroles+allstyles+tiles+place+transferahead"
                                      "+parkmany+tvzmodes+staysieged+modemodel+minemodel+retreatfar+nofloor+calm"),
-                       "version": "gt0.50dev"}
+                       "version": "gt0.51dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,

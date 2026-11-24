@@ -222,6 +222,13 @@ odds become a choice: dice, hold, floors), and fixes of plain bugs.
   play its "most seen" inputs stayed 0 until option `seenall` (2026-10-25: the tracker looked only when the model was
   queried); gt1 has it since gt0.12, so the answers can be measured off now.
   Measure: an option off, against lurker and mutalisk plans: results and the time to the answer.
+- **The tech scan** (in gt1 and gt1dev, with the answers; `answers.py` tech_scan). With no plan read by 6:30 (and again by
+  8:30) and a Comsat with 50 energy, a scan of the enemy's main. Scripted because no model decides scans. Until
+  2026-11-23 it could fire only on a map with one enemy start (the main was known only under option `watch`: all 20
+  scans of RD285a were on two maps of eight); since then the main is known in one shared place (`g.enemy_main`,
+  `gary/policy/sightings.py` EnemyMain). Replace with the learned scan model (the pros' scans as events, docs/REFOCUS.md
+  §6 row 8). Measure: the scouting measure (docs/REFOCUS.md §4.3: Spire or Den seen by 5-8 minutes given that it stood,
+  scans a minute and their targets) against the pros', with it and with the model.
 - **The early-pool posture's builds** (in gt1; off in gt1dev since gt0.18dev, option noalarm: it went to rush defense in
   every game, half of them blind, and held the opening's gas and natural back; rush defense from scouting: bunker at the ramp, marines first, no
   expansion). Forces 454 decisions and blocks expansion 145 times in 48 games. Scripted for 9-pool and 12-pool

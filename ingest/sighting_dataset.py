@@ -9,8 +9,9 @@ Output: data/interim/sightings/<matchup>_<race>.npz (rel_path, t, features) for 
 from __future__ import annotations
 
 import argparse
-import math
+import json
 import sys
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -33,16 +34,18 @@ def _job(job: tuple):
     from gary.policy.sightings import SightingState
     from ingest.response_dataset import Seen
     from train.plan_belief import FIRST, LAST, SAMPLE
-    path, rel, race, enemy = job
+    path, rel, race, enemy, slot = job
     try:
         g = Game.scenario(path)
-    except Exception:
-        return None
+    except Exception as e:  # noqa: BLE001
+        return rel, f"scenario: {type(e).__name__}: {e}"
     try:
         g.step(24)
         obs = g.observe()
-        own_hall = next(u for u in obs["units"] if u["type"] in HALLS[race])
-        slot = own_hall["owner"]
+        # the player by its slot (the town hall of its race was either player's in a mirror: until 2026-11-23)
+        own_hall = next((u for u in obs["units"] if u["owner"] == slot and u["type"] in HALLS[race]), None)
+        if own_hall is None:
+            return rel, f"no {race} town hall of slot {slot}"
         state = SightingState(MapInfo.from_game(g), slot, (own_hall["x"], own_hall["y"]), HALLS[enemy], is_building)
         seen = Seen(g, slot)
         times, feats = [], []
@@ -61,8 +64,8 @@ def _job(job: tuple):
             feats.append(state.features(g.frame))
             t_next += SAMPLE
         return rel, np.array(times, np.int16), np.array(feats, np.float32)
-    except Exception:
-        return None
+    except Exception as e:  # noqa: BLE001 - reported, not dropped silently
+        return rel, f"{type(e).__name__}: {e}"
     finally:
         g.close()
 
@@ -71,7 +74,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--race", default="T")
     ap.add_argument("--matchup", default="TvZ")
-    ap.add_argument("--era", choices=("modern", "all"), default="modern")
+    ap.add_argument("--era", choices=("modern", "all"), default="all",
+                    help="all: every era the trainer reads (modern only handed the trees the era through missing values)")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--out")
@@ -83,17 +87,25 @@ def main() -> None:
     jobs, _ = jobs_for(args.race, args.matchup)
     raw = data_root() / "raw"
     enemy = [r for r in args.matchup.split("v") if r != args.race][0]
-    todo = [(str(raw / rel), rel, args.race, enemy) for _, _, rel, _, _ in jobs if args.era == "all" or rel.startswith("cwal/")]
+    todo = [(str(raw / rel), rel, args.race, enemy, slot) for _, _, rel, _, _, slot in jobs
+            if args.era == "all" or rel.startswith("cwal/")]
     if args.limit:
         todo = todo[:args.limit]
     with ProcessPoolExecutor(args.workers) as pool:
-        res = [r for r in monitor.track(pool.map(_job, todo, chunksize=2), len(todo), "games") if r is not None]
+        got = list(monitor.track(pool.map(_job, todo, chunksize=2), len(todo), "games"))
+    failed = [r for r in got if isinstance(r[1], str)]
+    res = [r for r in got if not isinstance(r[1], str)]
+    if failed:                                    # (every failure counted and listed, none dropped silently)
+        reasons = Counter(r[1].split(":")[0] for r in failed)
+        print(f"{len(failed)} of {len(todo)} games failed: {dict(reasons.most_common(6))}")
     rel = np.array([r[0] for r in res for _ in r[1]])
     t = np.concatenate([r[1] for r in res]) if res else np.zeros(0, np.int16)
     f = np.concatenate([r[2] for r in res]) if res else np.zeros((0, 0), np.float32)
     out = Path(args.out) if args.out else data_root() / "interim" / "sightings" / f"{args.matchup}_{args.race}.npz"
     out.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(out, rel_path=rel, t=t, features=f)
+    if failed:
+        out.with_suffix(".failed.json").write_text(json.dumps(dict(failed), indent=1), encoding="utf-8")
     print(f"{len(res)} of {len(todo)} games, {len(t)} samples -> {out}")
     if len(f):
         for minute in (4, 6, 8):

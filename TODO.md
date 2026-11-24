@@ -4,7 +4,7 @@ Open work is tracked in the [GitHub issues](https://github.com/vibrunazo/gary/is
 grouped by area, newest thinking first (reconciled with the code on 2026-10-25). When an item is done its issue is
 closed and its line leaves this file; docs/PROGRESS.md keeps what was done and how it measured.
 
-## Direction (2026-11-23): docs/REFOCUS.md v2.0 (the user's call)
+## Direction (2026-11-23): docs/REFOCUS.md v2.1 (the user's call; round two folded 2026-11-23)
 
 The plan in docs/REFOCUS.md: build the upper layers of docs/ARCHITECTURE.md that don't exist yet (an enemy-plan
 belief, a persistent strategy card, branches chosen by the pros' conditional choice frequencies, templated
@@ -25,15 +25,30 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
      departure): done.
   Found in Phase 0 and fixed after the remeasure (gt0.50dev): gt1dev couldn't start a game outside TvZ (option calm
   had only a TvZ model); the calm layer stands aside there now.
-- **Phase 1 (4 weeks, in front, begun 2026-11-23):** the TvZ strategic trunk and five templated questions, with the gate
-  written in docs/REFOCUS.md §4.3. Beside it (weeks 2-4), the three-arm army persistence test.
-  1. The enemy-plan belief, offline (train/plan_belief.py): beats the floor on the pros' held-out games at 4, 6 and 8
-     minutes (joint Brier -0.10 to -0.13); on Gary's own games worse than the floor from 6:00, as Gary has seen the
-     Zerg's tech by 6:00 in 5% of games (the pros 60%) and gz1 plays one plan in 76% of them. The sighting states
-     (gary/policy/sightings.py, ingest/sighting_dataset.py) committed, checked on 12 games, not built in full, not in
-     play. **Phase 1 stopped 2026-11-23 for the round-two review** of docs/REFOCUS.md; the order agreed before the stop:
-     the three sighting states, the Zerg plan suite (label each game's plan as played), the scouting measure, scouting,
-     the belief re-scored against the suite.
+- **Phase 1 (in front, no time box; v2.1's order, docs/REFOCUS.md §4.3 "Phase 1 Order"):** scouting first, then the
+  TvZ strategic trunk and five templated questions, with the gate written in §4.3. Code and 0-game counts cover every
+  matchup (mirrors too); the game gates run in TvZ. Each step is judged on its own check before the next:
+  1. Plain fixes (0 games): the scan's main known without `watch`, in one shared place (parity again: gt1 too); Gary's
+     games labelled by the pros' rule; the trainer's and the dataset's faults (mirror lookup included); enemy buildings
+     recorded by tag and type, so a morph is a sighting.
+  2. The counts (0 games, every matchup with resim and taxonomy data): the pros' first sight of tech by type and by
+     means, scans with targets, the first scout's stay; Gary's seen given standing; answers.py's goals against turrets
+     built; Arm 0 (the milestone error on RD285a).
+  3. The sighting states rebuilt race-agnostically to what step 2 says a look must record; a scan as a look verified in
+     a scenario; tests/test_matchups.py green in all 6 matchups with the real providers (0 games).
+  4. The suite's first read: gt1dev with step 1 against gz1dev told the suite's styles, gg on; the scouting measure,
+     each Zerg game's plan as played (16 games).
+  5. Scouting (§6 row 8): the learned scan model; `watch` again only if step 2 says so (16 games an option).
+  6. The belief re-scored on steps 4-5's games; then belief and card log-only, first over RD285a's records (16-32).
+  7. `answers` off once Gary sees; then the lurker answer handed to the trunk end to end (16-48).
+  8. Only if Arm 0 leaves a gap: strict drills and the macro A/B (40 + 96-192).
+  9. Templates, the execution join, the blind evaluation (live and held-out games).
+  10. Gate 4's round on the whole Phase 1 build (96 against gz1, gg off, RD285a's seeds, margin 0.118).
+  Begun 2026-11-23 and stopped for the round-two review: the plan belief offline (beats the floor on the pros' held-out
+  games, worse than it on Gary's from 6:00, as Gary doesn't look) and the first sighting states (committed, not in play).
+- **The army (narrowed in round two):** no hold on the commit model's commitments (measured as not missing); the retreat
+  hold as a pipe fix judged on eval/pipe_table.py in 16 games, at any time; an owned army intent only after the 0-game
+  read of units taken from one cluster by another's order (§3.4), not a veto on Phase 2's top-down intents.
 - **Maintenance cap:** other fidelity work only for regressions caught in watched games. Paused: (c)'s unstarted
   items (the army at home at 15-20, the PvT tanks) and units alone (below).
 

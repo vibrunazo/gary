@@ -23,6 +23,42 @@ N = 7                         # the features
 OWN_HALLS = {106, 131, 132, 133, 154}   # every race's town halls: a base the player holds isn't looked at
 
 
+MAIN_BUILDING = 12 * 32       # px: an enemy building this near a start: the enemy's main
+START_EMPTY = 6 * 32          # px: a unit of the player's this near a start with no enemy building in sight: not there
+
+
+class EnemyMain:
+    """Where the enemy's main is, for every race and map, in one place (Gary's g.enemy_main, the sighting states): the
+    start where an enemy building was seen; or the one start left once the others were found empty; or, on a map with
+    one start for the enemy, that one. Until 2026-11-23 only the army's scout under option `watch` set it, so the tech
+    scan of answers.py couldn't fire on a map with more than one enemy start (all 20 scans of RD285a were on two maps
+    of eight)."""
+
+    def __init__(self, starts: list[tuple[float, float]], is_building) -> None:
+        """starts: the enemy's possible start locations (px); is_building(type) -> bool."""
+        self.starts = [tuple(s) for s in starts]
+        self.is_building = is_building
+        self.empty: set[int] = set()                   # starts a unit of the player's found empty
+        self.main: tuple[float, float] | None = self.starts[0] if len(self.starts) == 1 else None
+
+    def look(self, mine: list[tuple[float, float]], enemy: list[dict]) -> tuple[float, float] | None:
+        """mine: the player's units' positions; enemy: the enemy units it sees."""
+        if self.main is not None:
+            return self.main
+        for k, s in enumerate(self.starts):
+            if k in self.empty:
+                continue
+            if any(self.is_building(u["type"]) and math.dist((u["x"], u["y"]), s) <= MAIN_BUILDING for u in enemy):
+                self.main = s
+                return s
+            if any(math.dist(p, s) <= START_EMPTY for p in mine):
+                self.empty.add(k)
+        left = [s for k, s in enumerate(self.starts) if k not in self.empty]
+        if len(left) == 1:
+            self.main = left[0]
+        return self.main
+
+
 class SightingState:
     def __init__(self, mapinfo, slot: int, own_start: tuple[int, int], halls: set[int], buildings) -> None:
         """mapinfo: the map's bases and starts; halls: the enemy race's town-hall types; buildings(type) -> bool."""

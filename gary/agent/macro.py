@@ -187,6 +187,7 @@ class LearnedMacro:
 
     def step(self, obs: dict, mine: list[dict], done: list[dict], me: dict) -> None:
         g = self.g
+        g.look_for_enemy_main(obs)
         g.executor.take_back_refused()
         if g.hi.frame >= self.next_gas and self.model.net.gas is not None:   # (asked on its own clock: a goal waiting
             self.next_gas = g.hi.frame + GAS_EVERY                           # for its money is when pros pull off gas)

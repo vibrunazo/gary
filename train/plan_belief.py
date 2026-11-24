@@ -4,8 +4,10 @@ of it at a game minute, against what tells it without sightings.
 
 Data: the macro training set (ingest/macro_dataset.py: every second of each pro game, what each player could see of the
 other), from the player of --race against the matchup's other race, every SAMPLE seconds from FIRST to LAST; the
-inputs are the belief model's (gary/policy/belief.py features_series: game time, each enemy type in sight now and the
-most in sight over 30 s, 90 s, 3 min and ever, seconds since an enemy army unit, own supply and workers) and the map;
+inputs (plan_features) are the belief model's view of the enemy (gary/policy/belief.py: game time, each enemy type in
+sight now and the most in sight over 30 s, 90 s, 3 min and ever, seconds since an enemy army unit), the Lurker egg among
+the types, the seconds since each type was first seen, and the map; not the player's own supply and workers (since
+2026-11-23: a belief that reads the enemy's plan off the player's own build explains nothing);
 the label is the enemy player's plan (data/interim/taxonomy/v2/<matchup>_<enemy race>.json). Both eras, the modern games
 weighted MODERN_WEIGHT to one (docs/DATA_ERAS.md), no era input.
 
@@ -19,6 +21,11 @@ game for the difference from the floor. Beside the model:
   answers  (the tech part) answers.py's read of the same view (mutalisks: a Spire or a Mutalisk seen; lurkers: a Lurker
            or its egg seen, or a Hydralisk Den with a Lair and no Spire), its tech shares per read and minute
   ceiling  the same model fed the enemy's true units at that minute: what a perfect scout would read
+Each with its calibration error (ECE: the top class's odds against its hit rate, in ECE_BINS bins).
+
+Gary's own games (--gary) are labelled by the pros' rule (taxonomy/plans.py, taxonomy/label_all.py: the enemy's build
+items from the replay's commands, first times to 9:00, Lurker Aspect by its research, zerglings ordered by 4:00), and
+every comparator there is fitted on other games than it scores (the pros', or Gary's other games).
 
     python -m train.plan_belief --race T --matchup TvZ
 Output: runs/plan_belief/<matchup>_<race>_<time>/report.json (and model.pkl, the model on every game, with --save).
@@ -58,8 +65,38 @@ HGB = dict(max_iter=150, learning_rate=0.05, max_leaf_nodes=15, min_samples_leaf
 # answers.py's read (gary/agent/answers.py), on the raw sighting columns
 LAIR, HIVE, SPIRE, GREATER_SPIRE, DEN = 132, 133, 141, 137, 135
 MUTALISK, LURKER, LURKER_EGG = 43, 103, 97
-TECH_BUILDINGS = [132, 133, 135, 136, 137, 138, 140, 141]   # Lair, Hive, Den, Defiler Mound, Greater Spire, Queen's
-                                                            # Nest, Ultralisk Cavern, Spire: a sight of the enemy's tech
+TECH_BUILDINGS = [135, 137, 141]   # a Hydralisk Den, a Greater Spire or a Spire: a sight of the enemy's tech (a Lair or a
+                                   # Hive tells no plan: counted as tech until 2026-11-23, docs/REFOCUS.md §3.1)
+EXTRA_TYPES = {"Z": [LURKER_EGG]}  # types the plan's inputs take beside the belief model's (the egg tells lurkers)
+FIRST_CAP = 600                    # s: since a type was first seen, at most (never seen: FIRST_CAP)
+ECE_BINS = 10
+
+
+def plan_features(seen: np.ndarray, frames: np.ndarray, enemy: str) -> np.ndarray:
+    """(T, F): the belief model's view of the enemy (features_series without the player's own supply and workers),
+    with EXTRA_TYPES and the seconds since each type was first seen."""
+    from gary.policy.belief import ARMY_SUPPLY, ENEMY_TYPES, WINDOWS
+    types = ENEMY_TYPES[enemy] + EXTRA_TYPES.get(enemy, [])
+    army = np.array([t in ARMY_SUPPLY[enemy] for t in types])
+    s = seen[:, types].astype(np.float32)
+    ever = np.maximum.accumulate(s, axis=0)
+    first = np.where((ever > 0).any(0), np.argmax(ever > 0, axis=0), -1)
+    out, last = [], -10 ** 6
+    for t in range(len(s)):
+        if s[t, army].sum() > 0:
+            last = t
+        maxes = [s[max(0, t - w + 1):t + 1].max(0) for w in WINDOWS]
+        since_first = np.where((first >= 0) & (first <= t), np.minimum(t - first, FIRST_CAP), FIRST_CAP) / FIRST_CAP
+        out.append(np.concatenate([[frames[t] / 24.0 / 600.0], np.log1p(s[t]), *[np.log1p(m) for m in maxes],
+                                   np.log1p(ever[t]), since_first, [min(t - last, 600) / 600.0]]).astype(np.float32))
+    return np.stack(out)
+
+
+def ece(P: np.ndarray, y: np.ndarray, bins: int = ECE_BINS) -> float:
+    """Expected calibration error of the top class: |its mean odds - its hit rate| per bin, weighted by the bin's share."""
+    top, hit = P.max(1), (P.argmax(1) == y)
+    k = np.minimum((top * bins).astype(int), bins - 1)
+    return float(sum(abs(top[k == b].mean() - hit[k == b].mean()) * (k == b).mean() for b in range(bins) if (k == b).any()))
 
 
 def parts(name: str) -> tuple[str, str, str]:
@@ -81,7 +118,6 @@ def answers_read(seen_ever: np.ndarray) -> str:
 
 def load(job: tuple):
     """One game: (X seen, X true, times, read per sample, game end second) or None."""
-    from gary.policy.belief import features_series
     path, i, enemy, own = job
     try:
         d = np.load(path)
@@ -93,9 +129,8 @@ def load(job: tuple):
         return None
     seen = d["seen"][:, i]
     true = d["units"][:, 1 - i, :, 0]
-    own_units, eco = d["units"][:, i, :, 0], d["eco"][:, i]
-    Xs = features_series(seen, own_units, eco, frames, enemy, own)
-    Xt = features_series(true, own_units, eco, frames, enemy, own)
+    Xs = plan_features(seen, frames, enemy)
+    Xt = plan_features(true, frames, enemy)
     idx = np.arange(FIRST, min(n, LAST + 1), SAMPLE)
     ever = np.maximum.accumulate(seen.astype(np.int32), axis=0)
     reads = [answers_read(ever[t]) for t in idx]
@@ -103,16 +138,38 @@ def load(job: tuple):
     return Xs[idx], Xt[idx], idx, reads, n, tech_seen
 
 
+def enemy_plan(replay: str, enemy: str, matchup: str, slot: int, duration_s: float) -> str | None:
+    """The enemy's plan in one of Gary's replays by the pros' rule (taxonomy/label_all.py: its build items from the
+    replay's commands, ingest/build_orders.py), the player in the given slot, or None."""
+    import hashlib
+    import tempfile
+    sys.path.insert(0, str(REPO / "taxonomy"))
+    from build_orders import extract_player
+    from cmdcache import P, load_game
+    from discover import first_times
+    from inventory import find_screp
+    from label_all import P_TECH_BY, protoss_plan, terran_plan, zerg_plan
+    cache = Path(tempfile.gettempdir()) / "gary_plan_cmds"
+    game = load_game(find_screp(None), Path(replay), hashlib.sha1(replay.encode()).hexdigest(), cache)
+    p = next((q for q in game["players"] if not q["observer"] and q["id"] == slot), None)
+    if p is None:
+        return None
+    items = extract_player([c for c in game["cmds"] if c[P] == p["id"]], enemy)[0]
+    row = {"items": items, "duration_s": duration_s}
+    if enemy == "Z":
+        return zerg_plan(row, matchup)
+    if enemy == "P":
+        return protoss_plan(first_times(items, "P", P_TECH_BY), duration_s)
+    return terran_plan(row)
+
+
 def gary_game(job: tuple):
     """One of Gary's league games re-simulated (eval/league.py's replays, as train/value.py league_game reads them):
-    the player of race's view at the samples, as load(), and the enemy's plan from its true units (taxonomy/plans.py's
-    rule on the first time each building or unit is there, started or done; the first Lurker for Lurker Aspect, which no
-    unit count shows). (Xs, idx, reads, tech_seen, plan parts, map) or None."""
-    sys.path.insert(0, str(REPO / "taxonomy"))
-    from gary.policy.belief import features_series
+    the player of race's view at the samples, as load(), and the enemy's plan by the pros' rule (enemy_plan). In a
+    mirror Gary's side is A, the lower slot (eval/style_adherence.py). (Xs, idx, reads, tech_seen, plan, map, Gary's
+    slot) or None."""
     from macro_dataset import RACES, game_arrays, run_resim
-    from plans import HATCH_BY, PRESSURE_BY, plan_of
-    replay, race, enemy, map_name = job
+    replay, race, enemy, map_name, matchup = job
     try:
         lines = run_resim(str(Path(replay).resolve()))
     except Exception:  # noqa: BLE001 - one bad replay must not stop the batch
@@ -122,31 +179,31 @@ def gary_game(job: tuple):
     if d is None:
         return None
     races = {p["slot"]: RACES.get(p["race"]) for p in header["players"]}
-    mine = [k for k, sl in enumerate(d["slots"]) if races.get(sl) == race]
-    if len(mine) != 1 or races.get(d["slots"][1 - mine[0]]) != enemy:
+    mine = sorted((k for k, sl in enumerate(d["slots"]) if races.get(sl) == race), key=lambda k: d["slots"][k])
+    if not mine or races.get(d["slots"][1 - mine[0]]) != enemy:
         return None
     i = mine[0]
     frames, n = d["frames"], len(d["frames"])
     if n <= FIRST:
         return None
     seen = d["seen"][:, i]
-    Xs = features_series(seen, d["units"][:, i, :, 0], d["eco"][:, i], frames, enemy, race)
+    Xs = plan_features(seen, frames, enemy)
     idx = np.arange(FIRST, min(n, LAST + 1), SAMPLE)
     ever = np.maximum.accumulate(seen.astype(np.int32), axis=0)
     reads = [answers_read(ever[t]) for t in idx]
     tech_seen = ever[idx][:, TECH_BUILDINGS].sum(1) > 0
-    zu = d["units"][:, 1 - i].sum(-1) if d["units"].ndim == 4 else d["units"][:, 1 - i]
-    first = lambda types, k=1: next((t for t in range(n) if zu[t, types].sum() >= k), None)
-    t = {key: v for key, v in (("pool", first([142])), ("hatch2", first([131, 132, 133], 2)),
-                               ("hatch3", first([131, 132, 133], 3)), ("spire", first([141, 137])),
-                               ("lurker_aspect", first([103, 97])), ("den", first([135]))) if v is not None}
-    lings = int(zu[min(PRESSURE_BY, n - 1), 37])
-    return Xs[idx], idx, reads, tech_seen, plan_of(t, lings, n), map_name
+    try:
+        plan = enemy_plan(replay, enemy, matchup, int(d["slots"][1 - i]), float(n))
+    except Exception:  # noqa: BLE001
+        return None
+    return Xs[idx], idx, reads, tech_seen, plan, map_name, int(d["slots"][i])
 
 
 def sight_job(job):
+    """ingest/sighting_dataset.py's states for one game, or None (its failure is the reason, a string)."""
     from ingest.sighting_dataset import _job
-    return _job(job)
+    r = _job(job)
+    return None if r is None or isinstance(r[1], str) else r
 
 
 def sight_at(sg, t: int) -> np.ndarray:
@@ -159,51 +216,65 @@ def sight_at(sg, t: int) -> np.ndarray:
 
 
 def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, workers: int) -> None:
-    """The saved model (--save) on Gary's own games: how often the enemy's tech was seen by each minute (Gary against
-    the pros), and the model's Brier against the pros' floor and against Gary's own games' plan shares."""
+    """The saved model (--save) on Gary's own games, labelled by the pros' rule: how often the enemy's tech was seen by
+    each minute (Gary against the pros), and the model's Brier and calibration error against comparators fitted on
+    other games: the pros' floor, answers.py's read with the pros' shares, and Gary's other games' plan shares (each
+    game left out of its own)."""
     from ladder_maps import clean_name
     saved = pickle.load(open(model_dir / "model.pkl", "rb"))
     clf, maps, names, floors, pro_tech = saved["model"], saved["maps"], saved["names"], saved["floors"], saved["tech_seen"]
     enemy = [r for r in matchup.split("v") if r != race][0]
-    ids = {tuple(parts(v)): k for k, v in names.items()}
-    jobs = [(str(p), race, enemy, p.parent.name) for r in rounds for p in sorted((REPO / "runs" / "league" / r).rglob("*.rep"))]
+    ids = {v: k for k, v in names.items()}
+    jobs = [(str(p), race, enemy, p.parent.name, matchup) for r in rounds
+            for p in sorted((REPO / "runs" / "league" / r).rglob("*.rep"))]
     with ProcessPoolExecutor(workers) as pool:
         games = list(monitor.track(pool.map(gary_game, jobs), len(jobs), "Gary's games"))
-        sights = list(pool.map(sight_job, [(j[0], j[0], race, enemy) for j in jobs])) if saved.get("sightings") else [None] * len(jobs)
-    keep_g = [k for k, g in enumerate(games) if g is not None]
+        sights = list(pool.map(sight_job, [(j[0], j[0], race, enemy, g[6] if g is not None else None)
+                                           for j, g in zip(jobs, games)])) if saved.get("sightings") else [None] * len(jobs)
+    keep_g = [k for k, g in enumerate(games) if g is not None and g[4] is not None
+              and (not saved.get("sightings") or sights[k] is not None)]
+    print(f"{len(keep_g)} of {len(jobs)} of Gary's games read (the rest: no re-simulation, no plan or no sightings)")
     games, sights = [games[k] for k in keep_g], [sights[k] for k in keep_g]
     other = next(k for k, v in names.items() if v == "other")
-    ys = [ids.get(tuple(g[4]), other) for g in games]
-    print(f"{len(games)} of Gary's games; the enemy's plans: {Counter(names[y] for y in ys).most_common(6)}")
-    own = np.bincount(ys, minlength=len(names)) + 0.5
-    own = own / own.sum()
+    ys = np.array([ids.get(g[4], other) for g in games])
+    print(f"the enemy's plans (the pros' rule): {Counter(names[y] for y in ys).most_common(8)}")
+    K = len(names)
+    counts = np.bincount(ys, minlength=K).astype(float)
+    tech_vals = sorted({parts(names[c])[2] for c in names})
     for minute in MINUTES:
-        X, y, seen_tech, fl = [], [], [], []
+        X, y, seen_tech, fl, own, rd = [], [], [], [], [], []
         for g, yy, sg in zip(games, ys, sights):
             k = np.where(g[1] == minute * 60)[0]
             if not len(k):
                 continue
             m = clean_name(g[5])
-            extra = []
-            if saved.get("sightings"):
-                extra = sight_at(sg, minute * 60)
+            extra = sight_at(sg, minute * 60) if saved.get("sightings") else []
             X.append(np.concatenate([g[0][k[0]], extra, [maps.index(m) if m in maps else 0]]))
             y.append(yy); seen_tech.append(g[3][k[0]]); fl.append(floors[str(minute)].get(m, floors[str(minute)]["all"]))
+            loo = counts.copy()
+            loo[yy] -= 1                                  # (Gary's other games' shares: this one left out)
+            own.append((loo + 0.5) / (loo.sum() + 0.5 * K))
+            rd.append(saved["read_tech"][str(minute)][g[2][k[0]]])
         if not X:
             continue
-        X, y, fl = np.array(X), np.array(y), np.array(fl)
-        P = np.zeros((len(y), len(names)))
+        X, y, fl, own, rd = np.array(X), np.array(y), np.array(fl), np.array(own), np.array(rd)
+        P = np.zeros((len(y), K))
         P[:, clf.classes_] = clf.predict_proba(X)
         keep = y != other
-        own_p = np.tile(own, (len(y), 1))
-        print(f"{minute}:00  {len(y)} games running; the enemy's tech building seen by then: Gary {np.mean(seen_tech):.0%}, "
-              f"the pros {pro_tech[str(minute)]:.0%}; Brier (other left out, {keep.sum()} games): model "
-              f"{brier(P[keep], y[keep]).mean():.3f}, the pros' floor {brier(fl[keep], y[keep]).mean():.3f}, Gary's "
-              f"games' own shares {brier(own_p[keep], y[keep]).mean():.3f}")
+        yt = np.array([tech_vals.index(parts(names[c])[2]) for c in y])
+        tech = lambda Q: Q @ np.array([[float(parts(names[c])[2] == v) for v in tech_vals] for c in range(K)])
+        cell = lambda Q, yy: f"{brier(Q, yy).mean():.3f} (ECE {ece(Q, yy):.3f})"
+        print(f"{minute}:00  {len(y)} games running; a Spire, Greater Spire or Den seen by then: Gary {np.mean(seen_tech):.0%}, "
+              f"the pros {pro_tech[str(minute)]:.0%}")
+        print(f"  joint Brier (other left out, {keep.sum()} games): model {cell(P[keep], y[keep])}, the pros' floor "
+              f"{cell(fl[keep], y[keep])}, Gary's other games' shares {cell(own[keep], y[keep])}")
+        print(f"  tech Brier: model {cell(tech(P)[keep], yt[keep])}, the pros' floor {cell(tech(fl)[keep], yt[keep])}, "
+              f"answers.py's read {cell(rd[keep], yt[keep])}, Gary's other games' shares {cell(tech(own)[keep], yt[keep])}")
 
 
 def jobs_for(race: str, matchup: str):
-    """(job, sha1, rel_path, map, plan id) for every game of the matchup whose enemy has a plan label."""
+    """(job, sha1, rel_path, map, plan id, the player's slot) for every game of the matchup whose enemy has a plan
+    label."""
     from inventory import data_root
     races = matchup.split("v")
     enemy = races[1] if races[0] == race else races[0]
@@ -223,7 +294,7 @@ def jobs_for(race: str, matchup: str):
             if p["race"] == race and e["race"] == enemy and f"{r['rel_path']}|{e['name']}" in assign:
                 seen_paths.add(r["rel_path"])
                 out.append(((str(root / r["sha1"][:2] / f"{r['sha1']}.npz"), i, enemy, race), r["sha1"], r["rel_path"],
-                            r.get("map", ""), int(assign[f"{r['rel_path']}|{e['name']}"])))
+                            r.get("map", ""), int(assign[f"{r['rel_path']}|{e['name']}"]), p.get("slot")))
     names = {int(k): v for k, v in labels["names"].items()}
     return out, names
 
@@ -282,13 +353,17 @@ def main() -> None:
     with ProcessPoolExecutor(args.workers) as pool:
         loaded = list(monitor.track(pool.map(load, [j[0] for j in jobs], chunksize=8), len(jobs), "games"))
     counts = Counter(clean_name(j[3]) for j in jobs)        # (a map with MAP_MIN games its own category, the rest one:
-    sights, nan_sight = None, None
-    if args.sightings:                 # (gary/policy/sightings.py: where the player looked; NaN where not built)
-        from gary.policy.sightings import N
+    sights = None
+    if args.sightings:                 # (gary/policy/sightings.py: where the player looked)
         from inventory import data_root
         sd = np.load(data_root() / "interim" / "sightings" / f"{args.matchup}_{args.race}.npz")
         sights = {(str(r), int(t)): f for r, t, f in zip(sd["rel_path"], sd["t"], sd["features"])}
-        nan_sight = np.full(N, np.nan, np.float32)
+        # a game without its sighting states is left out, not filled with NaN: built for one era only, the missing
+        # values told the trees the era (round two, docs/REFOCUS.md §3.1)
+        have = {r for r, _ in sights}
+        before = sum(1 for res in loaded if res is not None)
+        loaded = [res if res is not None and job[2] in have else None for job, res in zip(jobs, loaded)]
+        print(f"sighting states for {sum(1 for res in loaded if res is not None)} of {before} games")
     maps = ["other map"] + sorted(m for m, c in counts.items() if c >= MAP_MIN)[:250]   # the trees take 255 at most)
     rows = defaultdict(list)
     for g, (job, res) in enumerate(zip(jobs, loaded)):
@@ -298,7 +373,9 @@ def main() -> None:
         modern = job[2].startswith("cwal/")
         m = maps.index(clean_name(job[3])) if clean_name(job[3]) in maps else 0
         for k in range(len(idx)):
-            sx = sights.get((job[2], int(idx[k])), nan_sight) if sights is not None else []
+            sx = sights[(job[2], int(idx[k]))] if sights is not None else []
+            if sights is not None and (job[2], int(idx[k])) not in sights:
+                continue                   # (the game ended before this sample in the re-play)
             rows["Xs"].append(np.concatenate([Xs[k], sx, [m]]))
             rows["Xt"].append(np.concatenate([Xt[k], [m]]))
             rows["t"].append(idx[k]); rows["g"].append(g); rows["y"].append(job[4]); rows["modern"].append(modern)
@@ -310,8 +387,10 @@ def main() -> None:
     fold_of = dict(zip(rng.permutation(modern_games), np.arange(len(modern_games)) % FOLDS))
     fold = np.array([fold_of.get(g, -1) for g in A["g"]])           # (-1: an old-era game, training only)
     w = np.where(A["modern"], MODERN_WEIGHT, 1.0)
-    cat = np.zeros(A["Xs"].shape[1], bool)
-    cat[-1] = True                                                   # (the map, a category)
+    def cat(X):                                                     # (the map, a category: the last column of each)
+        c = np.zeros(X.shape[1], bool)
+        c[-1] = True
+        return c
     preds = {k: np.zeros((len(A["y"]), K)) for k in ("model", "ceiling", "floor")}
     scored = A["modern"] & np.isin(A["t"], [m * 60 for m in MINUTES])
     part_names = {k: v[1] for k, v in to_parts(np.eye(K), names).items()}
@@ -320,7 +399,7 @@ def main() -> None:
     for f in range(FOLDS):
         tr, te = fold != f, (fold == f) & scored
         for key, X in (("model", A["Xs"]), ("ceiling", A["Xt"])):
-            clf = HistGradientBoostingClassifier(categorical_features=cat, **HGB)
+            clf = HistGradientBoostingClassifier(categorical_features=cat(X), **HGB)
             clf.fit(X[tr], A["y"][tr], sample_weight=w[tr])
             P = np.zeros((te.sum(), K))
             P[:, clf.classes_] = clf.predict_proba(X[te])
@@ -347,14 +426,16 @@ def main() -> None:
         y, gsel = A["y"][sel], A["g"][sel]
         res = {"samples": int(sel.sum()), "games_running": int(len(np.unique(gsel)))}
         Pp = {k: preds[k][sel] for k in preds}
-        res["joint"] = {k: {"brier": float(brier(P, y).mean()), "logloss": float(logloss(P, y).mean())} for k, P in Pp.items()}
+        res["joint"] = {k: {"brier": float(brier(P, y).mean()), "logloss": float(logloss(P, y).mean()), "ece": ece(P, y)}
+                        for k, P in Pp.items()}
         res["joint"]["model_minus_floor"] = boot(brier(Pp["model"], y) - brier(Pp["floor"], y), gsel)
         for part in ("opening", "hatcheries", "tech"):
             yp = np.array([part_names[part].index(parts(names[c])[("opening", "hatcheries", "tech").index(part)]) for c in y])
             Q = {k: to_parts(P, names)[part][0] for k, P in Pp.items()}
             if part == "tech":
                 Q["answers"] = read_tech[sel]
-            res[part] = {k: {"brier": float(brier(P, yp).mean()), "logloss": float(logloss(P, yp).mean())} for k, P in Q.items()}
+            res[part] = {k: {"brier": float(brier(P, yp).mean()), "logloss": float(logloss(P, yp).mean()), "ece": ece(P, yp)}
+                         for k, P in Q.items()}
             res[part]["model_minus_floor"] = boot(brier(Q["model"], yp) - brier(Q["floor"], yp), gsel)
             res[part]["shares"] = {v: float(np.mean(yp == i)) for i, v in enumerate(part_names[part])}
         res["no_tech_seen_share"] = float((sel & ~A["tech_seen"]).sum() / max(1, sel.sum()))
@@ -362,10 +443,11 @@ def main() -> None:
     out = Path(args.out) if args.out else REPO / "runs" / "plan_belief" / f"{args.matchup}_{args.race}_{time.strftime('%Y%m%d-%H%M%S')}"
     out.mkdir(parents=True, exist_ok=True)
     if args.save:
-        clf = HistGradientBoostingClassifier(categorical_features=cat, **HGB)
+        clf = HistGradientBoostingClassifier(categorical_features=cat(A["Xs"]), **HGB)
         clf.fit(A["Xs"], A["y"], sample_weight=w)
-        floors, tech = {}, {}
-        for minute in MINUTES:                 # (the pros' floor per map and their tech seen, for --gary)
+        floors, tech, read_saved = {}, {}, {}
+        tech_of = np.array([tech_vals.index(parts(names[c])[2]) for c in A["y"]])
+        for minute in MINUTES:                 # (the pros' floor per map, their tech seen and answers.py's read, for --gary)
             at = A["modern"] & (A["t"] == minute * 60)
             share = lambda sel: ((np.bincount(A["y"][sel], minlength=K) + 0.5) / (sel.sum() + 0.5 * K)).tolist()
             floors[str(minute)] = {"all": share(at)}
@@ -373,17 +455,22 @@ def main() -> None:
                 if (at & (A["map"] == mi)).sum() >= FLOOR_MIN:
                     floors[str(minute)][mname] = share(at & (A["map"] == mi))
             tech[str(minute)] = float(A["tech_seen"][at].mean())
+            read_saved[str(minute)] = {}
+            for rd in ("none", "mutas", "lurkers"):
+                c = np.bincount(tech_of[at & (A["read"] == rd)], minlength=len(tech_vals)) + 0.5
+                read_saved[str(minute)][rd] = (c / c.sum()).tolist()
         pickle.dump({"model": clf, "maps": maps, "names": names, "floors": floors, "tech_seen": tech,
-                     "sightings": bool(args.sightings)},
+                     "read_tech": read_saved, "sightings": bool(args.sightings)},
                     open(out / "model.pkl", "wb"))
     (out / "report.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
     for minute, res in report["minutes"].items():
         print(f"{minute}:00  {res['samples']} modern samples (other left out), no Zerg tech building seen yet in {res['no_tech_seen_share']:.0%}")
         for part in ("joint", "opening", "hatcheries", "tech"):
             r = res[part]
-            cells = ", ".join(f"{k} {v['brier']:.3f}/{v['logloss']:.2f}" for k, v in r.items() if isinstance(v, dict) and "brier" in v)
+            cells = ", ".join(f"{k} {v['brier']:.3f}/{v['logloss']:.2f}/{v['ece']:.3f}" for k, v in r.items()
+                              if isinstance(v, dict) and "brier" in v)
             d = r["model_minus_floor"]
-            print(f"  {part:10s} Brier/log-loss: {cells}; model - floor {d['mean']:+.3f} [{d['lo']:+.3f}, {d['hi']:+.3f}]")
+            print(f"  {part:10s} Brier/log-loss/ECE: {cells}; model - floor {d['mean']:+.3f} [{d['lo']:+.3f}, {d['hi']:+.3f}]")
     print(f"-> {out}")
 
 

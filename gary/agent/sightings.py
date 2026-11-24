@@ -10,7 +10,8 @@ records fill that in, read with eval/why.py, for Gary-T (side "T", from the arbi
            them is new (not seen in the last 30 s), else every 10 s while in sight: how many, their
            supply and types, where (tiles), by which of the player's bases, how far from its nearest
            building, and whether they are closing on it (tiles gained in the last 5 s; negative:
-           leaving); an enemy building the first time it is in sight (what: "building")
+           leaving); an enemy building the first time it is in sight, and again as what it morphs into
+           (what: "building")
   belief   once a minute, with the belief model on (Gary-T): the enemy army supply it expects, its
            50th and 80th percentiles, and the most seen at once in the last 3 minutes
   death    one of the player's fighters gone: what, where, by which base, how many own fighters were
@@ -76,7 +77,7 @@ class Sightings:
         self.last_in_sight = -10 ** 6                     # frame enemy fighters were last in sight
         self.last_record = -10 ** 6
         self.centers: deque[tuple[int, float]] = deque()  # (frame, tiles to the nearest own building)
-        self.buildings: set[int] = set()                  # enemy building tags seen
+        self.buildings: set[tuple[int, int]] = set()      # enemy buildings seen: (tag, type)
         self.fighters: dict[int, tuple[int, int, int]] = {}   # own fighter tag -> (type, x, y) last seen
         self.enemies: list[tuple[int, int]] = []          # enemy fighters' positions at the last look
         self.supply_seen: deque[tuple[int, int]] = deque()    # (frame, enemy supply x2 in sight)
@@ -178,9 +179,10 @@ class Sightings:
 
     def _buildings(self, frame: int, theirs: list[dict], own_buildings: list, is_building) -> None:
         for u in theirs:
-            if not is_building(u["type"]) or u["tag"] in self.buildings:
+            # (by tag and type: a building that morphs, a Hatchery into a Lair, is seen again as what it became)
+            if not is_building(u["type"]) or (u["tag"], u["type"]) in self.buildings:
                 continue
-            self.buildings.add(u["tag"])
+            self.buildings.add((u["tag"], u["type"]))
             LOG.records.append({"f": int(frame), "kind": "seen", "side": self.side, "what": "building",
                                 "type": _name(u["type"]), "done": bool(u.get("completed", True)),
                                 "at": [u["x"] // 32, u["y"] // 32], "near": self._near(u["x"], u["y"]),

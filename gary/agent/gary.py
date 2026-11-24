@@ -105,6 +105,7 @@ class Gary:
         self.main: Base | None = None
         self.natural: Base | None = None
         self.enemy_starts: list[tuple[int, int]] = []
+        self.main_finder = None                          # where the enemy's main is (gary/policy/sightings.py EnemyMain)
         self.in_flight: list[tuple[int, int]] = []          # (frame, minerals) ordered, not yet taken
         self.parked: list = []                           # builds whose workers walk to their spots while the money comes
         self.parked_max = 1                              # how many at once (option parkmany)
@@ -116,6 +117,9 @@ class Gary:
             self.main = mapinfo.base_near((cc["x"], cc["y"]))
             self.natural = mapinfo.natural_of(self.main)
             self.enemy_starts = mapinfo.enemy_starts(self.main) or mapinfo.starts
+            from gary.policy.army import is_building
+            from gary.policy.sightings import EnemyMain
+            self.main_finder = EnemyMain(self.enemy_starts, is_building)
             self.rally = self.toward_center(self.natural.center, 6 * 32)
             self.flip = (self.main.center[0] > mapinfo.size[0] / 2, self.main.center[1] > mapinfo.size[1] / 2)
         # the layers (set by build_gary)
@@ -160,6 +164,19 @@ class Gary:
         self.task_runners[self.task.kind](obs, mine, self.task)
 
     # --- what every layer uses --------------------------------------------------------------
+
+    @property
+    def enemy_main(self) -> tuple[float, float] | None:
+        """The enemy's main (px), once known: one shared place for every layer and race."""
+        return self.main_finder.main if self.main_finder is not None else None
+
+    def look_for_enemy_main(self, obs: dict) -> None:
+        """Each macro step: a start found empty, or an enemy building seen at one (no action, no draw)."""
+        if self.main_finder is None or self.main_finder.main is not None:
+            return
+        self.main_finder.look([(u["x"], u["y"]) for u in obs["units"] if u["owner"] == self.slot],
+                              [u for u in obs["units"] if u["owner"] not in (self.slot, 11)
+                               and ("visible_to" not in u or (u["visible_to"] >> self.slot) & 1)])
 
     def say(self, text: str) -> None:
         from gary.decision_log import LOG

@@ -84,11 +84,12 @@ class Answers:
             g.say(f"reads the zerg's plan: {plan} (seen: {', '.join(str(t) for t in sorted(self.seen))})")
 
     def tech_scan(self, mine: list[dict]) -> bool:
-        """With nothing known by TECH_SCAN (or TECH_RESCAN): a scan of their main. True if Gary acted."""
+        """With nothing known by TECH_SCAN (or TECH_RESCAN): a scan of their main. True if Gary acted.
+        STOP-GAP (AGENTS.md): no model decides scans; replace with the learned scan model (docs/REFOCUS.md §6 row 8)."""
         g, f = self.g, self.g.hi.frame
         if self.plan is not None or self.scans >= 2 or f < (TECH_SCAN, TECH_RESCAN)[self.scans]:
             return False
-        main = getattr(g.army, "enemy_main", None) or (g.enemy_starts[0] if len(g.enemy_starts) == 1 else None)
+        main = g.enemy_main
         comsat = next((u for u in mine if u["type"] == T.COMSAT and u["completed"] and (u.get("energy") or 0) >= SCAN_ENERGY), None)
         if main is None or comsat is None:
             return False
@@ -114,7 +115,7 @@ class Answers:
         """Gary's settled bases: (its Command Center, the base, its minerals' middle), the one nearest
         the zerg's main first (mutalisks fly straight: the base on their way is hit first)."""
         g = self.g
-        enemy = getattr(g.army, "enemy_main", None) or (g.enemy_starts[0] if len(g.enemy_starts) == 1 else None)
+        enemy = g.enemy_main
         out = []
         for cc in (u for u in mine if u["type"] in g.race.town_halls and u["completed"]):
             base = g.map.base_near((cc["x"], cc["y"]))
@@ -169,7 +170,7 @@ class Answers:
             self.asked[key] = f
             # the end of the mineral line with no turret by it yet (the one toward the zerg first), 2.5 tiles
             # toward the CC: reachable, beside the line, off most mining paths
-            enemy = getattr(g.army, "enemy_main", None) or (g.enemy_starts[0] if len(g.enemy_starts) == 1 else None)
+            enemy = g.enemy_main
             a, b = max(((p, q) for p in base.minerals for q in base.minerals), key=lambda pq: math.dist(*pq))
             end = min((a, b), key=lambda e: (sum(1 for t in turrets if math.dist((t["x"], t["y"]), e) < 4 * 32),
                                              math.dist(e, enemy) if enemy else 0))
