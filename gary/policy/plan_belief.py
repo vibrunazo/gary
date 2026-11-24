@@ -23,6 +23,23 @@ EXTRA_TYPES = {"Z": [LURKER_EGG]}  # types the plan's inputs take beside the bel
 FIRST_CAP = 600                    # s: since a type was first seen, at most (never seen: FIRST_CAP)
 
 
+LOOKED_WITHIN = 120                # s
+
+
+def is_looked(f: np.ndarray) -> bool:
+    """Gate 1's split (docs/REFOCUS.md): the plan's tech seen by now, or the enemy's main known and looked at within
+    LOOKED_WITHIN over half its area (the last look's cover), from gary/policy/sightings.py's features."""
+    from gary.policy.sightings import CAP
+    if np.isnan(f).any():
+        return False
+    return bool(f[12] > 0 or (f[0] > 0 and f[1] * CAP <= LOOKED_WITHIN and f[2] >= 0.5))
+
+
+def tech_of(plan: str) -> str:
+    """A plan's tech part (taxonomy/plans.py names: "opening, hatcheries, tech")."""
+    return plan.split(",")[-1].strip() if "," in plan else plan
+
+
 def plan_types(enemy: str) -> list[int]:
     from gary.policy.belief import ENEMY_TYPES
     return ENEMY_TYPES[enemy] + EXTRA_TYPES.get(enemy, [])
@@ -80,6 +97,9 @@ class PlanMemory:
 
 class PlanBelief:
     """A saved train/plan_belief.py model (--save), pinned by its path: the odds of each plan."""
+
+    def __deepcopy__(self, memo):              # (a fitted model, read only: a bot's copy shares it)
+        return self
 
     def __init__(self, path: str | Path):
         self.path = str(path)

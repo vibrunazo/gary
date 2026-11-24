@@ -71,7 +71,7 @@ TECH_BUILDINGS = [135, 137, 141]   # a Hydralisk Den, a Greater Spire or a Spire
 ECE_BINS = 10
 
 
-from gary.policy.plan_belief import FIRST_CAP, plan_features  # noqa: E402,F401  (the inputs, the same in play)
+from gary.policy.plan_belief import FIRST_CAP, LOOKED_WITHIN, is_looked, plan_features  # noqa: E402,F401  (the inputs, the same in play)
 
 
 def ece(P: np.ndarray, y: np.ndarray, bins: int = ECE_BINS) -> float:
@@ -199,16 +199,6 @@ def sight_at(sg, t: int) -> np.ndarray:
     return sg[2][k[0]] if len(k) else np.full(N, np.nan, np.float32)
 
 
-def is_looked(f: np.ndarray) -> bool:
-    """Gate 1's split (docs/REFOCUS.md): the plan's tech seen by now, or the enemy's main known and looked at within
-    LOOKED_WITHIN over half its area (the last look's cover: gary/policy/sightings.py features)."""
-    from gary.policy.sightings import CAP
-    if np.isnan(f).any():
-        return False
-    return bool(f[12] > 0 or (f[0] > 0 and f[1] * CAP <= LOOKED_WITHIN and f[2] >= 0.5))
-
-
-LOOKED_WITHIN = 120           # s
 
 
 def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, workers: int) -> None:
@@ -345,6 +335,9 @@ def main() -> None:
                     help="with the sighting states (gary/policy/sightings.py; their dataset ingest/sighting_dataset.py "
                          "built first)")
     ap.add_argument("--save", action="store_true", help="also fit on every game and save model.pkl")
+    ap.add_argument("--oof", action="store_true",
+                    help="also write oof.npz: every modern sample's cross-fitted odds (the model's, by a fold that never "
+                         "saw the game; the inputs of train/pro_branch.py's tables), skipping the ceiling")
     ap.add_argument("--out")
     ap.add_argument("--gary", nargs="+", metavar="ROUND",
                     help="no training: score the model in --model on these league rounds (Gary's own games)")
@@ -412,14 +405,22 @@ def main() -> None:
     part_names = {k: v[1] for k, v in to_parts(np.eye(K), names).items()}
     tech_vals = part_names["tech"]
     read_tech = np.zeros((len(A["y"]), len(tech_vals)))
+    oof = np.full((len(A["y"]), K), np.nan) if args.oof else None
     for f in range(FOLDS):
         tr, te = fold != f, (fold == f) & scored
         for key, X in (("model", A["Xs"]), ("ceiling", A["Xt"])):
+            if key == "ceiling" and args.oof:
+                continue
             clf = HistGradientBoostingClassifier(categorical_features=cat(X), **HGB)
             clf.fit(X[tr], A["y"][tr], sample_weight=w[tr])
             P = np.zeros((te.sum(), K))
             P[:, clf.classes_] = clf.predict_proba(X[te])
             preds[key][te] = P
+            if key == "model" and oof is not None:
+                every = fold == f
+                Q = np.zeros((every.sum(), K))
+                Q[:, clf.classes_] = clf.predict_proba(X[every])
+                oof[every] = Q
         # the floor: modern shares on the map (else all maps) among the training folds' games running at that minute
         mtr = tr & A["modern"]
         for minute in MINUTES:
@@ -435,6 +436,8 @@ def main() -> None:
                 sel = mtr & at & (A["read"] == rd)
                 share = np.bincount(tech_of[sel], minlength=len(tech_vals)) + 0.5
                 read_tech[te & at & (A["read"] == rd)] = share / share.sum()
+    if oof is not None:
+        preds.pop("ceiling")                                        # (not fitted with --oof)
     report = {"games": int(len(games)), "modern_games": int(len(modern_games)), "names": names, "minutes": {}}
     keep = scored & (A["y"] != other) if other is not None else scored
     for minute in MINUTES:
@@ -479,6 +482,11 @@ def main() -> None:
                      "read_tech": read_saved, "sightings": bool(args.sightings)},
                     open(out / "model.pkl", "wb"))
     (out / "report.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
+    if oof is not None:
+        m = A["modern"]
+        np.savez_compressed(out / "oof.npz", rel_path=rel_of[m], slot=np.array([jobs[g][5] for g in A["g"][m]]),
+                            t=A["t"][m], odds=oof[m].astype(np.float32), y=A["y"][m],
+                            names=np.array([names[k] for k in range(K)]))
     for minute, res in report["minutes"].items():
         print(f"{minute}:00  {res['samples']} modern samples (other left out), no Zerg tech building seen yet in {res['no_tech_seen_share']:.0%}")
         for part in ("joint", "opening", "hatcheries", "tech"):

@@ -2218,6 +2218,40 @@ plan and the full log).
   scouts (the seen / confirmed absent / unscouted states of REFOCUS §3.1 exist exactly for this: absence counts only
   where Gary looked); and a fixed set of Zerg plans to play against (the four scripted archetypes) is needed to judge
   any of it, as gz1's one plan teaches nothing. What to do first is the user's call.
+- **Phase 1 step 7b, written before its games (2026-11-24; the user's approval of 16 games).** The trunk (option
+  `trunk`, gary/agent/trunk.py; the contracts in gary/agent/contracts.py with round two's amendments; the scorer
+  gary/agent/selector.py ProFrequencyScorer) hands the lurker answer to a directive, PREP_VS_LURKER: a Factory, a
+  Machine Shop, Siege Mode, 2 Siege Tanks, a Starport, a Control Tower, a Science Facility, 2 Science Vessels, asked in
+  order as the macro's goals once it starts, ended when Gary has them all (no withdrawal in this version).
+  *The pros' table (train/pro_branch.py, runs/selector/TvZ_T_PREP_VS_LURKER_20261124.json; 34,748 moments of 2,431
+  modern TvZ games).* P_pro = the share of moments, every 30 s from 2:30 to 10:00 before the pro's Siege Mode, where the
+  pro starts Siege Mode within 120 s, by the plan belief's cross-fitted odds of a lurker-first tech (train/plan_belief.py
+  --oof: a fold that never saw the game), the looked state, the own stage (no Factory, a Factory, a Machine Shop) and
+  the minute; 25 modern games a cell or the written backoff (the minute dropped, then the looked state, then the stage),
+  n printed; the pros' win rates in the cell beside it, never decided on. Read before any of Gary's games were run
+  through it: high belief and a Machine Shop, looked, 0.94 (52 games), a Factory 0.80-0.84; but low belief (under 0.2)
+  with a Machine Shop at 8-10 minutes 0.58 (795 games): pros research Siege Mode by then whatever the Zerg went. So the
+  rule, revised from the table alone: started where P_pro is 0.5 or more and its interval is clear of the same cell's
+  with a belief under 0.2 (the part of the choice the belief makes). No low-belief cell takes it; every cell with a
+  belief of 0.8 or more does (with no Factory by the backoff to the belief alone, 0.74 of 81 games: the directive's
+  Factory first), 0.5-0.8 with a Machine Shop, 0.2-0.5 with a Machine Shop looked before 8:00.
+  *The dry run (eval/trunk_dryrun.py, 0 games: the rule over step 7a's games, the same as step 7b's until the first
+  directive goal).* Started in the 4 lurker-first games, none in the 12 others (0 false starts: the lurker tech ordered
+  by then in all 4), at +141 to +228 s after Lurker Aspect (median +187 s), before step 7a's own Siege Mode in each by
+  3 to 89 s. One check game (Odyssey, 12 minutes, not of the round): Gary's macro ordered Siege Mode at 7:31, before the
+  belief's sample that would have started it, so the directive was not offered (the table counts only moments before
+  Siege Mode): expect 2 to 4 starts in the 4 lurker games, and none in the others.
+  *The round:* TK293a9/1/0/4, gt1dev+scansample+noanswers+shadow+trunk against gz1dev told 9, 1, 0, 4, step 7a's
+  seeds and maps, paired game by game with NA292a\* (answers off) and SC291a\* (answers on). Measures:
+  eval/answer_time.py's Siege Mode, first Siege Tank and first Science Vessel after Lurker Aspect, per game against
+  NA's (step 7a +246 / +230 / +292 s median, step 5 +172 / +180 / +258, the pros +174 / +157 / +256); false starts
+  (a start with no Hydralisk Den and Lair nor Lurker Aspect ordered by then, eval/trunk_join.py) in the 12 other games;
+  the execution join (eval/trunk_join.py: per item Gary lacked at the start, started or never, the game's end apart;
+  per goal decision, ask-again repeats included, its handed, queued, waiting or dropped child and its fate; a decision
+  with no child is a pipe drop). Expected: no false start; where it starts, the vessels earlier than NA's by tens of
+  seconds or more (the directive asks them as soon as a Starport, Control Tower and Science Facility stand), Siege Mode
+  earlier only where the start precedes it; the style-9 games identical to NA's apart from the trunk's records (no
+  start: the drift check). 16 games resolve a missing answer or a minutes-long shift, not a close one. Results second.
 - **Phase 1 step 7a: the results (2026-11-24; 16 games, as written below).** NA292a\*, gt1dev+scansample+noanswers+shadow
   against the suite, paired game by game with SC291a\* (answers on). The option did what it says: no decision by
   answers.py in the 16 games (7-10 a game in SC's spire and lurker games: turrets in a mineral line against mutalisks;

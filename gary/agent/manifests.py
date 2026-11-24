@@ -1015,6 +1015,10 @@ OPTIONS = {
     # shadow (docs/REFOCUS.md Phase 1 step 6, log-only: gary/agent/shadow.py): the plan belief's odds and the recipe
     # card's tags in the records, from pinned files (SHADOW); play unchanged (the parity hashes with it on)
     "shadow": lambda m: m.update(shadow=dict(SHADOW)),
+    # trunk (docs/REFOCUS.md Phase 1 step 7b, gary/agent/trunk.py): the strategic trunk, its directives started by the
+    # pros' choice frequencies given the plan belief (TRUNK's pinned files) and carried out as the macro's goals; every
+    # race and matchup builds it, and where it has no model or table it says so in the records and does nothing
+    "trunk": lambda m: m.update(trunk=dict(TRUNK)),
     "retreathold": lambda m: [f.update(roles={**f.get("roles", {}), "retreat_hold": True})
                               for f in [m["fight"]] + [v["fight"] for v in m.get("vs", {}).values() if "fight" in v]
                               if f.get("provider") == "roles" and f.get("model")],
@@ -1674,6 +1678,10 @@ def manifest_name(name: str) -> str:
 # the shadow's pinned files (option shadow), by the repository's root: the plan belief (train/plan_belief.py --save)
 # and the recipe cards (eval/style_adherence.py --write-cards); a matchup without them logs nothing
 SHADOW = {"plan_belief": "runs/plan_belief/TvZ_T_20261123-212915/model.pkl", "cards": "runs/cards/TvZ_T_20261124.json"}
+# the trunk's (option trunk), by matchup and race: the plan belief, the pros' branch tables (train/pro_branch.py), the cards
+TRUNK = {"plan_belief": {"TvZ_T": SHADOW["plan_belief"]},
+         "tables": {"TvZ_T": {"PREP_VS_LURKER": "runs/selector/TvZ_T_PREP_VS_LURKER_20261124.json"}},
+         "cards": SHADOW["cards"]}
 
 
 def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None, verbose: bool = True,
@@ -1897,4 +1905,7 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
     if m.get("shadow") and g.macro is not None and mapinfo is not None and g.matchup == "TvZ" and g.race.letter == "T":
         from gary.agent.shadow import Shadow
         g.macro.shadow = Shadow(g, m["shadow"]["plan_belief"], m["shadow"]["cards"])
+    if m.get("trunk") and g.macro is not None and mapinfo is not None:
+        from gary.agent.trunk import Trunk
+        g.macro.trunk = Trunk(g, m["trunk"])
     return g

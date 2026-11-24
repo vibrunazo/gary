@@ -29,6 +29,11 @@ a query over it rather than a script that re-simulates it. One JSON line each:
   plan, card   log-only (gary/agent/shadow.py, Phase 1 step 6): the plan belief's odds every 30 s ({odds:
             [[plan, p]...], tech: {tech: p}, model}); the recipe card's tags ({card, tag, item, n, again, p, by} for
             a one-off decision, {card, milestone, tag, due_s, decided_s} for a milestone at its due time)
+  plan_belief, branch_select, strategy_state, fate   the strategic trunk (gary/agent/trunk.py, Phase 1 step 7b),
+            joined by {id, parent} (link): the belief's odds and what it read; each branch's P_pro with its cell,
+            n and the pros' win rate apart, or "not enough evidence"; a directive started or ended; then the macro's
+            decision of a directive's item (by "trunk: ..."), its order handed, queued or dropped, and its fate
+            (started) once Gary has it. Ids only on these, so other records are as before
 
 A paired branch's arms (eval/pairs.py) keep their own records, saved beside the pairs as
 <game>.pairs.records.jsonl: a "pair" line ({pair, f, layer, ab, rewards, models}) then each arm's
@@ -62,6 +67,7 @@ class DecisionLog:
         self.records: list[dict] = []
         self.owner: dict[str, str] = {}   # side -> who has the hands (stamped on its orders)
         self.held: dict[str, str] = {}    # side -> the hands' owner last recorded
+        self._id = 0                      # the trace's ids (link): the trunk's records and what they asked
         if self.path:
             atexit.register(self.save)
 
@@ -117,8 +123,24 @@ class DecisionLog:
         self._put(r)
         return r
 
+    def link(self, r: dict, parent: int | None = None) -> dict:
+        """Give a record the trace's next id and its parent's (docs/REFOCUS.md §3.5: plan_belief -> branch_select ->
+        strategy_state -> the macro's decision -> its order's fate). Only records in such a chain carry them."""
+        self._id += 1
+        r["id"] = self._id
+        if parent is not None:
+            r["parent"] = int(parent)
+        return r
+
+    def trunk(self, side: str, frame: int, kind: str, parent: int | None = None, **fields) -> dict:
+        """The strategic trunk's records (gary/agent/trunk.py): plan_belief, branch_select, strategy_state, fate."""
+        r = self.link({"f": int(frame), "kind": kind, "side": side, **fields}, parent)
+        self._put(r)
+        return r
+
     def order(self, side: str, frame: int, what: str, fate: str, why: str = "", by: str | None = None,
-              units: list | None = None, to: list | None = None, target: int | None = None) -> None:
+              units: list | None = None, to: list | None = None, target: int | None = None,
+              parent: int | None = None) -> dict:
         r = {"f": int(frame), "kind": "order", "side": side, "what": what, "fate": fate}
         if why:
             r["why"] = why
@@ -129,7 +151,10 @@ class DecisionLog:
         if target:
             r["target"] = target                            # (its target unit)
         r["by"] = by if by is not None else self.owner.get(self._who(side), "?")
+        if parent is not None:
+            self.link(r, parent)
         self._put(r)
+        return r
 
     def hands(self, side: str, frame: int, owner: str) -> None:
         who = self._who(side)
@@ -153,6 +178,7 @@ class DecisionLog:
 
     def clear_records(self) -> None:
         self.records.clear()
+        self._id = 0
         self.owner.clear()
         self.held.clear()
 

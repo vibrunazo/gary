@@ -78,3 +78,55 @@ class StrategySelector:
     def save(self) -> None:
         table_path().parent.mkdir(parents=True, exist_ok=True)
         table_path().write_text(json.dumps(self.table, indent=1), encoding="utf-8")
+
+
+class ProFrequencyScorer:
+    """The trunk's branch scorer (docs/REFOCUS.md §3.2, Phase 1 step 7b; contracts.BranchScorerProvider
+    "pro_freq_table"): P_pro(branch | belief, context), what pros do, from the tables of train/pro_branch.py, pinned
+    files. A cell under the table's support floor (min_n modern games) leans on its parent by the table's written
+    backoff; none at the root: not enough evidence. The branch is taken where P_pro reaches the table's threshold and
+    its interval is clear of the contrast cell's (the same cell with a low belief): the share of the choice the
+    belief makes, not the base rate (BranchScore.take). The pros' win rate in the cell rides along as context only, never
+    decided on (§3.2: survivor bias, and the style-4 lesson of the table above)."""
+
+    def __init__(self, tables: dict[str, str | Path]):
+        self.tables = {}                           # branch -> {"meta", "cells"}
+        for branch, path in tables.items():
+            t = json.loads(Path(path).read_text(encoding="utf-8"))
+            self.tables[branch] = {**t, "name": Path(path).name}
+
+    @staticmethod
+    def fields(meta: dict, belief, ctx) -> dict:
+        """The cell's fields for a moment, as train/pro_branch.py reads the pros' (the race's names of its stages)."""
+        import numpy as np
+        p = belief.tech_probs.get(meta["tech"], 0.0)
+        stage = 2 if ctx.units.get("Machine Shop", 0) else 1 if ctx.units.get("Factory", 0) else 0
+        return {"belief": int(np.searchsorted(meta["buckets"], p, side="right")),
+                "looked": int(bool(belief.sightings.looked)) if belief.sightings is not None else 0,
+                "stage": stage, "minute": int(np.searchsorted(meta["minutes"], ctx.frame / 24, side="right"))}
+
+    def score(self, belief, strategy, ctx, candidates):
+        from gary.agent.contracts import BranchScore, NotEnoughEvidence
+        out = {}
+        for c in candidates:
+            t = self.tables.get(c.name)
+            if t is None:
+                out[c.name] = NotEnoughEvidence("pro_freq_table", f"no table for {c.name}")
+                continue
+            meta, cells = t["meta"], t["cells"]
+            f = self.fields(meta, belief, ctx)
+            for level, keys in enumerate(meta["backoff"]):
+                key = "|".join(f"{k}={f[k]}" for k in keys)
+                cell = cells.get(key)
+                if cell is not None and cell["games"] >= meta["min_n"]:
+                    base = cells.get("|".join(f"{k}={({**f, **meta.get('contrast', {})})[k]}" for k in keys))
+                    out[c.name] = BranchScore(cell["p"], cell["lo"], cell["hi"], cell["games"], key, level,
+                                              cell["pro_won_if_taken"], cell["pro_won_if_not"],
+                                              base["p"] if base else None, base["hi"] if base else None,
+                                              cell["p"] >= meta["threshold"] and base is not None and cell["lo"] > base["hi"])
+                    break
+            else:
+                root = cells.get("|".join(f"{k}={f[k]}" for k in meta["backoff"][-1]))
+                out[c.name] = NotEnoughEvidence("pro_freq_table", f"{c.name}: n {root['games'] if root else 0} under "
+                                                                  f"{meta['min_n']} at the root cell")
+        return out

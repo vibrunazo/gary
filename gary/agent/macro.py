@@ -167,6 +167,7 @@ class LearnedMacro:
         self.expand_mass: float | None = None
         self.shadow = None                                  # gary/agent/shadow.py (option shadow): log-only
         self.answers = None                                 # answers.py Answers (option answers): the zerg's plan answered
+        self.trunk = None                                   # gary/agent/trunk.py Trunk (option trunk): the directives' goals
         self.scouting = None                                # gary/agent/scouting.py ScanSampler (option scansample)
         self.expand_odds = 0.0
         # odds_mass (option mass): the same for every one-off decision (a tech building, an add-on, research,
@@ -191,6 +192,8 @@ class LearnedMacro:
         g = self.g
         if self.shadow is not None:
             self.shadow.step(obs, mine, me)
+        if self.trunk is not None:
+            self.trunk.step(obs, mine, me)
         g.look_for_enemy_main(obs)
         g.executor.take_back_refused()
         if g.hi.frame >= self.next_gas and self.model.net.gas is not None:   # (asked on its own clock: a goal waiting
@@ -234,6 +237,13 @@ class LearnedMacro:
                 g.say(f"next: {goal['name']}")
                 LOG.decision(g.hi.side, "macro", g.hi.frame, goal["name"], inputs=self._seen(obs, mine, me),
                              by="rule: an answer to the zerg's plan (answers.py)")
+        if self.trunk is not None and self.goal is None and                 (goal := self.trunk.next_goal(obs, mine, done, me)) is not None:
+            self.goal = goal
+            g.say(f"next: {goal['name']}")
+            r = LOG.decision(g.hi.side, "macro", g.hi.frame, goal["name"], inputs=self._seen(obs, mine, me),
+                             by=f"trunk: {goal['directive']} (pros {goal['p_pro']:.0%} of {goal['n_pro']} games)")
+            goal["rid"] = LOG.link(r, goal["parent"])["id"]
+            self.trunk.decided(goal, r, mine)
         self._learned(obs, mine, done, me)
 
     def _natural_bunker(self, mine: list[dict], me: dict) -> bool:
@@ -317,12 +327,13 @@ class LearnedMacro:
             LOG.decision(g.hi.side, "macro", hi.frame, name, inputs=self._seen(obs, mine, me), by=by)
         if self.goal and hi.frame - self.goal["since"] > GOAL_TIMEOUT * (2 if self.goal.get("coming") else 1):
             g.say(f"gives up on {self.goal['name']}")
-            LOG.order(g.hi.side, hi.frame, self.goal["name"], "dropped", f"not carried out in {GOAL_TIMEOUT // 24} s", by="macro")
+            LOG.order(g.hi.side, hi.frame, self.goal["name"], "dropped", f"not carried out in {GOAL_TIMEOUT // 24} s", by="macro",
+                      parent=self.goal.get("rid"))
             self.goal = None
         if self.saved is not None and hi.frame - self.saved["since"] > GOAL_TIMEOUT:
             g.say(f"gives up on {self.saved['name']}")
             LOG.order(g.hi.side, hi.frame, self.saved["name"], "dropped", f"parked: not carried out in {GOAL_TIMEOUT // 24} s",
-                      by="macro")
+                      by="macro", parent=self.saved.get("rid"))
             self.saved = None
         if self.goal is None and self.saved is not None and self._affordable(self.saved, obs, mine, done, me, own=True):
             self.goal, self.saved = self.saved, None            # (its money is there: it goes first)
@@ -523,7 +534,7 @@ class LearnedMacro:
         goal = self.goal
         plan = self.plan(goal["act"], goal["id"], obs, mine, done, me, capped=not goal.get("uncapped"))   # still possible?
         if plan is None:
-            LOG.order(g.hi.side, hi.frame, goal["name"], "dropped", "no longer possible", by="macro")
+            LOG.order(g.hi.side, hi.frame, goal["name"], "dropped", "no longer possible", by="macro", parent=goal.get("rid"))
             self.goal = None
             return
         if plan is WAIT:                    # e.g. the building is still busy: wait for it
@@ -538,12 +549,15 @@ class LearnedMacro:
                 # the next decision comes meanwhile (as pros queue the SCV and send the depot's
                 # builder: one decision at a time held the 9th SCV's depot 12 s behind it)
                 self.queued.append(((TRAIN, goal["id"]), hi.frame))
+                if goal.get("rid"):
+                    LOG.order(g.hi.side, hi.frame, goal["name"], "queued", "its producer busy: trained when it frees up",
+                              by="macro", parent=goal["rid"])
                 self.tracker.note_decision(TRAIN, goal["id"], obs["frame"])
                 self.decisions.append((hi.frame, goal["name"], goal["p"]))
                 self.goal = None
             elif goal["act"] == TRAIN and self.rethink:
                 LOG.order(g.hi.side, hi.frame, goal["name"], "dropped", "its buildings' queues are full: asked again",
-                          by="macro")
+                          by="macro", parent=goal.get("rid"))
                 self.goal = None
             elif goal["act"] in (BUILD, EXPAND):
                 # (a building waiting for what is on its way is queued as a unit for its busy producer: its money kept,
@@ -551,7 +565,7 @@ class LearnedMacro:
                 goal.setdefault("decided", goal["since"])
                 self.queued_builds.append(goal)
                 LOG.order(g.hi.side, hi.frame, goal["name"], "waiting", f"queued: {self.why_not or 'what it needs is on its way'}",
-                          by="macro")
+                          by="macro", parent=goal.get("rid"))
                 self.goal = None
             return
         minerals, gas = plan["cost"]
@@ -597,6 +611,9 @@ class LearnedMacro:
             g.spend(minerals)
         self.tracker.note_decision(goal["act"], goal["id"], obs["frame"])
         self.decisions.append((hi.frame, goal["name"], goal["p"]))
+        if goal.get("rid"):
+            LOG.order(g.hi.side, hi.frame, goal["name"], "handed", f"to the hands: {plan['kind']}", by="macro",
+                      parent=goal["rid"])
         self.goal = None
 
     def _seen(self, obs: dict, mine: list[dict], me: dict) -> dict:
@@ -679,7 +696,7 @@ class LearnedMacro:
                     self.queued_builds.remove(b)
                     LOG.order(g.hi.side, g.hi.frame, b["name"], "dropped",
                               "no longer possible" if plan is None else f"queued: not carried out in {2 * GOAL_TIMEOUT // 24} s",
-                              by="macro")
+                              by="macro", parent=b.get("rid"))
                     continue
                 if plan is WAIT:
                     continue
