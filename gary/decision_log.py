@@ -26,6 +26,9 @@ a query over it rather than a script that re-simulates it. One JSON line each:
   seen, belief, death   what Gary saw and lost between decisions (gary/agent/sightings.py): enemy
             fighters in sight and whether they close on its buildings, enemy buildings first seen, the
             belief model's estimate once a minute, each own fighter lost (alone or not, who held it)
+  plan, card   log-only (gary/agent/shadow.py, Phase 1 step 6): the plan belief's odds every 30 s ({odds:
+            [[plan, p]...], tech: {tech: p}, model}); the recipe card's tags ({card, tag, item, n, again, p, by} for
+            a one-off decision, {card, milestone, tag, due_s, decided_s} for a milestone at its due time)
 
 A paired branch's arms (eval/pairs.py) keep their own records, saved beside the pairs as
 <game>.pairs.records.jsonl: a "pair" line ({pair, f, layer, ab, rewards, models}) then each arm's
@@ -134,6 +137,10 @@ class DecisionLog:
         if self.held.get(who) != owner:
             self.held[who] = owner
             self._put({"f": int(frame), "kind": "hands", "side": side, "owner": owner})
+
+    def shadow(self, side: str, frame: int, kind: str, **fields) -> None:
+        """A log-only provider's record (kind "plan" or "card"): what it would have said, nothing it did."""
+        self._put({"f": int(frame), "kind": kind, "side": side, **fields})
 
     def note(self, side: str, frame: int, text: str) -> None:
         self._put({"f": int(frame), "kind": "note", "side": side, "text": text})

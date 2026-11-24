@@ -165,6 +165,7 @@ class LearnedMacro:
         # is: after the natural the model gives it 2-4% a decision, never the likeliest, though pros
         # take a third base in 86% of TvZ games of 15 min+ (median 12.9 min) and Gary in almost none
         self.expand_mass: float | None = None
+        self.shadow = None                                  # gary/agent/shadow.py (option shadow): log-only
         self.answers = None                                 # answers.py Answers (option answers): the zerg's plan answered
         self.scouting = None                                # gary/agent/scouting.py ScanSampler (option scansample)
         self.expand_odds = 0.0
@@ -188,6 +189,8 @@ class LearnedMacro:
 
     def step(self, obs: dict, mine: list[dict], done: list[dict], me: dict) -> None:
         g = self.g
+        if self.shadow is not None:
+            self.shadow.step(obs, mine, me)
         g.look_for_enemy_main(obs)
         g.executor.take_back_refused()
         if g.hi.frame >= self.next_gas and self.model.net.gas is not None:   # (asked on its own clock: a goal waiting

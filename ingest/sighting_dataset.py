@@ -47,12 +47,12 @@ class Scans:
                 continue
             before = self.energy.get(c["tag"])
             if before is not None and before - (c.get("energy") or 0) >= SCAN_ENERGY - 5:
-                cand = [(abs(fc - frame), k, (x, y)) for k, (fc, x, y) in enumerate(self.cmds)
+                cand = [(abs(fc - frame), k, fc, (x, y)) for k, (fc, x, y) in enumerate(self.cmds)
                         if k not in self.used and frame - 2 * LOOK_EVERY <= fc <= frame]
                 if cand:
-                    _, k, pt = min(cand)
+                    _, k, fc, pt = min(cand)
                     self.used.add(k)
-                    self.shown.append((frame, pt))
+                    self.shown.append((fc, pt))          # (timed from its command: the look notices it up to 2 s late)
             self.energy[c["tag"]] = c.get("energy") or 0
         return tuple(pt for f, pt in self.shown if frame - f <= SCAN_LASTS)
 

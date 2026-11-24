@@ -142,13 +142,22 @@ def main():
             v = [t[f] for t in ts if f in t]
             out.append(f"{f} {np.median(v) / 60 if v else float('nan'):.1f} ({len(v) / max(1, len(ts)):.0%})")
         return ", ".join(out)
+    if "--write-cards" in sys.argv:             # (the recipe cards, gary/policy/card.py: Phase 1 step 6, log-only)
+        from gary.policy.card import build_cards
+        out = Path(sys.argv[sys.argv.index("--write-cards") + 1])
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps({"source": "modern pros on the ladder maps by style, eval/style_adherence.py",
+                                   "matchup": MATCHUP, "race": RACE, "games": {str(k): len(v) for k, v in pros.items()},
+                                   "cards": build_cards(pros, RACE)}, indent=1), encoding="utf-8")
+        print(f"wrote {out}")
     if "--write-shares" in sys.argv:            # (the roll's weights: gary/agent/manifests.py rolled_style)
         n = sum(len(v) for v in pros.values())
         out = data_root() / "interim" / "taxonomy" / f"{MATCHUP}_{RACE}_modern_shares.json"
         out.write_text(json.dumps({"source": "modern pros on the ladder maps, eval/style_adherence.py", "games": n,
                                    "shares": {str(k): round(len(v) / n, 4) for k, v in sorted(pros.items())}}), encoding="utf-8")
         print(f"wrote {out}")
-    for arg in [a for a in sys.argv[1:] if not a.startswith("--") and a not in (RACE, MATCHUP, SIDE)]:
+    skip = {sys.argv[sys.argv.index("--write-cards") + 1]} if "--write-cards" in sys.argv else set()
+    for arg in [a for a in sys.argv[1:] if not a.startswith("--") and a not in (RACE, MATCHUP, SIDE) and a not in skip]:
         reps = [p for r in arg.split(",") for p in sorted(glob.glob(str(REPO / "runs" / "league" / r / "*" / "*.rep")))]
         told = defaultdict(list)
         for rep in reps:

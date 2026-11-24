@@ -292,9 +292,6 @@ minutes, the Corsair count, the army it keeps); the Terran's gas in the live gam
 
 - [#31](https://github.com/vibrunazo/gary/issues/31) Mirror health rounds and the Protoss macro models (rounds played, no errors;
   left: the death records' slot in mirrors; the Protoss PvT/PvZ misses are Zealot/Dragoon and reactive buildings)
-- [#64](https://github.com/vibrunazo/gary/issues/64) The army layer's draws use seed 0 in every game: fixed 2026-11-23 (the army's
-  and the calm layer's draws from the game's seed and the side's slot; every build bumped, gt0.21 and gt0.49dev; every
-  baseline replayed from here; the issue to close)
 - [#63](https://github.com/vibrunazo/gary/issues/63) Grade games at time by the critic's win odds, not the supply ratio
   (regraded, 2026-11-11, eleven past pairs with eval/paired.py: the critics' grade has the larger spread in every pair,
   a real difference 9-15% further out in its own: not adopted, printed beside supply's as a second reading; left: the

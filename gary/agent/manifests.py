@@ -1009,6 +1009,12 @@ OPTIONS = {
     # scansample (docs/REFOCUS.md Phase 1 step 5; a STOP-GAP, AGENTS.md): scans at the pros' timings and targets
     # (gary/agent/scouting.py), in place of answers.py's tech scan
     "scansample": lambda m: m["macro"].update(scan_sample=True),
+    # noanswers (docs/REFOCUS.md Phase 1 step 7a): answers.py off (its goals, vetoes and tech scan), to learn whether the
+    # macro model answers mutalisks and lurkers alone once Gary scouts (AGENTS.md "Answers to the enemy's plan")
+    "noanswers": lambda m: m["macro"].update(answers=False),
+    # shadow (docs/REFOCUS.md Phase 1 step 6, log-only: gary/agent/shadow.py): the plan belief's odds and the recipe
+    # card's tags in the records, from pinned files (SHADOW); play unchanged (the parity hashes with it on)
+    "shadow": lambda m: m.update(shadow=dict(SHADOW)),
     "retreathold": lambda m: [f.update(roles={**f.get("roles", {}), "retreat_hold": True})
                               for f in [m["fight"]] + [v["fight"] for v in m.get("vs", {}).values() if "fight" in v]
                               if f.get("provider") == "roles" and f.get("model")],
@@ -1665,6 +1671,11 @@ def manifest_name(name: str) -> str:
     return name
 
 
+# the shadow's pinned files (option shadow), by the repository's root: the plan belief (train/plan_belief.py --save)
+# and the recipe cards (eval/style_adherence.py --write-cards); a matchup without them logs nothing
+SHADOW = {"plan_belief": "runs/plan_belief/TvZ_T_20261123-212915/model.pkl", "cards": "runs/cards/TvZ_T_20261124.json"}
+
+
 def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None, verbose: bool = True,
                fight_path: str | Path | None = None, load=load_model, seed: int = 0,
                flip: tuple[bool, bool] | None = None, interruptions: bool = True, fight_model=None) -> Gary:
@@ -1883,4 +1894,7 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
     else:
         g.arbiter = FixedPriority(g, suspend_builds=m["arbiter"] == "fixed_priority/v2", rotate=m.get("rotate", False))
         g.announce = announcement(g.version, style, models)
+    if m.get("shadow") and g.macro is not None and mapinfo is not None and g.matchup == "TvZ" and g.race.letter == "T":
+        from gary.agent.shadow import Shadow
+        g.macro.shadow = Shadow(g, m["shadow"]["plan_belief"], m["shadow"]["cards"])
     return g

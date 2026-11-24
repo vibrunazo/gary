@@ -49,6 +49,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "ingest"))
 
 from eval import monitor, priority  # noqa: E402
+from gary.policy.plan_belief import LURKER_EGG  # noqa: E402
 
 SAMPLE = 30                    # seconds between samples
 FIRST, LAST = 150, 600         # seconds: the samples' span
@@ -64,32 +65,13 @@ HGB = dict(max_iter=150, learning_rate=0.05, max_leaf_nodes=15, min_samples_leaf
            random_state=0)
 # answers.py's read (gary/agent/answers.py), on the raw sighting columns
 LAIR, HIVE, SPIRE, GREATER_SPIRE, DEN = 132, 133, 141, 137, 135
-MUTALISK, LURKER, LURKER_EGG = 43, 103, 97
+MUTALISK, LURKER = 43, 103
 TECH_BUILDINGS = [135, 137, 141]   # a Hydralisk Den, a Greater Spire or a Spire: a sight of the enemy's tech (a Lair or a
                                    # Hive tells no plan: counted as tech until 2026-11-23, docs/REFOCUS.md §3.1)
-EXTRA_TYPES = {"Z": [LURKER_EGG]}  # types the plan's inputs take beside the belief model's (the egg tells lurkers)
-FIRST_CAP = 600                    # s: since a type was first seen, at most (never seen: FIRST_CAP)
 ECE_BINS = 10
 
 
-def plan_features(seen: np.ndarray, frames: np.ndarray, enemy: str) -> np.ndarray:
-    """(T, F): the belief model's view of the enemy (features_series without the player's own supply and workers),
-    with EXTRA_TYPES and the seconds since each type was first seen."""
-    from gary.policy.belief import ARMY_SUPPLY, ENEMY_TYPES, WINDOWS
-    types = ENEMY_TYPES[enemy] + EXTRA_TYPES.get(enemy, [])
-    army = np.array([t in ARMY_SUPPLY[enemy] for t in types])
-    s = seen[:, types].astype(np.float32)
-    ever = np.maximum.accumulate(s, axis=0)
-    first = np.where((ever > 0).any(0), np.argmax(ever > 0, axis=0), -1)
-    out, last = [], -10 ** 6
-    for t in range(len(s)):
-        if s[t, army].sum() > 0:
-            last = t
-        maxes = [s[max(0, t - w + 1):t + 1].max(0) for w in WINDOWS]
-        since_first = np.where((first >= 0) & (first <= t), np.minimum(t - first, FIRST_CAP), FIRST_CAP) / FIRST_CAP
-        out.append(np.concatenate([[frames[t] / 24.0 / 600.0], np.log1p(s[t]), *[np.log1p(m) for m in maxes],
-                                   np.log1p(ever[t]), since_first, [min(t - last, 600) / 600.0]]).astype(np.float32))
-    return np.stack(out)
+from gary.policy.plan_belief import FIRST_CAP, plan_features  # noqa: E402,F401  (the inputs, the same in play)
 
 
 def ece(P: np.ndarray, y: np.ndarray, bins: int = ECE_BINS) -> float:
@@ -217,6 +199,18 @@ def sight_at(sg, t: int) -> np.ndarray:
     return sg[2][k[0]] if len(k) else np.full(N, np.nan, np.float32)
 
 
+def is_looked(f: np.ndarray) -> bool:
+    """Gate 1's split (docs/REFOCUS.md): the plan's tech seen by now, or the enemy's main known and looked at within
+    LOOKED_WITHIN over half its area (the last look's cover: gary/policy/sightings.py features)."""
+    from gary.policy.sightings import CAP
+    if np.isnan(f).any():
+        return False
+    return bool(f[12] > 0 or (f[0] > 0 and f[1] * CAP <= LOOKED_WITHIN and f[2] >= 0.5))
+
+
+LOOKED_WITHIN = 120           # s
+
+
 def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, workers: int) -> None:
     """The saved model (--save) on Gary's own games, labelled by the pros' rule: how often the enemy's tech was seen by
     each minute (Gary against the pros), and the model's Brier and calibration error against comparators fitted on
@@ -231,10 +225,10 @@ def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, work
             for p in sorted((REPO / "runs" / "league" / r).rglob("*.rep"))]
     with ProcessPoolExecutor(workers) as pool:
         games = list(monitor.track(pool.map(gary_game, jobs), len(jobs), "Gary's games"))
+        # (the sighting states for every model: the split by looked and unlooked reads them)
         sights = list(pool.map(sight_job, [(j[0], j[0], race, enemy, g[6] if g is not None else None)
-                                           for j, g in zip(jobs, games)])) if saved.get("sightings") else [None] * len(jobs)
-    keep_g = [k for k, g in enumerate(games) if g is not None and g[4] is not None
-              and (not saved.get("sightings") or sights[k] is not None)]
+                                           for j, g in zip(jobs, games)]))
+    keep_g = [k for k, g in enumerate(games) if g is not None and g[4] is not None and sights[k] is not None]
     print(f"{len(keep_g)} of {len(jobs)} of Gary's games read (the rest: no re-simulation, no plan or no sightings)")
     games, sights = [games[k] for k in keep_g], [sights[k] for k in keep_g]
     other = next(k for k, v in names.items() if v == "other")
@@ -244,7 +238,7 @@ def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, work
     counts = np.bincount(ys, minlength=K).astype(float)
     tech_vals = sorted({parts(names[c])[2] for c in names})
     for minute in MINUTES:
-        X, y, seen_tech, fl, own, rd = [], [], [], [], [], []
+        X, y, seen_tech, fl, own, rd, looked = [], [], [], [], [], [], []
         for g, yy, sg in zip(games, ys, sights):
             k = np.where(g[1] == minute * 60)[0]
             if not len(k):
@@ -257,9 +251,10 @@ def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, work
             loo[yy] -= 1                                  # (Gary's other games' shares: this one left out)
             own.append((loo + 0.5) / (loo.sum() + 0.5 * K))
             rd.append(saved["read_tech"][str(minute)][g[2][k[0]]])
+            looked.append(is_looked(sight_at(sg, minute * 60)))
         if not X:
             continue
-        X, y, fl, own, rd = np.array(X), np.array(y), np.array(fl), np.array(own), np.array(rd)
+        X, y, fl, own, rd, looked = np.array(X), np.array(y), np.array(fl), np.array(own), np.array(rd), np.array(looked)
         P = np.zeros((len(y), K))
         P[:, clf.classes_] = clf.predict_proba(X)
         keep = y != other
@@ -272,6 +267,17 @@ def score_gary(model_dir: Path, rounds: list[str], race: str, matchup: str, work
               f"{cell(fl[keep], y[keep])}, Gary's other games' shares {cell(own[keep], y[keep])}")
         print(f"  tech Brier: model {cell(tech(P)[keep], yt[keep])}, the pros' floor {cell(tech(fl)[keep], yt[keep])}, "
               f"answers.py's read {cell(rd[keep], yt[keep])}, Gary's other games' shares {cell(tech(own)[keep], yt[keep])}")
+        # the model's odds over the pros' floor as a likelihood ratio, times the suite's prior (Gary's other games'
+        # shares): what is left of its error once the pros' prior (a Spire in nine games of ten) is taken out
+        adj = P * own / np.clip(fl, 1e-6, None)
+        adj /= adj.sum(1, keepdims=True)
+        for name, m in (("looked", looked & keep), ("unlooked", ~looked & keep)):
+            if not m.any():
+                continue
+            print(f"  {name} ({m.sum()} games): joint model {cell(P[m], y[m])}, prior-adjusted {cell(adj[m], y[m])}, "
+                  f"the pros' floor {cell(fl[m], y[m])}, Gary's other games' shares {cell(own[m], y[m])}")
+            print(f"  {' ' * len(name)} tech model {cell(tech(P)[m], yt[m])}, prior-adjusted {cell(tech(adj)[m], yt[m])}, "
+                  f"the pros' floor {cell(tech(fl)[m], yt[m])}, Gary's other games' shares {cell(tech(own)[m], yt[m])}")
 
 
 def enemy_of(matchup: str, race: str) -> str:

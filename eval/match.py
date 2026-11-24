@@ -148,6 +148,7 @@ def play(map_path: str, minutes: float, seed: int, save: str, a: str, b: str, st
     mirror = races[0] == races[1]
     with Game.new(map_path, races, [f"Gary {a}", f"Gary {b}"], seed=seed, command_delay=LIVE_COMMAND_DELAY) as game:
         mapinfo = MapInfo.from_game(game)
+        mapinfo.name = Path(map_path).stem             # (the map's name, for what keys on it: gary/agent/shadow.py)
         slots = _slots(game, races)
         obs = game.observe()
         # (the hands in the order the town halls come in the game's units, A's first on a tie, as the old

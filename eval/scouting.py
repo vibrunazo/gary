@@ -50,8 +50,11 @@ NEAR_MAIN = 20 * 32           # px: a unit this near the enemy's start (and near
 LEFT_FOR = 10 * 24            # frames: gone this long, the scout has left
 LOOK = 8 * 32                 # px: the looking proxy (gary/policy/sightings.py LOOK)
 SCAN_SEES = 10 * 32           # px: a scan's sight (10 tiles)
-SCAN_LASTS = 7 * 24           # frames: a scan's sweep stays about this long
-BUILDING_SLACK = 2.5 * 32     # px: a building is in sight when any part is: its center this beyond a sight radius
+SCAN_LASTS = 7 * 24           # frames: a scan shows this long from its command (Gary's SC games, 2026-11-24: always to 160,
+                              # half to 224, never past 256)
+# a building is in sight when any part of its footprint is (gary/terran.py, zerg.py, protoss.py SIZE); a flat 2.5 tiles
+# beyond the sight radius before 2026-11-24 called a 2x2 Spire 9.4 tiles from a Marine in sight for 3.5 minutes of one
+# game (109 of the SC291 games' 117 wrong calls)
 SCAN_ENERGY = 50
 COMSAT = 107
 HALLS = {"Z": (131, 132, 133), "T": (106,), "P": (154,)}
@@ -101,12 +104,29 @@ def _place(p, mapinfo, own_start, enemy_start) -> str:
     return "other base"
 
 
+def in_sight(u: dict, eyes: np.ndarray, radii: np.ndarray, eye_h, heights) -> bool:
+    """The sight model on building u: any eye within its radius of the footprint's nearest point, from no lower ground
+    (eye_h, heights: None for every height)."""
+    from gary.policy.sightings import height_at
+    from gary import protoss, terran, zerg
+    if not len(eyes):
+        return False
+    size = {**terran.SIZE, **zerg.SIZE, **protoss.SIZE}.get(u["type"], (2, 2))
+    w, h = np.array(size, np.float64) * 32 / 2
+    dx = np.maximum(np.abs(eyes[:, 0] - u["x"]) - w, 0)
+    dy = np.maximum(np.abs(eyes[:, 1] - u["y"]) - h, 0)
+    inside = dx ** 2 + dy ** 2 <= radii ** 2
+    if eye_h is not None and heights is not None:
+        inside &= eye_h >= height_at(heights, [(u["x"], u["y"])])[0]
+    return bool(inside.any())
+
+
 def game_events(job: tuple) -> list[dict] | str:
     """One replay: a dict per player (both, or only `only` slot's race), or the reason it failed."""
     from gary.env import Game
     from gary.mapinfo import MapInfo
     from gary.policy.army import is_building
-    from gary.policy.sightings import EnemyMain, SCAN_SEES as SEES, covered, eye_heights, height_at, sight_px
+    from gary.policy.sightings import EnemyMain, SCAN_SEES as SEES, eye_heights, sight_px
     replay, tag, only_race = job
     try:
         g = Game.scenario(replay)
@@ -162,21 +182,22 @@ def game_events(job: tuple) -> list[dict] | str:
                     if before is not None and before - (c.get("energy") or 0) >= SCAN_ENERGY - 5:
                         cand = [(abs(fc - f), k, (x, y)) for k, (fc, x, y) in enumerate(scans_cmd)
                                 if k not in used_cmd and f - 2 * LOOK_EVERY <= fc <= f]
-                        pt = None
+                        pt, fc = None, f
                         if cand:
                             _, k, pt = min(cand)
+                            fc = scans_cmd[k][0]
                             used_cmd.add(k)
                         showed = sorted({tech.get(u["type"]) or tell.get(u["type"]) for u in vis if pt is not None
                                          and math.dist((u["x"], u["y"]), pt) <= SCAN_SEES
                                          and (u["type"] in tech or u["type"] in tell)} - {None})
-                        p["scans"].append({"f": f, "at": list(pt) if pt else None,
+                        p["scans"].append({"f": f, "fc": fc, "at": list(pt) if pt else None,
                                            "place": _place(pt, mi, p["own"], p["estart"]) if pt else None,
                                            "showed": showed, "comsat_age": f - p["comsat_first"],
                                            "plan_seen": p["plan_seen_at"] is not None})
                     p["energy"][c["tag"]] = c.get("energy") or 0
                 p["exposure"].append((f, sum(1 for c in comsats if (c.get("energy") or 0) >= SCAN_ENERGY),
                                       int(p["plan_seen_at"] is not None)))
-                recent = [sc["at"] for sc in p["scans"] if sc["at"] and f - sc["f"] <= SCAN_LASTS]
+                recent = [sc["at"] for sc in p["scans"] if sc["at"] and f - sc["fc"] <= SCAN_LASTS]   # (from its command)
                 # tech: stood and seen
                 for u in theirs:
                     if u["type"] in tech or u["type"] in tell:
@@ -202,8 +223,7 @@ def game_events(job: tuple) -> list[dict] | str:
                         b = mi.base_near((u["x"], u["y"])).center
                         proxy = any(math.dist(q, b) <= LOOK for q in pos) or any(math.dist(a, b) <= SCAN_SEES for a in recent)
                         p["looks"][f"{int(proxy)}{int(u['tag'] in vis_tags)}"] += 1
-                        model = bool(covered(np.array([(u["x"], u["y"])], np.float64), eyes, radii + BUILDING_SLACK,
-                                             eye_heights(heights, mine, recent), height_at(heights, [(u["x"], u["y"])]))[0])
+                        model = in_sight(u, eyes, radii, eye_heights(heights, mine, recent), heights)
                         p["sight"][f"{int(model)}{int(u['tag'] in vis_tags)}"] += 1
                 # the enemy's main, as the player could know it
                 if p["main_at"] is None and p["finder"].look(pos, vis) is not None:

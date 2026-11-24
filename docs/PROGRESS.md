@@ -2218,6 +2218,19 @@ plan and the full log).
   scouts (the seen / confirmed absent / unscouted states of REFOCUS §3.1 exist exactly for this: absence counts only
   where Gary looked); and a fixed set of Zerg plans to play against (the four scripted archetypes) is needed to judge
   any of it, as gz1's one plan teaches nothing. What to do first is the user's call.
+- **Phase 1 step 7a, written before its games (2026-11-24; the user's approval of 16 games).** gt1dev+scansample+
+  noanswers+shadow (option `noanswers`: answers.py off, its goals, vetoes and tech scan; option `shadow`: log-only, play
+  unchanged) against gz1dev told styles 9, 1, 0, 4, the step 5 suite's seeds and maps (seed 4004 on Attitude SE,
+  Fighting Spirit, KnockOut, Odyssey-RE, gg on), paired game by game with SC291a\* (answers on). The measure,
+  eval/answer_time.py (each answer the first ordered from 4:00, seconds from the Zerg's tech ordered): against the
+  Spire, the first Missile Turret and the turrets by 150 s after it; against lurkers, the first detection (ComSat,
+  Science Vessel or turret), the first ComSat, Siege Mode. With answers on (SC291a\*): the first turret +83 s (8
+  games), 6 turrets by 150 s, none missing; against lurkers the first ComSat -24 s (4 games), Siege Mode +172 s. The
+  modern pros on the ladder maps: +96 s, 6 turrets (none 7%); ComSat +34 s, Siege Mode +174 s. What would say the
+  macro model answers alone: the first turret by +150 s in at least 6 of the 8 spire games and 3 turrets or more by
+  150 s, and a detection within +90 s of Lurker Aspect in 3 of 4 lurker games. 16 games resolve only a large effect
+  (an answer missing or minutes late, as answers.py's 443 forced decisions in 48 games suggest it could be); a delay of
+  20-30 s is under what 8 and 4 games show, so not a verdict either way. Results second (won 10 of 16 with answers on).
 - **Phase 1 steps 4-5 and the retreat hold: the results (2026-11-24; 48 games, as written above).** The three rounds
   pair game by game (the suite: gz1dev told styles 9, 1, 0, 4, four games each on Attitude SE, Fighting Spirit,
   KnockOut and Odyssey-RE, seed 4004, gg on). An SC round first crashed at the sampler's first scan (a set of
