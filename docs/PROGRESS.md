@@ -2268,8 +2268,11 @@ plan and the full log).
   0.123 / 0.071 / 0.035 (most likely what the pros have seen of the enemy's buildings already tells the belief what where they
   looked would). On Gary's games no better, a little worse with the sampler at 8:00: step 4 tech 0.768 / 0.716 / 0.175
   (without 0.751 / 0.678 / 0.177), joint 1.006 / 0.998 / 0.861 (0.997 / 1.016 / 0.861); step 5 tech 0.768 / 0.628 /
-  0.252 (0.751 / 0.617 / 0.197), joint 1.006 / 1.077 / 0.915 (0.997 / 1.082 / 0.900); 16 games a round, so within
-  their noise. The belief without sightings stays the one to log in step 6.
+  0.252 (0.751 / 0.617 / 0.197), joint 1.006 / 1.077 / 0.915 (0.997 / 1.082 / 0.900); 16 games a round, no spread
+  computed. Checked that it isn't a wiring fault: the 14 columns have no NaN and vary at every minute (the model takes
+  185 inputs), and the sampler's scans reach the states in the SC games (the main looked at within seconds of 6:00,
+  cover 0.6-0.7). plan_belief's "tech seen" (SC 38% at 6:00) and eval/scouting.py's (50%) differ by the denominator
+  (every game running against the games where the tech stood). Which belief step 6 logs is left open: the user's.
 - **Phase 1 steps 4-5 and the retreat hold, written before their games (2026-11-23; the user's approval of 48 games).**
   Three rounds of 16, each the Zerg suite (gz1dev told style 9, 1, 0, 4 by option `told<N>`, 4 games a style on
   Attitude SE, Fighting Spirit, KnockOut and Odyssey-RE, seed 4004, gg on at 0.1, 30 minutes), so the three pair
