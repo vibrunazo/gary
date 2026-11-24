@@ -5,7 +5,11 @@ as the macro's goals, every step of it in the records and joined by ids (gary/de
 Every 30 s from 2:30 to 10:00 (the belief's samples, as its data's): the belief (gary/policy/plan_belief.py, a pinned
 model; with the sighting state's looked split), then each directive not yet started is scored
 (gary/agent/selector.py ProFrequencyScorer: P_pro(branch | belief, own state), a pinned table of
-train/pro_branch.py) and started where P_pro reaches the table's threshold with its support. (and where its interval is clear of the same cell's with a low belief: the part of the choice the belief makes).
+train/pro_branch.py) and started where P_pro reaches the table's threshold with its support and its interval is clear of
+the contrast cell's (a low belief: the part of the choice the belief makes). The own state the cells read is each
+directive chain's items had, counted as the pros' are (ordered: in production or placed counts); with every chain had
+the branch is not offered (the table has no moment), so a directive still covers the tanks and vessels when Gary
+researched Siege Mode on its own first (since 2026-11-24; step 7b's table counted only moments before Siege Mode).
 A started directive asks
 its items, in order, as the macro's goals (the first one Gary lacks and can make or wait for; asked again after
 ASK_AGAIN), and ends when Gary has every item (no withdrawal in this first version: a directive started on a wrong
@@ -23,7 +27,6 @@ Directives (race-keyed: (race, enemy race) -> name -> items, by the race's names
 from __future__ import annotations
 
 import random
-from collections import Counter
 from pathlib import Path
 
 from gary.agent.contracts import (CandidateBranch, Directive, NotEnoughEvidence, OwnContext, PlanBelief,
@@ -152,7 +155,9 @@ class Trunk:
     # --- the own state ------------------------------------------------------------------------------------------
     def context(self, obs: dict, mine: list[dict], me: dict) -> OwnContext:
         g = self.g
-        units = Counter(g.race.names.get(u["type"], str(u["type"])) for u in mine)
+        ex = g.executor                      # (counted as the pros' items are: ordered, in production, placed)
+        types = {g.race.in_mode.get(u["type"], u["type"]) for u in mine} | set(ex.in_production(mine))             | {ut for ut, *_ in g.reserved}
+        units = {g.race.names.get(t, str(t)): n for t in types if (n := ex.count(mine, t)) > 0}
         res = frozenset(g.race.tech_names.get(t, str(t)) for t in g.researched)
         return OwnContext(obs["frame"], g.race.letter, g.enemy.race if getattr(g, "enemy", None) is not None else None, g.matchup,
                           self.belief.map_name, dict(units), res, int(me.get("minerals", 0)), int(me.get("gas", 0)),
@@ -182,24 +187,20 @@ class Trunk:
             return current, out
         active = {d.id for d in current.active_directives}
         cands = [CandidateBranch(n, {}) for n in self.directives if n not in active and n not in self.done]
-        siege = "Siege Mode" in ctx.researched
         for c in cands:
-            if siege and c.name == "PREP_VS_LURKER":     # (the pros' table counts only moments before Siege Mode)
-                if "siege first" not in self.said:
-                    self.said.add("siege first")
-                    out.append(LOG.trunk(g.hi.side, ctx.frame, "branch_select", parent=belief.record_id, branch=c.name,
-                                         offered=False, why="Siege Mode ordered already: the pros' table has no moment"))
-                continue
             s = self.scorer.score(belief, current, ctx, [c])[c.name]
             if isinstance(s, NotEnoughEvidence):
-                out.append(LOG.trunk(g.hi.side, ctx.frame, "branch_select", parent=belief.record_id, branch=c.name,
-                                     not_enough=s.why))
+                if s.why not in self.said:           # (said once: e.g. every chain had, so never offered)
+                    self.said.add(s.why)
+                    out.append(LOG.trunk(g.hi.side, ctx.frame, "branch_select", parent=belief.record_id,
+                                         branch=c.name, not_enough=s.why))
                 continue
             thr = self.scorer.tables[c.name]["meta"]["threshold"]
             take = s.take
             r = LOG.trunk(g.hi.side, ctx.frame, "branch_select", parent=belief.record_id, branch=c.name,
                           chosen=c.name if take else "none", p_pro=s.p, interval=[s.lo, s.hi], n=s.n, cell=s.cell,
                           backoff=s.level, threshold=thr, contrast_p=s.base_p, contrast_hi=s.base_hi,
+                          contrast_cell=s.base_cell,
                           table=self.scorer.tables[c.name]["name"],
                           pro_won_if_taken=s.pro_won_if_taken, pro_won_if_not=s.pro_won_if_not,
                           note="P_pro decides; the pros' win rates are context only")

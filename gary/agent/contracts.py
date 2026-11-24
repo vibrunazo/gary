@@ -110,6 +110,7 @@ class BranchScore:
     base_p: float | None = None                 # the contrast cell's P_pro (the same cell, a low belief)
     base_hi: float | None = None                # its interval's top
     take: bool = False                          # the table's rule: P_pro >= threshold, its interval above the contrast's
+    base_cell: str | None = None                # the contrast cell's key
 
 
 @dataclass(frozen=True)

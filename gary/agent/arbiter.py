@@ -116,7 +116,8 @@ class FixedPriority:
                 return "macro"
             if not hi.pending and g.setup_done and hi.frame >= g.fight.next_fight and self._interruptible(g.task):
                 obs = hi.observe()
-                g.army.remember(obs)
+                if g.army is not None:
+                    g.army.remember(obs)
                 mine = [u for u in obs["units"] if u["owner"] == g.slot]
                 task = g.task
                 g.task, g.task_aside = None, task        # (a rule can let its own task finish: block.py)

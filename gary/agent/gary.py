@@ -193,12 +193,14 @@ class Gary:
     def committed(self) -> int:
         """Minerals spoken for: buildings ordered but not started, the parked build, and units and
         research ordered in the last 2 s (the game takes them a moment later: two marines each
-        checked against the same 472 minerals took a Command Center's 400 as its SCV arrived)."""
+        checked against the same 472 minerals took a Command Center's 400 as its SCV arrived). With a card (Arm B,
+        gary/agent/card_macro.py), the minerals of its milestones about to be due, the one reserve."""
         costs = self.race.costs
         held = getattr(self.executor, "in_flight", IN_FLIGHT)
         self.in_flight = [(f, c) for f, c in self.in_flight if self.hi.frame - f < held]
+        card = getattr(getattr(self, "macro", None), "card", None)
         return sum(costs[ut][0] for ut, *_ in self.reserved) + sum(costs[t.unit_type][0] for t in self.parked) \
-            + sum(c for _, c in self.in_flight)
+            + sum(c for _, c in self.in_flight) + (card.reserve()[0] if card is not None else 0)
 
     def spend(self, minerals: int) -> None:
         """A unit or research just ordered: its money is spoken for until the game takes it."""

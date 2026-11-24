@@ -2218,6 +2218,71 @@ plan and the full log).
   scouts (the seen / confirmed absent / unscouted states of REFOCUS §3.1 exist exactly for this: absence counts only
   where Gary looked); and a fixed set of Zerg plans to play against (the four scripted archetypes) is needed to judge
   any of it, as gz1's one plan teaches nothing. What to do first is the user's call.
+- **Phase 1 step 8, Arm B, written before its games (2026-11-24; the user's approval: 20 drills and 16 suite games;
+  Arm A skipped unless Arm B fails).** The code, 0 games: gary/agent/card_macro.py CardPlan (options `armb`, reactive,
+  and `strict`, drills): the told or chosen style's card (gary/policy/card.py) held by the macro. A milestone not had is
+  the macro's goal 10 s before its time (the replay's clock), after the trunk's directives' goals; from 30 s before that
+  its minerals are in Gary.committed() (the one reserve: a milestone that is the goal, queued, placed or parked is
+  counted there or by its own check already) and its gas in the macro's kept money; before the card's horizon (its last
+  milestone's time and tol) an off-card one-off of the model's (macro.py _one_off: tech buildings, add-ons, research,
+  upgrades) is passed over, under 10% of its odds in reactive mode, always in strict mode, where a card item drawn
+  before its window (t - tol) is too and a due milestone takes the place of the model's own goal. An item of an active
+  trunk directive is never masked, and while one has an item left the card reserves nothing (reactive). Every goal is a
+  decision under the card's strategy_state record, every mask in the decision's passed-over options.
+  gary/agent/strategy.py: StrategySpec; from_style; from_replay (a replay's player's one-offs by 8:00 at their times, the
+  tolerances of the nearest style's card); compile_prompt (a request read against the catalogue's names, each side's
+  style where exactly one matches, else "ambiguous" with the candidates and their shares, or "unsupported"; "drill",
+  "practice", "strict" ask for strict; units named are said to be ignored); eval/match.py --strategy, --from-replay,
+  --card (a spec saved beside the replay; not "ok": no game). Option `noarmy` for the drills' opponent (no army layer:
+  its fighters stay where made; the arbiter's one unguarded army call fixed). Checked: a 6-minute strict drill (style 1,
+  Fighting Spirit) met its 10 milestones due by 6:00 within 19 s; parity, smoke and pairs pass.
+  *The drills' tolerance, written before any drill (eval/drills.py):* a milestone is met when Gary's own order of it
+  (the replay's commands) is within max(its tol, 15 s) of its time, tol being the card's (the style's pros' 90th
+  percentile of distance); a drill passes when every milestone of its card is met. Gate 2: 18 of 20.
+  *The drills (20):* gt1dev+strict+told<N> against gz1dev+noarmy+told1 (the 2-hatch mutalisk Zerg, its army home), the
+  suite's four maps, 11 minutes (style 1's last milestone is due by 10:26), no gg: DR295a1 style 1 seeds 4004-4005 (8),
+  DR295a2 style 2 (8), DR295a3 style 3 seed 4004 (4). Expected: 18 or more pass; a miss would be money or the hands
+  (eval/drills.py prints which milestone and by how much), or a game ended early.
+  *The suite (16):* TB295a9/1/0/4, gt1dev+scansample+noanswers+shadow+trunk+armb against gz1dev told 9, 1, 0, 4, the
+  suite's maps, seed 4004, gg on; paired with TK293a\* (and TC294a4 for the lurker games, the same trunk table as here).
+  Measures: Arm 0's milestone error over the pros' spread (eval/style_adherence.py --arm0) against TK293a\*'s, the build
+  per style, the gap per window (eval/gap_windows.py, TB against TK: 16 games, read as a direction only), Siege Mode and
+  vessel timings after Lurker Aspect (eval/answer_time.py), the trunk's join, tests/test_matchups.py with the trunk and
+  armb on every race's dev build. Expected: the milestone error nearer the pros' spread than TK's (Arm 0 found 1.4x to
+  2.1x), worst items (style 2's Factory, the turret is not a card item) nearer; the lurker answer unchanged or earlier
+  where the card's Factory comes sooner (Fighting Spirit's 7:34 start waited for Gary's Factory).
+- **Step 7b's table fixed: the chain's next item, a matched contrast (2026-11-24; 0 games to choose it, then 8 lurker
+  games; the user's decisions).** Why: step 7b's event (Siege Mode within 120 s) made Gary's own stage gate the start.
+  The user asked for the chain's next missing item (Factory -> Machine Shop -> Siege Mode, Starport -> Science Facility
+  -> Science Vessel) and for the directive to cover tanks and vessels when Gary researched Siege Mode first.
+  *Read first, 0 games, the event "either chain's next item" (train/pro_branch.py, 36,267 moments of 2,431 modern
+  games; the vessel from the raw Train commands).* Under step 7b's contrast (the low-belief cell at the same backoff
+  level) it started in the 4 lurker games of step 7a (Fighting Spirit at 6:03 as expected) and none of the others, but
+  by pooling: high beliefs come late, and the pooled low-belief cell is mostly early minutes. Looked, 6-8 minutes, no
+  Factory or Starport: the pooled low-belief cell 0.45, the matched one 0.90 (a Factory then is the base rate, not an
+  answer to lurkers). So the contrast was revised before the table met any of Gary's games: the most specific
+  low-belief cell with 25 games (contrast_level "finest"). With it: 1 start of 4 (the vessel chain's next item comes at
+  0.90+ whatever the pro believes). The user chose the third option: the matched contrast, the event counting chain A
+  (Factory, Machine Shop, Siege Mode) until Siege Mode is had, then the vessel chain
+  (runs/selector/TvZ_T_PREP_VS_LURKER_chainA_20261124.json; step 7b's table kept for TK293a\*).
+  *Its dry run (0 games, eval/trunk_dryrun.py over NA292a\*):* starts in the 4 lurker games, each at "a Factory, no
+  Machine Shop": Attitude 7:34 (step 7b 8:06), Fighting Spirit 7:34 (8:36), KnockOut 9:04 (9:36), Odyssey 6:33 (not
+  offered in 7b); a high-belief pro adds the Machine Shop within 2 minutes at 0.59-0.69, a low-belief one at 0.34 or
+  less (Starport first): a choice the belief makes. One false start: the zergling-pressure game on Odyssey at 7:03, P(lurker)
+  0.24 unlooked (cell 0.59 of 47 games against 0.33): what pros do at those odds. Fighting Spirit starts at 7:34, not
+  6:03, as Gary had no Factory until then: a card milestone's job (step 8), not the trunk's. The scorer reads each
+  chain's position counted as the pros' items are (ordered: in production or placed counts, executor.count), records
+  the contrast cell, and offers the branch until every chain is had (gary/agent/selector.py, trunk.py).
+  *The check games (TC294a4):* gt1dev+scansample+noanswers+shadow+trunk against gz1dev told 4, seed 4004. Launched with
+  --maps ladder, so 8 games were played where the user approved 4 (the suite's four and four other ladder maps; my
+  mistake, read as extra lurker games). Every one started PREP_VS_LURKER (the suite's four at the dry run's times to 8
+  s), every lurker tech real by then; each directive completed 103-202 s after; the join: 54 of 54 items asked started,
+  58 of 58 decisions handed and followed by their fate. After Lurker Aspect, the suite's four (step 7b / step 7a): Siege
+  Mode +220 (+216 / +246), the first tank +227 (+224 / +230), the first vessel +290 (+292 / +292); all eight +192, +198,
+  +277; the pros +174, +157, +256. The earlier start moved nothing on the suite's maps: the records show the Machine
+  Shop asked once the Factory was free, 31 s (Attitude) and 46 s (Fighting Spirit) after the start, the plan waiting
+  while it finished a unit, so it came within seconds of step 7b's; the Starport asked at once, the Science Facility
+  at the same second as before. Won 5, lost 1, 2 to time.
 - **Phase 1 step 7b: the results (2026-11-24; 16 games, as written below).** TK293a\*, paired game by game with NA292a\*.
   *Before the games (0 games):* step 7a's "no Science Vessel in any game" was the measure's (units read only to 8:00;
   eval/answer_time.py fixed, above), so the user's vessel check found no bug in Gary. The trunk and its contracts as

@@ -168,6 +168,7 @@ class LearnedMacro:
         self.shadow = None                                  # gary/agent/shadow.py (option shadow): log-only
         self.answers = None                                 # answers.py Answers (option answers): the zerg's plan answered
         self.trunk = None                                   # gary/agent/trunk.py Trunk (option trunk): the directives' goals
+        self.card = None                                    # gary/agent/card_macro.py CardPlan (Arm B: options armb, strict)
         self.scouting = None                                # gary/agent/scouting.py ScanSampler (option scansample)
         self.expand_odds = 0.0
         # odds_mass (option mass): the same for every one-off decision (a tech building, an add-on, research,
@@ -190,6 +191,9 @@ class LearnedMacro:
 
     def step(self, obs: dict, mine: list[dict], done: list[dict], me: dict) -> None:
         g = self.g
+        if self.card is not None:
+            g._mine = mine                         # (the card's reserve, read by Gary.committed())
+            self.card.start(mine)
         if self.shadow is not None:
             self.shadow.step(obs, mine, me)
         if self.trunk is not None:
@@ -244,6 +248,21 @@ class LearnedMacro:
                              by=f"trunk: {goal['directive']} (pros {goal['p_pro']:.0%} of {goal['n_pro']} games)")
             goal["rid"] = LOG.link(r, goal["parent"])["id"]
             self.trunk.decided(goal, r, mine)
+        if self.card is not None and (self.goal is None or self.card.mode == "strict" and "card" not in self.goal
+                                      and "directive" not in self.goal):
+            # (Arm B: a due milestone of the card, after the trunk's directives; in strict mode in place of the model's
+            # own goal that waits)
+            if (goal := self.card.next_goal(obs, mine, done, me)) is not None:
+                if self.goal is not None:
+                    LOG.order(g.hi.side, g.hi.frame, self.goal["name"], "dropped", "the card's milestone is due (strict)",
+                              by="macro", parent=self.goal.get("rid"))
+                self.goal = goal
+                g.say(f"next: {goal['name']}")
+                m = goal["card"]
+                r = LOG.decision(g.hi.side, "macro", g.hi.frame, goal["name"], inputs=self._seen(obs, mine, me),
+                                 by=f"card: {self.card.card_id}, {m[0]} #{m[1]} due at {goal['due_s']:.0f} s "
+                                    f"({self.card.mode})")
+                goal["rid"] = LOG.link(r, self.card.rid)["id"]
         self._learned(obs, mine, done, me)
 
     def _natural_bunker(self, mine: list[dict], me: dict) -> bool:
@@ -416,6 +435,9 @@ class LearnedMacro:
             if self.odds_mass is not None:
                 due = [(self.odds[k], k) for k in self.one_off if self.odds.get(k, 0.0) >= self._mass_of(k)]
                 for mass, k in sorted(due, reverse=True):
+                    if self.card is not None and self.card.mask(*self.model.spec.decisions[k], float(probs[0, k]),
+                                                                True, mine):
+                        continue                    # (Arm B: off the card, as the dice's mask below)
                     plan = self.plan(*self.model.spec.decisions[k], obs, mine, done, me)
                     if plan is not None and plan is not WAIT:
                         act, uid = self.model.spec.decisions[k]
@@ -445,6 +467,11 @@ class LearnedMacro:
                 floor_one_off = getattr(g.posture, "one_off_min_p", None)
                 if floor_one_off is not None and self._one_off(*self.model.spec.decisions[k]) and probs[0, k] < floor_one_off:
                     over.append([name(k), f"rule: the posture: a one-off under {floor_one_off:.0%}"])
+                    continue
+                if self.card is not None and (why := self.card.mask(*self.model.spec.decisions[k], float(probs[0, k]),
+                                                                    self._one_off(*self.model.spec.decisions[k]), mine)):
+                    over.append([name(k), f"rule: {why}"])
+                    self.card.masked += 1
                     continue
                 if self.tech_min_p is not None and self.model.spec.decisions[k][0] == BUILD \
                         and self.model.spec.decisions[k][1] in TECH_PATH.get(g.race.letter, ()) and probs[0, k] < self.tech_min_p:
@@ -654,6 +681,8 @@ class LearnedMacro:
         Refinery decided while the SCV before it waited for supply took its money, and the SCV waited 14 s more once
         the depot was up (#55)."""
         sm, sg = (0, 0) if own else self._saved_cost()
+        if self.card is not None:                  # (Arm B: the gas of the milestones about to be due; their minerals
+            sg += self.card.reserve()[1]           # are in Gary.committed())
         for (act, uid), _ in self.queued:
             m, gas = self.g.executor.cost_of(act, uid)
             sm, sg = sm + m, sg + gas

@@ -141,7 +141,7 @@ class Resign:
 
 
 def play(map_path: str, minutes: float, seed: int, save: str, a: str, b: str, style: int | str | None = None,
-         style_b: int | str | None = None, gg: float | None = None) -> str:
+         style_b: int | str | None = None, gg: float | None = None, spec=None) -> str:
     """One game, A against B; its result ("A won", "B won", "time"). gg: the critic's win odds at which a side
     resigns (Resign), None to play to the end."""
     races = [manifest_of(a).get("race", "T"), manifest_of(b).get("race", "T")]
@@ -166,7 +166,7 @@ def play(map_path: str, minutes: float, seed: int, save: str, a: str, b: str, st
             hi.side = races[k]
         if mirror:
             LOG.slot = slots[0]
-        garys = {0: build_gary(his[0], mapinfo, a, style, seed=seed)}
+        garys = {0: build_gary(his[0], mapinfo, a, style, seed=seed, strategy=spec)}
         if mirror:
             LOG.slot = slots[1]
         garys[1] = build_gary(his[1], mapinfo, b, style_b, seed=seed)
@@ -246,6 +246,11 @@ def main() -> None:
     ap.add_argument("--style", help="A's build style, by id or name (gary/styles.py; --list-styles), over its manifest's")
     ap.add_argument("--style-b", help="B's build style, the same")
     ap.add_argument("--list-styles", action="store_true", help="print the build styles of A's and B's races and exit")
+    ap.add_argument("--strategy", help="A's strategy as text, compiled before the game (gary/agent/strategy.py): its "
+                    "style and card (Arm B), the opponent's style if named; ambiguous or unsupported: printed, no game")
+    ap.add_argument("--from-replay", help="A's card from this replay's player (gary/agent/strategy.py from_replay)")
+    ap.add_argument("--from-player", help="the replay's player (default: the one of A's race)")
+    ap.add_argument("--card", help="A's StrategySpec, a JSON file (python -m gary.agent.strategy ... --out)")
     ap.add_argument("--save", default="match.rep")
     ap.add_argument("--gg", type=float, help="a side resigns when its critic's win odds stay at or under this for a "
                     "minute (issue #62; eval/league.py plays at 0.1); unset: to the end")
@@ -258,7 +263,21 @@ def main() -> None:
         for r in dict.fromkeys(races):
             print(describe(mu, r))
         return
-    play(args.map, args.minutes, args.seed, args.save, args.a, args.b, args.style, args.style_b, args.gg)
+    spec = None
+    if args.strategy or args.from_replay or args.card:
+        from gary.agent.strategy import StrategySpec, compile_prompt, describe, from_replay
+        race = manifest_of(args.a).get("race", "T")
+        rb = manifest_of(args.b).get("race", "T")
+        mu = "".join(sorted({race, rb}, key="TZP".index)) if race != rb else race * 2
+        mu = f"{mu[0]}v{mu[-1]}"
+        spec = StrategySpec.load(args.card) if args.card else compile_prompt(args.strategy, mu, race) if args.strategy             else from_replay(args.from_replay, mu, args.from_player, None if args.from_player else race)
+        print(describe(spec))
+        if spec.status != "ok" or not spec.card:
+            raise SystemExit(f"strategy {spec.status}: no game (see the notes above)")
+        spec.save((args.save[:-4] if args.save.endswith(".rep") else args.save) + ".spec.json")
+        if args.style_b is None and spec.opponent_style is not None:
+            args.style_b = spec.opponent_style
+    play(args.map, args.minutes, args.seed, args.save, args.a, args.b, args.style, args.style_b, args.gg, spec)
 
 
 if __name__ == "__main__":

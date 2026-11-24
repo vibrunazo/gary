@@ -100,10 +100,37 @@ class ProFrequencyScorer:
         """The cell's fields for a moment, as train/pro_branch.py reads the pros' (the race's names of its stages)."""
         import numpy as np
         p = belief.tech_probs.get(meta["tech"], 0.0)
-        stage = 2 if ctx.units.get("Machine Shop", 0) else 1 if ctx.units.get("Factory", 0) else 0
-        return {"belief": int(np.searchsorted(meta["buckets"], p, side="right")),
-                "looked": int(bool(belief.sightings.looked)) if belief.sightings is not None else 0,
-                "stage": stage, "minute": int(np.searchsorted(meta["minutes"], ctx.frame / 24, side="right"))}
+        out = {"belief": int(np.searchsorted(meta["buckets"], p, side="right")),
+               "looked": int(bool(belief.sightings.looked)) if belief.sightings is not None else 0,
+               "minute": int(np.searchsorted(meta["minutes"], ctx.frame / 24, side="right"))}
+        if "chains" in meta:                       # (each chain's items had, in order: "a", "b", ...)
+            for letter, chain in zip("abcdefgh", meta["chains"]):
+                k = 0
+                while k < len(chain) and (ctx.units.get(chain[k], 0) > 0 or chain[k] in ctx.researched):
+                    k += 1
+                out[letter] = k
+        else:                                      # (step 7b's table: one chain, by stage)
+            out["stage"] = 2 if ctx.units.get("Machine Shop", 0) else 1 if ctx.units.get("Factory", 0) else 0
+        return out
+
+    @staticmethod
+    def done(meta: dict, f: dict) -> bool:
+        """Every chain had: the table has no moment (the branch is not offered)."""
+        return "chains" in meta and all(f[l] == len(c) for l, c in zip("abcdefgh", meta["chains"]))
+
+    @staticmethod
+    def contrast(meta: dict, cells: dict, f: dict, level: int):
+        """The contrast cell: at the scored cell's level ("same"), or the most specific with min_n games ("finest")."""
+        c = {**f, **meta.get("contrast", {})}
+        if meta.get("contrast_level", "same") == "same":
+            key = "|".join(f"{k}={c[k]}" for k in meta["backoff"][level])
+            return {**cells[key], "key": key} if key in cells else None
+        for keys in meta["backoff"]:
+            key = "|".join(f"{k}={c[k]}" for k in keys)
+            cell = cells.get(key)
+            if cell is not None and cell["games"] >= meta["min_n"]:
+                return {**cell, "key": key}
+        return None
 
     def score(self, belief, strategy, ctx, candidates):
         from gary.agent.contracts import BranchScore, NotEnoughEvidence
@@ -115,15 +142,19 @@ class ProFrequencyScorer:
                 continue
             meta, cells = t["meta"], t["cells"]
             f = self.fields(meta, belief, ctx)
+            if self.done(meta, f):
+                out[c.name] = NotEnoughEvidence("pro_freq_table", f"{c.name}: every chain had, the pros' table has no moment")
+                continue
             for level, keys in enumerate(meta["backoff"]):
                 key = "|".join(f"{k}={f[k]}" for k in keys)
                 cell = cells.get(key)
                 if cell is not None and cell["games"] >= meta["min_n"]:
-                    base = cells.get("|".join(f"{k}={({**f, **meta.get('contrast', {})})[k]}" for k in keys))
+                    base = self.contrast(meta, cells, f, level)
                     out[c.name] = BranchScore(cell["p"], cell["lo"], cell["hi"], cell["games"], key, level,
                                               cell["pro_won_if_taken"], cell["pro_won_if_not"],
                                               base["p"] if base else None, base["hi"] if base else None,
-                                              cell["p"] >= meta["threshold"] and base is not None and cell["lo"] > base["hi"])
+                                              cell["p"] >= meta["threshold"] and base is not None and cell["lo"] > base["hi"],
+                                              base["key"] if base else None)
                     break
             else:
                 root = cells.get("|".join(f"{k}={f[k]}" for k in meta["backoff"][-1]))

@@ -1019,6 +1019,15 @@ OPTIONS = {
     # pros' choice frequencies given the plan belief (TRUNK's pinned files) and carried out as the macro's goals; every
     # race and matchup builds it, and where it has no model or table it says so in the records and does nothing
     "trunk": lambda m: m.update(trunk=dict(TRUNK)),
+    # armb (docs/REFOCUS.md Phase 1 step 8, gary/agent/card_macro.py): Arm B, the style's recipe card held by the macro, its
+    # milestones emitted when due with their money reserved in committed(), off-card one-off tech under 10% masked before
+    # the card's horizon, after the trunk's directives; strict: the same in drill mode (every off-card one-off masked, a
+    # card item not before its window, a due milestone in place of the model's own goal); no card for the matchup and
+    # race: nothing
+    "armb": lambda m: m["macro"].update(card="reactive"),
+    "strict": lambda m: m["macro"].update(card="strict"),
+    # noarmy (the drills' opponent, step 8: "unharassed"): no army layer, the fighters stay where they are made
+    "noarmy": lambda m: m.update(army=None),
     "retreathold": lambda m: [f.update(roles={**f.get("roles", {}), "retreat_hold": True})
                               for f in [m["fight"]] + [v["fight"] for v in m.get("vs", {}).values() if "fight" in v]
                               if f.get("provider") == "roles" and f.get("model")],
@@ -1680,22 +1689,25 @@ def manifest_name(name: str) -> str:
 SHADOW = {"plan_belief": "runs/plan_belief/TvZ_T_20261123-212915/model.pkl", "cards": "runs/cards/TvZ_T_20261124.json"}
 # the trunk's (option trunk), by matchup and race: the plan belief, the pros' branch tables (train/pro_branch.py), the cards
 TRUNK = {"plan_belief": {"TvZ_T": SHADOW["plan_belief"]},
-         "tables": {"TvZ_T": {"PREP_VS_LURKER": "runs/selector/TvZ_T_PREP_VS_LURKER_20261124.json"}},
+         "tables": {"TvZ_T": {"PREP_VS_LURKER": "runs/selector/TvZ_T_PREP_VS_LURKER_chainA_20261124.json"}},
          "cards": SHADOW["cards"]}
 
 
 def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None, verbose: bool = True,
                fight_path: str | Path | None = None, load=load_model, seed: int = 0,
-               flip: tuple[bool, bool] | None = None, interruptions: bool = True, fight_model=None) -> Gary:
+               flip: tuple[bool, bool] | None = None, interruptions: bool = True, fight_model=None, strategy=None) -> Gary:
     """A Gary from a manifest (a name in MANIFESTS, or a dict like them). fight_path (or an already
     loaded fight_model) replaces the manifest's fight model; load(kind, path) loads models (callers
     that cache pass their own); seed seeds the fight layer's sampling; flip and interruptions are
-    for drills (no map)."""
+    for drills (no map). strategy: a StrategySpec (gary/agent/strategy.py): its style, and its card held by the macro
+    (Arm B) with its adherence."""
     import torch
     torch.set_num_threads(1)       # its models are small: games run side by side (14 at once: 2.7x faster)
     m = manifest_of(manifest)
     g = Gary(hi, mapinfo, m["version"], verbose, m.get("race", "T"))
     g.game_seed = seed                            # (the rules that draw: fight.py CastRule)
+    if strategy is not None and strategy.style is not None:
+        style = strategy.style
     if style is None and m.get("told_style") is not None:
         style = m["told_style"]
     if style is not None:                         # (by id or by name, for this race in this matchup: gary/styles.py)
@@ -1908,4 +1920,14 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
     if m.get("trunk") and g.macro is not None and mapinfo is not None:
         from gary.agent.trunk import Trunk
         g.macro.trunk = Trunk(g, m["trunk"])
+    if g.macro is not None and hasattr(g.macro, "card") and (strategy is not None or (m.get("macro") or {}).get("card")):
+        from gary.agent.card_macro import CardPlan
+        if strategy is None and g.matchup and g.macro.tracker.style is not None:
+            from gary.agent.strategy import from_style
+            strategy = from_style(g.matchup, g.race.letter, g.macro.tracker.style, m["macro"]["card"])
+        if strategy is not None and strategy.card:
+            g.macro.card = CardPlan(g, list(strategy.card), strategy.card_id, strategy.adherence_mode, strategy.source,
+                                    None if strategy.covers is None else list(strategy.covers))
+            if g.macro.trunk is not None:
+                g.macro.trunk.state.adherence_mode = strategy.adherence_mode
     return g
