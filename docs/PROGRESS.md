@@ -2232,23 +2232,30 @@ plan and the full log).
 
   \* added after the games, not written before them; only games still running 10 minutes after the tech.
   What was written holds: the first turret by +150 s in 8 of 8 spire games (6 needed) with 6 turrets by then (3), a
-  detection within +90 s of Lurker Aspect in 4 of 4 (3). The macro model answers the Spire and the lurkers alone once
-  Gary scouts. More than that: answers.py's first turret was the model's own. The games are the same until the first
-  decision answers.py forces, and at each of those (345 s, 348 s, 359 s ...) the model's draw in the paired game took a
-  Missile Turret too, so the first answers are identical game by game; the ComSat came by the dice or the odds' sum
-  before Lurker Aspect in both. Where they differ: without answers.py's veto on turrets beyond one a base, Gary builds
-  more turrets (turret decisions in the records 7-29 a spire game against 2-16; within 10 minutes of the Spire 11 against 9, the pros 10, so
-  not past the pros' on the games that ran that long), and Siege Mode comes 74 s later against lurkers (+246 s, the
-  pros +174 s; answers.py forced it). No Science Vessel within 10 minutes of Lurker Aspect in either (the pros: 16 of
-  126). Results second: won 9, lost 2, 5 to time (step 5: 10, 4, 2).
+  detection within +90 s of Lurker Aspect in 4 of 4 (3). But the criteria can't tell an answer from a schedule, and
+  per game it is a schedule (0 games, the replays and eval/scouting.py's sight times): the first turret comes at
+  4:09-6:31 and the ComSat at 4:08-6:01 against every plan, zergling pressure (2 of the 4 games still running) and
+  lurkers as much as the Spire; in the spire games the first turret is before or within 30 s of Gary first seeing the
+  Spire in 6 of the 7 that saw it (+52 s in the seventh), and the ComSat precedes Lurker Aspect, so the "detection at -24 s" is no answer.
+  answers.py was no answer either: the games are the same until the first decision it forces, and at each (345 s, 348 s,
+  359 s ...) the model's draw in the paired game took a Missile Turret too, so the first turrets are identical game by
+  game. What does follow the plan, on or off: Siege Mode in all 4 lurker games (7:33-10:06; Lurker Aspect +144 to +268
+  s off, +141 to +222 s on), in 3 of 8 spire games off (4 on). Where off and on differ: without answers.py's veto on
+  turrets beyond one a base, more turrets by 10:00 (spire games median 10 against 8, lurker games 10 against 8.5; the
+  pros 5 within 10 minutes of Lurker Aspect, 10 of the Spire, the latter on only 3 of Gary's games that ran that long,
+  so unresolved), and Siege Mode a median 74 s later against lurkers (+246 s, the pros +174 s). No Science Vessel in
+  any of the 32 games: in step 5's lurker games answers.py decided 1-2 vessels and Irradiate, and Gary got the Science
+  Facility and Irradiate but never ordered a vessel (an execution leak, not looked into). So: the macro model doesn't
+  need answers.py for the first turrets or the ComSat, which it makes on its own clock whatever the Zerg plays, as
+  answers.py's did; the lurker answer (Siege Mode) is the one thing answers.py moved, earlier. Results second: won 9,
+  lost 2, 5 to time (step 5: 10, 4, 2). The four style-9 pairs (answers.py never fired) are identical record by record
+  apart from the shadow's own records, whole games long: no drift from the shadow.
   The live shadow over the 16 games: 228 plan records and the card's tags. The belief's odds of the true tech: spire
   first 0.79-0.96 at 4:00, 0.93-1.0 at 6:00, 1.0 at 8:00 (8 games); lurker first 0.04-0.16 at 4:00, 0.04 / 0.73 / 0.04 /
   0.16 at 6:00, 0.85 / 0.40 / 0.13 / 0.84 at 8:00; zergling pressure 0.00-0.12 to 6:00, 0.32-0.34 at 8:00 (2 games running).
   Its milestones agree with the offline pass (on time 153, delayed(odds) 19, hands 1; the Bunker delayed(odds) 9 of 14),
   its first one-off decisions before 10:00 too (170 on the card, 137 off; offline 170 and 162, the replay's re-issued
-  commands). Answers.py can be measured off in a 96-game round when the user wants it (its entry's measure: results
-  and the time to the answer); by these 16 games its first answers are the model's, its turret veto and forced Siege
-  Mode what it adds.
+  commands).
 - **Phase 1 step 6: the belief chosen, the card's tags, the shadow (2026-11-24; 0 league games, the user's approval).**
   *The sight model's 15% wrong calls in the step 5 games were not the scan's expiry.* Scans timed from their command
   (ingest/sighting_dataset.py, eval/scouting.py: a look notices a scan up to 2 s late; a sweep, measured, shows from
@@ -2270,13 +2277,13 @@ plan and the full log).
   | 6:00 looked | 7 | 0.953 / 0.922 | 0.906 / 0.876 | 0.708 | 0.777 | 0.026 / 0.009 | 0.063 / 0.031 | 0.243 |
   | 6:00 unlooked | 23 | 1.078 / 1.066 | 0.673 / 0.662 | 1.036 | 0.807 | 0.836 / 0.870 | 0.437 / 0.453 | 0.999 |
   | 8:00 looked | 16 | 0.943 / 0.868 | 0.532 / 0.550 | 0.899 | 0.777 | 0.083 / 0.062 | 0.015 / 0.016 | 0.647 |
-  | 8:00 unlooked | 6 | 0.716 / 0.921 | 0.333 / 0.429 | 1.119 | 0.815 | | | |
+  | 8:00 unlooked | 6 | 0.716 / 0.921 | 0.333 / 0.429 | 1.119 | 0.815 | - / 0.669 | - / 0.159 | 1.202 |
 
   Read: where Gary looked, the tech part is near certain and right (0.01-0.08 against the floor's 0.24-0.65); the joint
   plan stays worse than the floor because the opening and hatcheries carry the pros' prior. Most of the 0.36-0.50
   calibration error is that prior met on a suite of four even plans: adjusted to the suite's shares the joint Brier
-  falls 0.997 to 0.70 at 4:00 (ECE 0.44 to 0.28) and 1.078 to 0.67 at 6:00 unlooked (ECE 0.47 to 0.14), below the suite's
-  own shares from 6:00 looked at 8:00 (0.532 against 0.777). Unlooked, the model alone is no better than the floor, as
+  falls 0.997 to 0.70 at 4:00 (ECE 0.44 to 0.28) and 1.078 to 0.67 at 6:00 unlooked (ECE 0.47 to 0.14), and at 8:00 looked it
+  beats the suite's own shares (0.532 against 0.777). Unlooked, the model alone is no better than the floor, as
   Gate 1 expects. The two beliefs differ by less than 16-30 games resolve, either way by cell, so the step logs the one
   without sightings (the user's default for a tie; it also needs no sighting states in play): runs/plan_belief/
   TvZ_T_20261123-212915, pinned in gary/agent/manifests.py SHADOW.
@@ -2304,7 +2311,7 @@ plan and the full log).
   reads; the model and cards files are pinned in the manifest. Checked at 0 league games: gt1dev+scansample with and
   without it, Fighting Spirit, seed 4004, 10 minutes: every log identical apart from its own records (the views, the
   traces, the records), 15 plan and 39 card records; the live odds within 0.018 of the offline model's on the same
-  rows (two samples 1 and 5 s late, the macro not stepped on the second). tests/test_smoke_game.py and
+  rows (two samples 1 and 5 s late, the macro not stepped on the second); and four whole games in step 7a (below). tests/test_smoke_game.py and
   tests/test_parity.py pass. The 16-game soak the user allowed "if needed" wasn't: step 7a played with it on (below).
 - **Phase 1 step 7a, written before its games (2026-11-24; the user's approval of 16 games).** gt1dev+scansample+
   noanswers+shadow (option `noanswers`: answers.py off, its goals, vetoes and tech scan; option `shadow`: log-only, play
