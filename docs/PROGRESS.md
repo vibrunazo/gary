@@ -2222,8 +2222,13 @@ plan and the full log).
   below).** *The drills (gate 2):* 18 of 20 met every milestone, the gate's floor: style 1 8 of 8 (12 milestones),
   style 2 8 of 8 (9), style 3 2 of 4: the first Factory (149 s +- 21) 27 s late on Fighting Spirit and 45 s late on
   KnockOut, the Starport 59 s late there. From the records: the Factory's goal was emitted at 142-144 s and handed at
-  159-160 s, waiting for its 100 gas (the Refinery's three SCVs), and on KnockOut its builder was lost on the way (the
-  executor's "its SCV is gone"), the goal asked again 10 s later: money and the hands, as the expected failures said.
+  159-160 s, waiting for its 100 gas (the Refinery's three SCVs), and on KnockOut the executor dropped it a second
+  after it was handed ("its SCV is gone", no death in the records: an executor fault, not harassment), the goal asked
+  again 10 s later: money and the hands, as the expected failures said. The criterion is no easy one: step 7b's 16
+  games (no card, reactive, against a Zerg that attacks) meet it in 3. But the build per style of the drills
+  (eval/style_adherence.py): told style 1, 8 of 8 play style 1; told 2, half play style 2 and half style 3; told 3, the
+  same: the two cards share most one-offs, and the classifier reads the units too (vultures against wraiths and
+  valkyries), which the card does not hold. Gate 2's "matches or improves the build per style" is not met for 2 and 3.
   Every milestone met in 18-20 of 20 drills, its median distance from the card 1 to 12 s. The pre-flight games (not
   drills): strict styles 1, 2, 3 each 12/12, 9/9, 9/9, and both sources end to end through eval/match.py,
   --strategy "practice standard bio vs hatch first 2 hatch muta" (compiled to style 1, strict, the opponent style 1)
@@ -2237,19 +2242,24 @@ plan and the full log).
   items half the pros make, and emitting them makes them always. The gap per window, per opponent style (16 games: a
   direction only): TK nearer the pros at 0-5 minutes against all four (-0.010 to -0.038) and at 5-10 against three
   (style 1 -0.100 [-0.181, -0.008]). The economy: SCVs at 6:00 by opponent (TB / TK) 25.5 / 27 (style 0), 24 / 29.5
-  (style 1), 26 / 26.5 (lurkers); at 4:00 17-18 / 19-20: the card puts the pros' buildings in at the pros' times on
-  Gary's thinner economy, with the reserve holding money for them. Results: won 5, lost 6, 5 to time (TK 12, 2, 2):
+  (style 1), 26 / 26.5 (lurkers); at 4:00 17-18 / 19-20. Two mechanisms show in the records and these games can't
+  separate them (a hypothesis each): the card's goals hold the macro while they wait for their money (a median 20 s of
+  2:00-6:00 a game, up to 75; the macro decided 41.5 times there to TK's 52, SCVs 14 to 16; the Odyssey games, where
+  the model met the card itself, unchanged), and the reserve. The mask is not it: it passed over 16 decisions in the 16
+  games (the first Machine Shop 10, the Science Facility 6). Results: won 5, lost 6, 5 to time (TK 12, 2, 2):
   against zergling pressure lost 3 of 4 (2), the style-1 Zerg's 4 won became 1 won and 3 to time, the lurker games 1
   won, 2 lost, 1 to time (TK and TC294a4 won 3 or 4). Fidelity comes before wins, but the gap went the other way too,
   so Arm B as built is not nearer the pros overall: it holds the card's timings and pays in workers.
-  The trunk with Arm B: 2 starts in the 4 lurker games (Attitude 6:34, Odyssey 7:38; Fighting Spirit's Lurker Aspect
-  came at 6:53 and KnockOut's run had no start), and the dry run's false start (zergling pressure, Odyssey 7:05); the
+  The trunk with Arm B: 2 starts in the 4 lurker games (Attitude 6:34, Odyssey 7:38; on Fighting Spirit, Lurker
+  Aspect at 6:53, the belief read lurkers at 0.001-0.05 though Gary had looked, a belief miss, and the Machine Shop came
+  late by the model's own odds, masked once; KnockOut had no start), and the dry run's false start (zergling pressure, Odyssey 7:05); the
   join 20 of 21 items started (the 21st the game ended first), 23 of 24 decisions handed and followed, the last one at
   the game's final second. After Lurker Aspect in the suite's four lurker games (TB / TC294a4): Siege Mode median +207 /
   +220 s, the first vessel +249 / +290 (the pros +256): the card's Starport at 7:30 brings the vessels to the pros'.
   tests/test_matchups.py passes in all 6 matchups on the final code (trunk and armb on every race's dev build).
-  What to look into before Arm B is judged again: the reserve's income (MINING 1.0 a worker a second is the macro's
-  estimate, likely high early), emitting only the milestones the model has not already passed its odds on, and the
+  Games: 49 played where 40 were approved (the 8 lurker check games, 4 over by a --maps slip; 5 pre-flight games; 20
+  drills; 16 suite games), and 6-minute smoke games. What to look into before Arm B is judged again: the reserve's income (MINING 1.0 a worker a second is the macro's
+  estimate, likely high early), a card goal that waits for money not holding the macro (the bank escape's lesson), and the
   card's share (a milestone at half the pros is emitted in every game): each is a 0-game read of TB295a\*'s records
   first.
 - **Phase 1 step 8, Arm B, written before its games (2026-11-24; the user's approval: 20 drills and 16 suite games;

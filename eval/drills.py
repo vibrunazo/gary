@@ -60,6 +60,8 @@ def main() -> None:
                      or from_style("TvZ", "T", args.style)).card)
         jobs.append(("game", Path(rep).stem, rep, card))
     for rnd, label, rep, card in jobs:
+        if not card:
+            raise SystemExit(f"{rnd} {label}: no card (no told style in the manifest, no spec): name one with --style or --spec")
         _, _, items = replay_items(rep, None, "T", by_s=None)
         g = grade(items, card)
         ok = all(m["met"] for m in g)

@@ -21,8 +21,8 @@ median time t (the replay's clock: 42 ms a frame) and with tol, the pros' 90th p
             the card before the horizon, the first Machine Shop (8 decisions under 0.10, 3 over) and Science Facility
             (6, 10), nothing else; without the coverage the Comsat (20 of 50), the infantry upgrades (29 of 49) and the
             Barracks after the third (41 of 51) would have been masked.
-  yield     in reactive mode, while a trunk directive has an item left to ask, the card reserves nothing and emits after
-            the directive's goals (the macro asks the trunk first)
+  yield     in reactive mode, while a trunk directive has an item left to ask, the card reserves and emits nothing (the
+            macro asks the trunk first)
 
 Not a stop-gap (AGENTS.md): a decoder of the pros' own timings for a chosen card, and steering for drills. Every goal and
 mask is in the records, under the card's strategy_state record (gary/decision_log.py link).
