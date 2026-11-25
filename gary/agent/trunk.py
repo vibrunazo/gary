@@ -195,10 +195,13 @@ class Trunk:
                     out.append(LOG.trunk(g.hi.side, ctx.frame, "branch_select", parent=belief.record_id,
                                          branch=c.name, not_enough=s.why))
                 continue
-            thr = self.scorer.tables[c.name]["meta"]["threshold"]
+            meta = self.scorer.tables[c.name]["meta"]
+            thr = meta["threshold"]
             take = s.take
             r = LOG.trunk(g.hi.side, ctx.frame, "branch_select", parent=belief.record_id, branch=c.name,
                           chosen=c.name if take else "none", p_pro=s.p, interval=[s.lo, s.hi], n=s.n, cell=s.cell,
+                          fields=self.scorer.fields(meta, belief, ctx),      # (the whole state scored: eval/coach.py,
+                          p_tech=round(belief.tech_probs.get(meta["tech"], 0.0), 4),   # tests/test_trunk_faithful.py)
                           backoff=s.level, threshold=thr, contrast_p=s.base_p, contrast_hi=s.base_hi,
                           contrast_cell=s.base_cell,
                           table=self.scorer.tables[c.name]["name"],

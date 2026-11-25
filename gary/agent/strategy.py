@@ -259,6 +259,25 @@ def compile_prompt(text: str, matchup: str = "TvZ", race: str = "T") -> Strategy
                            "opponent_style_name": _name(matchup, enemy, oppstyle), "status": status})
 
 
+def matchup_of(race: str, enemy: str) -> str:
+    """The matchup's name, the races in T, Z, P order (TvZ, PvT, ZvZ)."""
+    a, b = sorted((race, enemy), key="TZP".index)
+    return f"{a}v{b}"
+
+
+def resolve(race: str, matchup: str, strategy: str | None = None, replay: str | None = None,
+            player: str | None = None, card: str | None = None) -> StrategySpec | None:
+    """A side's StrategySpec from the launchers' flags (eval/match.py, gary/play.py): a spec's JSON (--card), a text
+    prompt compiled (--strategy) or a replay's player (--from-replay, --from-player); None with none of them."""
+    if card:
+        return StrategySpec.load(card)
+    if strategy:
+        return compile_prompt(strategy, matchup, race)
+    if replay:
+        return from_replay(replay, matchup, player, None if player else race)
+    return None
+
+
 def describe(spec: StrategySpec) -> str:
     lines = [f"{spec.status}: {spec.race} in {spec.matchup}, style {spec.style} ({spec.style_name}), {spec.adherence_mode}; "
              f"card {spec.card_id} ({len(spec.card)} milestones); from {spec.source}"]

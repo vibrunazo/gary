@@ -10,7 +10,8 @@ and its line removed; a new one gets an issue and a line).
 - `gary/`: the agent (`gary/agent`: arbiter, executor and its race plugs, macro, army, fight, rules; the strategic
   trunk, `trunk.py` with `contracts.py` and `selector.py`'s pro-frequency scorer, option `trunk`; the recipe card held
   by the macro, `card_macro.py`, options `armb` and `strict`; the pre-game StrategySpec, `strategy.py`: a style's card,
-  `--from-replay`, the prompt compiler, eval/match.py `--strategy`; drills graded by `eval/drills.py`), the
+  `--from-replay`, the prompt compiler, eval/match.py and gary/play.py `--strategy`; drills graded by `eval/drills.py`;
+  the five templated answers about a game from its records, `eval/coach.py`, and their blind pack, `eval/blind.py`), the
   race data (`gary/terran.py`, `zerg.py`, `protoss.py`, `race.py`), the learned models (`gary/policy`), the
   interface (human-like hands) and the game environment.
 - `eval/`: the launcher (`match.py`), league rounds (`league.py`, which keeps each round's feature rows), measures
@@ -111,7 +112,9 @@ and its line removed; a new one gets an issue and a line).
   tracker or a dataset builder (a new difference fails it; its INTENDED and KNOWN lists, with issues, say what may
   differ); a change of behaviour records the parity
   hashes again (`tests/test_parity.py --record`) in its commit, with the reason; `tests/test_matchups.py`
-  plays every matchup that can play; `tests/test_live.py` (a minute) plays each race's dev build through the live
+  plays every matchup that can play; `tests/test_trunk_faithful.py` re-queries the trunk's saved branch scores in memory
+  (their P_pro, their minimal flips, under 1 ms a query) after a change to the trunk, its tables or its records;
+  `tests/test_live.py` (a minute) plays each race's dev build through the live
   launcher on a stand-in for the bridge, after any change to the live path (`gary/scr_env.py`, `gary/play.py`) or to
   what the agent asks of the game (a new `Game` method, a new observation field).
 - "Why did Gary do that?" is answered from the game's records (`python -m eval.why`) before writing a

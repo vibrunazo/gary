@@ -63,6 +63,7 @@ DANGER_FOR = 60 * 24                          # balance: a base with zerg fighte
 GATHERING = set(range(79, 92))                # orders: to, at, mining and returning minerals or gas
 ZERG_FIGHTERS = {37, 38, 39, 43, 103, 46, 47, 44, 45, 62}
 ATTACK_MOVE_ORDER, PATROL_ORDER = 14, 152
+GAS_HIDDEN = 2 * 24                           # frames a worker inside a refinery may be out of sight (option gashidden)
 RALLY_DOWN, RALLY_OUT = 285 * 24, 450 * 24   # rally_ramp: inside the main's ramp until 4:45, at its
                                              # bottom until 7:30, then in front of the natural (pros' marines
                                              # at 3:00-4:00: the ramp's top 33%, the main 30%; at 5:00-6:00
@@ -166,6 +167,7 @@ class Executor:
         self.danger: dict[tuple, int] = {}            # balance: base center -> frame zerg fighters were last seen near it
         self.next_transfer = 0
         self.transfer_ahead = False                   # option transferahead (transfer)
+        self.gas_hidden = False                       # option gashidden: a builder inside its refinery isn't gone
         self.hall_seen: dict[int, tuple] = {}         # transferahead: an unfinished town hall's first (frame, hp)
         self.halls_done: dict[int, int] = {}          # transferahead: town halls once finished, when (first seen
                                                       # finished; a Lair's morph isn't a new one)
@@ -727,6 +729,8 @@ class Executor:
     def _resume_one(self, t, obs: dict, mine: list[dict]) -> bool:
         g = self.g
         if not any(u["tag"] == t.data["worker"] for u in mine):
+            if self._in_gas(t, t.data["worker"]):
+                return False
             g.parked.remove(t)
             if self.lost_builder(t, "its worker is gone"):
                 g.task = t
@@ -1247,6 +1251,19 @@ class Executor:
             return
         self.commands[t.kind](obs, mine, t)
 
+    def _in_gas(self, t: Task, tag: int) -> bool:
+        """Option gashidden: a build's worker missing from the units that Gary had on gas is inside its refinery (out of
+        sight a moment as it harvests), not gone, for GAS_HIDDEN. A style-3 drill's Factory, its builder picked from the
+        gas, was given up 9 frames after the builder was sent ("its SCV is gone", no death: DR295a3, KnockOut)."""
+        if not self.gas_hidden or not any(tag in s for s in self.g.gas_workers.values()):
+            return False
+        f = self.g.hi.frame
+        since, last = t.data.get("hidden_since"), t.data.get("hidden_at")
+        if since is None or last is None or f - last > 24:      # (seen again since: a new absence)
+            since = f
+        t.data["hidden_since"], t.data["hidden_at"] = since, f
+        return f - since < GAS_HIDDEN
+
     def lost_builder(self, t: Task, why: str) -> bool:
         """The build's worker is lost: another one (builder_retries times; True: the task starts over with it,
         as the task on the hands), else the build fails."""
@@ -1259,7 +1276,7 @@ class Executor:
             self.fail_build(t, why)
             return False
         t.data["lost"] = t.data.get("lost", 0) + 1
-        for k in ("worker", "walking", "resume", "looked", "clicked", "money_wait", "unhooked", "reselects", "again_tries",
+        for k in ("worker", "hidden_since", "hidden_at", "walking", "resume", "looked", "clicked", "money_wait", "unhooked", "reselects", "again_tries",
                   "resent", "resent_at"):
             t.data.pop(k, None)
         t.stage, t.started = "start", g.hi.frame
@@ -1375,6 +1392,8 @@ class Executor:
             return
         if t.stage == "reselect":                    # a fight put the build aside: the same worker again
             w = next((u for u in mine if u["tag"] == t.data["worker"]), None)
+            if not w and self._in_gas(t, t.data["worker"]):
+                return
             if not w or w["tag"] in g.pulled | g.block_units:
                 self.lost_builder(t, "its worker was pulled or is gone")
                 return
@@ -1422,6 +1441,8 @@ class Executor:
             return
         if t.stage == "wait_arrival":
             w = next((u for u in mine if u["tag"] == t.data["worker"]), None)
+            if not w and self._in_gas(t, t.data["worker"]):
+                return
             if not w:
                 self.lost_builder(t, "its worker is gone")
                 return

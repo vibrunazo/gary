@@ -61,8 +61,9 @@ def loopback(game, slot: int):
     return Loopback(None)
 
 
-def live_game(race: str) -> dict:
-    """MINUTES of a race's dev build on the live path, against an idle enemy: what it saw of the map and what it made."""
+def live_game(race: str, strategy: str | None = None) -> dict:
+    """MINUTES of a race's dev build on the live path, against an idle enemy: what it saw of the map and what it made.
+    strategy: gary.play's --strategy, compiled at the game's start (gary/play.py maker)."""
     import numpy as np
     from gary.agent.manifests import build_gary
     from gary.env import LIVE_COMMAND_DELAY, Game
@@ -74,12 +75,15 @@ def live_game(race: str) -> dict:
     live = loopback(game, slot)
     seen = {}
 
-    def make(hi, mapinfo, r):
-        g = build_gary(hi, mapinfo, PLAYS[r], verbose=False)
-        seen.update(gary=g, mapinfo=mapinfo, hi=hi)
-        return g
-    make.races, make.race = set(PLAYS), race
+    from gary.play import maker
     with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()) as said:
+        inner = maker(PLAYS, verbose=False, strategy=strategy, spec_out=str(Path(tmp) / "live.spec.json"))
+
+        def make(hi, mapinfo, r):
+            g = inner(hi, mapinfo, r)
+            seen.update(gary=g, mapinfo=mapinfo, hi=hi)
+            return g
+        make.races, make.race = set(PLAYS), race
         truth = (MapInfo.from_game(game).hash, game.terrain(), game.unit_type_info(Race.of(race).town_hall))
         found = live.map_path
         same_terrain = all(np.array_equal(a, b) for a, b in zip(live.terrain(), truth[1]))
@@ -88,7 +92,9 @@ def live_game(race: str) -> dict:
         saved = sorted(p.name for p in Path(tmp).iterdir())
     R = Race.of(race)
     mine = [u for u in game.observe()["units"] if u["owner"] == slot]
-    out = {"found": found, "hash": seen["mapinfo"].hash, "true_hash": truth[0], "same_terrain": same_terrain,
+    card = getattr(seen["gary"].macro, "card", None)
+    out = {"card": None if card is None else (card.card_id, card.mode, len(card.card)),
+           "found": found, "hash": seen["mapinfo"].hash, "true_hash": truth[0], "same_terrain": same_terrain,
            "same_info": same_info, "matchup": seen["gary"].matchup, "said": said.getvalue(), "saved": saved,
            "workers": sum(u["type"] == R.worker for u in mine),
            "buildings": sum(u["type"] in R.sizes and u["type"] not in R.town_halls for u in mine)}
@@ -115,6 +121,22 @@ def check(race: str) -> None:
 
 def test_live_terran():
     check("T")
+
+
+def test_live_strategy():
+    """gary.play's --strategy on the live path: compiled once the enemy's race shows, the card held by the macro,
+    the spec saved beside the POV log, the opening played."""
+    try:
+        from gary.env import Game
+        Game.new(MAP, ["T", "Z"], seed=1).close()
+    except Exception as e:
+        print(f"skip: {e}")
+        return
+    r = live_game("T", "practice standard bio vs hatch first 2 hatch muta, strict")
+    assert "game over / bridge lost" not in r["said"], r["said"][-400:]
+    assert r["card"] is not None and r["card"][1] == "strict" and r["card"][2] > 0, (r["card"], r["said"][:600])
+    assert "live.spec.json" in r["saved"], r["saved"]
+    assert r["workers"] >= 12 and r["buildings"] >= 1, f"by {MINUTES}:00: {r['workers']} workers, {r['buildings']} buildings"
 
 
 def test_live_zerg():

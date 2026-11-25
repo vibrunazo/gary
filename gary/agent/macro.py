@@ -192,7 +192,7 @@ class LearnedMacro:
     def step(self, obs: dict, mine: list[dict], done: list[dict], me: dict) -> None:
         g = self.g
         if self.card is not None:
-            g._mine = mine                         # (the card's reserve, read by Gary.committed())
+            g._mine, g._me = mine, me              # (the card's reserve, read by Gary.committed())
             self.card.start(mine)
         if self.shadow is not None:
             self.shadow.step(obs, mine, me)
@@ -249,7 +249,7 @@ class LearnedMacro:
             goal["rid"] = LOG.link(r, goal["parent"])["id"]
             self.trunk.decided(goal, r, mine)
         if self.card is not None and (self.goal is None or self.card.mode == "strict" and "card" not in self.goal
-                                      and "directive" not in self.goal):
+                                      and "directive" not in self.goal and not self.card.adopt(self.goal, mine)):
             # (Arm B: a due milestone of the card, after the trunk's directives; in strict mode in place of the model's
             # own goal that waits)
             if (goal := self.card.next_goal(obs, mine, done, me)) is not None:
@@ -264,6 +264,13 @@ class LearnedMacro:
                                     f"({self.card.mode})")
                 goal["rid"] = LOG.link(r, self.card.rid)["id"]
         self._learned(obs, mine, done, me)
+
+    def _replaced(self, by: str) -> None:
+        """A goal of the trace's (a trunk item, a card milestone: it has a record id) taken over by a rule: its end in
+        the records (the execution join, eval/trunk_join.py: unwritten, a silent drop)."""
+        if self.goal is not None and self.goal.get("rid"):
+            LOG.order(self.g.hi.side, self.g.hi.frame, self.goal["name"], "dropped", f"replaced by {by}", by="macro",
+                      parent=self.goal["rid"])
 
     def _natural_bunker(self, mine: list[dict], me: dict) -> bool:
         """A bunker at the natural once Gary takes it. Pro TvZ Terrans that expand by 5:00 build one
@@ -331,6 +338,7 @@ class LearnedMacro:
             # 459 times in 15 s, its macro held: round G5; a Terran too after the opening: with its Barracks all
             # destroyed, in 15 of the 96 games of rounds R50a+b, all lost, it set the goal 7 to 2,955 times a game)
             fname = describe(g.race, BUILD, first)
+            self._replaced(f"rule: a {fname} by {self.rax_by // 24 // 60}:{self.rax_by // 24 % 60:02d}")
             self.goal = {"act": BUILD, "id": first, "p": 1.0, "since": hi.frame, "name": fname}
             g.say(f"next: {fname} (none by {self.rax_by // 24 // 60}:{self.rax_by // 24 % 60:02d})")
             LOG.decision(g.hi.side, "macro", hi.frame, fname, inputs=self._seen(obs, mine, me),
@@ -339,6 +347,7 @@ class LearnedMacro:
                 and (due := g.executor.supply_due(obs, mine, done, me)) is not None:
             act, by, uncapped = due
             name = describe(g.race, act, g.race.supply_provider)
+            self._replaced(f"supply ahead: {name}")
             self.goal = {"act": act, "id": g.race.supply_provider, "p": 1.0, "since": hi.frame, "name": name}
             if uncapped:
                 self.goal["uncapped"] = True
@@ -675,13 +684,13 @@ class LearnedMacro:
             return 0, 0
         return self.g.executor.cost_of(self.saved["act"], self.saved["id"])
 
-    def _kept_cost(self, own: bool = False) -> tuple[int, int]:
+    def _kept_cost(self, own: bool = False, card: bool = True) -> tuple[int, int]:
         """The money a new goal leaves alone: the parked decision's (unless it is that one) and the queued units', each
         decided before it and waiting for its busy producer or a depot on its way. Pros keep production going first: a
         Refinery decided while the SCV before it waited for supply took its money, and the SCV waited 14 s more once
         the depot was up (#55)."""
         sm, sg = (0, 0) if own else self._saved_cost()
-        if self.card is not None:                  # (Arm B: the gas of the milestones about to be due; their minerals
+        if self.card is not None and card:         # (Arm B: the gas of the milestones about to be due; their minerals
             sg += self.card.reserve()[1]           # are in Gary.committed())
         for (act, uid), _ in self.queued:
             m, gas = self.g.executor.cost_of(act, uid)

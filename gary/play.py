@@ -4,6 +4,8 @@ StarCraft: Remastered client through the bridge. Any version (a manifest, gary/a
     python -m gary.play --race P --map path/to/map.scx --minutes 12
     python -m gary.play --live                                  # the local player's race, by its manifest
     python -m gary.play --live --terran gt1dev --zerg gz1dev --protoss gp1dev
+    python -m gary.play --live --terran gt1dev --strategy "practice standard bio vs 2 hatch muta, strict"
+    python -m gary.play --live --terran gt1dev --from-replay pro.rep --from-player Flash
 """
 
 from __future__ import annotations
@@ -44,6 +46,34 @@ def report(hi: HumanInterface, game) -> None:
           f"minerals {me['minerals']}  gas {me['gas']}  workers {count({R.worker})}  army {count(set(R.army))}  "
           f"town halls {count(R.town_halls)}  production {count(set(R.production) - set(R.town_halls))}  "
           f"APM {round(hi.stats['actions'] / max(1, hi.frame / 1440))}", flush=True)
+
+
+def enemy_race(obs: dict, slot: int) -> str | None:
+    """The race of the first other player's town hall in sight (at the start: its main)."""
+    return next((HALLS[u["type"]] for u in obs["units"] if u["owner"] not in (slot, 11) and u["type"] in HALLS), None)
+
+
+def maker(manifests: dict, style=None, verbose: bool = True, fight_path=None, strategy: str | None = None,
+          replay: str | None = None, player: str | None = None, card: str | None = None, spec_out: str | None = None):
+    """make_bot(hi, mapinfo, race): the race's Gary, with a StrategySpec from the flags (--strategy, --from-replay,
+    --card) resolved at the game's start, when the enemy's race is known (saved to spec_out); one that is not "ok", or
+    for another race, is printed and Gary plays its manifest's own (a live game isn't refused)."""
+    def make(hi, mapinfo, race):
+        spec = None
+        if strategy or replay or card:
+            from gary.agent.strategy import describe, matchup_of, resolve
+            enemy = enemy_race(hi.game.observe(), hi.slot)
+            spec = resolve(race, matchup_of(race, enemy or race), strategy, replay, player, card)
+            print(describe(spec), flush=True)
+            if spec.status != "ok" or not spec.card or spec.race != race:
+                print(f"strategy {spec.status}" + (f", for {spec.race}" if spec.race != race else "")
+                      + f": Gary plays its manifest's own ({manifests[race]})", flush=True)
+                spec = None
+            elif spec_out:
+                spec.save(spec_out)
+        return build_gary(hi, mapinfo, manifests[race], style, verbose=verbose, fight_path=fight_path, strategy=spec)
+    make.races = set(manifests)
+    return make
 
 
 def play(map_path: str, minutes: float, seed: int | None, save: str, make_bot, name: str,
@@ -185,6 +215,12 @@ def main() -> None:
     ap.add_argument("--style", help="Gary's build style, by id or name (gary/styles.py), over its manifest's choice; "
                     "--list-styles prints them")
     ap.add_argument("--list-styles", action="store_true", help="print the build styles Gary's race has, per matchup, and exit")
+    ap.add_argument("--strategy", help="Gary's strategy as text, compiled at the game's start, once the enemy's race "
+                    "shows (gary/agent/strategy.py): its style and card (Arm B, on the manifest's macro); ambiguous or "
+                    "unsupported: printed, and Gary plays its manifest's own")
+    ap.add_argument("--from-replay", help="Gary's card from this replay's player (gary/agent/strategy.py from_replay)")
+    ap.add_argument("--from-player", help="the replay's player (default: the one of Gary's race)")
+    ap.add_argument("--card", help="a StrategySpec's JSON (python -m gary.agent.strategy ... --out)")
     ap.add_argument("--fight-model", help="replace the version's fight model with this checkpoint")
     ap.add_argument("--quiet", action="store_true", help="don't print each decision")
     ap.add_argument("--live", action="store_true", help="play in a live SC:R client via the bridge")
@@ -201,11 +237,13 @@ def main() -> None:
                 print(describe(mu, args.race))
         return
 
-    def make(hi, mapinfo, race):
-        return build_gary(hi, mapinfo, manifests[race], args.style, verbose=not args.quiet, fight_path=args.fight_model)
-    make.races, make.race = set(manifests), args.race
+    pov = args.pov or "gary_live.pov.jsonl"
+    spec_out = (pov[:-len(".pov.jsonl")] if args.live else (args.save or f"gary_{manifests[args.race]}.rep")[:-4])         + ".spec.json"
+    make = maker(manifests, args.style, not args.quiet, args.fight_model, args.strategy, args.from_replay,
+                 args.from_player, args.card, spec_out)
+    make.race = args.race
     if args.live:
-        play_live(args.pipe, args.minutes, args.profile, args.pov or "gary_live.pov.jsonl", make, args.snapshots,
+        play_live(args.pipe, args.minutes, args.profile, pov, make, args.snapshots,
                   args.map)
     else:
         if not args.map:

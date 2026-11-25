@@ -265,12 +265,10 @@ def main() -> None:
         return
     spec = None
     if args.strategy or args.from_replay or args.card:
-        from gary.agent.strategy import StrategySpec, compile_prompt, describe, from_replay
+        from gary.agent.strategy import describe, matchup_of, resolve
         race = manifest_of(args.a).get("race", "T")
         rb = manifest_of(args.b).get("race", "T")
-        mu = "".join(sorted({race, rb}, key="TZP".index)) if race != rb else race * 2
-        mu = f"{mu[0]}v{mu[-1]}"
-        spec = StrategySpec.load(args.card) if args.card else compile_prompt(args.strategy, mu, race) if args.strategy             else from_replay(args.from_replay, mu, args.from_player, None if args.from_player else race)
+        spec = resolve(race, matchup_of(race, rb), args.strategy, args.from_replay, args.from_player, args.card)
         print(describe(spec))
         if spec.status != "ok" or not spec.card:
             raise SystemExit(f"strategy {spec.status}: no game (see the notes above)")

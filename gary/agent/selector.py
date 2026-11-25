@@ -161,3 +161,60 @@ class ProFrequencyScorer:
                 out[c.name] = NotEnoughEvidence("pro_freq_table", f"{c.name}: n {root['games'] if root else 0} under "
                                                                   f"{meta['min_n']} at the root cell")
         return out
+
+
+# --- decision faithfulness (docs/REFOCUS.md §3.5 metric 2) ----------------------------------------------------------
+
+def state_of(meta: dict, fields: dict, p_tech: float | None = None):
+    """A belief and own context that score as a branch_select record's fields (gary/agent/trunk.py): the belief's odds
+    of the table's tech (its bucket's middle, or p_tech), looked, each chain's first k items had, the minute bucket's
+    middle. For re-querying the trunk in memory, no game."""
+    from types import SimpleNamespace as NS
+    b = [0.0] + list(meta["buckets"]) + [1.0]
+    i = int(fields["belief"])
+    p = p_tech if p_tech is not None else (b[i] + b[i + 1]) / 2
+    mins = [0.0] + [float(x) for x in meta["minutes"]] + [float(meta["minutes"][-1]) + 120.0]
+    j = int(fields.get("minute", 0))
+    units, research = {}, set()
+    for letter, chain in zip("abcdefgh", meta.get("chains", [])):
+        for item in chain[:int(fields.get(letter, 0))]:
+            if item in ("Siege Mode", "Tank Siege Mode"):
+                research.add(item)
+            else:
+                units[item] = 1
+    belief = NS(tech_probs={meta["tech"]: p}, sightings=NS(looked=bool(int(fields.get("looked", 0)))))
+    ctx = NS(frame=int((mins[j] + mins[j + 1]) / 2 * 24), units=units, researched=frozenset(research))
+    return belief, ctx
+
+
+def minimal_flips(scorer: ProFrequencyScorer, branch: str, fields: dict, edits: dict[str, list],
+                  p_tech: float | None = None, max_size: int = 3) -> tuple[bool | None, list[dict]]:
+    """The minimal abductive sets: the smallest sets of edited facts whose change flips the branch's take, re-querying
+    the scorer in memory (handles an overdetermined decision, where no single fact flips it). fields: the state scored
+    (a branch_select record's); edits: fact -> its other valid values (e.g. {"belief": [0, 1, 2], "looked": [0]}).
+    Returns (the take on the state as given, every flipping assignment of the smallest size found)."""
+    from itertools import combinations, product
+    meta = scorer.tables[branch]["meta"]
+
+    def take(f, p=None):
+        belief, ctx = state_of(meta, f, p)
+        s = scorer.score(belief, None, ctx, [_Cand(branch)])[branch]
+        return getattr(s, "take", None)
+    base = take(fields, p_tech)
+    facts = [k for k in edits if edits[k]]
+    for size in range(1, max_size + 1):
+        out = []
+        for keys in combinations(facts, size):
+            for vals in product(*(edits[k] for k in keys)):
+                f = {**fields, **dict(zip(keys, vals))}
+                t = take(f, None if "belief" in keys else p_tech)
+                if t is not None and t != base:
+                    out.append(dict(zip(keys, vals)))
+        if out:
+            return base, out
+    return base, []
+
+
+class _Cand:
+    def __init__(self, name):
+        self.name = name

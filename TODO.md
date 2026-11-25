@@ -54,8 +54,12 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   Step 7b's table fixed (the chain's next item, a matched contrast: 8 lurker check games, every directive started and
   joined) and step 8 (Arm B, options `armb` and `strict`, StrategySpec, --from-replay, the prompt compiler) done
   2026-11-24: 18 of 20 strict drills (gate 2's floor), Arm 0's milestone error 1.4x to 0.6x of the pros' spread, but the
-  suite's economy and gap at 0-10 minutes worse and its results 5 won 6 lost (step 7b 12, 2). Waiting for the user
-  before step 9 (templates, blind evaluation); Arm B's cost in the reactive suite is the open question.
+  suite's economy and gap at 0-10 minutes worse and its results 5 won 6 lost (step 7b 12, 2); by the user's decision
+  Arm B is strict mode only (drills), normal play stays step 7b's. Step 9 done 2026-11-25: eval/coach.py (the five
+  templates), the execution join 381 of 382 (99.7%, gate 3's >= 95%), tests/test_trunk_faithful.py (0.04 ms a query),
+  --strategy and --from-replay live (gary/play.py), the strict card's money wait (gt0.52dev with gashidden); the blind
+  pack (runs/blind/BE297, eval/blind.py) waits for the user's grading. Then step 10 (gate 4's 96 games) on the user's word.
+  Open: the macro sends a builder ahead of the minerals it waits for, not of the gas (a strict drill's Factory +34 s).
 - **The army (narrowed in round two):** no hold on the commit model's commitments (measured as not missing); the retreat
   hold (option `retreathold`) as a pipe fix: 16 games 2026-11-24, retreats made/asked 0.13 to 0.26 (the pros 0.78), as
   written, but the units no farther from the enemy 2 s later than without it (eval/retreat_gain.py); kept off, for the
