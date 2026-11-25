@@ -58,8 +58,10 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   Arm B is strict mode only (drills), normal play stays step 7b's. Step 9 done 2026-11-25: eval/coach.py (the five
   templates), the execution join 89 of 89 trunk items (gate 3's >= 95%; the card's 292 of 293 apart), tests/test_trunk_faithful.py (0.04 ms a query),
   --strategy and --from-replay live (gary/play.py), the strict card's money wait (gt0.52dev with gashidden); the blind
-  pack (runs/blind/BE297, eval/blind.py) waits for the user's grading. Then step 10 (gate 4's 96 games) on the user's word.
-  Open: the macro sends a builder ahead of the minerals it waits for, not of the gas (a strict drill's Factory +34 s).
+  pack (runs/blind/BE297, eval/blind.py) waits for the user's grading. The 20 drills again on the final code (DR299a\*,
+  2026-11-25): 17 of 20, under gate 2's 18 (style 3's first Factory 26-37 s late in 3 of 4); step 10 (gate 4) not
+  launched, the user's call. Open: the macro sends a builder ahead of the minerals it waits for, not of the gas (style
+  3's Factory handed when its 100 gas came, then a 9-10 s walk).
 - **The army (narrowed in round two):** no hold on the commit model's commitments (measured as not missing); the retreat
   hold (option `retreathold`) as a pipe fix: 16 games 2026-11-24, retreats made/asked 0.13 to 0.26 (the pros 0.78), as
   written, but the units no farther from the enemy 2 s later than without it (eval/retreat_gain.py); kept off, for the

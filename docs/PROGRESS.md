@@ -2218,6 +2218,26 @@ plan and the full log).
   scouts (the seen / confirmed absent / unscouted states of REFOCUS §3.1 exist exactly for this: absence counts only
   where Gary looked); and a fixed set of Zerg plans to play against (the four scripted archetypes) is needed to judge
   any of it, as gz1's one plan teaches nothing. What to do first is the user's call.
+- **Phase 1 gate 2 again on the final code: 17 of 20, under the floor; gate 4 not launched (2026-11-25; 20 drills).**
+  The user's decisions on step 9: the blind pack's thresholds accepted (usefulness 3.5 or more, preferred in 60% or
+  more; part 1's accuracy directional at 15 an arm), the user grades it; the 20 strict drills again on the final code,
+  gate 4 (96 games against gz1) only if 18 or more pass; `gary.play` guarded: a strategy (--strategy, --from-replay,
+  --card) with no build named plays the dev builds (gt1dev, gz1dev, gp1dev), on a playing build named explicitly it is
+  refused (`pick_manifests`; tests/test_live.py, 6 cases pass). *The drills (DR299a1-3, step 8's DR295a\* setup:
+  gt1dev+strict+told<N>, gt0.52dev, against gz1dev+noarmy+told1, the suite's four maps, seeds 4004-4005 (style 3:
+  4004), 11 minutes, no gg):* **17 of 20** (gate 2: 18): style 1 8 of 8 (12/12 each), style 2 8 of 8 (9/9; step 8 the
+  same), style 3 1 of 4 (step 8 2 of 4): the first Factory (due 149 s, tol 21) +26 s on Attitude (step 8 met), +37 on
+  Fighting Spirit (+27), +34 on KnockOut (+45, then a lost builder), Odyssey met; the Starport +49 and +67 (tol 36)
+  behind it on Fighting Spirit and KnockOut. Every other milestone met in all its drills (median 1-14 s off). From the
+  records (0 games): the Refinery on the card's time (median -2 s), its three SCVs at 130-136 s (on KnockOut the gas head took
+  them to 1 for 3 s at 152 s), and the Factory waits for its 100 gas (Gary's gas at 100 at 2:35-2:53 in the three failed
+  games, 2:25 in Odyssey's, whose Refinery went 15-20 s earlier); on Attitude the model drew the Factory itself at 151 s
+  (kept as the card's), the goal was handed at about 164 s as its gas came, and its builder walked 9 s to the main and
+  placed it at 173 s (step 8's code: handed 160, placed 161, the builder near). The open item of step 9 is the miss: the
+  macro sends a builder ahead of the minerals it waits for, not of the gas. Not separable in 4 games: whether the money
+  wait adds to it (the Factory placed 10-12 s later than step 8's on Attitude and Odyssey, earlier on KnockOut). Gate 4
+  waits for the user, per their instruction; its command is ready (G4299a: gt1dev+scansample+noanswers+shadow+trunk
+  against gz1, the ladder maps, seeds 4004-4015, 30 minutes, --gg 0, paired with RD285a, the margin 0.118).
 - **Phase 1 step 9: templates, the execution join, the faithfulness test and the blind pack; the user's step 8
   decisions carried out (2026-11-25; 0 rounds, 6 check games).** The user's decisions on step 8:
   Arm B is strict mode only (drills), not a reactive arm: normal play stays step 7b's
