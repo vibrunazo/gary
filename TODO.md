@@ -51,7 +51,11 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   model's clock against every plan, with answers.py on or off; only the lurker answer, Siege Mode, tanks and vessels, follows lurkers, later without it) and step 7b
   (option `trunk`: contracts.py, the pros' branch table, PREP_VS_LURKER end to end, 16 games: 3 starts in 4 lurker
   games, none false, 15 of 15 items joined, Siege Mode 15-50 s earlier, tanks and vessels unchanged) done 2026-11-24.
-  Waiting for the user's approval before step 8 (Arm B).
+  Step 7b's table fixed (the chain's next item, a matched contrast: 8 lurker check games, every directive started and
+  joined) and step 8 (Arm B, options `armb` and `strict`, StrategySpec, --from-replay, the prompt compiler) done
+  2026-11-24: 18 of 20 strict drills (gate 2's floor), Arm 0's milestone error 1.4x to 0.6x of the pros' spread, but the
+  suite's economy and gap at 0-10 minutes worse and its results 5 won 6 lost (step 7b 12, 2). Waiting for the user
+  before step 9 (templates, blind evaluation); Arm B's cost in the reactive suite is the open question.
 - **The army (narrowed in round two):** no hold on the commit model's commitments (measured as not missing); the retreat
   hold (option `retreathold`) as a pipe fix: 16 games 2026-11-24, retreats made/asked 0.13 to 0.26 (the pros 0.78), as
   written, but the units no farther from the enemy 2 s later than without it (eval/retreat_gain.py); kept off, for the
