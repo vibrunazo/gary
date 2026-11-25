@@ -62,7 +62,9 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   2026-11-25): 17 of 20, under gate 2's 18 (style 3's first Factory 26-37 s late in 3 of 4). gt0.53dev (option
   `gasahead`, gt1dev only: the builder sent ahead of its gas; a card milestone yields only to the ones before it):
   18 of 20 (DR300a\*, 2026-11-25), gate 2 met; step 10 (gate 4, G4299a, 96 games) passed: by supply +0.013 [-0.044, +0.070] against RD285a, every
-  window's gap interval holding zero. Waiting for the user's Phase 1 sign-off before docs/ARCHITECTURE.md. Open after Phase 1: `gasahead` into
+  window's gap interval holding zero. Gate 3's blind part: the user's review (the sheet not graded): Q1/Q2 faithful
+  but in debug jargon, now plain Brood War English (eval/coach.py, 0 games); Q3/Q4 confirm mid-game directives and a
+  top-down tactical intent layer for Phase 2. Waiting for the user's Phase 1 sign-off before docs/ARCHITECTURE.md. Open after Phase 1: `gasahead` into
   every build.
 - **The army (narrowed in round two):** no hold on the commit model's commitments (measured as not missing); the retreat
   hold (option `retreathold`) as a pipe fix: 16 games 2026-11-24, retreats made/asked 0.13 to 0.26 (the pros 0.78), as

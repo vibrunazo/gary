@@ -2283,6 +2283,29 @@ plan and the full log).
   reads (steps 4-6), gate 2's drills 18 of 20 (DR300a\*), gate 3's execution join 89 of 89 trunk items with the blind
   pack (runs/blind/BE297) graded by the user. Calling Phase 1 passed, and folding the proven schemas into
   docs/ARCHITECTURE.md, wait for the user's sign-off.
+- **Phase 1 gate 3, the user's review of the coach's answers; their wording in plain Brood War English (2026-11-25; 0
+  games).** The user reviewed eval/coach.py's answers directly and did not grade the blind pack's sheet
+  (runs/blind/BE297/sheet.csv), so its written measures (usefulness 3.5 or more, preferred in 60% or more, part 1's
+  accuracy) have no score: gate 3's blind part stands as this verdict. *The verdict:* the facts in Q1 (the opening)
+  and Q2 (what Gary thought the Zerg was doing) are real and faithful to the records, but they were phrased in internal
+  debug jargon (model ids such as `TvZ_T_...`, code names such as `PREP_VS_LURKER`, `P(lurker first) 50%-80%`,
+  `cover 0%`, an empty `""` where a contrast cell was missing): not readable for a Brood War player learning the game.
+  Q1 and Q2 need plain wording, or the grounded narrator. Q3 (buildings chosen by the build model's dice at 2%, 5% and
+  6%) and Q4 (the army model's "keep" at 86% for a group at tile (20,28)) show what Gary's decisions are today, and
+  confirm that mid-game directives and a top-down tactical intent layer are still needed in Phase 2. *The wording
+  (eval/coach.py, 0 games):* every answer now speaks plain Brood War English, from tables of words with a fallback that
+  un-codes a new key: the build model and the army model by name, no model ids; directives by what they are ("the
+  anti-lurker plan: Siege Mode and tanks, then a Starport, a Science Facility and Science Vessels"); the trunk's score as
+  a question ("Should Gary start the anti-lurker plan? In 41 pro games in the same spot (lurkers first rated 50%-80%
+  likely, Factory and Machine Shop built), the pros started it within 2 minutes 69% of the time ... Over Gary's 50% bar
+  and well above those pros, so Gary started it"), the contrast said only when it differs (no empty cell); the main's
+  scouting as what Gary saw ("its last look, at 3:07, only glimpsed its edge, so tech it had not seen could still be
+  there", in place of `cover 0%`); card milestones and tags as buildings and reasons ("The first Bunker of the pros'
+  build, due by 7:44, was late: Gary's build model kept choosing other things"); the macro's passed-over options, the
+  orders' fates and whose turn Gary's clicks were on in words; the army's notes in tiles, as the rest. The citations
+  ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
+  answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
+  The blind pack BE297 keeps the old wording (it was built before).
 - **Phase 1 step 9: templates, the execution join, the faithfulness test and the blind pack; the user's step 8
   decisions carried out (2026-11-25; 0 rounds, 6 check games).** The user's decisions on step 8:
   Arm B is strict mode only (drills), not a reactive arm: normal play stays step 7b's
