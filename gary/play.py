@@ -4,8 +4,8 @@ StarCraft: Remastered client through the bridge. Any version (a manifest, gary/a
     python -m gary.play --race P --map path/to/map.scx --minutes 12
     python -m gary.play --live                                  # the local player's race, by its manifest
     python -m gary.play --live --terran gt1dev --zerg gz1dev --protoss gp1dev
-    python -m gary.play --live --terran gt1dev --strategy "practice standard bio vs 2 hatch muta, strict"
-    python -m gary.play --live --terran gt1dev --from-replay pro.rep --from-player Flash
+    python -m gary.play --live --strategy "practice standard bio vs 2 hatch muta, strict"   # (on the dev builds)
+    python -m gary.play --live --from-replay pro.rep --from-player Flash
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from gary.mapinfo import MapInfo
 from gary.race import Race
 
 DEFAULTS = {"T": "gt1", "Z": "gz1", "P": "gp1"}   # the Gary each race plays
+DEV = {"T": "gt1dev", "Z": "gz1dev", "P": "gp1dev"}   # ...and with a strategy (--strategy, --from-replay, --card)
 HALLS = {C.COMMAND_CENTER: "T", C.HATCHERY: "Z", C.NEXUS: "P"}
 
 
@@ -51,6 +52,23 @@ def report(hi: HumanInterface, game) -> None:
 def enemy_race(obs: dict, slot: int) -> str | None:
     """The race of the first other player's town hall in sight (at the start: its main)."""
     return next((HALLS[u["type"]] for u in obs["units"] if u["owner"] not in (slot, 11) and u["type"] in HALLS), None)
+
+
+def pick_manifests(named: dict, strategic: bool) -> dict:
+    """Each race's manifest: the one named, else the playing build (DEFAULTS); with a strategy, the dev build (DEV),
+    the Phase 1 build the cards are made and checked on (docs/REFOCUS.md), and a playing build named explicitly is
+    refused (ValueError): its macro takes no card a strategy was checked with, so the strategy would be quietly not
+    played as asked."""
+    out = {}
+    for race, name in named.items():
+        if name is None:
+            out[race] = DEV[race] if strategic else DEFAULTS[race]
+        elif strategic and not name.split("+")[0].endswith("dev"):
+            raise ValueError(f"--strategy, --from-replay and --card play on a dev build: {name} is a playing build "
+                             f"(use {DEV[race]}, the default with a strategy, or leave the flag out)")
+        else:
+            out[race] = name
+    return out
 
 
 def maker(manifests: dict, style=None, verbose: bool = True, fight_path=None, strategy: str | None = None,
@@ -201,9 +219,12 @@ def _save_live(hi: HumanInterface, gary, pov: str) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--terran", default=DEFAULTS["T"], type=manifest_name, help="the Gary that plays Terran (a manifest)")
-    ap.add_argument("--zerg", default=DEFAULTS["Z"], type=manifest_name, help="the Gary that plays Zerg (a manifest)")
-    ap.add_argument("--protoss", default=DEFAULTS["P"], type=manifest_name, help="the Gary that plays Protoss (a manifest)")
+    ap.add_argument("--terran", type=manifest_name, help="the Gary that plays Terran (a manifest; default gt1, with a "
+                    "strategy gt1dev)")
+    ap.add_argument("--zerg", type=manifest_name, help="the Gary that plays Zerg (a manifest; default gz1, with a "
+                    "strategy gz1dev)")
+    ap.add_argument("--protoss", type=manifest_name, help="the Gary that plays Protoss (a manifest; default gp1, with "
+                    "a strategy gp1dev)")
     ap.add_argument("--race", default="T", choices=["T", "Z", "P"], help="headless: the race Gary plays")
     ap.add_argument("--map", help="a .scm/.scx map (or a pre-1.18 replay) for headless play; live: the map's file, "
                     "when it isn't among the maps Gary finds it in (gary/scr_env.py known_maps)")
@@ -229,7 +250,11 @@ def main() -> None:
     ap.add_argument("--pov", help="where to save the point-of-view log (live)")
     ap.add_argument("--snapshots", help="live: save what the bridge showed Gary each second (for tools/parity.py)")
     args = ap.parse_args()
-    manifests = {"T": args.terran, "Z": args.zerg, "P": args.protoss}
+    try:
+        manifests = pick_manifests({"T": args.terran, "Z": args.zerg, "P": args.protoss},
+                                   bool(args.strategy or args.from_replay or args.card))
+    except ValueError as e:
+        ap.error(str(e))
     if args.list_styles:
         from gary.styles import describe
         for mu in ("TvZ", "TvT", "ZvZ", "PvT", "PvZ", "PvP"):

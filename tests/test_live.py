@@ -75,9 +75,10 @@ def live_game(race: str, strategy: str | None = None) -> dict:
     live = loopback(game, slot)
     seen = {}
 
-    from gary.play import maker
+    from gary.play import maker, pick_manifests
+    plays = pick_manifests({r: None for r in PLAYS}, True) if strategy else PLAYS   # (no build named: as the CLI's)
     with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()) as said:
-        inner = maker(PLAYS, verbose=False, strategy=strategy, spec_out=str(Path(tmp) / "live.spec.json"))
+        inner = maker(plays, verbose=False, strategy=strategy, spec_out=str(Path(tmp) / "live.spec.json"))
 
         def make(hi, mapinfo, r):
             g = inner(hi, mapinfo, r)
@@ -93,7 +94,7 @@ def live_game(race: str, strategy: str | None = None) -> dict:
     R = Race.of(race)
     mine = [u for u in game.observe()["units"] if u["owner"] == slot]
     card = getattr(seen["gary"].macro, "card", None)
-    out = {"card": None if card is None else (card.card_id, card.mode, len(card.card)),
+    out = {"card": None if card is None else (card.card_id, card.mode, len(card.card)), "version": seen["gary"].version,
            "found": found, "hash": seen["mapinfo"].hash, "true_hash": truth[0], "same_terrain": same_terrain,
            "same_info": same_info, "matchup": seen["gary"].matchup, "said": said.getvalue(), "saved": saved,
            "workers": sum(u["type"] == R.worker for u in mine),
@@ -134,9 +135,27 @@ def test_live_strategy():
         return
     r = live_game("T", "practice standard bio vs hatch first 2 hatch muta, strict")
     assert "game over / bridge lost" not in r["said"], r["said"][-400:]
+    assert r["version"].endswith("dev"), f"a strategy with no build named played {r['version']}, not the dev build"
     assert r["card"] is not None and r["card"][1] == "strict" and r["card"][2] > 0, (r["card"], r["said"][:600])
     assert "live.spec.json" in r["saved"], r["saved"]
     assert r["workers"] >= 12 and r["buildings"] >= 1, f"by {MINUTES}:00: {r['workers']} workers, {r['buildings']} buildings"
+
+
+def test_strategy_needs_a_dev_build():
+    """A strategy on a playing build named explicitly is refused, not quietly played without its card; with no build
+    named, a strategy plays the dev builds and no strategy the playing builds."""
+    from gary.play import DEFAULTS, DEV, pick_manifests
+    none = {"T": None, "Z": None, "P": None}
+    assert pick_manifests(none, False) == DEFAULTS
+    assert pick_manifests(none, True) == DEV
+    assert pick_manifests({**none, "T": "gt1dev+strict"}, True)["T"] == "gt1dev+strict"
+    assert pick_manifests({**none, "T": "gt1"}, False)["T"] == "gt1"
+    try:
+        pick_manifests({**none, "T": "gt1"}, True)
+    except ValueError as e:
+        assert "gt1dev" in str(e), e
+    else:
+        raise AssertionError("a strategy on gt1 was not refused")
 
 
 def test_live_zerg():
