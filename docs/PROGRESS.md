@@ -2260,6 +2260,29 @@ plan and the full log).
   **18 of 20**, gate 2 met: styles 1 and 2 8 of 8 each, style 3 2 of 4 (the first Factory +23 s on Attitude, +26 on
   Fighting Spirit, tol 21; KnockOut and Odyssey met); every other milestone met in every drill (the Starport 20 of 20,
   median +2 s; the first Factory 18 of 20, median +9 s). Gate 4 (G4299a) launched at once by the user's instruction.
+- **Phase 1 gate 4: passed (2026-11-25; G4299a, 96 games).** The whole Phase 1 build,
+  gt1dev+scansample+noanswers+shadow+trunk (gt0.53dev: the scan sampler, the answers off, the belief and card log-only,
+  the trunk's lurker directive; Arm B not on, by the user's decision) against gz1, the ladder maps, seeds 4004-4015, 30
+  minutes, gg off, paired with RD285a (gt0.49dev, whose TvZ play is gt0.50dev's, the Phase 0 baseline; gz1's code and
+  dice unchanged since, parity). Won 17 lost 20, 59 at time (Terran ahead 28, even 23, Zerg ahead 8); RD285a won 16
+  lost 20, 60 at time (30, 17, 13). **The guardrail (eval/paired.py):** by supply +0.013 [-0.044, +0.070] (96 games
+  resolve +-0.059), the interval holds zero, so it passes without the margin (0.118); by the Terran's critic +0.086
+  [+0.015, +0.162], by both critics +0.056 [-0.016, +0.129]. **Fidelity per window (eval/gap_windows.py --side T,
+  B - A, lower nearer the pros), every interval holding zero:** all features 0-5 +0.015 [-0.002, +0.042], 5-10 +0.004,
+  10-15 +0.009, 15-20 -0.013, 20-25 -0.000, 25-30 -0.031, the whole game +0.011 [-0.021, +0.046]; macro features +0.001,
+  +0.008, +0.006, -0.026, +0.008, -0.052 (whole +0.017 [-0.038, +0.074]); fight features +0.037 [-0.009, +0.104] at
+  0-5, then -0.001, +0.014, +0.005, -0.014, +0.017 (whole +0.003). The closest call is the first five minutes (all
+  features, the interval's low end -0.002). **The build per style (eval/style_adherence.py):** as RD285a's (style 1, 56
+  games: every first time within 0.1 minute; style 3, 8 games, the same), but style 2 (32 games) has an Academy by 8:00
+  in 22% of games (RD285a 56%, the pros 48%) and a bunker in 38% (53%; the pros 61%): the ComSat on the model's clock
+  under `noanswers` (step 7a's finding), a drift away from the pros on 32 games. **The bank and the decision rate (the
+  records' macro decisions; paired by map and seed, 90% bootstrap):** minerals at a decision +104 [-27, +233] at 10-15,
+  +341 [-34, +728] at 15-20, +205 [-316, +723] at 20-25 (RD285a 635, 1,799, 2,244), not measurable, all leaning to more
+  banked; decisions a minute within 1.1 of RD285a's in every window, none measurable (0-5: 8.6 against 8.7, the interval
+  -0.2 to -0.0). The acceptance gate's other conditions stand as their entries left them: gate 1's scouting and belief
+  reads (steps 4-6), gate 2's drills 18 of 20 (DR300a\*), gate 3's execution join 89 of 89 trunk items with the blind
+  pack (runs/blind/BE297) graded by the user. Calling Phase 1 passed, and folding the proven schemas into
+  docs/ARCHITECTURE.md, wait for the user's sign-off.
 - **Phase 1 step 9: templates, the execution join, the faithfulness test and the blind pack; the user's step 8
   decisions carried out (2026-11-25; 0 rounds, 6 check games).** The user's decisions on step 8:
   Arm B is strict mode only (drills), not a reactive arm: normal play stays step 7b's
