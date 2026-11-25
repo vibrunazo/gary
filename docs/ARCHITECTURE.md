@@ -7,29 +7,31 @@ it plays with pro-level game sense, but with **human hands** (human APM, attenti
 and mistakes), it can be **told what to play** ("go 2 hatch muta", "play the PvT build from this
 replay"), and it can **explain why** it did what it did.
 
-**What is built (2026-10-24).** This document is the design; [PROGRESS.md](PROGRESS.md) says what
+**What is built (2026-11-25).** This document is the design; [PROGRESS.md](PROGRESS.md) says what
 exists, and [CONTROL.md](CONTROL.md) replaced the single-policy plan with layers of deciders and
-skills. Per section:
+skills. Phase 1 of [REFOCUS.md](REFOCUS.md) (completed 2026-11-25) built the strategic layers for the TvZ Terran
+first: what shipped is in §6.11. Per section:
 
 | Section | Status |
 |---|---|
-| §3 principles | 2 (one pair of hands), 4 (symbolic layer learning by counting), 6 (swappable implementations), 7 (slots) and 8 (reproducible: games are deterministic per seed and replayed to any moment) built; 1 restated below as Gary works now; 3 partly (*z* is a build style, no prompts); 5 records exist, no narrator yet |
+| §3 principles | 2 (one pair of hands), 4 (symbolic layer learning by counting), 6 (swappable implementations), 7 (slots) and 8 (reproducible: games are deterministic per seed and replayed to any moment) built; 1 restated below as Gary works now; 3 partly (*z* is a build style or a recipe card; a prompt is matched against the catalogue's names, §6.11); 5 records and five templated answers from them (§6.11), no narrator yet |
 | §4 overview, §5 components | Replaced by CONTROL.md's layers: posture, macro, army, fight, motor, each a provider chosen by a manifest |
-| §6.1 `StrategySpec` | Partly: *z* is a build-style cluster (`--style`, or the strategy selector's choice) |
+| §6.1 `StrategySpec` | Partly: *z* is a build-style cluster (`--style`, or the strategy selector's choice), or a `StrategySpec` with a recipe card from a style, a replay or a prompt (§6.11); no branches or segments in it yet |
 | §6.2 `HumanProfile` | Built (pro and lower profiles); select-to-order times fitted to pro replays, the rest placeholders |
 | §6.3 `HumanAction` | Built as the human interface every executor clicks through; no model emits these actions directly (deciders choose in their own spaces) |
 | §6.4 `Intent` | Built as each layer's intents (`gary/agent/intents.py`); the single intent head with alternatives is deferred |
-| §6.5 trace | Partly: decision records for every layer of both sides beside each game's replay (`<game>.records.jsonl`, read by `eval/why.py`), POV and trace logs; no formal schema |
-| §6.6 slots | Built as manifests and options (`gary/agent/manifests.py`) |
+| §6.5 trace | Partly: decision records for every layer of both sides beside each game's replay (`<game>.records.jsonl`, read by `eval/why.py`), POV and trace logs; the strategic trunk's records joined by `{id, parent}` (§6.11); no formal schema |
+| §6.6 slots | Built as manifests and options (`gary/agent/manifests.py`); the strategic trunk's providers typed in `gary/agent/contracts.py` (§6.11) |
 | §6.7 executors and arbiter | Built: a shared executor with a race plug (Terran, Zerg); one task at a time by fixed priority (Gary-Z's turns as its `rotate` option), production every other turn in fights; leases enforced by priority since v0.10; no `Candidate`, no minimum macro share by profile |
-| §6.8 strategy selector | Built light: a win-rate table per map with a Beta posterior (v0.19), from Gary's own games; no pro statistics, no conditioning on what was scouted yet |
+| §6.8 strategy selector | Built as the departure noted there: the pros' conditional choice frequencies given the plan belief, with a support floor, backoff and a contrast cell, for one directive of the TvZ Terran (§6.11); the older win-rate table per map (v0.19, from Gary's own games) is not used; no `pro` or `adaptive` win-rate modes |
 | §6.9 hidden enemy status | Partly: enemy HP hidden unless selected; no upgrade estimates |
 | §6.10 fog memory | Built: enemy buildings, and the army seen in the last 3 minutes |
 | §7.1-7.3 data, taxonomy | Built (taxonomy unreviewed) |
 | §7.4 camera logger | Not started |
-| §7.5 opponent model | Started: the belief model (the enemy's army, hidden or not), each side of TvZ; no inference of the enemy's *z* |
+| §7.5 opponent model | Started: the belief model (the enemy's army, hidden or not), each side of TvZ; the enemy's plan, P(enemy plan \| seen), for the TvZ Terran, learned from the pros' games, beside sighting states (§6.11) |
 | §7.6 feature discovery, §7.7 guide mining | Deferred: unbuilt, they cost nothing |
-| §8 explainability, §8.1 broadcast | The POV viewer and the decision records (`eval/why.py`: who decided what, with what odds, and each order's fate) exist; no narrator, no broadcast |
+| §8 explainability, §8.1 broadcast | The POV viewer, the decision records (`eval/why.py`: who decided what, with what odds, and each order's fate) and five templated answers from them (`eval/coach.py`, §6.11) exist; no narrator, no broadcast |
+| §6.11 the strategic trunk (Phase 1) | Built for the TvZ Terran as options on gt1dev (gt0.53dev), not in gt1; in every other matchup the providers answer "not enough evidence" (no model, table or card there) |
 | §9 experiments | Built: manifests and options, the league (Gary-T against Gary-Z, paired 96-game rounds, the gap to modern pros with a bootstrap spread), pro scenarios and episodes, paired branches with locked commitments, a run monitor |
 | §10 deployment | The Remastered bridge for offline games, 1:1 with OpenBW |
 
@@ -363,6 +365,9 @@ Each intent record includes the **probabilities of the top-k alternatives**. Tha
 
 ### 6.5 Trace events
 
+As built, the decision records (§8) and, for the strategic trunk, `plan_belief`, `branch_select`, `strategy_state` and
+`fate` records joined by `{id, parent}` (§6.11) stand in for the envelope below.
+
 ```yaml
 # common envelope
 { game_id, frame, t_game, seq, kind, payload, refs: [event ids] }
@@ -608,6 +613,148 @@ Perfect per-unit records of fogged enemies would be superhuman. Forgetting units
 - Adaptation across games ("he dropped me twice last game") belongs to `adaptive` mode (§6.8).
 
 **Trace:** `memory` events record entry creation, refresh, merging, decay and drop. That answers "why didn't you see the drop coming?": *"last saw 2 dropships at 8:10 (40 s ago); location uncertainty covered all three bases; confidence 0.2."*
+
+### 6.11 The strategic trunk as built (Phase 1, completed 2026-11-25)
+
+Phase 1 of [REFOCUS.md](REFOCUS.md) built the strategic layers of this design for the TvZ Terran first, inside the
+existing agent. It was completed on the user's sign-off on 2026-11-25; each gate's result is in
+[PROGRESS.md](PROGRESS.md) and summed up at the end of this section. This section describes what shipped and where it
+departs from the design above. Phases 2 and 3 of REFOCUS.md are still open.
+
+**Where it runs.** The pieces are options on gt1dev (gt0.53dev), not part of its manifest and not in gt1:
+
+| Option | What it turns on |
+|---|---|
+| `scansample` | The scan sampler (a STOP-GAP, below) |
+| `shadow` | The plan belief and the recipe card's tags, log-only |
+| `noanswers` | Turns `answers.py` off (its forced goals, vetoes and tech scan) |
+| `trunk` | The strategic trunk and its directive |
+| `strict` | The card held by the macro, for drills |
+
+- The judged build is `gt1dev+scansample+noanswers+shadow+trunk`.
+- The reactive card (`armb`) is built, but by the user's decision it is not used in normal play.
+- Every race and matchup builds the providers. `tests/test_matchups.py` passes in all six matchups with `trunk` and `armb` on each race's dev build.
+- Where a matchup has no model, table, card or directive, the providers say "not enough evidence" once in the records and do nothing.
+- What exists today: one plan-belief model, one set of cards and one directive, all for the TvZ Terran (`gary/agent/manifests.py` `SHADOW`, `TRUNK`).
+
+**Contracts** (`gary/agent/contracts.py`). These are Python dataclasses and protocols, not the protobuf of §6. They are not frozen yet: REFOCUS.md §4.2's freeze rule waits until every matchup runs through real providers and the sighting schema covers each race's means of scouting.
+
+| Type | Fields | Use |
+|---|---|---|
+| `NotEnoughEvidence` | provider, why, record_id | What a provider answers when it has nothing to go on; never invented odds or counts |
+| `OwnContext` | frame, race, enemy, matchup, map_name, units, researched, minerals, gas, supply_used, supply_max | The player's own state. Needed for a milestone's completion, a directive's exit and the scorer's backoff |
+| `SightingView` | seen, confirmed_absent, unscouted, regions (region → last look's frame and cover), looked, plan_first | A snapshot of `SightingState` |
+| `PlanBelief` | frame, plan_probs, tech_probs, sightings, evidence, record_id, model (expected_counts, workers_est, town_halls_est not filled yet) | One sample of the belief, with what it read |
+| `Directive` | id, params, items (item, how many), started_frame, exit_condition, trigger_record_id | A reactive directive started by the trunk |
+| `StrategyState` | card_id, opening_card, adherence_mode (`strict` or `reactive`), active_directives, history | The persistent plan: card plus directives, each change with its record id |
+| `CandidateBranch`, `BranchScore` | name, params; p, lo, hi, n, cell, level, pro_won_if_taken, pro_won_if_not, base_p, base_hi, take, base_cell | A branch and its score. What pros do (`p` and its interval) is kept apart from how their games ended (`pro_won_*`, printed, never decided on) |
+| `TacticalIntent` | id, kind, units, target, params, started_frame, end_condition, preempt_by, lease_id, trigger_record_id, attention_hint | Defined but not used: it is Phase 2's |
+
+The providers are `PlanBeliefProvider` (`update(obs, ctx)`, `reset()` for a paired branch's copy; built for a side's slot and the enemy's race), `BranchScorerProvider` (`score(belief, strategy, ctx, candidates)`) and `StrategyTrunkProvider` (`step(belief, current, ctx, rng)`).
+
+**Sighting states** (`gary/policy/sightings.py` `SightingState`). These cover §6.10's "what was looked at", which the plan belief needs.
+- **Regions:** every base of the map except the player's own.
+- **Kept per region:** the last look's frame and its cover, and which enemy halls and tech stood there at that time.
+- **Cover:** the share of the region's points in sight of the player's units and buildings. It uses Brood War's sight radii and heights: a ground eye sees nothing on higher ground. A Comsat scan's point is passed to `look()`.
+- **Three states:**
+  - *seen*;
+  - *confirmed absent*: a look covering half the region or more that found none of the plan's tech;
+  - *unscouted*.
+  A stale look does not count as "never checked".
+- **One code path:** the same code runs over replays (`ingest/sighting_dataset.py`) and in play.
+- **The enemy's main:** `EnemyMain` keeps it in one place for every race and map (Gary's `g.enemy_main`).
+
+**The plan belief** (`gary/policy/plan_belief.py`, trained by `train/plan_belief.py`). This is §7.5's P(enemy *z* | seen), with the pros' plans (`taxonomy/plans.py`) standing in for *z*.
+- **Inputs:** what the belief model sees of the enemy, plus the map. The data samples it once a second; play does the same.
+- **Schedule in play:** a sample every 30 s from 2:30 to 10:00.
+- **Pinned model:** the one without sighting features. With them it differed by less than the games could resolve (Phase 1 step 6).
+- **Looked or not:** `is_looked` splits Gary's moments the way gate 1 does. They count as looked when the plan's tech was seen, or when the main was known and looked at within 2 minutes with at least half covered.
+- **Two names:** the contract's `PlanBelief` is a sample's record; `gary/policy/plan_belief.py` `PlanBelief` is the pinned model that produces it.
+
+**Scouting** (`gary/agent/scouting.py`, option `scansample`). A STOP-GAP (AGENTS.md "The scan sampler") in place of the learned scan model the design expects.
+- **Rate:** scans at the pros' rate per ready-Comsat minute, by game minute and matchup.
+- **Targets:** the main, the natural or another base, in the pros' shares.
+- **Skips:** a region recently looked at.
+- **Replaces:** it fires instead of `answers.py`'s tech scan.
+
+It was built as a sampler because the pros' scan timing barely depends on what they have seen (TvZ: 1.52 scans per ready-Comsat minute before the plan's tech is seen, 1.37 after).
+
+**The trunk** (`gary/agent/trunk.py`, option `trunk`; `gary/agent/selector.py` `ProFrequencyScorer`). This is §6.8 as its departure note describes: it decides by what the pros do, not by win rates.
+1. Every 30 s from 2:30 to 10:00, it reads the belief, then scores each directive not yet started.
+2. **The score:** P_pro(branch | belief, own state), from a pinned table built by `train/pro_branch.py`.
+   - Event counted: the chain's next missing item started within 120 s.
+   - Support floor: 25 modern games, else the cell backs off from (belief, looked, stages, minute) toward belief alone.
+3. **Start rule:** a directive starts where P_pro reaches 0.5 and its interval clears the contrast cell's. The contrast cell is the same cell with a low belief, so the start reflects the part of the choice the belief makes.
+4. **Execution:** a started directive asks for its items in order, as the macro's goals. It ends when Gary has every item, and in this version it is never withdrawn.
+5. **Directives:** race-keyed. There is one today, `PREP_VS_LURKER` (Terran against Zerg): a Factory, a Machine Shop, Siege Mode, 2 Siege Tanks, a Starport, a Control Tower, a Science Facility, 2 Science Vessels.
+6. **Faithfulness:** `selector.minimal_flips` gives a decision's minimal flips, the smallest change of evidence that reverses it (`tests/test_trunk_faithful.py`).
+
+**The recipe card** (`gary/policy/card.py`, `gary/agent/card_macro.py`, `gary/agent/shadow.py`). This is the strict-adherence *z* of §6.7.
+- **Contents:** the one-off milestones that half of the style's modern pros make by 8:00, each at the pros' median time. Its tolerance is their 90th percentile of distance from that time.
+- **Tags (log-only, under `shadow`; `eval/card_tags.py` for played games):**
+  - each one-off decision is `on_card` or `off_card`;
+  - each milestone is on time or `delayed`, by odds, money, busy or hands.
+- **Held by the macro (Arm B):**
+  - a milestone's money is reserved ahead of it;
+  - the milestone is emitted as the macro's goal before its time;
+  - off-card one-offs are masked before the card's horizon.
+- **In use:** strict mode (option `strict`) is the drill mode.
+
+**What to play** (`gary/agent/strategy.py`). §6.1's *z*, as built, is a `StrategySpec`:
+- **Fields:** race, matchup, style, style_name, card_id, card, adherence_mode, source, opponent_style, opponent_style_name, status (`ok`, `ambiguous` or `unsupported`), notes.
+- **Three sources:**
+  - `from_style`: a catalogue style and its card;
+  - `from_replay`: a replay player's one-offs by 8:00 as milestones, with tolerances from the nearest style's card;
+  - `compile_prompt`: §6.6's `strategy_compile` slot as a template script, with no LLM. It matches the request against the catalogue's names; when one style doesn't clearly match, it returns the request as ambiguous (with candidates) or unsupported. "drill", "practice" or "strict" ask for strict adherence.
+- **Entry points:** `eval/match.py` `--strategy` / `--from-replay`, and `gary/play.py` `--strategy` / `--from-replay` / `--card`.
+- **Timing:** all of this happens before the game; nothing runs in the game loop.
+
+**The trace's join** (`gary/decision_log.py` `link`). These are §6.5's `belief`, `strategy_select` and `z_switch` events as built.
+- **The chain:** each record carries `id` and `parent` (`plan_belief` → `branch_select` → `strategy_state`), then the macro's decision of a directive's item (by `trunk: ...`), then its `order`, then its `fate`.
+- **Which records carry ids:** only the records in such a chain.
+- **The shadow's records:** `plan` and `card`.
+- **Checking the join:** `eval/trunk_join.py` reports, for each item the trunk asked for, whether it was started.
+
+**The coach** (`eval/coach.py`; the blind pack, `eval/blind.py`). §8's answers, as templates rather than a narrator.
+- **The five questions:**
+  1. the opening and build order;
+  2. what Gary thought the enemy was doing, and from what evidence;
+  3. a build, tech or expansion (or its delay);
+  4. the army's attack, hold or pull-back;
+  5. a missed defense, supply or timing.
+- **Citations:** every statement cites its record (`[L<line> <time>]`, `#<id>`).
+- **Wording:** plain Brood War English, with no model ids or code names.
+- **Baseline:** `--baseline` prints what `eval/why.py` shows for the same question and window.
+- **What's not built:** no LLM narrator; REFOCUS.md §5.2 adds one only after the templates pass the blind checks.
+
+**What Phase 1 showed** (the acceptance gate of REFOCUS.md §4.3, each as its PROGRESS.md entry left it):
+1. **Scouting and the belief.**
+   - *Scouting:* the Spire or Den seen by 7:00, given that it stood, in 75% of games (the pros 67%), with the scan sampler.
+   - *Against the pros' held-out games:* the belief beats the time-and-map floor at 4, 6 and 8 minutes.
+   - *On Gary's own games, where Gary looked:* its tech part is near certain and right.
+   - *Where Gary did not look:* no better than the floor.
+   - *The joint plan* (opening, hatcheries, tech) stays worse than the pros' floor, because it carries the pros' prior over openings.
+2. **Steering.**
+   - 18 of 20 strict drills within the card's tolerance (DR300a\*).
+   - `--from-replay` and a text prompt both played end to end.
+3. **Explainability.**
+   - The execution join: 89 of 89 directive items asked were started.
+   - A decision's minimal flips: 0.04 ms a query.
+   - The blind pack was not graded. The user's review stood in for it: the answers are faithful, and are now worded for a player. Its questions 3 and 4 show the build model drawing buildings at odds of 2-6% and the army model keeping its orders at 86%, so mid-game directives and a top-down tactical intent layer are Phase 2's work.
+4. **Guardrail.**
+   - 96 paired games against gz1 (G4299a against RD285a): +0.013 [-0.044, +0.070] by supply.
+   - Every window's gap interval holds zero.
+   - One drift away from the pros: style 2's Academy by 8:00 fell from 56% to 22% (pros 48%) under `noanswers`.
+
+**Open after Phase 1** (REFOCUS.md §4.3):
+- **Phase 2:** mid-game directives, and a top-down tactical intent layer (`TacticalIntent`).
+- **Not started:**
+  - the learned scan model that replaces the sampler;
+  - `answers.py`'s mutalisk and turret answers (only the lurker answer has a successor);
+  - the win-rate modes of §6.8;
+  - the narrator.
+- **Phase 3:** the offline ceiling audit of §7.6.
+- **Not yet in every build:** the Phase 1 options themselves.
 
 ---
 
@@ -885,6 +1032,9 @@ Rules:
 - Narrator answers must cite trace event IDs.
 - Counterfactual consistency is tracked as a metric: if an explanation names fact F as the reason, removing F should change the choice.
 - Records logged together can still invent causes: a belief logged next to an intent isn't why the intent was chosen. So before narrating a decision, perturb or zero each group of the deciding model's inputs at that moment (milliseconds for models this size) and give the narrator only the groups that changed the choice: counterfactual consistency by construction, not only as a metric.
+
+Five questions are answered from these records by templates, without a narrator (`eval/coach.py`, §6.11): each
+statement cites its record, in plain Brood War English.
 
 ### 8.1 POV broadcast mode
 

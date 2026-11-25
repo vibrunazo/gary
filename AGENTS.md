@@ -228,6 +228,19 @@ odds become a choice: dice, hold, floors), and fixes of plain bugs.
   play its "most seen" inputs stayed 0 until option `seenall` (2026-10-25: the tracker looked only when the model was
   queried); gt1 has it since gt0.12, so the answers can be measured off now.
   Measure: an option off, against lurker and mutalisk plans: results and the time to the answer.
+  Off in Phase 1's build (option `noanswers`, docs/REFOCUS.md; docs/PROGRESS.md):
+  - Step 7a (NA292a, 16 games against gz1dev told the suite's four plans, paired with the answers on): the first turret
+    and ComSat come on the model's clock against every plan, with the answers on or off. Only the lurker answer
+    (Siege Mode, tanks, vessels) follows lurkers, later without it.
+  - The trunk's `PREP_VS_LURKER` directive (option `trunk`) now gives that lurker answer, from the pros' choice
+    frequencies given the plan belief.
+  - Gate 4 (G4299a, 2026-11-25) played the whole Phase 1 build (gt0.53dev, `+scansample+noanswers+shadow+trunk`), not
+    the answers off alone, against RD285a (answers on), in 96 paired games against gz1 with gg off. The score by supply
+    was +0.013 [-0.044, +0.070], and every window's gap interval held zero.
+  - The build per style matched RD285a's except style 2 (32 games), which drifted away from the pros: an Academy by 8:00
+    in 22% of games (RD285a 56%, the pros 48%) and a bunker in 38% (53%; the pros 61%). The ComSat comes on the model's
+    clock without the answers.
+  - The mutalisk answers and the turret veto have no successor yet, so the entry stays, and gt1 keeps the answers.
 - **The tech scan** (in gt1 and gt1dev, with the answers; `answers.py` tech_scan). With no plan read by 6:30 (and again by
   8:30) and a Comsat with 50 energy, a scan of the enemy's main. Scripted because no model decides scans. Until
   2026-11-23 it could fire only on a map with one enemy start (the main was known only under option `watch`: all 20

@@ -26,9 +26,11 @@ that held, on the Terran's fight roles (rl1), was in gt1dev from gt0.6dev to gt0
 the role model learned from the pros' units with siege, unsiege and mines (tvzmodes), since rl1 has no siege. RL is
 parked (TODO.md); the army's commit decision on paired branches, learned offline, was at chance on 1,004 pairs
 (docs/SELF_PLAY.md). Since 2026-11-23 the direction is docs/REFOCUS.md v2.1 (TODO.md, Direction): Phase 0 (the
-remeasure and housekeeping, done), then Phase 1 in front, scouting first and then the TvZ strategic trunk (an
+remeasure and housekeeping, done), then Phase 1, scouting first and then the TvZ strategic trunk (an
 enemy-plan belief, a persistent strategy card, branches by the pros' conditional choice frequencies, templated
-explanations), with the army's retreat hold beside it.
+explanations), with the army's retreat hold beside it. Phase 1 was completed on 2026-11-25 on the user's sign-off: its
+pieces are options on gt1dev (gt0.53dev), described in docs/ARCHITECTURE.md §6.11. Phases 2 (top-down tactical
+intents, mid-game directives) and 3 are open.
 
 | Phase | Status | What exists | What's missing for its exit criteria |
 |---|---|---|---|
@@ -2306,6 +2308,21 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **Phase 1 completed: the user's sign-off and the docs closeout (2026-11-25; 0 games).**
+  - The user signed Phase 1 off on gate 2 (18 of 20), gate 4 (passed) and their review of the coach's answers as gate 3's
+    blind part.
+  - docs/ARCHITECTURE.md §6.11 now describes what shipped, and its status table points there: `contracts.py` (not frozen),
+    the sighting states, the plan belief, the scan sampler, `StrategyState` and the trunk, the recipe card,
+    `StrategySpec` with `strategy_compile` and `--from-replay`, the trace's join ids, and eval/coach.py.
+  - The section also records where the build departs from the design: dataclasses rather than protobuf, the prompt matched
+    against the catalogue with no LLM, templates with no narrator, and the scan sampler a STOP-GAP. It gives each gate's
+    result as its entry left it.
+  - All of it is options on gt1dev (gt0.53dev), not in gt1.
+  - docs/REFOCUS.md marks Phase 1 completed, with a results block. Phases 2 and 3 stay open, so the document stays the
+    plan for them and is not superseded.
+  - AGENTS.md's `answers.py` entry gains step 7a's read and gate 4's result for the whole build. That includes style 2's
+    Academy by 8:00: 22% against RD285a's 56%, the pros 48%. The entry stays: the mutalisk answers have no successor.
+  - TODO.md: Phase 1 done; `gasahead` into every build, and Phases 2 and 3, as open lines.
 - **Phase 1 step 9: templates, the execution join, the faithfulness test and the blind pack; the user's step 8
   decisions carried out (2026-11-25; 0 rounds, 6 check games).** The user's decisions on step 8:
   Arm B is strict mode only (drills), not a reactive arm: normal play stays step 7b's

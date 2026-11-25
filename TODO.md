@@ -25,7 +25,8 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
      departure): done.
   Found in Phase 0 and fixed after the remeasure (gt0.50dev): gt1dev couldn't start a game outside TvZ (option calm
   had only a TvZ model); the calm layer stands aside there now.
-- **Phase 1 (in front, no time box; v2.1's order, docs/REFOCUS.md §4.3 "Phase 1 Order"):** scouting first, then the
+- **Phase 1: completed 2026-11-25, on the user's sign-off** (docs/REFOCUS.md §4.3 "Phase 1 Results"; what shipped is in
+  docs/ARCHITECTURE.md §6.11). v2.1's order, kept as the record: scouting first, then the
   TvZ strategic trunk and five templated questions, with the gate written in §4.3. Code and 0-game counts cover every
   matchup (mirrors too); the game gates run in TvZ. Each step is judged on its own check before the next:
   1. Plain fixes (0 games): the scan's main known without `watch`, in one shared place (parity again: gt1 too); Gary's
@@ -64,8 +65,17 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   18 of 20 (DR300a\*, 2026-11-25), gate 2 met; step 10 (gate 4, G4299a, 96 games) passed: by supply +0.013 [-0.044, +0.070] against RD285a, every
   window's gap interval holding zero. Gate 3's blind part: the user's review (the sheet not graded): Q1/Q2 faithful
   but in debug jargon, now plain Brood War English (eval/coach.py, 0 games); Q3/Q4 confirm mid-game directives and a
-  top-down tactical intent layer for Phase 2. Waiting for the user's Phase 1 sign-off before docs/ARCHITECTURE.md. Open after Phase 1: `gasahead` into
-  every build.
+  top-down tactical intent layer for Phase 2. Signed off by the user on 2026-11-25; the shipped components and schemas
+  were folded into docs/ARCHITECTURE.md §6.11.
+- **`gasahead` into every build (open, after Phase 1):** the builder sent ahead of its gas is in gt1dev only
+  (gt0.53dev). Fold it into gt1, gz1, gp1 and the other dev builds with a version bump each. gt1, gz1 and gp1 must then
+  record their parity hashes again, with the reason in the commit.
+- **Phase 2 (open, not started; docs/REFOCUS.md §4.3):** to be planned in its own session. From gate 3's review: the
+  coach's Q3 (buildings drawn at 2-6%) and Q4 (the army model's "keep" at 86%) call for mid-game directives and a
+  top-down tactical intent layer: 3-5 modes with intent-conditioned leaves and ArmyNet's heatmap, `TacticalIntent` in
+  gary/agent/contracts.py. Plus the early G4 check (the same card under the pro and a lower HumanProfile).
+- **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept
+  discovery only if that audit calls for it.
 - **The army (narrowed in round two):** no hold on the commit model's commitments (measured as not missing); the retreat
   hold (option `retreathold`) as a pipe fix: 16 games 2026-11-24, retreats made/asked 0.13 to 0.26 (the pros 0.78), as
   written, but the units no farther from the enemy 2 s later than without it (eval/retreat_gain.py); kept off, for the

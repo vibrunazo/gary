@@ -1,6 +1,6 @@
 # Gary — Strategic Trunk, Explainability & Control-Flow Plan (v2.1)
 
-Status: **Draft v2.1** (2026-11-23, revised after Phase 0 and the round-two review of its results; `docs/REFOCUSReviews.md` section 2)  
+Status: **v2.1, Phase 0 and Phase 1 completed** (Phase 1 on 2026-11-25, on the user's sign-off: §4.3 "Phase 1 Results"; what shipped is in `docs/ARCHITECTURE.md` §6.11). **Phase 2 and Phase 3 open.** (Draft v2.1 of 2026-11-23, revised after Phase 0 and the round-two review of its results; `docs/REFOCUSReviews.md` section 2)  
 Scope: Implementation plan for completing the unbuilt upper layers of `docs/ARCHITECTURE.md` (§6.1, §6.8, §7.5, §7.6, §8) inside Gary's existing provider architecture, with pre-written gates and a staged games budget. Time is not a constraint; games are.  
 Audience: Project owner and implementing agents.
 
@@ -328,10 +328,10 @@ class StrategyTrunkProvider(Protocol):
 | Stage | Time Box | Headless Games Budget | Live / Smoke Games | Purpose & Hard Stop / Gate |
 |---|---|---|---|---|
 | **Phase 0: Anchor, Docs & Plumbing** | **3–5 days** | **96 paired** (`gt0.48dev` vs. `gt1`, matched `--gg`) | **3 watched** (T/Z/P) + **1 SC:R LAN** (`tools/parity.py`) | Update `TODO.md` (`## Direction`) to adopt this plan (pausing unstarted `c` items like *home at 15-20* and *PvT tanks* under the maintenance cap), fix stale `rl1` top summary in `docs/PROGRESS.md`, and note the §6.8 pro-frequency departure in `docs/ARCHITECTURE.md`. Replace stale 2026-11-11 `-0.188` baseline; validate live bridge; count `answers.py` firings in 1 league round; fix `#64` RNG seeds (`army.py:159`, `calm.py:41`). **Done 2026-11-23 (one day; results below).** |
-| **Phase 1: Strategic Trunk & Q&As** *(All-matchup code & 0-game counts; TvZ-first heavy game gates; other G1 fidelity capped to watched-game regressions)* | **None (ordered steps below)** | **About 180–240** unconditional (the table "Phase 1 Order" below) | **All 6 matchups** in `tests/test_matchups.py` (real providers) + **5+ live/blind-eval games** | Scouting first; then ship race-keyed joint `P(enemy_z \| seen)`, `StrategyState` + `--from-replay` + `strategy_compile`, pro-frequency tables (`min_n`), one-at-a-time macro rule isolation, 5 templates, and 3-part verification. |
+| **Phase 1: Strategic Trunk & Q&As** *(All-matchup code & 0-game counts; TvZ-first heavy game gates; other G1 fidelity capped to watched-game regressions)* | **None (ordered steps below)** | **About 180–240** unconditional (the table "Phase 1 Order" below) | **All 6 matchups** in `tests/test_matchups.py` (real providers) + **5+ live/blind-eval games** | Scouting first; then ship race-keyed joint `P(enemy_z \| seen)`, `StrategyState` + `--from-replay` + `strategy_compile`, pro-frequency tables (`min_n`), one-at-a-time macro rule isolation, 5 templates, and 3-part verification. **Completed 2026-11-25** (results below). |
 | **Army: the retreat hold, then an owned intent on evidence** | **Any time** | **16** (the retreat hold on `eval/pipe_table.py`); an owned intent only after its 0-game read: **48 screening** + up to **192** paired | Included in Phase 1 live games | Settle the retreat pipe; decide from existing rounds whether an owned intent would change anything (§3.4). |
-| **Phase 2: Top-Down Tactical Intents + Early G4 Check** | **After Phase 1's gate** | Budgeted from Phase 1's and the army reads' outcomes | 2-profile sanity check | Build a small top-down tactical intent layer (3–5 event-grounded modes with intent-conditioned leaves and `ArmyNet`'s `16×16` heatmap—not a bolt-on interceptor like `gather`) if the retreat hold still leaves live army play incoherent or Q&A #4 weak (the 0-game cluster-stealing read is not a veto). Run 1 early G4 test: same recipe card under pro vs. lower `HumanProfile` *h*. |
-| **Phase 3: Dynamic Symbolic Features / OOD Taxonomy** | **Deferred until Phase 1 passes** | **0 games** for ceiling audit; discovery budgeted if triggered | — | Explicitly kept on the roadmap after Phase 1. First step: **offline** 0-game held-out replay ceiling audit (`ARCHITECTURE.md` §7.6: symbolic trunk vs. unconstrained `ValueNet`/policy). If a systematic residual persists, open the residual concept discovery + phase-level OOD taxonomy loop (§5.2 #2). |
+| **Phase 2: Top-Down Tactical Intents + Early G4 Check** *(open, not started)* | **After Phase 1's gate** | Budgeted from Phase 1's and the army reads' outcomes | 2-profile sanity check | Build a small top-down tactical intent layer (3–5 event-grounded modes with intent-conditioned leaves and `ArmyNet`'s `16×16` heatmap—not a bolt-on interceptor like `gather`) if the retreat hold still leaves live army play incoherent or Q&A #4 weak (the 0-game cluster-stealing read is not a veto). Run 1 early G4 test: same recipe card under pro vs. lower `HumanProfile` *h*. |
+| **Phase 3: Dynamic Symbolic Features / OOD Taxonomy** *(open, not started)* | **Deferred until Phase 1 passes** | **0 games** for ceiling audit; discovery budgeted if triggered | — | Explicitly kept on the roadmap after Phase 1. First step: **offline** 0-game held-out replay ceiling audit (`ARCHITECTURE.md` §7.6: symbolic trunk vs. unconstrained `ValueNet`/policy). If a systematic residual persists, open the residual concept discovery + phase-level OOD taxonomy loop (§5.2 #2). |
 
 #### Phase 0 Results (2026-11-23; details in `docs/PROGRESS.md`)
 The run as it was (where it departed from the row above):
@@ -380,12 +380,59 @@ All four conditions must be logged and reported before Phase 1 is called passed 
    - **Blind evaluation** over ≥25 held-out moments from ≥5 games (comparing Phase 1 templates vs. today's `gt1dev` records) shows higher blind next-branch prediction accuracy and passes the learner usefulness rubric.
 4. **Strength & Fidelity Guardrail (`AGENTS.md` promotion rule):** Fidelity per window (`eval/gap_windows.py`) not measurably worse than **`gt0.50dev`** (the Phase 0 baseline), and one paired round of **96 games against `gz1` with gg off on seeds 4004–4015**, where `RD285a` is the baseline already played (the user's decision, `docs/REFOCUSReviews.md` 2.8: the games are the scarce thing, and the suite's rounds show the build against `gz1dev`). It passes by `AGENTS.md`'s rule as written: the pairing's 90% interval holds zero, **or** its loss is under the margin written first, **0.118** (the spread measured in Phase 0's pairing against `gz1`, a per-pair standard deviation of 0.466, at 96 games; an earlier wording joined the two with "and", under which the margin never binds). 48 games are not used for this guardrail: at that size the rule passes a true loss of 0.10 about half the time. `RD285a` stays the baseline only while `gz1`'s code and dice are unchanged; a change that moves every build's streams, or a resign critic retrained for `gz1` so that gg can be on, means the baseline is played again (96 more). Same `--gg` setting on both sides.
 
+#### Phase 1 Results (completed 2026-11-25 on the user's sign-off; details in `docs/PROGRESS.md`)
+Phase 1 is done. **Phases 2 and 3 are still open**, so this document stays the plan for them; it is not superseded.
+
+**What shipped.** Everything below is folded into `docs/ARCHITECTURE.md` §6.11:
+- `contracts.py` (not frozen yet: the Schema Freeze Rule above still holds);
+- `SightingState` and `EnemyMain`;
+- the plan belief;
+- the scan sampler;
+- `StrategyState` and the trunk, with the pro-frequency scorer and the `PREP_VS_LURKER` directive;
+- the recipe card and its tags;
+- `StrategySpec`, `strategy_compile` and `--from-replay`;
+- the trace's join ids;
+- the five templates (`eval/coach.py`).
+
+They are options on `gt1dev` (`gt0.53dev`: `scansample`, `shadow`, `noanswers`, `trunk`, and `strict` for drills). They are not in `gt1`.
+
+**Where the run departed from the plan above:**
+- **Scouting:** step 5's learned scan model was not built. A sampler of the pros' scan timings and targets (`scansample`, a STOP-GAP in `AGENTS.md`) stands in, as §6 row 8 allows when the pros' timing barely depends on what they have seen.
+- **The belief:** the pinned belief is the one without sighting features (step 6: the two differed by less than the games resolve). The sighting states are kept for the looked/unlooked split.
+- **The macro A/B:** Arm B is strict mode only, used for drills. Normal play is step 7b's trunk (the user's decision on step 8's results).
+- **`answers.py`:** off in the judged build (`noanswers`), and its lurker answer is now the trunk's directive. The rest of it has no successor, and it stays in `gt1`.
+- **The `gasahead` fix:** gate 2 first missed at 17 of 20, so `gt0.53dev` added option `gasahead` (the builder sent ahead of its gas), in `gt1dev` only.
+
+**The gate, as each condition's entry left it:**
+1. **Scouting and belief.**
+   - With the sampler, the Spire or Den was seen by 7:00, given that it stood, in 75% of games. The pros' figure is 67%.
+   - On the pros' held-out games the belief beats the floor at 4, 6 and 8 minutes.
+   - On Gary's games, where Gary looked, its tech part is near certain and right. Where Gary did not look, it is no better than the floor.
+   - The joint plan stays worse than the pros' floor because of their prior over openings.
+2. **Steering.**
+   - 18 of 20 strict drills (`DR300a*`).
+   - `--from-replay` and `strategy_compile` both ran end to end.
+3. **Explainability.**
+   - The execution join started 89 of 89 trunk items.
+   - The minimal flip takes 0.04 ms a query.
+   - The blind pack (`BE297`) was not graded. The user's review of the answers stands in its place:
+     - Q1 and Q2 were faithful but written in debug jargon, now reworded in plain Brood War English.
+     - Q3 (buildings drawn at 2%, 5% and 6%) and Q4 (the army model's "keep" at 86%) confirm that mid-game directives and a top-down tactical intent layer are still needed.
+4. **Guardrail.**
+   - `G4299a` against `RD285a`, 96 paired games against `gz1` with gg off: +0.013 [-0.044, +0.070] by supply. Every window's gap interval holds zero.
+   - Style 2's Academy by 8:00 was 22% against `RD285a`'s 56% (the pros 48%) under `noanswers`.
+
+**Open after Phase 1:**
+- **`gasahead` in every build:** it is in `gt1dev` only.
+- **Phase 2 (open, not started):** the inputs from gate 3 are mid-game directives and the top-down tactical intent layer (the Phase 2 row above).
+- **Phase 3 (open, not started):** first the offline ceiling audit.
+
 #### Documentation Update Schedule (Matching Findings to Repo Docs)
 Docs are updated when real measurements or code land—not speculatively ahead of Step 2's counts:
 - **`TODO.md`:** Update `## Direction` **before Step 1 starts** to reflect the 10-step Round 2 Phase 1 order and narrowed army plan; update item status as each step finishes.
 - **`AGENTS.md`:** Add a `STOP-GAP` entry for `tech_scan` at **Step 1** (when bug-fixed and tagged), add one for a scan-timing sampler at **Step 5** only if built, and update/retire `answers.py`'s entry at **Step 7** only if its successor holds its measure.
 - **`docs/PROGRESS.md`:** Update at **every step** (Step 2's 0-game counts, Step 4–5 scouting screens, the 16-game retreat hold, Arm 0, blind Q&A evaluation, and Step 10 Gate 4).
-- **`docs/ARCHITECTURE.md`:** Do **not** rewrite before Gate 4 (the §6.8 pro-frequency departure note landed in Phase 0). **After Step 10 (Gate 4) passes**, fold the proven, shipped contracts (`contracts.py`, `SightingState`, `PlanBelief`, scouting provider, `StrategyState`, trace join IDs, templates) into `docs/ARCHITECTURE.md` and mark `docs/REFOCUS.md` completed/superseded.
+- **`docs/ARCHITECTURE.md`:** Do **not** rewrite before Gate 4 (the §6.8 pro-frequency departure note landed in Phase 0). **After Step 10 (Gate 4) passes**, fold the proven, shipped contracts (`contracts.py`, `SightingState`, `PlanBelief`, scouting provider, `StrategyState`, trace join IDs, templates) into `docs/ARCHITECTURE.md` and mark Phase 1 of `docs/REFOCUS.md` completed (done 2026-11-25, §6.11 there; the document itself stays open for Phases 2 and 3).
 - **`docs/CONTROL.md`, `docs/RACES.md`, `docs/SELF_PLAY.md`:** Update only when their domain changes (`RACES.md` on version bumps; `CONTROL.md` when scouting, retreat hold, or an owned intent lands; `SELF_PLAY.md` only if RL is unparked).
 
 ---
