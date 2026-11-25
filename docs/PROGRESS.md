@@ -2238,6 +2238,28 @@ plan and the full log).
   wait adds to it (the Factory placed 10-12 s later than step 8's on Attitude and Odyssey, earlier on KnockOut). Gate 4
   waits for the user, per their instruction; its command is ready (G4299a: gt1dev+scansample+noanswers+shadow+trunk
   against gz1, the ladder maps, seeds 4004-4015, 30 minutes, --gg 0, paired with RD285a, the margin 0.118).
+- **gt0.53dev, the builder sent ahead of its gas (option `gasahead`), and gate 2 at 18 of 20 (2026-11-25; 4 + 20 games).**
+  The user's decision: the gas-ahead send first, behind an option in gt1dev only (gt1, gz1 and gp1 byte-identical, so
+  RD285a stays gate 4's baseline), up to 4 style-3 check games, then the 20 drills, gate 4 if 18 or more pass. *The
+  0-game check of Fighting Spirit's gas:* the "100 gas at 2:53" of the last entry was the decision records' coarse
+  clock; stepping the replays' own commands, Gary's gas reached 100 at 160 s, the Refinery on the card's time and its
+  three SCVs taking it from 8 to 100 in 21 s (1.46 a worker a second): neither the Refinery's timing nor the transfer
+  needed a fix. What did: (1) the builder set out only once the gas was in; (2) a card milestone's money check counted
+  the reserve of the milestones after it (the Starport's 100 gas, reserved from 165 s), so the Factory waited for 200
+  gas until its goal timed out at 30 s and was placed as soon as it was decided again; (3) the card's own money wait
+  (`_short`) held the milestone until its whole gas was banked. *The fix (gt0.53dev):* with `gasahead` the gas the
+  workers on gas bring while the builder walks (`macro.gas_lead`: the walk's seconds, 1.3 a gas worker a second) counts
+  toward the build in the macro's and the card's money checks, the executor parks or walks its builder while the gas
+  comes and waits at the spot for both, the gas of a build already handed (reserved, parked, the builder's task) is
+  spoken for, and a build that fails for gas is tried again where it stood; a card milestone's money check yields only
+  to the milestones before it (`reserve(before=...)`, every build with a card: Arm B only, which gt1, gz1, gp1 and gate
+  4's build don't run). tests/test_parity.py unchanged for gt1, gz1, gp1; the smoke game and tests/test_matchups.py (6)
+  pass. *Check games (GA300a3, before the `_short` part):* 2 of 4 style-3 drills (DR299a3 1 of 4): KnockOut and
+  Odyssey met, the Factory +27 s on Attitude and +32 on Fighting Spirit (tol 21), placed at the natural by the placement
+  model (a 20 s walk) behind the card's money wait; every Starport met. *The 20 drills (DR300a1-3, step 8's setup):*
+  **18 of 20**, gate 2 met: styles 1 and 2 8 of 8 each, style 3 2 of 4 (the first Factory +23 s on Attitude, +26 on
+  Fighting Spirit, tol 21; KnockOut and Odyssey met); every other milestone met in every drill (the Starport 20 of 20,
+  median +2 s; the first Factory 18 of 20, median +9 s). Gate 4 (G4299a) launched at once by the user's instruction.
 - **Phase 1 step 9: templates, the execution join, the faithfulness test and the blind pack; the user's step 8
   decisions carried out (2026-11-25; 0 rounds, 6 check games).** The user's decisions on step 8:
   Arm B is strict mode only (drills), not a reactive arm: normal play stays step 7b's
