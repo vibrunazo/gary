@@ -26,6 +26,13 @@ Pass       (gate 3, written now) the templates' prediction accuracy over the bas
            points of accuracy is within noise, said with the result.
 Not blind  the two arms look different (prose and a record listing): the grader can tell them apart; what is blind is
            the outcome (the key) and which moment had which arm in part 1.
+Amended    after the first draws (2026-11-25, before any grading), seen in their counts and in two answers read: Q4's
+           commit choices are "engage to (x,y)" (every Q4 truth had come out "holds"), so 3 moments with a commitment
+           following and 3 without; the baseline is eval/why.py's own lines (eval/coach.py BASE_VIEW: its default order
+           lines, the production orders sent among them, and its hands column), the 16 records nearest the moment, not a
+           shorter listing cut at its start; part 1 shows no viewer command (its clip ran past the moment); the two
+           games whose answers were read are out of the pool; two format bugs of the templates fixed. Drawn again, the
+           same seed. The pass thresholds (3.5, 60%) are this file's, not docs/REFOCUS.md's: the user's to confirm.
 
     python -m eval.blind --out runs/blind/BE297            (the pack: pack.md, sheet.csv, key.json)
     python -m eval.blind --out runs/blind/BE297 --grade    (sheet.csv filled in: the scores)
@@ -44,7 +51,8 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 ROUNDS = ("TK293a0", "TK293a1", "TK293a4", "TK293a9", "TB295a0", "TB295a1", "TB295a4", "TB295a9")
-READ = {("TK293a4", "Attitude SE 2.1"), ("TB295a4", "Fighting Spirit 1.4")}
+READ = {("TK293a4", "Attitude SE 2.1"), ("TB295a4", "Fighting Spirit 1.4"),      # (read while writing the templates;
+        ("TK293a9", "Attitude SE 2.1"), ("TK293a9", "KnockOut 1.4")}           # two answers of the first draw read)
 ONE_OFFS = ("Barracks", "Refinery", "Factory", "Academy", "Engineering Bay", "Bunker", "expand", "Starport",
             "Missile Turret", "Comsat Station", "Machine Shop", "Stim Packs", "U-238 Shells",
             "Science Facility", "Control Tower", "Siege Mode", "Infantry Weapons", "Infantry Armor", "Armory")
@@ -193,8 +201,8 @@ def build(out: Path, seed: int) -> None:
             "**Part 2, usefulness:** each moment again, with two answers, X and Y. Rate each 1-5 (*as a player "
             "learning from this game: does it tell me what Gary believed or decided and why, so that I could act on "
             "it?* 1 = no help or confusing, 3 = some, 5 = clear and actionable) in `use_x` and `use_y`, and write X or "
-            "Y in `prefer`.\n\nThe `watch:` line opens the moment in the viewer (viewer/watch.py; the times in the "
-            "answers are Gary's clock, frame / 24, the viewer's the replay's, about 4% later).\n\n")
+            "Y in `prefer`.\n\nIn part 2, the `watch:` line records the moment in the viewer (viewer/watch.py; the "
+            "times in the answers are Gary's clock, frame / 24, the viewer's the replay's, 0.8% later).\n\n")
     next_q = {1: "Which is Gary's next building, tech or expansion decision after 3:00?",
               2: "Does Gary start teching to tanks and Science Vessels as a plan (a Machine Shop, Siege Mode, tanks, a "
                  "Starport, vessels) within the next 2 minutes?",
@@ -203,7 +211,7 @@ def build(out: Path, seed: int) -> None:
               5: "Gary is supply blocked now. When is it unblocked?"}
     parts = [head, "## Part 1: prediction\n"]
     for m in moments:
-        ans = m[m["part1"]]
+        ans = "\n".join(s for s in m[m["part1"]].split("\n") if not s.lstrip().startswith("watch:"))
         parts.append(f"### Moment {m['id']} ({m['round']}, {m['map']}, {int(m['minute'])}:{int(m['minute'] % 1 * 60):02d})\n\n"
                      f"```\n{ans}\n```\n\n**{next_q[m['q']]}** " + " / ".join(m["options"]) + "\n")
     parts.append("\n## Part 2: usefulness\n")

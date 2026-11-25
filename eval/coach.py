@@ -512,12 +512,29 @@ QUESTIONS = {1: q1, 2: q2, 3: q3, 4: q4, 5: q5}
 
 # --- the baseline: eval/why.py's listing of the same window -----------------------------------------------------
 
-def baseline(g: Game, q: int, minute: float, cap: int = 12) -> Answer:
-    """What eval/why.py shows for the question's window and layers, over the pre-Phase-1 record kinds only."""
-    from eval.why import line
+# Each question's eval/why.py view (the pre-Phase-1 way of answering it): its window, the decision layers and record
+# kinds a reader would ask it for, and its default order lines (eval/why.py --orders fates: every order that wasn't
+# simply sent, and the production orders sent), with its hands column; trimmed to the CAP records nearest the moment.
+BASE_VIEW = {
+    1: {"win": (0, 0), "layers": ("style", "macro"), "kinds": (), "notes": ()},
+    2: {"win": (-120, 0), "layers": (), "kinds": ("seen", "belief"), "notes": ()},
+    3: {"win": (0, 60), "layers": ("macro",), "kinds": (), "notes": ()},
+    4: {"win": (-30, 0), "layers": ("commit", "hunt advice"), "kinds": ("death",), "notes": ("army (", "fight: ")},
+    5: {"win": (-30, 0), "layers": ("macro",), "kinds": ("death",), "notes": ()},
+}
+BASE_CAP = 16
+
+
+def baseline(g: Game, q: int, minute: float, cap: int = BASE_CAP) -> Answer:
+    """What eval/why.py shows for the question's window (its own lines, through eval/why.py show), over the pre-Phase-1
+    record kinds only, trimmed to the cap records nearest the moment (Q1: up to it; Q3: the minute's middle)."""
+    import contextlib
+    import io
+    from types import SimpleNamespace as NS
+    from eval.why import PRODUCTION, show
     f = int(minute * 1440)
-    win = {1: (0, f), 2: (max(0, f - 120 * 24), f + 1), 3: (f, f + 1440), 4: (f - 30 * 24, f + 1),
-           5: (f - 30 * 24, f + 1)}[q]
+    v = BASE_VIEW[q]
+    f0, f1 = (0, f + 1) if q == 1 else (max(0, f + v["win"][0] * 24), f + v["win"][1] * 24 + 1)
     titles = {1: "Why this opening / strategy card?", 2: f"What did you think the Zerg was doing at {clock(f)}, and from what evidence?",
               3: f"Why did you build, tech or expand (or wait) at {clock(f)}-{clock(f + 1440)}?",
               4: f"Why did your army attack, hold or pull back at {clock(f)}?",
@@ -525,28 +542,41 @@ def baseline(g: Game, q: int, minute: float, cap: int = 12) -> Answer:
     a = Answer(q, titles[q], f)
 
     def keep(r):
-        if r["kind"] not in PRE_PHASE1 or r["kind"] == "hands":
+        k = r["kind"]
+        if k not in PRE_PHASE1:
             return False
-        if q == 1:
-            return r["kind"] == "decision" and r["layer"] in ("style", "macro")
-        if q == 2:
-            return r["kind"] in ("seen", "belief")
-        if q == 3:
-            return (r["kind"] == "decision" and r["layer"] == "macro") or \
-                (r["kind"] == "order" and r["fate"] != "sent" and r.get("by") in ("macro", "executor"))
-        if q == 4:
-            return (r["kind"] == "decision" and r["layer"] in ("commit", "hunt advice")) or \
-                (r["kind"] == "note" and r["text"].startswith(("army (", "fight: "))) or r["kind"] == "death"
-        return (r["kind"] == "decision" and r["layer"] == "macro") or r["kind"] == "death" or \
-            (r["kind"] == "order" and r["fate"] != "sent")
-    rows = [r for r in g.mine if win[0] <= r["f"] < win[1] and keep(r)]
-    if q in (2, 5):
-        rows = rows[-cap:]
-    for r in rows[:cap]:
-        a.lines.append(f"{clock(r['f'])} " + line(r).replace("\n" + " " * 26, "\n      "))
-    if len(rows) > cap:
-        a.lines.append(f"... {len(rows) - cap} more")
-    if not rows:
+        if k == "hands":
+            return True                                     # (why.py's hands column)
+        if k == "decision":
+            return r["layer"] in v["layers"]
+        if k == "order":
+            return r["fate"] != "sent" or r["what"].startswith(PRODUCTION)
+        if k == "note":
+            return bool(v["notes"]) and r["text"].startswith(v["notes"])
+        return k in v["kinds"]
+    rows = [r for r in g.mine if r["f"] < f1 and keep(r)]
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        show(rows, f0, f1, NS(side=g.side, slot=None, layer=None, orders="fates", notes="on"))
+    groups = []                                             # (frame, the record's lines)
+    for s in buf.getvalue().splitlines():
+        if not s.strip() or s.startswith(("decisions:", "orders:")):
+            continue
+        head = s.lstrip()
+        if head[:1].isdigit() and ":" in head.split(" ", 1)[0]:
+            mm, ss = head.split(" ", 1)[0].split(":")
+            groups.append([int((int(mm) * 60 + float(ss)) * 24), [s.rstrip()]])
+        elif groups:
+            groups[-1][1].append(s.rstrip())
+    at = (f0 + f1) / 2 if q == 3 else f
+    if len(groups) > cap:
+        near = sorted(range(len(groups)), key=lambda i: abs(groups[i][0] - at))[:cap]
+        kept = sorted(near)
+        a.lines.append(f"(the {cap} records nearest {clock(at)} of {len(groups)} in {clock(f0)}-{clock(f1)})")
+        groups = [groups[i] for i in kept]
+    for _, ls in groups:
+        a.lines.extend(ls)
+    if not groups:
         a.lines.append("(no records of these layers in the window)")
     a.viewer = g.viewer(f, q)
     return a

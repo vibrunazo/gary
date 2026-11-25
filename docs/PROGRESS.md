@@ -2219,7 +2219,7 @@ plan and the full log).
   where Gary looked); and a fixed set of Zerg plans to play against (the four scripted archetypes) is needed to judge
   any of it, as gz1's one plan teaches nothing. What to do first is the user's call.
 - **Phase 1 step 9: templates, the execution join, the faithfulness test and the blind pack; the user's step 8
-  decisions carried out (2026-11-25; 0 rounds, 5 check games of the strict fix).** The user's decisions on step 8:
+  decisions carried out (2026-11-25; 0 rounds, 6 check games).** The user's decisions on step 8:
   Arm B is strict mode only (drills), not a reactive arm: normal play stays step 7b's
   gt1dev+scansample+noanswers+shadow+trunk (the card log-only; option `armb` kept, no round planned); strict card
   execution is a drill contract the user asked for, not a stop-gap (AGENTS.md unchanged); Arm A skipped.
@@ -2237,7 +2237,10 @@ plan and the full log).
     SCV was taken from the gas and was inside its refinery, out of the unit list for a moment (option `gashidden`,
     executor.py `_in_gas`: missing for up to 2 s, a builder Gary had on gas isn't gone; in gt1dev, gt0.52dev; off in
     gt1, gz1 and gp1, whose parity hashes are unchanged). Played again: no builder lost, 7/9 (before 7/9), the Factory
-    +34 s (+45), the Starport +67 (+59). The Factory's delay is not the card's: its gas came at 2:35 (the gas head took the
+    +34 s (+45), the Starport +67 (+59). Whether gashidden is the drops' cause is a hypothesis for most of them: over
+    the 36 "its SCV is gone" drops of steps 7b-8 (the builder taken as the last one-unit order before the drop), 10
+    builders had been on gas (5 seen alive later, gashidden's case), 26 not (20 seen alive later: another cause, open).
+    The Factory's delay is not the card's: its gas came at 2:35 (the gas head took the
     gas workers from 3 to 1 at 2:32), then its builder walked 19 s to the natural, where the placement model put it;
     the macro sends a builder ahead of the minerals it waits for, not ahead of the gas (every build's, not a strict fix:
     open).
@@ -2260,9 +2263,10 @@ plan and the full log).
     records now keep each branch score's whole state (branch_select `fields`, `p_tech`), and a goal of the trace's taken
     over by a rule (the first Barracks by a time, a depot ahead) writes its drop (records only; play unchanged).
   - *Gate 3, the execution join* (eval/trunk_join.py, its criterion written in its docstring today, after steps 7b and
-    8 were read by its counts, so not blind to them): over TC294a4, TK293a\*, TB295a\* and DR295a\* (60 games), **381
-    of 382 carried out (99.7%; >= 95%)**: the trunk's 89 items asked with the game running on all started; the card's
-    293 milestones decided and handed, 292 ordered within 120 s. 1 of 414 decisions has no logged outcome, a silent drop:
+    8 were read by its counts, so not blind to them): the trunk's, what the gate names and normal play runs, **89 of 89
+    directive items asked with the game running on started (100%; >= 95%)** over TC294a4, TK293a\*, TB295a\* (40 games);
+    the card's apart (a forced goal ordered says little): of 293 milestones decided and handed in TB295a\* and DR295a\*,
+    292 ordered within 120 s; the two together 381 of 382. 1 of 414 decisions has no logged outcome, a silent drop:
     a card's Command Center taken over by the first-Barracks rule in a game the Zerg was winning (TB295a9, KnockOut), the
     case the records now write; 4 more came in their game's last 30 s.
   - *Decision faithfulness* (tests/test_trunk_faithful.py, `selector.minimal_flips`): a synthetic table, one decision
@@ -2270,25 +2274,37 @@ plan and the full log).
     nor the clock alone flips it, the two together do); and every branch score of the chain table in TC294a4 and
     TB295a\* (298: 276 from their finest cell's key, 22 rebuilt from the plan belief and the replay) re-queried in memory
     to its recorded P_pro and take, each of the 11 starts flipped back by setting the belief to the contrast's (by
-    construction, as REFOCUS says), **0.04 ms a query** (the budget 1 ms).
+    construction, as REFOCUS says), **0.04 ms a query** (the budget 1 ms); and a 6-minute game of the gate 4 build
+    (PF298) whose 7 branch scores kept their whole state, re-queried from it. Its edits are the trunk's inputs (the
+    belief's bucket, the looked split, the own state), not the sightings the belief is computed from.
   - *The blind evaluation pack* (eval/blind.py; its rules, the rubric and the pass written in its docstring before any
-    moment was drawn): runs/blind/BE297 (pack.md, sheet.csv; the key apart, key.json): 30 moments, 6 per question, from
-    29 held-out games (TK293a\*, TB295a\*, less the two whose records were read while writing the templates; written on
-    TC294a4 and the drills); each answer from the records up to the moment only. Part 1, prediction: one answer a
+    moment was drawn, amended after the first draws as below): runs/blind/BE297 (pack.md, sheet.csv; the key apart,
+    key.json): 30 moments, 6 per question, from 27 held-out games (TK293a\*, TB295a\*, less four: two whose records were
+    read while writing the templates, two whose answers were read in a first draw; written on TC294a4 and the drills);
+    each answer from the records up to the moment only. The baseline arm is eval/why.py's own lines for the question's
+    window (its default order lines, production orders sent among them, its hands column), the 16 records nearest the
+    moment. Part 1, prediction: one answer a
     moment (3 templates and 3 baseline per question), the grader picks what Gary did next (Q1 and Q3 the next building or
     tech decision of four, Q2 whether the anti-lurker plan starts within 2 minutes (3 yes, 3 no), Q4 the army's next
     commitment in 60 s (3 with one, 3 holding), Q5 how soon a supply block ends). Part 2, usefulness: both answers as X
     and Y, each 1-5, one preferred. Pass: the templates' prediction accuracy over the baseline's, their usefulness 3.5 or
-    more and preferred in 60% or more; 15 moments an arm, so a difference under about 30 points of accuracy is noise.
+    more and preferred in 60% or more (thresholds of eval/blind.py's, not REFOCUS's: the user's to confirm); 15 moments
+    an arm, so a difference under about 30 points of accuracy is noise.
     Not blind: the arms look different (prose and a listing). Graded by the user; `python -m eval.blind --grade` scores
     the sheet. After the first draws, seen in their counts and answers: Q4's rule read a commit choice as "engage", the
-    records write "engage to (x,y)" (every Q4 truth had come out "holds"), and two format bugs of the templates (a
-    depot's or a research's order to the game not joined to its decision; a wait for nothing printed "None"); fixed, the
-    pack drawn again with the same seed (297).
+    records write "engage to (x,y)" (every Q4 truth had come out "holds"); the baseline was shorter than eval/why.py
+    shows (no production orders sent, cut at the window's start); part 1 showed the viewer command, whose clip ran past
+    the moment; two format bugs of the templates (a depot's or a research's order to the game not joined to its
+    decision; a wait for nothing printed "None"). Fixed, the pack drawn again with the same seed (297). The viewer
+    command was run once (TC294a4, a 10 s clip).
+  - Gate 2 stands at step 8's 18 of 20 on the strict code before today's fix; after it, 2 drills played: style 2 met
+    9/9, the style-3 drill 7/9 (the Starport +67 s, +59 before). The 20 drills again is the user's call.
+  - `gary.play --strategy` without a dev build named puts the card on gt1 (the playing build), not tested: the live
+    test and every game here used gt1dev.
   - Tests on the final code: smoke, parity (gt1, gz1, gp1 unchanged), test_matchups in all 6 matchups, test_live (5
-    cases), test_trunk_faithful. Games: 5 check games of the strict fix (11 minutes each: the deadlocked pair, the pair
-    again, the style-3 drill a third time), and the tests' games; no round. Gate 4 waits for the user: RD285a stays the
-    baseline (gz1 untouched).
+    cases), test_trunk_faithful. Games: 6 check games where 0 rounds were approved (11 minutes each: the strict fix's
+    deadlocked pair, the pair again, the style-3 drill a third time; and the 6-minute trunk game), and the tests'
+    games. Gate 4 waits for the user: RD285a stays the baseline (gz1 untouched).
 - **Phase 1 step 8, Arm B: the results (2026-11-24; 20 drills, 16 suite games, 5 pre-flight games, as written
   below).** *The drills (gate 2):* 18 of 20 met every milestone, the gate's floor: style 1 8 of 8 (12 milestones),
   style 2 8 of 8 (9), style 3 2 of 4: the first Factory (149 s +- 21) 27 s late on Fighting Spirit and 45 s late on

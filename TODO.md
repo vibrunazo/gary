@@ -56,7 +56,7 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   2026-11-24: 18 of 20 strict drills (gate 2's floor), Arm 0's milestone error 1.4x to 0.6x of the pros' spread, but the
   suite's economy and gap at 0-10 minutes worse and its results 5 won 6 lost (step 7b 12, 2); by the user's decision
   Arm B is strict mode only (drills), normal play stays step 7b's. Step 9 done 2026-11-25: eval/coach.py (the five
-  templates), the execution join 381 of 382 (99.7%, gate 3's >= 95%), tests/test_trunk_faithful.py (0.04 ms a query),
+  templates), the execution join 89 of 89 trunk items (gate 3's >= 95%; the card's 292 of 293 apart), tests/test_trunk_faithful.py (0.04 ms a query),
   --strategy and --from-replay live (gary/play.py), the strict card's money wait (gt0.52dev with gashidden); the blind
   pack (runs/blind/BE297, eval/blind.py) waits for the user's grading. Then step 10 (gate 4's 96 games) on the user's word.
   Open: the macro sends a builder ahead of the minerals it waits for, not of the gas (a strict drill's Factory +34 s).

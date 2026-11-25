@@ -62,8 +62,10 @@ def test_synthetic():
 def _saved():
     """(record, its state's fields, p_tech) of every branch score under the chain table in the saved rounds."""
     out = []
-    for rnd in ROUNDS:
-        for rec in sorted(glob.glob(str(REPO / "runs" / "league" / rnd / "*" / "*.records.jsonl"))):
+    recs = [(rnd, rec) for rnd in ROUNDS for rec in sorted(glob.glob(str(REPO / "runs" / "league" / rnd / "*" / "*.records.jsonl")))]
+    recs += [("preflight", rec) for rec in sorted(glob.glob(str(REPO / "runs" / "preflight" / "*" / "*.records.jsonl")))]
+    for rnd, rec in recs:
+        if True:
             rows = [json.loads(s) for s in Path(rec).read_text(encoding="utf-8").splitlines()[1:]]
             by_id = {r["id"]: r for r in rows if "id" in r and r.get("side") == "T"}
             for r in rows:
@@ -145,7 +147,9 @@ def test_saved_games():
             assert {"belief": meta["contrast"]["belief"]} in flips or any(set(f) == {"belief"} for f in flips), flips
             flipped += 1
     ms = (time.perf_counter() - t0) * 1000 / n_q
-    print(f"  {same} branch scores re-queried as recorded, {starts} starts, {flipped} flipped back by their belief; "
+    kept = sum(1 for *_, r, f, p in saved if "fields" in r)
+    print(f"  {same} branch scores re-queried as recorded ({kept} from the state they kept), {starts} starts, {flipped} "
+          f"flipped back by their belief; "
           f"{ms:.3f} ms a query ({n_q} queries)")
     assert ms < BUDGET_MS, f"{ms:.3f} ms a query"
 
