@@ -35,6 +35,8 @@ TRAIN, MORPH, BMORPH, BUILD, RESEARCH, UPGRADE, EXPAND = range(7)   # (ACT_NAMES
 TOWN_HALLS = {106, 131, 132, 133, 154}
 WALK_AHEAD = 6                  # seconds: a building's worker sets out this much income before the money is there
 MINING = 1.0                    # minerals a second an SCV mines (about)
+GAS_MINING = 1.3                # gas a second a worker on gas brings (option gasahead; 3 on a main's geyser took 8 to 100
+                                # in 21 s, DR299a3's replays: 1.46)
 GOAL_TIMEOUT = 24 * 30          # a decision Gary can't afford or do within 30 s is dropped (twice that while what it
                                 # waits for is on its way)
 BANK_ESCAPE = 400               # minerals over which the waiting favorite no longer holds the macro (bank_escape)
@@ -133,6 +135,7 @@ class LearnedMacro:
         self.queue_depth = 1                  # the model's waiting units queued per producer (option qdepth2: 2)
         self.wait_builds = False              # option comingbuild: a building waits for what it needs being built too
         self.save_coming = False              # option savecoming: a goal its income pays for within the timeout is on its way
+        self.gas_ahead = False                # option gasahead: a building's worker sets out ahead of its gas too
         # option rethink: a unit decided whose producers' queues are full isn't held as the goal (the model wasn't
         # asked again while it waited, so it never added production with the bank: the bank escape covered for that);
         # the model is asked again at its next look
@@ -605,16 +608,22 @@ class LearnedMacro:
                 self.goal = None
             return
         minerals, gas = plan["cost"]
-        kept_m, kept_g = self._kept_cost()
+        kept_m, kept_g = self._kept_cost(before=goal.get("card"))
         budget = me["minerals"] - g.committed() - kept_m
+        if goal.get("card") is not None and self.card is not None:
+            # (a card milestone yields only to the ones before it, not to the money held for those after: style 3's
+            # Factory, its 100 gas there at 2:40, waited for the Starport's 100 more held from 2:45, dropped at 30 s and
+            # placed at once when decided again, DR299a3 Fighting Spirit)
+            budget += self.card.reserve()[0] - self.card.reserve(before=goal["card"])[0]
         # a building's worker sets out WALK_AHEAD seconds of income early: it walks while the money comes
         workers = sum(1 for u in mine if u["type"] == g.race.worker)
-        walk_ahead = int(max(WALK_AHEAD, self._walk_s(plan)) * MINING * workers) if plan["kind"] == "build" else 0
+        walk_s = max(WALK_AHEAD, self._walk_s(plan)) if plan["kind"] == "build" else 0
+        walk_ahead = int(walk_s * MINING * workers)
         if self.park and plan["kind"] == "build":
             # (Gary-Z's: its drone sets out at the cost less PARK_AHEAD, the larvae going on meanwhile; held until
             # 6 s of income short, nothing else decided, the second hatchery came by 4:00 in 13 of 32 games, 21)
             walk_ahead = max(walk_ahead, PARK_AHEAD)
-        if budget < minerals - walk_ahead or me["gas"] - kept_g < gas:
+        if budget < minerals - walk_ahead or me["gas"] + self.gas_lead(plan) - kept_g < gas:
             if self.nosave:
                 self.goal = None
             elif self.save_coming and me["gas"] - kept_g >= gas and \
@@ -667,6 +676,14 @@ class LearnedMacro:
             return self.hatch_mass
         return self.odds_mass
 
+    def gas_lead(self, plan: dict) -> int:
+        """Option gasahead: the gas the workers on gas bring while a building's worker walks to it (it sets out that much
+        gas early, as of its minerals; the executor waits at the spot for both); 0 without the option."""
+        if not self.gas_ahead or plan["kind"] != "build" or not plan["cost"][1]:
+            return 0
+        on_gas = sum(len(s) for s in getattr(self.g, "gas_workers", {}).values())
+        return int(max(WALK_AHEAD, self._walk_s(plan)) * GAS_MINING * on_gas)
+
     def _walk_s(self, plan: dict) -> float:
         """Seconds its worker takes to get to a build at another base (0 in the main): it sets out that much income
         early, so it gets there as the money does. A fixed 6 s had the natural's builder set out at 322 minerals and
@@ -684,14 +701,19 @@ class LearnedMacro:
             return 0, 0
         return self.g.executor.cost_of(self.saved["act"], self.saved["id"])
 
-    def _kept_cost(self, own: bool = False, card: bool = True) -> tuple[int, int]:
+    def _kept_cost(self, own: bool = False, card: bool = True, before=None) -> tuple[int, int]:
         """The money a new goal leaves alone: the parked decision's (unless it is that one) and the queued units', each
         decided before it and waiting for its busy producer or a depot on its way. Pros keep production going first: a
         Refinery decided while the SCV before it waited for supply took its money, and the SCV waited 14 s more once
-        the depot was up (#55)."""
+        the depot was up (#55). before: the goal is this card milestone (only the milestones before it count)."""
         sm, sg = (0, 0) if own else self._saved_cost()
         if self.card is not None and card:         # (Arm B: the gas of the milestones about to be due; their minerals
-            sg += self.card.reserve()[1]           # are in Gary.committed())
+            sg += self.card.reserve(before=before)[1]   # are in Gary.committed())
+        if self.gas_ahead:                         # (a build handed ahead of its gas: its gas is spoken for)
+            costs, t = self.g.race.costs, self.g.task
+            sg += sum(costs[ut][1] for ut, *_ in self.g.reserved) + sum(costs[p.unit_type][1] for p in self.g.parked)
+            if t is not None and t.kind == "build" and t.unit_type in costs:
+                sg += costs[t.unit_type][1]
         for (act, uid), _ in self.queued:
             m, gas = self.g.executor.cost_of(act, uid)
             sm, sg = sm + m, sg + gas

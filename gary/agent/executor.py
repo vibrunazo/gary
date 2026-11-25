@@ -168,6 +168,7 @@ class Executor:
         self.next_transfer = 0
         self.transfer_ahead = False                   # option transferahead (transfer)
         self.gas_hidden = False                       # option gashidden: a builder inside its refinery isn't gone
+        self.gas_ahead = False                        # option gasahead: a build's worker set out ahead of its gas waits for it
         self.hall_seen: dict[int, tuple] = {}         # transferahead: an unfinished town hall's first (frame, hp)
         self.halls_done: dict[int, int] = {}          # transferahead: town halls once finished, when (first seen
                                                       # finished; a Lair's morph isn't a new one)
@@ -232,7 +233,8 @@ class Executor:
                 continue
             if failed:
                 g.build_failed[ut] = g.hi.frame
-                if me is not None and me["minerals"] < g.race.costs[ut][0]:
+                if me is not None and (me["minerals"] < g.race.costs[ut][0]
+                                       or self.gas_ahead and me["gas"] < g.race.costs[ut][1]):
                     g.say(f"its {g.race.names.get(ut, ut)} failed for money: again")
                     LOG.order(g.hi.side, g.hi.frame, f"{g.race.names.get(ut, ut)} at {(tx, ty)}", "retried", "failed for money",
                               by="executor")
@@ -757,7 +759,11 @@ class Executor:
             # Stargate warping in, were placed with its money, and the Corsair trained 17 s later, #55)
             if hasattr(g.macro, "queued_before"):
                 budget -= g.macro.queued_before(t.data.get("decided", t.started))
-            if budget < g.race.minerals[t.unit_type] and g.hi.frame - t.data["walking"] < PARK_FOR:
+            short = budget < g.race.minerals[t.unit_type]
+            if self.gas_ahead:                                # (its gas too: sent ahead of it, macro.py GAS_MINING)
+                costs = g.race.costs
+                short = short or obs["me"]["gas"] - sum(costs[ut][1] for ut, *_ in g.reserved)                     - sum(costs[p.unit_type][1] for p in g.parked[:g.parked.index(t)]) < costs[t.unit_type][1]
+            if short and g.hi.frame - t.data["walking"] < PARK_FOR:
                 return False
             # just about there: until it stops (a box finds a standing SCV where Gary saw it; one
             # slowing down at its spot was missed 7 times a game)
@@ -1518,7 +1524,10 @@ class Executor:
                 hi.camera_minimap(spot[0] * 32 + w * 16, spot[1] * 32 + h * 16)
                 return
             budget = obs["me"]["minerals"] - sum(g.race.minerals[ut] for ut, *_ in g.reserved)
-            if budget < g.race.minerals[t.unit_type]:
+            short = budget < g.race.minerals[t.unit_type]
+            if self.gas_ahead:                          # (and its gas, sent ahead of it: macro.py GAS_MINING)
+                short = short or obs["me"]["gas"] - sum(g.race.costs[ut][1] for ut, *_ in g.reserved)                     < g.race.costs[t.unit_type][1]
+            if short:
                 # the worker walks there while the money comes (as pros send it: it arrives with
                 # the money, not after it)
                 if not t.data.get("money_wait"):

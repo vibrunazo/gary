@@ -1163,6 +1163,10 @@ OPTIONS = {
     # a build's worker that Gary had on gas, missing from the units, is inside its refinery for 2 s, not gone
     # (executor.py _in_gas: a strict drill's Factory given up 9 frames after its builder was sent, DR295a3)
     "gashidden": lambda m: m.update(gas_hidden=True),
+    # a building's worker sets out ahead of its gas as of its minerals: the gas the workers on gas bring while it walks
+    # counts (macro.py GAS_MINING), the executor waits at the spot for both, a handed build's gas is spoken for (a strict
+    # drill's Factory handed as its 100 gas came, then a 9-10 s walk: 3 of 4 style-3 drills late, DR299a3)
+    "gasahead": lambda m: m.update(gas_ahead=True),
     "notiles": lambda m: m.update(tiles=False),        # (a baseline without them: a matchup's table new)
     # executor.py place: a building's base and side drawn from the placement model's odds (the pros' buildings against
     # what they knew: gary/policy/placement.py, #65), where the matchup's race has one (the Protoss)
@@ -1438,8 +1442,11 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # gt0.52dev (2026-11-25): a build's worker taken from the gas is inside its refinery a moment, not gone (gashidden,
 # executor.py _in_gas): a strict drill's Factory was given up 9 frames after its builder was sent (DR295a3, KnockOut)
                                      "+parkmany+tvzmodes+staysieged+modemodel+minemodel+retreatfar+nofloor+calm"
-                                     "+gashidden"),
-                       "version": "gt0.52dev"}
+                                     "+gashidden"
+# gt0.53dev (2026-11-25): a building's worker sets out ahead of its gas as of its minerals (gasahead): style 3's first
+# Factory was handed when its 100 gas came and placed 9-28 s later (DR299a3)
+                                     "+gasahead"),
+                       "version": "gt0.53dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
@@ -1799,6 +1806,7 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
         g.executor.wide_spot = m.get("wide_spot", False)
         g.executor.transfer_ahead = m.get("transfer_ahead", False)
         g.executor.gas_hidden = m.get("gas_hidden", False)
+        g.executor.gas_ahead = g.macro.gas_ahead = m.get("gas_ahead", False)
         g.executor.place_on = m.get("place", False)
         if g.executor.place_on:
             from gary.policy.placement import Losses, PlacementModel

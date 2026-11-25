@@ -184,7 +184,7 @@ class CardPlan:
         kept_m, kept_g = mac._kept_cost(card=False)
         prior_m, prior_g = self.reserve(mine, before=key)       # (only the milestones before it: each waited for
         budget = me["minerals"] - (g.committed() - self.reserve(mine)[0] + prior_m) - kept_m   # the others' gas)
-        if budget >= minerals - lead and me["gas"] - kept_g - prior_g >= gas:
+        if budget >= minerals - lead and me["gas"] + mac.gas_lead(plan) - kept_g - prior_g >= gas:   # (gasahead)
             return None
         return lead
 
