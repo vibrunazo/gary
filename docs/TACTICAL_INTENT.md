@@ -923,5 +923,25 @@ only its verdict on the share was wrong.
 measure): not measurably worse in score (interval holds zero, under the MDE) or gap, and the army's share at attacks
 and the fighters outside asked clusters move toward the pros' (0.289 to 0.340 against their 0.45; 0.123 to 0.095
 against their 0.085). Against it: GATHER labelled about 6 points over the pros' and ATTACK 5 under, holds half the
-pros' length, nobody going against 20+ supply, and most intents never reaching the main. Not folded into gt1dev yet:
-the user's call.
+pros' length, nobody going against 20+ supply, and most intents never reaching the main. Folded into gt1dev on the
+user's call (gt0.55dev, §14).
+
+## 14. Folded into gt1dev (2026-11-26; gt0.55dev; 0 games)
+
+**The user's call** on §13: option `intent` folded into `gt1dev`, version gt0.55dev. The manifest is `gt1dev+intent` as
+IN304a+b played it, byte for byte (the built manifests compared: equal, the version aside; `gt1`, `gz1`, `gp1`, `gz1dev`
+and `gp1dev` unchanged). `gt1dev+intent` still builds, the same manifest (the option is now idempotent). The layer
+plays TvZ only: in the other matchups there is no intent model, and it stands aside.
+
+**The checks, on the fold:**
+- tests/test_intent_pipe.py (now on `gt1dev`): as §11 found it on `gt1dev+intent`. Criterion 1 96% of 96 (pass),
+  criterion 2 4 of 7 (fails, the keep draws read in §11), criteria 3-5 pass.
+- tests/test_smoke_game.py, tests/test_pairs.py, tests/test_live.py (each race's dev build through the live launcher),
+  tests/test_matchups.py (the playing builds, and `GARY_TEST_T=gt1dev GARY_TEST_Z=gz1dev`: all six matchups) pass.
+- tests/test_parity.py passes without recording again: its games play `gt1`, `gz1` and `gp1`, which did not change.
+- tests/test_inputs.py fails on the fold and on the code before it, both on #67's lines.
+  - Before the fold: the Terran's macro and critic "decided" off at 25% of 107 moments, and the Zerg's placement
+    `workers_lost` at 40% of 5.
+  - On the fold: the Zerg's placement `minute` off at 60% of 5. The Terran's "decided" is at 12%, under the bar.
+  - The Terran's change changes the game the test plays, so which of #67's lines cross the bar moves. No new kind of
+    difference appears.

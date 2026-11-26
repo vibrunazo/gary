@@ -84,7 +84,7 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   channel 8 spread over the units' cells (the data: one cell), fixed in every build (§11); Option 1 (the clamp for
   DEFEND_BASE only, GATHER and ATTACK re-targeted). The 96 (§12-13): paired score -0.034 [-0.089, +0.018], the army's
   share at attacks +0.051 [+0.012, +0.090], fighters in no asked cluster -0.028; most intent spells send the main no
-  order. Folding into gt1dev, or an order on entering an intent first: the user's call.
+  order. Folded into gt1dev on the user's call (gt0.55dev, §14).
   A fight-layer follow-up, apart from intent: deaths alone in contact (88% under the role model). Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Plus the early G4
   check (the same card under the pro and a lower HumanProfile).
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept

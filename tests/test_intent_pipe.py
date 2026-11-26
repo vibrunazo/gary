@@ -1,5 +1,5 @@
 """The pipe check of the army's tactical intents (docs/TACTICAL_INTENT.md §5; option `intent`): does a pushed intent
-move what Gary's army does? One headless game of gt1dev+intent against gz1dev to 12:00; at every minute from 6:00 both
+move what Gary's army does? One headless game of gt1dev (intent in it since gt0.55dev) against gz1dev to 12:00; at every minute from 6:00 both
 bots deep-copied once per intent (eval/pairs.py's copy), that intent forced on the main for ARM frames, and the arm's
 own records read: the army's orders (the motor's "army order" lines: their units and cells), the commit model's
 decisions, the lease conflicts. Needs the game data and the models (skips without them).
@@ -53,7 +53,7 @@ def test_intent_pipe(report: dict | None = None):
         from eval.match import Match
         import os
         with contextlib.redirect_stdout(io.StringIO()):
-            m = Match(1, os.environ.get("PIPE_MANIFEST", "gt1dev+intent"), REPO / "tests" / "fixtures" / "replays" / "stardata_tvz_standard_ozp3w.rep",
+            m = Match(1, os.environ.get("PIPE_MANIFEST", "gt1dev"), REPO / "tests" / "fixtures" / "replays" / "stardata_tvz_standard_ozp3w.rep",
                       opponent="gz1dev")
     except Exception as e:                      # no game data, env DLL or models here
         print(f"skip: {e}")
@@ -63,7 +63,7 @@ def test_intent_pipe(report: dict | None = None):
     from gary.races import AIR_FIGHTERS
     from gary.policy.army import supply_x2
     g = m.gary
-    assert getattr(g, "tactical", None) is not None, "gt1dev+intent built without its intent layer (no intent model?)"
+    assert getattr(g, "tactical", None) is not None, "gt1dev built without its intent layer (no intent model?)"
     out = {"to_target": [], "hold_orders": [], "differ": [], "conflicts": 0, "conflicts_contact": 0, "sieged_ordered": 0, "conflict_takers": {}, "intent_over": {}, "by_origin": {},
            "sieged_unsieged": 0, "moments": 0, "commit": {k: [] for k in INTENTS}, "roles": {k: [] for k in INTENTS},
            "keys": [], "questions": Counter(), "taken": {k: Counter() for k in INTENTS}, "miss": Counter(), "hit": Counter(),

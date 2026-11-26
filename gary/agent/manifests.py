@@ -1271,6 +1271,25 @@ def manifest_of(name: str | dict) -> dict:
 MANIFESTS["gt1"] = {**manifest_of("v029+commit+draw+floor+mass+nonatbunker+lords+hunt4+split+static+roles30+lone"
                                   "+addonroom+gamequeue+softguard+widespot+seenall+armyseen+builtcount+unitcount"
                                   "+pendown"), "version": "gt0.22"}
+INTENT_COMMIT = "runs/commit_intent/TvZ_T_intent/model.pt"     # (train/commit.py --intent --init the deployed one)
+INTENT_ROLES = "runs/roles_intent/intent/model.pt"              # (train/roles.py as the deployed one, with --intent)
+
+
+def _intent(m: dict) -> None:
+    m["army"].update(rules=["intent", *[r for r in m["army"].get("rules", ()) if r != "intent"]])
+    old = m["army"].get("model", "army/latest")
+    if isinstance(old, dict) and old.get("TvZ") == INTENT_COMMIT:     # (already on: gt1dev has it since gt0.55dev)
+        return
+    m["army"]["model"] = {"TvZ": INTENT_COMMIT, "*": old}
+
+
+def _intent_roles(m: dict) -> None:
+    """Option intentroles (with intent): the role model trained with the intent as an input. Not in intent: on the held-out
+    games it read worse than its control (accuracy 0.482 against 0.496), and the pros' close-in does not fall under a
+    retreat (docs/TACTICAL_INTENT.md, steps 1-3)."""
+    if m.get("fight") is not None and m["fight"].get("provider") in ("roles", "role_override", "role_ahead"):
+        m["fight"]["roles_model"] = {"TvZ": INTENT_ROLES, "*": m["fight"].get("roles_model")}
+
 # gt1dev: the Terran Gary that learning is trained and judged in (AGENTS.md): gt1 with the role model deciding in
 # contact as well (attended pro units with their re-issues as a decision, again, Gary's own order rate as input, its
 # moves kept current, several orders a turn) and the army on control groups by type, a key's units drawing their
@@ -1451,12 +1470,17 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
                                      "+gashidden"
 # gt0.53dev (2026-11-25): a building's worker sets out ahead of its gas as of its minerals (gasahead): style 3's first
 # Factory was handed when its 100 gas came and placed 9-28 s later (DR299a3)
-                                     "+gasahead"),
+                                     "+gasahead"
+# gt0.55dev (2026-11-26, the user's call): intent folded in (gary/agent/tactical.py, docs/TACTICAL_INTENT.md §13: 96
+# paired games IN304a+b against IB304a+b, against gz1, gg 0: the army's share at attacks 0.289 to 0.340, +0.051
+# [+0.012, +0.090]; ground fighters in no asked cluster 0.123 to 0.095; the paired score -0.034 [-0.089, +0.018], under
+# the MDE 0.083; the gap per window not apart). TvZ only: elsewhere no intent model, and the layer stands aside
+                                     "+intent"),
 # gt0.54dev (2026-11-25; the card held by the macro, gary/agent/card_macro.py, so only with strict, armb or a strategy):
 # strict masks only the off-card one-offs a style's card covers (a live strict game had no Comsat from 4:35 to 11:02);
 # a milestone met once is never reopened, and nothing is emitted or reserved past the card's horizon (its natural lost
 # at 10:21, it dropped a Science Vessel for "Command Center #1 due at 2:42" and held its money to 14:40)
-                       "version": "gt0.54dev"}
+                       "version": "gt0.55dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,
@@ -1664,22 +1688,6 @@ MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcou
                                      "+fightrules+aircluster+coming+comingbuild+savecoming+tiles+transferahead+rates+retreatfar"),
                        "version": "gp0.39dev"}
 
-
-INTENT_COMMIT = "runs/commit_intent/TvZ_T_intent/model.pt"     # (train/commit.py --intent --init the deployed one)
-INTENT_ROLES = "runs/roles_intent/intent/model.pt"              # (train/roles.py as the deployed one, with --intent)
-
-
-def _intent(m: dict) -> None:
-    m["army"].update(rules=["intent", *[r for r in m["army"].get("rules", ()) if r != "intent"]])
-    m["army"]["model"] = {"TvZ": INTENT_COMMIT, "*": m["army"].get("model", "army/latest")}
-
-
-def _intent_roles(m: dict) -> None:
-    """Option intentroles (with intent): the role model trained with the intent as an input. Not in intent: on the held-out
-    games it read worse than its control (accuracy 0.482 against 0.496), and the pros' close-in does not fall under a
-    retreat (docs/TACTICAL_INTENT.md, steps 1-3)."""
-    if m.get("fight") is not None and m["fight"].get("provider") in ("roles", "role_override", "role_ahead"):
-        m["fight"]["roles_model"] = {"TvZ": INTENT_ROLES, "*": m["fight"].get("roles_model")}
 
 
 def fight_model_path(m: dict, matchup: str, race: str) -> Path | None:

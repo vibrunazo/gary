@@ -19,7 +19,7 @@ learned Zerg opponent (Gary-Z), a humanlikeness classifier as the anchor the lea
 on, the league itself, and RL on paired branches (a moment saved and played twice, both bots live).
 Where it stands (2026-11-23): one Gary for every race (the refactor, 2026-10-20), playing Terran as `gt1`
 (gt0.22), Zerg as `gz1` (gz0.15) and Protoss as `gp1` (gp0.16, crude); learning is trained and judged in `gt1dev`
-(gt0.51dev), `gp1dev` (gp0.39dev) and `gz1dev` (gz0.32dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
+(gt0.55dev since 2026-11-26, with the tactical intent layer folded in), `gp1dev` (gp0.39dev) and `gz1dev` (gz0.32dev: one macro model per race now in both, with every matchup's styles, each matchup's fights by its own pros' role
 model, the Zerg's reading its own decision history), which run without the stop-gaps over the layers being learned (AGENTS.md), and gt1dev against
 gz1dev is the TvZ self-play pairing, balanced (each side wins or leads in 38% of 96 games). The one RL run
 that held, on the Terran's fight roles (rl1), was in gt1dev from gt0.6dev to gt0.35dev: gt0.36dev replaced it with
@@ -2308,6 +2308,13 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **gt0.55dev: TacticalIntent folded into gt1dev (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §14).** The user's call
+  on the 96: `gt1dev` is now `gt1dev+intent` as IN304a+b played it (the built manifests equal, the version aside; the
+  playing builds and the other dev builds unchanged). TvZ only: elsewhere there is no intent model and the layer stands
+  aside. The pipe check as before (criterion 1 96% of 96; criterion 2 4 of 7, the keep draws); smoke, pairs, live,
+  matchups (playing and dev builds, all six) and parity pass (parity plays gt1, gz1 and gp1: not recorded again);
+  tests/test_inputs.py fails as before the fold, on #67's lines only (the Zerg's placement inputs, the Terran's
+  "decided").
 - **TacticalIntent's 96 (2026-11-26; IN304a+b against IB304a+b, gz1, seeds 4004-4015, gg 0;
   docs/TACTICAL_INTENT.md §13).**
   - Paired score -0.034 [-0.089, +0.018] (MDE 0.083), gap all windows -0.007 [-0.049, +0.031]: not measurably worse.
