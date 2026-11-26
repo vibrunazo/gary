@@ -2319,17 +2319,27 @@ plan and the full log).
     pros 0.50), late arrivals 0.128 a fighter there (0.052), 46% of them sent by their own cluster's commit engage.
   - *The commit model's keep is the pros' rate:* 57% of gate 4's questions (the pros' clusters from 5:00 72%), with no
     commitment in force 82% (93%). Live game 2's six questions, all such clusters, kept at 93-97%. The live games' armies
-    were 0-2 units (game 1, the commit model never asked) and 2-5 (game 2) where gate 4 has 11 at 8:00 and 17 at 10:00.
+    were 0-2 units (game 1, the commit model never asked) and 2-5 (game 2) where gate 4 has 11 at 8:00 and 17 at 10:00
+    (game 2's replay: 2-4 fighters in view at 4:30-14:30 and 1-2 bunkers; its card's reserve, turret flood and masked
+    one-offs fixed in gt0.54dev; game 1, style 2 with no card, not diagnosed).
   - *The labeller* (train/tactical_intent.py, new; written before reading: DEFEND_BASE, ATTACK, RETREAT, GATHER,
     HOLD on the main ground cluster's commitment ticks, army dataset v5): the pros' 2,422 games 25.0 / 36.4 / 3.2 / 28.5 /
     6.9% of ticks, holds a median 20 / 20 / 5 / 15 / 15 s; Gary's 96 15.7 / 43.3 / 1.2 / 27.6 / 12.1%, 20 / 25 / 10 / 20 /
     25 s. The choice of intent is near the pros'; carrying it out (who goes, who is left out, groups split in contact) is
-    not.
+    not. Checks: 80% of eval/attacks.py's detected attacks in the 60 pro games fall within 15 s of an ATTACK tick (36%
+    of ATTACK episodes meet one: the rest engage the army away from buildings); on Gary's v6 ticks the tracked
+    destination is the commitment's own target within a cell 75% of the time; 9% of the pros' HOLD ticks (Gary 11%) had
+    a commitment in force, a deviation from the written rule to fix.
+  - *DEFEND_BASE's size, on the pros (800 games):* a detachment of about 6-8 supply whatever the threat (a fifth to a
+    quarter of the army; 13 at 12+ supply of threat), nobody in 19-32% of the moments; against 2 supply or less, 6 supply
+    or nothing. Not 1.5 times the threat: the sizing is to be learned from these moments (or a stop-gap, the user's call).
   - *P(intent | state, belief)* (gradient-boosted trees, 469 held-out games): log-loss 0.472 against the time-and-map
     baseline's 1.279 and persistence's 0.631, Brier 0.247, accuracy 0.845, calibrated (0.95 right at 0.9+). At the
     switches it leans on persistence (1.90 against the baseline's 1.45); a switch hazard (AUC 0.784) and a next-intent
     head given a switch (0.564 against 1.358, accuracy 0.745) beat it, so the design decodes the two at the pros'
-    hazard. The plan belief adds nothing measurable (0.469 without it).
+    hazard. The plan belief adds nothing measurable (0.469 without it). Most of the 0.472 is the labeller's own rule
+    (HOLD and a standing DEFEND_BASE are set by inputs): where the pro gave a new order in the next 5 s, 1.028 against
+    the baseline's 1.266 (accuracy 0.589 against 0.401); the next-intent head on those switches 0.585 against 1.292.
 
 - **Gate 2 again on gt0.54dev, live game 1 read, and the pros' anti-mutalisk choice (2026-11-26; 20 games).**
   - *The 20 strict drills (DR302a1-3, DR300a's setup: gt1dev+strict+told<N> against gz1dev+noarmy+told1, the four

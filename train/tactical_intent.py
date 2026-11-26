@@ -135,7 +135,9 @@ def label_player(d, i: int) -> list[dict]:
         eco = d[f"p{i}_tick_eco"][k].astype(np.float32)
         known = d[f"p{i}_tick_known"][k] if f"p{i}_tick_known" in keys else None
         kb = _cells(known > 0) if known is not None else _cells(grid[6] > 0)
-        out.append({"f": f, "intent": intent, "prev": prev, "held": held, "x": {
+        ct = int(d[f"p{i}_tick_ctarget"][k]) if f"p{i}_tick_ctarget" in keys else None
+        out.append({"f": f, "intent": intent, "prev": prev, "held": held, "label": label, "commit_kind": commit,
+                    "dest": None if dest is None else dest[0][0] * GRID + dest[0][1], "ctarget": ct, "x": {
             "minute": f / 1440, "own_army": float(units @ ARMY_SUPPLY), "cluster_sup": float(csup.sum()) / 2,
             "seen_now": float(seen @ ARMY_SUPPLY), "enemy_army_now": float(grid[3].sum()) / 2,
             "enemy_army_30": float(grid[7].sum()) / 2, "enemy_bld_ever": float(grid[6].sum()),

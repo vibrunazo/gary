@@ -28,7 +28,9 @@ for it. The numbers come from `eval/alone.py` (replays re-simulated, joined with
 | Late arrivals produced after the attack began | 14% | 28% | | |
 
 The older figures in the brief (48% alone, 0.27 late arrivals) are from earlier builds and other measures. On today's
-build and one definition the gap is 21% against 9% and 0.13 against 0.05.
+build and one definition the gap is 21% against 9% and 0.13 against 0.05. The pros' side has no bunker exclusion (no
+records: a marine loaded into a bunker and never seen again counts as a death), which inflates their deaths a little,
+so the gap is if anything wider.
 
 **Units dying alone in gate 4 (2,207), by what left each one alone.** A unit was either left alone in its last 10 s,
 or was alone already and was brought there by its last order 10–90 s before (the roles' orders aside):
@@ -79,9 +81,17 @@ group is together), which no leaf owns today.
 - Game 2: 2–5 units at 4–14 minutes; the commit model was asked 6 times, all after 10:18.
 - Gate 4: a median 11 units at 8:00 and 17 at 10:00.
 
-With 2–5 units every death is likely alone and no tactical layer can gather an army. What starved production live
-(the hands over LAN, the human's raids, the style-2 macro) is its own 0-game read, before any live verdict on the
-intent layer.
+The macro's count leaves out marines inside bunkers. Game 2's replay, re-simulated, agrees: 2–4 fighters in view from
+4:30 to 14:30, with 1–2 bunkers whose marines the count can't see. Game 1 left no replay.
+
+With so few units every death is likely alone and no tactical layer can gather an army. Game 2's poverty is partly
+diagnosed already, and fixed in `gt0.54dev`:
+- its card's reserve held money from 10:26 to 14:48;
+- the turret flood took 14 turrets;
+- Comsat and upgrades were masked.
+
+Game 1 played style 2 with no card and is not diagnosed. What starved production there (the hands over LAN, the
+human's raids, the style-2 macro) is its own 0-game read, before any live verdict on the intent layer.
 
 ## 2. The intents, event-grounded (train/tactical_intent.py)
 
@@ -124,16 +134,24 @@ carrying the intent out:
 So an intent layer that only picked kinds would change little. It has to own *who is in the intent* and *when it
 moves*.
 
-**The sanity check** read sampled held-out pro moments by hand: 15 moments, three of each kind. They read as their
-labels, with two caveats. One `GATHER` moment had losses at home: the main cluster was elsewhere, as another cluster
-defended. The other caveat is below. In the 41 games dumped for reading, 34% of `DEFEND_BASE` ticks had no enemy fighter on a
-home cell itself:
-- the threat was next to one, or
-- it was a loss there.
-
-12% had at most 2 supply of enemy there (the "two zerglings" case). In every threat band the pros' main cluster was
-about a third of their army (0.33–0.39). The pros defend with a part of the army, not all of it, which is the scaling
-rule below.
+**The sanity checks.**
+- **Against an independent event:** in the 60 re-simulated pro games, eval/attacks.py detects an attack when 3 or
+  more fighters reach a Zerg building. 80% of those attacks (163 of 203) fall within 15 s of an `ATTACK` tick. The
+  other way, 36% of `ATTACK` episodes of 10 s or more meet a detected attack. The rest engage the Zerg army or a unit
+  away from its buildings: the dataset's engage is "next to enemy presence", not "at a building".
+- **The tracked destination:** on Gary's v6 ticks (which carry the commitment's real target, `tick_ctarget`), the
+  labeller's destination for a kept commitment is within a cell of it in 75% of 14,008 ticks; none was tracked in 3%.
+- **A deviation from the written rule:** the code gives `HOLD` whenever no destination is tracked. In 9% of the pros'
+  `HOLD` ticks and 11% of Gary's, a commitment was still in force (its order before the main cluster was tracked).
+  To fix in the labeller's next version: label such ticks by the commitment's kind.
+- **By hand:** 15 sampled held-out moments, three of each kind, read as their labels. One `GATHER` moment had losses
+  at home: the main cluster was elsewhere, as another cluster defended.
+- **Threat size:** in the 41 games dumped for reading, 34% of `DEFEND_BASE` ticks had no enemy fighter on a home cell
+  itself (the threat was next to one, or was a loss there), and 12% had at most 2 supply of enemy (the "two
+  zerglings" case).
+- **Dataset versions:** the pros' ticks are army dataset v5, Gary's are v6, where the flyers are clustered apart. The
+  main *ground* cluster is labelled in both, so the comparison holds for the ground army. Gary's flyers (wraiths,
+  vessels) are outside it.
 
 **Contract mapping** (`gary/agent/contracts.py` `TacticalIntent`; race-agnostic: the kinds read only army, buildings
 and losses):
@@ -163,6 +181,18 @@ and losses):
 | The tick before (persistence) | 0.631 | 0.302 | 0.823 | 0.003 |
 | **Model** | **0.472** | **0.247** | **0.845** | **0.005** |
 
+**Most of that is the labeller's own rule.** `HOLD` and a standing `DEFEND_BASE` are set by fields that are also
+inputs: the commitment, the threatened cells and the cluster's distance to them. So the honest score is where the pro
+gave a new order in the next 5 s (`tick_label` not keep), 17,982 held-out ticks:
+
+| Held-out pros, ticks with a new order | Log-loss | Accuracy |
+|---|---|---|
+| Time and map | 1.266 | 0.401 |
+| **Model** | **1.028** | **0.589** |
+
+On the 37,180 ticks with no new order, the model scores 0.203 (accuracy 0.969), largely by definition. **It beats the
+baseline where the decision is made, by less than the table above suggests.**
+
 **Calibration.** When the model's confidence is 0.9–1.0 (43% of ticks) it is right 0.95 of the time. At 0.8–0.9 (29%)
 it is right 0.85, at 0.6–0.8 (22%) 0.72, and at 0.4–0.6 (6%) 0.54. Recall by intent:
 
@@ -177,7 +207,8 @@ it is right 0.85, at 0.6–0.8 (22%) 0.72, and at 0.4–0.6 (6%) 0.54. Recall by
 **The switches.** On the 18% of ticks where the intent changes, the single model is worse than the baseline (log-loss
 1.90 against 1.45): it leans on persistence. Split into two heads, it beats it:
 - **Hazard head** (does the intent change in the next 5 s): AUC 0.784, log-loss 0.374 against 0.467 for a constant.
-- **Next-intent head**, given a switch: log-loss **0.564**, accuracy **0.745**; time-only baseline 1.358 and 0.358.
+- **Next-intent head**, given a switch, with the intent before as an input: log-loss **0.564**, accuracy **0.745**;
+  time-only baseline 1.358 and 0.358. On the switches with a new order (7,874), 0.585 against 1.292, accuracy 0.730.
 
 The design uses the two heads, decoded as the pros' modes are: hold the current intent at the pros' hazard, then
 draw the next one.
@@ -201,29 +232,51 @@ decisions inside it, conditioned on it, instead of a rule overriding them afterw
   steered through the roles' conditioning, not over them.
 - **Records:** every start and end is a decision line, with its record id, kind, target, units and trigger.
 
-**`DEFEND_BASE` scales with the threat.**
-- **What it takes:** the nearest units are leased until their supply reaches 1.5 times the threat's supply, the
-  static guard's ratio, counting the static defense there.
-- **Two zerglings:** a threat of 2 supply or less takes only the units at that base (the bunker's marines, units just
-  made there). It never takes the main intent's units.
-- **The main intent carries on.**
-- **The end:** 10 s with no enemy there, as the pull rule ends.
-- **This is the pros' shape:** their defending cluster is about a third of their army in every threat band.
+**`DEFEND_BASE`'s size, measured on the pros** (800 games, every cluster at each moment with enemy fighters at or next
+to a home cell; defending means sent within a cell of the threat, or standing within 2 cells of it):
+
+| Enemy supply at home | Moments | No cluster defends | Supply defending (median) | Its ratio to the threat (median) | Share of the army |
+|---|---|---|---|---|---|
+| 0–2 (two zerglings) | 7,431 | 32% | 6 | 9.0 | 0.17 |
+| 2–6 | 6,537 | 27% | 7 | 2.2 | 0.26 |
+| 6–12 | 4,945 | 27% | 8 | 1.2 | 0.21 |
+| 12 or more | 37,598 | 19% | 13 | 0.3 | 0.27 |
+
+The pros send a small detachment whatever the threat: about 6–8 supply, a fifth to a quarter of the army. It grows
+slowly with large threats, and in a fifth to a third of the moments nobody goes. They don't size it to 1.5× the
+threat. Against two zerglings they send 6 supply (17% of the army), or nothing.
+
+The largest band is inflated by the "seen in 30 s" memory counting a passing army.
+
+So the detachment's size should be learned, not set:
+- a model of the defending supply given the threat, the army, the static defense and the minute, fitted on these
+  moments;
+- its median as the lease's size, nearest units first;
+- the main intent carries on with the rest.
+
+The end condition (no enemy at the base for some seconds) should be read from the pros' `DEFEND_BASE` hold lengths
+(median 20 s, p75 40 s), not set at 10 s.
+
+**Open decision for the user:** learn the sizing as above, or start from a scripted rule tagged as a stop-gap with its
+`AGENTS.md` entry.
 
 **The leaves:**
 
 | Leaf | What it does under the intent | How it is conditioned | Its 0-game check first |
 |---|---|---|---|
-| **`commit`** | Decides per cluster *whether now*: keep, or go to the intent's target. Its destination is the intent's cell, not a fresh draw per cluster, so the clusters of one intent go to one place. | Retrained (`train/commit.py`) with the intent's kind and target as inputs, from the same army ticks (the pros' label is in the row). Its kind head may only take the intent's kinds (`ATTACK`: engage or keep; `GATHER` and `RETREAT`: move or keep; `HOLD`: keep; `DEFEND_BASE`: engage toward the threat or keep). That is a decoder of the intent's choice, not a veto of the model's: within the intent, the timing stays the model's. | Held-out log-loss of the kind head with the intent against without; P(engage \| ATTACK) against the pros' |
+| **`commit`** | Decides per cluster *whether now*: keep, or go to the intent's target. Its destination is the intent's cell, not a fresh draw per cluster, so the clusters of one intent go to one place. | Retrained (`train/commit.py`) with the intent's kind and target as inputs, from the same army ticks (the pros' label is in the row). Two ways, an **open decision for the user**: (i) conditioning only, the intent as an input and no mask, so `commit` may still disagree, and the pipe check measures how often; (ii) a kind mask, the head allowed only the intent's kinds (`ATTACK`: engage or keep; `GATHER`, `RETREAT`: move or keep; `HOLD`: keep; `DEFEND_BASE`: engage toward the threat or keep). The mask is a veto of the model's other kinds, so it is a stop-gap in `AGENTS.md`'s sense. Recommended: (i) first, with the mask only if the pipe check shows `commit` ignoring the intent. | Held-out log-loss of the kind head with the intent against without; P(engage \| ATTACK) against the pros' |
 | **The gather before `ATTACK`** | An `ATTACK` starts from `GATHER` at a staging cell. Clusters leased to it keep until the intent's group holds its share of the army there, a learned stopping point. This is the decision that brings 0.50 of the army, not 0.30. | The share at which the pros go, from their ticks: the army's share within 2 cells of the staging cell at the GATHER→ATTACK switch | The pros' share at the switch; Gary's at its attacks |
 | **`calm`** | Moves only units of an intent's group, around the group's middle. A unit alone (more than 6 tiles from any friend) and in no group is sent to join its intent's group instead of a calm hop. | Later, the calm model with the intent as input; v0 routes | The share of calm orders to lone units (56% of the calm layer's orders went to one unit, HS284a) |
 | **`roles`** (`RoleNet`) | Micro in contact, conditioned on the intent: in `RETREAT`, close-in should vanish; in `DEFEND_BASE`, fire and close-in near the threat. | The intent's kind as an extra input token, retrained (`train/roles.py`) on the pros' fights joined to their intent by frame. No hand veto. | The pros' role shares by intent; the model's held-out log-loss with and without; `CLOSE_IN` when outnumbered, the pros' against Gary's |
 | **The reinforce rule** | Subsumed. A new unit is leased to an intent at birth. A `DEFEND_BASE` detachment at its base takes it if the detachment is short; otherwise it walks to its intent's group. It is never attack-moved alone into a fight. | Membership, not a model | The rule's measure in `AGENTS.md`: deaths with no friend within 6 tiles, against the pros' |
 | **`grouping`** | Keys follow intents: key 1 the main intent's group, keys 2–3 the detachments, so an intent's order is one key and one click. Today a commit order is three orders, one per key or box. | Scripted, as the provider slot is (a learned grouping later) | Orders per intent decision; the share of the group in the order |
 
-**Not stop-gaps** (`AGENTS.md`): the lease routing, the kind mask on `commit` and the detachment's sizing are decoders
-of the intent model's choice. The intent model's own decision (kind, switch, target) is learned. The reinforce rule's
-entry goes when the intent's membership holds its measure with the rule off.
+**Stop-gaps or not** (`AGENTS.md`):
+- **The lease routing** is a decoder of the intent model's choice: who is in the group that the model decided on.
+- **The commit mask and a scripted detachment size** would be stop-gaps, each with its entry, if chosen over the
+  learned versions above.
+- **The intent model's own decision** (the kind, the switch, the target) is learned.
+- **The reinforce rule's entry** goes when the intent's membership holds its measure with the rule off.
 
 **`eval/coach.py` Q4** will cite the intent first, in plain Brood War English, then the leaves inside it. For example
 (its numbers illustrative):
@@ -253,10 +306,10 @@ Each figure is linked to its record. Q4 cites:
      `ATTACK`, the threatened base for `DEFEND_BASE`, toward the main for `RETREAT`; none for `HOLD`).
   2. The five arms' orders differ pairwise in at least 80% of the moments.
   3. No lease conflict on a leased unit outside contact.
-  4. A forced `DEFEND_BASE` against 2 zerglings leases 4 supply or less and leaves the main intent's units on their
-     orders.
+  4. A forced `DEFEND_BASE` against 2 zerglings leases about the pros' detachment (6 supply, the fitted median) and
+     leaves the main intent's units on their orders.
   5. The retrained `commit` and `roles` models' outputs move with the intent input at those moments: the kind head's
-     odds follow the mask's side, and `CLOSE_IN` falls under `RETREAT`.
+     odds move toward the intent's kinds, and `CLOSE_IN` falls under `RETREAT`.
 
 **2. The 16-game screening round** (`gt1dev+intent` against `gt1dev`, both against `gz1`, paired seeds; the ladder
 maps, 8 maps × 2 seeds from 4004, 30 minutes, `--gg 0` as gate 4, so no game ends before its attacks; the baseline replayed with the same code and
@@ -276,7 +329,7 @@ opponent). The minimum detectable effects use the per-game spread in G4299a (80%
 1. **Labels into the data.** Join the labeller's intents into the commit and role datasets, then retrain `commit` and
    `roles` with the intent input. The 0-game checks are in the table above.
 2. **The provider.** The two-headed intent model (hazard and next intent), its decoder at the pros' hazard,
-   `ArmyNet`'s heatmap restricted by kind, the leases, and `DEFEND_BASE`'s scaling. `tests/test_intent_pipe.py`.
+   `ArmyNet`'s heatmap restricted by kind, the leases, and `DEFEND_BASE`'s detachment sized by a model fitted on the pros' defending moments (or the user's chosen stop-gap). `tests/test_intent_pipe.py`.
 3. **The leaves' routing.** Calm, reinforce and grouping. `tests/test_smoke_game.py`, `tests/test_pairs.py`,
    `tests/test_inputs.py`, `tests/test_live.py`.
 4. **Coach Q4** on the intent records.
