@@ -628,3 +628,67 @@ target, the commit model's cell is drawn among those within 2 cells of it. This 
 **Regression tests:**
 - Parity (gt1, gz1, gp1 unchanged), smoke, pairs and live pass.
 - `tests/test_matchups.py` with `gt1dev+intent` plays all six matchups.
+
+## 9. The 16-game screen (2026-11-26; IN303a against IB303a)
+
+**The round.** `gt1dev+intent` (IN303a) and `gt1dev` replayed on the same code (IB303a), both against `gz1`. The 8
+ladder maps × 2 seeds from 4004, 30 minutes, `--gg 0`, paired by map and seed. The measures are §5's, from
+`eval/alone.py`, `eval/paired.py`, `eval/gap_windows.py`, `train/tactical_intent.py --gary` and the records.
+
+| Measure | Baseline (IB303a) | Intent (IN303a) | Paired difference, 90% | Expected (§5) | Read |
+|---|---|---|---|---|---|
+| Deaths alone (games' mean) | 0.194 | 0.186 | −0.008 [−0.046, +0.031] | 0.25 → 0.14 | **No change** |
+| The army's share at attacks (games' median) | 0.275 | 0.422 | **+0.149 [+0.081, +0.216]** | → 0.45 | **Moved, as expected** |
+| Late arrivals per fighter there | 0.117 | 0.158 | +0.018 [−0.040, +0.081] | toward 0.06 | Direction only: none |
+| Attacks a game | 4.7 | 3.8 | | | Fewer, larger |
+| Fighters alone, 5–20 min samples | 0.070 | 0.055 | | | Down |
+| Ground fighters in no asked cluster | 0.131 | 0.085 | | | Down |
+| Paired score by supply | | | −0.109 [−0.281, +0.062] | not measurably worse | Read, not judged (16 games resolve about 0.2) |
+| Gap, all windows | 0.416 | 0.424 | +0.008 [−0.063, +0.080] | | Same. 5–10 min +0.036 [−0.011, +0.073]; 25–30 min −0.111 [−0.202, −0.013] (intent nearer the pros) |
+
+Results: the intent build won 3, lost 2 and had 11 at time; the baseline won 4, lost 1 and had 11 at time.
+
+**Deaths alone are the roles' doing.**
+- 88% of the intent build's alone deaths had the role model's order last (baseline 84%), 78% of them outnumbered.
+- What left them alone: neighbours died (31%), and neighbours moved off by the roles (19%).
+- The intent layer steers the army out of contact. The units that die alone die in contact, where the role model
+  decides, and the role model doesn't read the intent (§7: no gain offline). So this measure needs the fight layer,
+  not this one.
+
+**Intent shares** (the labeller over each round's replays; the pros' in §2):
+
+| | DEFEND_BASE | ATTACK | RETREAT | GATHER | HOLD | HOLD at 20+ min |
+|---|---|---|---|---|---|---|
+| Pros | 25.0% | 36.6% | 3.2% | 29.0% | 6.2% | 3% |
+| Baseline | 19.2% | 40.7% | 1.3% | 28.9% | 9.9% | 13% |
+| Intent | 20.0% | 40.0% | 1.4% | 30.0% | 8.7% | 15% |
+
+The labelled shares hardly moved: `RETREAT` stays at 1.4% (expected 3%), and late `HOLD` at 15% (expected under 8%).
+
+**The layer's own decisions** (its records, 16 games):
+- **Time shares:** `DEFEND_BASE` 27%, `ATTACK` 35%, `RETREAT` 1.6%, `GATHER` 36%, `HOLD` 0.9%.
+- **Switches:** 2.54 a minute.
+- **Hold medians:** 10–16 s, against the pros' 15–20 s. The p90 is about a minute, with a long tail: one `ATTACK`
+  held 7 minutes.
+- **The defence:**
+  - 101 times the main itself defended (threat median 13 supply);
+  - 46 detachments (median 31 supply, late armies);
+  - 64 times nobody went (threat median 6; 15 of them against more than 20 supply, the "seen in 30 s" memory
+    included).
+
+**A deviation found: `GATHER` makes the commit model move, not keep.**
+- Under `GATHER`, `commit` gave keep / engage / move 363 / 17 / 607: 62% moves. The pros' and the model's offline odds
+  are 30% moves (§7).
+- 269 of the moves were at the target, shuffling within 2 cells of it every few seconds (Q4, KnockOut 14:45–14:58).
+- A likely reason: play reaches `GATHER` with the old commitment still in force, a state the data never holds,
+  because the labeller labels `GATHER` from a move commitment.
+- The other kinds are near the pros':
+  - `ATTACK` engages 47% of its decisions (pros 32%);
+  - `DEFEND_BASE` 30% (pros 16%);
+  - `RETREAT` moves 77% (pros 65%);
+  - `HOLD` keeps 100%.
+
+**Coach Q4.** 12 answers at 7, 11 and 15 minutes of 4 games are in `runs/league/IN303a/q4_review.txt` (not in the
+repository). Each cites the intent in force, its target, the model's odds at the switch, the defence (detachment,
+the whole group, or nobody) and the commit decisions behind it. A bug the read found: when the main itself defended,
+Q4 also printed it as a detachment ("None supply"). It is fixed in `eval/coach.py`.

@@ -77,7 +77,8 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   `queued_builds` (docs/PROGRESS.md, gt0.54dev).
 - **Phase 2 (open, started 2026-11-26; docs/REFOCUS.md §4.3):** TacticalIntent v0 is built as option `intent`,
   pipe-checked and amended by the user's calls (docs/TACTICAL_INTENT.md §8: HOLD's clear folded in, the defence a
-  hurdle with the main defending at half the army). Next, the 16-game screen (§5), then the user's review before 48/96
+  hurdle with the main defending at half the army). The 16-game screen is done (§9): the army's share at attacks
+  0.28 → 0.42, deaths alone unchanged (they are the roles'), GATHER over-moving. The user's review before 48/96
   games. Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Plus the early G4
   check (the same card under the pro and a lower HumanProfile).
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept

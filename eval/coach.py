@@ -554,8 +554,8 @@ def q4(g: Game, minute: float) -> Answer:
                              f"rather than a part of it." if "the main defends" in why
                         else "It was chosen by the intent model."),
               d)
-    dets = [d for d in ints if d["choice"].startswith("DEFEND_BASE") and d["choice"] != "DEFEND_BASE ended"
-            and f0 <= d["f"] <= f]
+    dets = [d for d in ints if (d["choice"].startswith("DEFEND_BASE (") or d["choice"].endswith("nobody goes"))
+            and f0 <= d["f"] <= f]                      # (the main defending is the plan above, not a detachment)
     for d in dets[-2:]:
         ins = d.get("in") or {}
         if d["choice"].endswith("nobody goes"):

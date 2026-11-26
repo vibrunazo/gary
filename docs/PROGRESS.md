@@ -2308,6 +2308,19 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **TacticalIntent v0's 16-game screen (2026-11-26; IN303a against IB303a, 32 games; docs/TACTICAL_INTENT.md §9).**
+  gt1dev+intent against gt1dev replayed on the same code, both against gz1, the ladder maps, seeds 4004-4005, gg 0,
+  paired.
+  - The army's share at attacks rose from 0.275 to 0.422 (+0.149 [+0.081, +0.216]; §5 expected 0.45). Attacks were
+    fewer and larger (3.8 a game against 4.7), and ground fighters in no asked cluster fell from 13% to 9% of samples.
+  - Deaths alone did not move: 0.194 to 0.186 (−0.008 [−0.046, +0.031]). 88% had a role order last, in contact,
+    where the intent isn't read.
+  - Late arrivals didn't move (+0.018 [−0.040, +0.081]).
+  - Paired score −0.109 [−0.281, +0.062]; gap all windows +0.008 [−0.063, +0.080] (5–10 min +0.036, 25–30 min −0.111,
+    intent nearer).
+  - The labelled intent shares hardly moved (RETREAT 1.4%, HOLD at 20+ min 15%).
+  - A deviation: under GATHER, commit moved in 62% of its decisions (the pros 30%), 269 of them shuffles at the target.
+  - Coach Q4's "the main defends" was printed twice as a detachment; fixed.
 - **TacticalIntent v0, the user's calls applied (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §8).** `HOLD`'s
   commitment clear folded into option `intent` (input parity with the labeller; option intentholdclear gone). The
   defence is a hurdle: P(anyone defends), held out AUC 0.746, nobody 22.7% against the pros' 23.0% and by threat band
