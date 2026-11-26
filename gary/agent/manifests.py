@@ -698,6 +698,12 @@ OPTIONS = {
     # gary/agent/calm.py: a standing fighter out of contact given the pros' short orders (the calm model, its again
     # decision drawn at its rates), a turn rule of the army layer
     "calm": lambda m: m["army"].update(rules=[*m["army"].get("rules", ()), "calm"]),
+    # the army's tactical intents (gary/agent/tactical.py, docs/TACTICAL_INTENT.md): one over the army and its defence
+    # detachments, from the intent model (runs/intent, train/tactical_intent.py); the commit model with the intent as an
+    # input (runs/commit_intent: out of the newest-model glob, so no other build takes it); the calm layer, the reinforce
+    # rule and the control groups routed by it; intentroles: the role model with the intent too (runs/roles_intent)
+    "intent": lambda m: _intent(m),
+    "intentroles": lambda m: _intent_roles(m),
     # army_rules.py ClusterRules (Gary-Z's, shared): join, a cluster under the main one's size walks to it rather than
     # deciding alone (Gary-T's attacks: 0.26 late arrivals per fighter there, the pros' 0.06, eval/attacks.py); sweep,
     # the main body attacks a packet it outweighs; press, far ahead and nothing at home, it attacks the buildings
@@ -1659,6 +1665,23 @@ MANIFESTS["gp1dev"] = {**manifest_of("gp1+unscripted+grouping+gamequeue+builtcou
                        "version": "gp0.39dev"}
 
 
+INTENT_COMMIT = "runs/commit_intent/TvZ_T_intent/model.pt"     # (train/commit.py --intent --init the deployed one)
+INTENT_ROLES = "runs/roles_intent/intent/model.pt"              # (train/roles.py as the deployed one, with --intent)
+
+
+def _intent(m: dict) -> None:
+    m["army"].update(rules=["intent", *[r for r in m["army"].get("rules", ()) if r != "intent"]])
+    m["army"]["model"] = {"TvZ": INTENT_COMMIT, "*": m["army"].get("model", "army/latest")}
+
+
+def _intent_roles(m: dict) -> None:
+    """Option intentroles (with intent): the role model trained with the intent as an input. Not in intent: on the held-out
+    games it read worse than its control (accuracy 0.482 against 0.496), and the pros' close-in does not fall under a
+    retreat (docs/TACTICAL_INTENT.md, steps 1-3)."""
+    if m.get("fight") is not None and m["fight"].get("provider") in ("roles", "role_override", "role_ahead"):
+        m["fight"]["roles_model"] = {"TvZ": INTENT_ROLES, "*": m["fight"].get("roles_model")}
+
+
 def fight_model_path(m: dict, matchup: str, race: str) -> Path | None:
     """The role model a manifest's fight layer plays with in this matchup (its "vs" section already applied): a pinned
     checkpoint (roles_model), else the newest trained on its data (roles_data), else its model reference; the Zerg's
@@ -1672,8 +1695,8 @@ def fight_model_path(m: dict, matchup: str, race: str) -> Path | None:
             else None
     if f["provider"] not in ("roles", "role_override", "role_ahead") or (f["provider"] == "roles" and f.get("model") is None):
         return None
-    if f.get("roles_model"):
-        return Path(f["roles_model"])                    # (a pinned checkpoint: an RL run's, say)
+    if f.get("roles_model") and _by_matchup(f["roles_model"], matchup):
+        return Path(_by_matchup(f["roles_model"], matchup))   # (a pinned checkpoint: an RL run's, say; or by matchup)
     if f.get("roles_data"):
         from gary.policy.roles import latest_trained_on
         found = latest_trained_on(_by_matchup(f["roles_data"], matchup))

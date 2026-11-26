@@ -192,7 +192,10 @@ class DirectMotor:
         if self.grouping is None:
             return False
         army = [u for u in done if u["type"] in g.army_types]
-        clusters = g.army._clusters(army, asked=False) if hasattr(g.army, "_clusters") else [army]
+        if getattr(g, "tactical", None) is not None:    # (option intent: a type of an intent's group on a key, flyers apart)
+            clusters = g.tactical.groups(army)
+        else:
+            clusters = g.army._clusters(army, asked=False) if hasattr(g.army, "_clusters") else [army]
         plan = self.grouping.step(clusters)
         if plan is not None:
             self.plan = plan

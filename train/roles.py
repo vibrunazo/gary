@@ -89,8 +89,39 @@ def weights_of(path: str) -> None:
     print(f"{path}: " + ", ".join(f"{r} {s:.2%} x{x:.1f}" for r, s, x in zip(names, share, w)))
 
 
+def snapshot_intents(sha1s: np.ndarray, game: np.ndarray, times: np.ndarray, race: str = "T") -> np.ndarray:
+    """Each snapshot's tactical intent (gary/policy/tactical.py INTENTS index; -1 none): the player's main cluster's at
+    the army dataset's last tick within 10 s before it (train/tactical_intent.py main_intents), joined by game."""
+    import json
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ingest"))
+    from inventory import data_root
+    from train.tactical_intent import main_intents
+    root = data_root() / "interim" / "army" / "v5"
+    where = {}
+    for line in open(root / "index.jsonl", encoding="utf-8"):
+        r = json.loads(line)
+        if r.get("ok") and r["sha1"] in set(map(str, sha1s)):
+            i = next((k for k, pl in enumerate(r["players"]) if pl["race"] == race), None)
+            if i is not None:
+                where[r["sha1"]] = (root / r["sha1"][:2] / f"{r['sha1']}.npz", i)
+    out = np.full(len(game), -1, np.int8)
+    for g, sha in enumerate(map(str, sha1s)):
+        if sha not in where:
+            continue
+        frames, intents = main_intents(*where[sha])
+        m = np.nonzero(game == g)[0]
+        if not len(frames) or not len(m):
+            continue
+        f = (times[m] * 24).astype(np.int64)
+        k = np.searchsorted(frames, f, side="right") - 1
+        ok = (k >= 0) & (f - frames[np.maximum(k, 0)] <= 10 * 24)
+        out[m[ok]] = intents[k[ok]]
+    return out
+
+
 def load(path: Path, decisions: bool = False, move: bool = False, attended: bool | str = False, budget: bool = False,
-         again: bool = False, use_keys: bool = False):
+         again: bool = False, use_keys: bool = False, intent: bool = False):
     """Train and validation arrays, and the label names (a dataset can name its own: the hand rules'
     decisions, ingest/role_distill.py). attended: only the labels of units the player's commands reached
     (ingest/response_dataset.py attended; the rest -1), or "keep" (with decisions): the units no command reached are
@@ -121,6 +152,12 @@ def load(path: Path, decisions: bool = False, move: bool = False, attended: bool
     if budget:
         b = np.nan_to_num(d["budget"], nan=float(np.nanmedian(d["budget"]))) / 100.0
         extra = np.concatenate([extra, np.broadcast_to(b[:, None, None], extra.shape[:2] + (1,)).astype(extra.dtype)], -1)
+    if intent:                          # (the player's tactical intent at the snapshot, one-hot on every unit's row)
+        from gary.policy.tactical import INTENTS
+        k = snapshot_intents(d["sha1"], d["game"], d["time"])
+        one = np.zeros((len(k), len(INTENTS)), extra.dtype)
+        one[np.nonzero(k >= 0)[0], k[k >= 0]] = 1
+        extra = np.concatenate([extra, np.broadcast_to(one[:, None, :], extra.shape[:2] + (len(INTENTS),))], -1)
     arrays = {"rows": d["rows"], "extra": extra, "labels": labels, "count": d["count"], "time": d["time"]}
     keys = ("rows", "extra", "labels", "count", "time")
     if "move" in d and move:            # (ingest/response_dataset.py: each unit's move over the half second)
@@ -252,6 +289,8 @@ def main() -> None:
                          "draws at them")
     ap.add_argument("--out", help="the run's folder (default: runs/roles/<time>; an experiment's goes elsewhere, so "
                                   "Gary's newest-model lookup doesn't take it)")
+    ap.add_argument("--intent", action="store_true", help="the player's tactical intent as five more per-unit inputs "
+                    "(train/tactical_intent.py's labels of the army dataset's ticks; the model's config says so)")
     ap.add_argument("--budget", action="store_true", help="the player's order rate as an input (the model's config says so)")
     ap.add_argument("--again", action="store_true",
                     help="with --decisions: the pros' re-issues as a decision of their own, and an offset head for where "
@@ -282,7 +321,7 @@ def main() -> None:
     torch.manual_seed(0)
     attended = "keep" if args.unattended_keep else bool(args.attended)
     train, val, names = load(Path(args.data), args.decisions, args.move, attended, args.budget, args.again,
-                             args.keys)
+                             args.keys, args.intent)
     decisions = "keep" in names
     y = train[2][train[2] >= 0]
     share, w = class_weights(train[2], len(names))
@@ -296,7 +335,7 @@ def main() -> None:
                       "move": bool(args.move), "offset": bool(args.again),
                       "offset_bins": OFFSET_DIRS * (len(EDGES[0]) - 1) if args.offset_bins else 0},
               "offset_edges": list(EDGES[0]), "keys": bool(args.keys),
-              "data": args.data, "roles": names, "attended": attended, "budget": bool(args.budget),
+              "data": args.data, "roles": names, "attended": attended, "budget": bool(args.budget), "intent": bool(args.intent),
               "weights": [round(float(x), 6) for x in w]}
     net = RoleNet(**config["net"]).to(device)
     opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=0.01)

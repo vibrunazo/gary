@@ -1,36 +1,25 @@
-"""TacticalIntent v0, offline (docs/REFOCUS.md §3.4, Phase 2; 0 games): the pros' army intents labelled from their
-commitment ticks, their frequencies and hold lengths, the same labeller over Gary's games, and a model of
-P(intent | state, belief) against a time-and-map baseline.
+"""TacticalIntent (docs/TACTICAL_INTENT.md, Phase 2): the army's intents labelled on the pros' commitment ticks, their
+frequencies and hold lengths, the same labeller over Gary's games, and the intent model: a switch hazard, the next
+intent given a switch, and the defence's size (gary/policy/tactical.py, which holds the labeller and the numbers).
 
-The labeller reads the army dataset's commitment ticks (ingest/army_dataset.py: every TICK seconds, each of a player's
-army clusters with what the player did with it in the next TICK seconds: keep, engage or move, the order's cell, and
-the cluster's commitment in force). Each tick of the player's main ground cluster (the most supply) gets one intent,
-written before any table was read:
+The labeller reads the army dataset's commitment ticks (ingest/army_dataset.py: every TICK seconds, each army cluster
+with what the player did with it in the next TICK seconds, keep / engage / move and the order's cell, and the
+commitment in force). The main ground cluster (the most supply at the moment) carries its last order's destination
+along while its commitment holds; every other cluster is labelled from its own row (an order's cell, or its
+commitment's kind). cluster_intents() gives every row's intent, for the commit model's input (train/commit.py
+--intent); main_intents() the main cluster's by frame, for the role model's (train/roles.py --intent).
 
-  DEFEND_BASE    enemy fighters at a home cell (one with the player's buildings, or next to it: in sight now, seen in
-                 the last 30 s, or own losses there in the last LOSS_S), and the cluster is sent within a cell of
-                 such a cell, or stands within 2 cells of one with no new order
-  ATTACK         sent (or committed) to a cell next to enemy presence the player knew of (the dataset's engage), not
-                 a home cell
-  RETREAT        sent (or committed) to a cell nearer its main by 2 cells or more, from where enemy fighters were
-                 within 2 cells or it lost units in the last LOSS_S
-  GATHER         any other move: to a staging point, to the army, back home calm, a position on the map
-  HOLD           no commitment in force and no new order: it stands where it is
+The model (P(intent at t | the state at t), the intent being what the player does in the next TICK s): the numbers of
+gary/policy/tactical.py FEATURES (with the army's cohesion: the share of the own army within 2 cells of the cluster and
+of its destination, the clusters), the intent of the tick before and how long it has held. Two heads of gradient-boosted
+trees, decoded in play at the pros' hazard: does it switch now, and to what. Baselines: the time-and-map frequencies
+and persistence; the score where the pro gave a new order (the labeller's own rule sets HOLD and a standing defence from
+inputs) is the one that counts. The defence's size: the supply the pros send or keep at a threatened base (every
+cluster sent within a cell of the threat, or standing within 2 cells of it), a median regression on SIZER_FEATURES.
+Games split 80/20 by sha1.
 
-A commitment kept (no new order) carries the intent of the order that made it: the destination is the cluster's last
-order's cell while the dataset's commitment (COMMIT_S) holds. The cells are the dataset's mirrored 16x16 grid (the
-player's main in the top-left quadrant). Race-agnostic: the kinds read only own and enemy army, buildings and losses.
-
-The model (P(intent at t | state at t - nothing after t), the intent being what the player does in the next TICK s):
-own army and its main cluster's supply, the enemy army seen (now, the last 30 s, ever), the enemy at home, own losses
-(at home, near the cluster), the cluster's distance to its main and to the nearest enemy building known, the
-cluster's commitment and its age, the intent of the tick before and how long it has held, minerals, gas, supply, the
-minute, and the plan belief's odds (the cross-fitted P(spire first) and P(lurker first), train/plan_belief.py --oof,
-2:30-10:00, else missing). Baselines: the time-and-map frequencies (minute bucket x map, from the training games) and
-the intent of the tick before (persistence). Games split 80/20 by sha1.
-
-    python -m train.tactical_intent --pros                 # label the modern TvZ Terrans, frequencies and hold lengths
-    python -m train.tactical_intent --pros --model         # and the model against the baselines
+    python -m train.tactical_intent --pros                 # label the modern TvZ Terrans: frequencies, hold lengths
+    python -m train.tactical_intent --pros --train         # and train the model, scored against the baselines
     python -m train.tactical_intent --gary G4299a          # Gary's games of a round, the same labeller
 """
 from __future__ import annotations
@@ -40,6 +29,7 @@ import glob
 import hashlib
 import json
 import sys
+import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -49,108 +39,92 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "ingest"))
 
-INTENTS = ("DEFEND_BASE", "ATTACK", "RETREAT", "GATHER", "HOLD")
+from gary.policy.tactical import (ENGAGE, FEATURES, GRID, INTENTS, KEEP, MOVE, SIZER_FEATURES, IntentModel, Scene,  # noqa: E402
+                                  dist, features, label, near, sizer_features)
+
 TICK = 5
-GRID = 16
-KEEP, ENGAGE, MOVE = 0, 1, 2
-COMMIT_S = 120
 MINUTES = (5, 8, 11, 15, 20)               # the baseline's minute buckets
 
 
-def _cells(mask: np.ndarray) -> list[tuple[int, int]]:
-    ys, xs = np.nonzero(mask.reshape(GRID, GRID))
-    return list(zip(ys.tolist(), xs.tolist()))
-
-
-def _d(a, b) -> int:
-    return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
-
-
-def _near(c, cells, r) -> bool:
-    return any(_d(c, x) <= r for x in cells)
-
-
-def main_ticks(d, i: int, air_key: bool) -> list[int]:
-    """Indices of the player's main ground cluster's ticks: per frame, the most supply (channel 8)."""
+def _frames(d, i: int):
+    """Per frame, its tick rows; and each frame's main ground cluster's row."""
     fr = d[f"p{i}_tick_frame"]
-    if not len(fr):
-        return []
-    sup = d[f"p{i}_tick_grid"][:, 8].sum(1)
-    air = d[f"p{i}_tick_air"] if air_key else np.zeros(len(fr))
-    best: dict[int, int] = {}
-    for k in range(len(fr)):
-        if air[k]:
-            continue
-        f = int(fr[k])
-        if f not in best or sup[k] > sup[best[f]]:
-            best[f] = k
-    return [best[f] for f in sorted(best)]
-
-
-def label_player(d, i: int) -> list[dict]:
-    """The player's main cluster's ticks, each with its intent and the features the model reads."""
     keys = set(d.files)
-    air_key = f"p{i}_tick_air" in keys
-    idx = main_ticks(d, i, air_key)
-    if not idx:
-        return []
-    g = d[f"p{i}_tick_grid"]
+    air = d[f"p{i}_tick_air"] if f"p{i}_tick_air" in keys else np.zeros(len(fr))
+    sup = d[f"p{i}_tick_grid"][:, 8].sum(1)
+    by: dict[int, list[int]] = defaultdict(list)
+    for k in range(len(fr)):
+        by[int(fr[k])].append(k)
     out = []
-    dest = None                   # (cell, kind, frame) of the main cluster's last order
-    prev, held = None, 0
-    from gary.policy.army import ARMY_SUPPLY
-    for k in idx:
-        grid = g[k].astype(np.int32)
-        f = int(d[f"p{i}_tick_frame"][k])
-        own_b = _cells(grid[2] > 0)
-        home = own_b
-        main = min(own_b, key=lambda c: c[0] + c[1]) if own_b else (0, 0)
-        enemy_now, enemy_30 = _cells(grid[3] > 0), _cells(grid[7] > 0)
-        loss = d[f"p{i}_tick_loss"][k].astype(np.int32) if f"p{i}_tick_loss" in keys else np.zeros(256, np.int32)
-        losses = _cells(loss > 0)
-        threat = [c for c in home if _near(c, enemy_now + enemy_30, 1) or _near(c, losses, 0)]
-        csup = grid[8]
-        cc = _cells(csup > 0)
-        center = cc[0] if cc else main
-        label, target = int(d[f"p{i}_tick_label"][k]), int(d[f"p{i}_tick_target"][k])
-        commit, age = int(d[f"p{i}_tick_commit"][k]), float(d[f"p{i}_tick_age"][k])
-        if label in (ENGAGE, MOVE) and target >= 0:
-            dest = (divmod(target, GRID), label, f)
-        elif commit == 0 or (dest is not None and (f - dest[2]) / 24 > COMMIT_S):
-            dest = None
-        near_enemy = _near(center, enemy_now + enemy_30, 2)
-        lost_near = _near(center, losses, 2)
-        if threat and ((dest is not None and _near(dest[0], threat, 1)) or (dest is None and _near(center, threat, 2))):
-            intent = "DEFEND_BASE"
-        elif dest is None:
-            intent = "HOLD"
-        elif dest[1] == ENGAGE and not _near(dest[0], home, 0):
-            intent = "ATTACK"
-        elif dest[1] == MOVE and _d(dest[0], main) <= _d(center, main) - 2 and (near_enemy or lost_near):
-            intent = "RETREAT"
-        else:
-            intent = "GATHER"
-        units = d[f"p{i}_tick_units"][k].astype(np.float32)
-        seen = d[f"p{i}_tick_seen"][k].astype(np.float32)
-        eco = d[f"p{i}_tick_eco"][k].astype(np.float32)
-        known = d[f"p{i}_tick_known"][k] if f"p{i}_tick_known" in keys else None
-        kb = _cells(known > 0) if known is not None else _cells(grid[6] > 0)
-        ct = int(d[f"p{i}_tick_ctarget"][k]) if f"p{i}_tick_ctarget" in keys else None
-        out.append({"f": f, "intent": intent, "prev": prev, "held": held, "label": label, "commit_kind": commit,
-                    "dest": None if dest is None else dest[0][0] * GRID + dest[0][1], "ctarget": ct, "x": {
-            "minute": f / 1440, "own_army": float(units @ ARMY_SUPPLY), "cluster_sup": float(csup.sum()) / 2,
-            "seen_now": float(seen @ ARMY_SUPPLY), "enemy_army_now": float(grid[3].sum()) / 2,
-            "enemy_army_30": float(grid[7].sum()) / 2, "enemy_bld_ever": float(grid[6].sum()),
-            "enemy_at_home": float(sum(grid[3].reshape(GRID, GRID)[c] + grid[7].reshape(GRID, GRID)[c] for c in home)) / 2,
-            "threat_cells": len(threat), "loss_all": float(loss.sum()), "loss_home": float(sum(loss.reshape(GRID, GRID)[c] for c in home)),
-            "loss_near": float(lost_near), "near_enemy": float(near_enemy),
-            "d_main": _d(center, main), "d_enemy_bld": min((_d(center, c) for c in kb), default=16),
-            "d_enemy_army": min((_d(center, c) for c in enemy_now + enemy_30), default=16),
-            "commit": commit, "age": min(age, COMMIT_S), "minerals": float(eco[0]), "gas": float(eco[1]),
-            "supply": float(eco[2]) / 2, "supply_max": float(eco[3]) / 2, "bases": len(own_b)}})
+    for f in sorted(by):
+        ground = [k for k in by[f] if not air[k]]
+        out.append((f, by[f], max(ground, key=lambda k: sup[k]) if ground else None))
+    return out
+
+
+def _row(d, i: int, k: int):
+    keys = set(d.files)
+    grid = d[f"p{i}_tick_grid"][k]
+    loss = d[f"p{i}_tick_loss"][k] if f"p{i}_tick_loss" in keys else None
+    return Scene(grid, loss), int(d[f"p{i}_tick_label"][k]), int(d[f"p{i}_tick_target"][k]), \
+        int(d[f"p{i}_tick_commit"][k]), float(d[f"p{i}_tick_age"][k])
+
+
+def label_player(d, i: int, rows: bool = False):
+    """The main cluster's ticks: intent, the numbers, the tick's label, the commitment and its target (v6); with rows,
+    every tick row's intent too (-1: a flyers' cluster)."""
+    keys = set(d.files)
+    n = len(d[f"p{i}_tick_frame"])
+    per_row = np.full(n, -1, np.int8)
+    air = d[f"p{i}_tick_air"] if f"p{i}_tick_air" in keys else np.zeros(n)
+    out, dest, prev, held = [], None, None, 0
+    for f, ks, main in _frames(d, i):
+        if main is None:
+            continue
+        scene, lab, tgt, com, age = _row(d, i, main)
+        intent, dest = label(scene, lab, tgt, com, dest)
+        if rows:
+            per_row[main] = INTENTS.index(intent)
+            for k in ks:
+                if k != main and not air[k]:
+                    s2, l2, t2, c2, _ = _row(d, i, k)
+                    per_row[k] = INTENTS.index(label(s2, l2, t2, c2, None)[0])
+        x = features(scene, d[f"p{i}_tick_eco"][main], f, com, age, dest[0] if dest else None,
+                     sum(1 for k in ks if not air[k]), prev, held)
+        ct = int(d[f"p{i}_tick_ctarget"][main]) if f"p{i}_tick_ctarget" in keys else None
+        out.append({"f": f, "intent": intent, "prev": prev, "held": held, "label": lab, "commit_kind": com,
+                    "dest": None if dest is None else dest[0][0] * GRID + dest[0][1], "ctarget": ct, "x": x,
+                    "sizer": _defence(d, i, ks, scene, f) if scene.threat else None})
         held = held + 1 if intent == prev else 1
         prev = intent
-    return out
+    return (out, per_row) if rows else out
+
+
+def _defence(d, i: int, ks: list[int], scene: Scene, f: int) -> dict:
+    """At a threatened moment: the supply every cluster sends within a cell of the threat or keeps within 2 cells of it
+    (the defence's size), and the sizer's numbers."""
+    sent = 0.0
+    for k in ks:
+        g8 = d[f"p{i}_tick_grid"][k][8]
+        c = np.nonzero(g8)[0]
+        if not len(c):
+            continue
+        center = divmod(int(c[0]), GRID)
+        lab, tgt = int(d[f"p{i}_tick_label"][k]), int(d[f"p{i}_tick_target"][k])
+        if (lab != KEEP and tgt >= 0 and near(divmod(tgt, GRID), scene.threat, 1)) or (lab == KEEP and near(center, scene.threat, 2)):
+            sent += float(g8.sum()) / 2
+    return {"y": sent, "x": sizer_features(scene, f, len(ks))}
+
+
+def cluster_intents(path, i: int) -> np.ndarray:
+    """Every tick row's intent (INTENTS index; -1 for a flyers' cluster), cached beside nothing: cheap enough to redo."""
+    return label_player(np.load(path), i, rows=True)[1]
+
+
+def main_intents(path, i: int) -> tuple[np.ndarray, np.ndarray]:
+    """The main cluster's (frames, intents) of a player's game."""
+    rows = label_player(np.load(path), i)
+    return np.array([r["f"] for r in rows], np.int64), np.array([INTENTS.index(r["intent"]) for r in rows], np.int8)
 
 
 def pro_games(limit: int | None = None) -> list[dict]:
@@ -173,15 +147,18 @@ def pro_games(limit: int | None = None) -> list[dict]:
 
 
 def gary_games(round_name: str) -> list[dict]:
-    """Gary's Terran in a round's replays, built into commitment ticks (train/rule_labels.py's cache)."""
-    from concurrent.futures import ProcessPoolExecutor
+    """Gary's Terran in a round's replays (or one replay), built into commitment ticks (train/rule_labels.py's cache)."""
     from train.rule_labels import _build
-    reps = sorted(glob.glob(str(REPO / "runs" / "league" / round_name / "*" / "*.rep"))) if not round_name.endswith(".rep") \
-        else [str(Path(round_name).resolve())]
-    with ProcessPoolExecutor(4) as pool:
-        infos = list(pool.map(_build, [(Path(round_name).stem if round_name.endswith(".rep") else round_name, r) for r in reps]))
-    return [{"npz": x["npz"], "i": x["i"], "sha1": Path(x["npz"]).stem, "rel": r, "slot": None,
-             "map": Path(r).parent.name} for x, r in zip(infos, reps) if x]
+    reps = [str(Path(round_name).resolve())] if round_name.endswith(".rep") else \
+        sorted(glob.glob(str(REPO / "runs" / "league" / round_name / "*" / "*.rep")))
+    name = Path(round_name).stem if round_name.endswith(".rep") else round_name
+    out = []
+    for r in reps:
+        x = _build((name, r))
+        if x:
+            out.append({"npz": x["npz"], "i": x["i"], "sha1": Path(x["npz"]).stem, "rel": r, "slot": None,
+                        "map": Path(r).parent.name})
+    return out
 
 
 def label_games(games: list[dict]) -> list[dict]:
@@ -203,15 +180,19 @@ def describe(name: str, rows: list[dict]) -> None:
     c = Counter(r["intent"] for r in rows)
     print(f"\n== {name}: {games} games, {n} main-cluster ticks ({TICK} s)")
     print("  share of ticks: " + ", ".join(f"{k} {c[k] / n:.1%}" for k in INTENTS))
+    hold = [r for r in rows if r["intent"] == "HOLD"]
+    print(f"  HOLD with a commitment in force: {sum(r['commit_kind'] != 0 for r in hold) / max(1, len(hold)):.1%}")
     by = defaultdict(Counter)
     for r in rows:
         by[min(int(r["f"] / 1440 // 5) * 5, 20)][r["intent"]] += 1
     for m in sorted(by):
         t = sum(by[m].values())
         print(f"  {m:2d}-{m + 5 if m < 20 else '':2} min: " + ", ".join(f"{k} {by[m][k] / t:.0%}" for k in INTENTS) + f"  ({t})")
-    runs = defaultdict(list)                     # hold lengths: consecutive ticks of one intent, per game
-    for sha in {r["sha1"] for r in rows}:
-        seq = [r for r in rows if r["sha1"] == sha]
+    runs = defaultdict(list)
+    seqs = defaultdict(list)
+    for r in rows:
+        seqs[r["sha1"]].append(r)
+    for seq in seqs.values():
         k = 0
         while k < len(seq):
             j = k
@@ -226,115 +207,122 @@ def describe(name: str, rows: list[dict]) -> None:
     print("  commonest switches: " + ", ".join(f"{a}->{b} {v / tot:.0%}" for (a, b), v in trans.most_common(6)))
 
 
-FEATS = ("minute", "own_army", "cluster_sup", "seen_now", "enemy_army_now", "enemy_army_30", "enemy_bld_ever",
-         "enemy_at_home", "threat_cells", "loss_all", "loss_home", "loss_near", "near_enemy", "d_main", "d_enemy_bld",
-         "d_enemy_army", "commit", "age", "minerals", "gas", "supply", "supply_max", "bases")
+def _held(r) -> bool:
+    return int(hashlib.sha1(r["sha1"].encode()).hexdigest()[:8], 16) % 5 == 0
 
 
-def _belief(rows: list[dict]) -> None:
-    """The cross-fitted plan belief's P(spire first) and P(lurker first) at the latest 30 s sample at or before each
-    tick (2:30-10:00; else NaN)."""
-    from train.plan_belief import parts
-    p = REPO / "runs" / "plan_belief" / "TvZ_T_oof_20261124" / "oof.npz"
-    for r in rows:
-        r["x"]["p_spire"] = r["x"]["p_lurker"] = float("nan")
-    if not p.exists():
-        return
-    d = np.load(p, allow_pickle=True)
-    names = [str(n) for n in d["names"]]
-    sp = np.array([parts(n)[2] == "spire first" for n in names])
-    lu = np.array([parts(n)[2] == "lurker first" for n in names])
-    at = defaultdict(dict)
-    for rel, slot, t, o in zip(d["rel_path"], d["slot"], d["t"], d["odds"]):
-        at[(str(rel), int(slot))][int(t)] = (float(o[sp].sum()), float(o[lu].sum()))
-    for r in rows:
-        tab = at.get((r["rel"], r["slot"]))
-        if not tab:
-            continue
-        s = r["f"] // 24
-        ts = [t for t in tab if t <= s and s - t < 30]
-        if ts:
-            r["x"]["p_spire"], r["x"]["p_lurker"] = tab[max(ts)]
-
-
-def model(rows: list[dict]) -> None:
-    from sklearn.ensemble import HistGradientBoostingClassifier
-    _belief(rows)
-    rows = [r for r in rows if r["prev"] is not None]
-    held = lambda r: int(hashlib.sha1(r["sha1"].encode()).hexdigest()[:8], 16) % 5 == 0
-    tr, te = [r for r in rows if not held(r)], [r for r in rows if held(r)]
+def train(rows: list[dict], out_dir: Path) -> dict:
+    from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
     K = len(INTENTS)
-    feats = FEATS + ("p_spire", "p_lurker")
-    X = lambda rs: np.array([[r["x"][f] for f in feats] + [INTENTS.index(r["prev"]), min(r["held"], 60)] for r in rs], np.float32)
-    y = lambda rs: np.array([INTENTS.index(r["intent"]) for r in rs])
-    Xtr, ytr, Xte, yte = X(tr), y(tr), X(te), y(te)
-    m = HistGradientBoostingClassifier(max_iter=300, learning_rate=0.08, max_leaf_nodes=31,
-                                       categorical_features=[len(feats)], random_state=0).fit(Xtr, ytr)
-    pm = m.predict_proba(Xte)
-    pm = np.column_stack([pm[:, list(m.classes_).index(c)] if c in m.classes_ else np.zeros(len(te)) for c in range(K)])
-
-    def mapname(r):
-        from ladder_maps import clean_name
-        return clean_name(r["map"]).rsplit(" ", 1)[0]
+    rr = [r for r in rows if r["prev"] is not None]
+    tr, te = [r for r in rr if not _held(r)], [r for r in rr if _held(r)]
+    X = lambda q: np.array([[r["x"][f] for f in FEATURES] for r in q], np.float32)
+    y = lambda q: np.array([INTENTS.index(r["intent"]) for r in q])
+    cat = [FEATURES.index("prev")]
+    rep: dict = {"train_games": len({r["sha1"] for r in tr}), "test_games": len({r["sha1"] for r in te}),
+                 "train_ticks": len(tr), "test_ticks": len(te)}
+    sw = lambda q: np.array([r["intent"] != r["prev"] for r in q])
+    hz = HistGradientBoostingClassifier(max_iter=300, learning_rate=0.08, random_state=0, categorical_features=cat)
+    hz.fit(X(tr), sw(tr))
+    trs = [r for r in tr if r["intent"] != r["prev"]]
+    nx = HistGradientBoostingClassifier(max_iter=300, learning_rate=0.08, random_state=0, categorical_features=cat)
+    nx.fit(X(trs), y(trs))
+    model = IntentModel({"hazard": hz, "next": nx, "features": list(FEATURES), "intents": list(INTENTS)})
+    # the combined odds: stay with 1 - P(switch), else the next head's
+    Xt, yt = X(te), y(te)
+    ps = hz.predict_proba(Xt)[:, 1]
+    pn = np.zeros((len(te), K))
+    pn[:, nx.classes_.astype(int)] = nx.predict_proba(Xt)
+    prev = np.array([INTENTS.index(r["prev"]) for r in te])
+    pn[np.arange(len(te)), prev] = 0
+    pn /= np.maximum(pn.sum(1, keepdims=True), 1e-9)
+    p = pn * ps[:, None]
+    p[np.arange(len(te)), prev] += 1 - ps
     bucket = lambda r: int(np.searchsorted(MINUTES, r["f"] / 1440, side="right"))
-    tm, tb = defaultdict(lambda: np.ones(K)), defaultdict(lambda: np.ones(K))
+    tb = defaultdict(lambda: np.ones(K))
     for r in tr:
-        tm[(bucket(r), mapname(r))][INTENTS.index(r["intent"])] += 1
         tb[bucket(r)][INTENTS.index(r["intent"])] += 1
-    pb = np.array([(tm[(bucket(r), mapname(r))] if (bucket(r), mapname(r)) in tm else tb[bucket(r)]) for r in te], np.float64)
-    pb /= pb.sum(1, keepdims=True)
-    trans = defaultdict(lambda: np.ones(K))      # persistence: P(intent | the tick before's), from the training games
-    for r in tr:
-        trans[r["prev"]][INTENTS.index(r["intent"])] += 1
-    pp = np.array([trans[r["prev"]] / trans[r["prev"]].sum() for r in te])
-
-    def scores(p):
-        eps = 1e-6
-        ll = -np.mean(np.log(np.clip(p[np.arange(len(yte)), yte], eps, 1)))
-        oh = np.eye(K)[yte]
-        brier = np.mean(((p - oh) ** 2).sum(1))
-        acc = np.mean(p.argmax(1) == yte)
-        conf, hit = p.max(1), p.argmax(1) == yte
-        bins = np.linspace(0, 1, 11)
-        ece = sum(abs(conf[(conf >= a) & (conf < b)].mean() - hit[(conf >= a) & (conf < b)].mean()) *
-                  np.mean((conf >= a) & (conf < b)) for a, b in zip(bins[:-1], bins[1:]) if np.any((conf >= a) & (conf < b)))
-        return ll, brier, acc, ece
-    print(f"\n== P(intent | state, belief): {len({r['sha1'] for r in tr})} training games ({len(tr)} ticks), "
-          f"{len({r['sha1'] for r in te})} held out ({len(te)})")
-    for name, p in (("time and map", pb), ("the tick before (persistence)", pp), ("model", pm)):
-        ll, br, acc, ece = scores(p)
-        print(f"  {name:32s} log-loss {ll:.3f}  Brier {br:.3f}  accuracy {acc:.3f}  ECE {ece:.3f}")
-    switch = np.array([r["intent"] != r["prev"] for r in te])
-    for name, p in (("time and map", pb), ("persistence", pp), ("model", pm)):
-        print(f"  on the {switch.sum()} held-out ticks where the intent changes, {name}: accuracy "
-              f"{np.mean(p[switch].argmax(1) == yte[switch]):.3f}, log-loss "
-              f"{-np.mean(np.log(np.clip(p[switch][np.arange(switch.sum()), yte[switch]], 1e-6, 1))):.3f}")
-    print("  per intent (held out): " + "; ".join(
-        f"{c} n {np.sum(yte == k)}, mean P {pm[yte == k, k].mean():.2f}, recall {np.mean(pm[yte == k].argmax(1) == k):.2f}"
-        for k, c in enumerate(INTENTS) if np.sum(yte == k)))
-    conf = pm.max(1)
-    for a, b in ((0, .4), (.4, .6), (.6, .8), (.8, .9), (.9, 1.01)):
-        s = (conf >= a) & (conf < b)
-        if s.any():
-            print(f"  calibration: confidence {a:.1f}-{min(b, 1):.1f}: {s.mean():.0%} of ticks, accuracy {np.mean(pm[s].argmax(1) == yte[s]):.2f}")
-    print(f"  with the belief (2:30-10:00): {np.mean(~np.isnan(Xte[:, len(FEATS)])):.0%} of held-out ticks")
+    pb = np.array([tb[bucket(r)] / tb[bucket(r)].sum() for r in te])
+    ll = lambda q, m: float(-np.mean(np.log(np.clip(q[m][np.arange(m.sum()), yt[m]], 1e-6, 1))))
+    acc = lambda q, m: float(np.mean(q[m].argmax(1) == yt[m]))
+    new = np.array([r["label"] != KEEP for r in te])
+    swm = prev != yt
+    for name, m in (("all", np.ones(len(te), bool)), ("new order", new), ("switch", swm), ("switch, new order", swm & new)):
+        rep[name] = {"n": int(m.sum()), "model": [round(ll(p, m), 3), round(acc(p, m), 3)],
+                     "time": [round(ll(pb, m), 3), round(acc(pb, m), 3)]}
+        if "switch" in name:                                 # (the next head alone, given the switch)
+            rep[name]["next_head"] = [round(ll(pn, m), 3), round(acc(pn, m), 3)]
+    from sklearn.metrics import roc_auc_score
+    rep["hazard_auc"] = round(float(roc_auc_score(swm, ps)), 3)
+    conf = p.max(1)
+    rep["calibration"] = {f"{a:.1f}-{b:.1f}": [round(float(((conf >= a) & (conf < b)).mean()), 3),
+                                               round(float((p.argmax(1) == yt)[(conf >= a) & (conf < b)].mean()), 3)]
+                          for a, b in ((0, .4), (.4, .6), (.6, .8), (.8, .9), (.9, 1.01)) if ((conf >= a) & (conf < b)).any()}
+    # the cohesion numbers' part: the next head without them, on the switches with a new order
+    coh = [FEATURES.index(n) for n in ("army_near_cluster", "army_near_dest", "cluster_share", "n_clusters")]
+    keep_cols = [k for k in range(len(FEATURES)) if k not in coh]
+    nx2 = HistGradientBoostingClassifier(max_iter=300, learning_rate=0.08, random_state=0,
+                                         categorical_features=[keep_cols.index(cat[0])]).fit(X(trs)[:, keep_cols], y(trs))
+    pn2 = np.zeros((len(te), K))
+    pn2[:, nx2.classes_.astype(int)] = nx2.predict_proba(Xt[:, keep_cols])
+    pn2[np.arange(len(te)), prev] = 0
+    pn2 /= np.maximum(pn2.sum(1, keepdims=True), 1e-9)
+    m = swm & new
+    rep["next_head_without_cohesion"] = [round(ll(pn2, m), 3), round(acc(pn2, m), 3)]
+    ga = swm & (prev == INTENTS.index("GATHER")) & (yt == INTENTS.index("ATTACK"))
+    gx = swm & (prev == INTENTS.index("GATHER"))
+    if gx.any():
+        rep["gather_to_attack"] = {"n": int(gx.sum()), "p_attack_with": round(float(pn[ga, 1].mean()), 3),
+                                   "p_attack_without": round(float(pn2[ga, 1].mean()), 3),
+                                   "auc_with": round(float(roc_auc_score(ga[gx], pn[gx, 1])), 3),
+                                   "auc_without": round(float(roc_auc_score(ga[gx], pn2[gx, 1])), 3)}
+    # the defence's size
+    s_tr = [r["sizer"] for r in tr if r["sizer"] is not None]
+    s_te = [r["sizer"] for r in te if r["sizer"] is not None]
+    SX = lambda q: np.array([[s["x"][f] for f in SIZER_FEATURES] for s in q], np.float32)
+    sy = lambda q: np.array([s["y"] for s in q], np.float32)
+    sz = HistGradientBoostingRegressor(loss="quantile", quantile=0.5, max_iter=300, random_state=0).fit(SX(s_tr), sy(s_tr))
+    pred = sz.predict(SX(s_te))
+    yt_s = sy(s_te)
+    base = np.median(sy(s_tr))
+    rep["sizer"] = {"n_test": len(s_te), "mae": round(float(np.mean(np.abs(pred - yt_s))), 2),
+                    "mae_constant_median": round(float(np.mean(np.abs(base - yt_s))), 2), "constant": float(base)}
+    xs = SX(s_te)
+    th = xs[:, SIZER_FEATURES.index("threat_sup")]
+    army = xs[:, SIZER_FEATURES.index("own_army")]
+    minute = xs[:, SIZER_FEATURES.index("minute")]
+    rep["sizer_by_threat"] = {name: {"n": int(m.sum()), "pros_median": round(float(np.median(yt_s[m])), 1),
+                                     "model_median": round(float(np.median(pred[m])), 1)}
+                              for name, m in (("0-2", th <= 2), ("2-6", (th > 2) & (th <= 6)), ("6-12", (th > 6) & (th <= 12)),
+                                              ("12+", th > 12)) if m.any()}
+    small = (army <= 6) & (minute <= 4.5)
+    if small.any():
+        rep["sizer_small_army_early"] = {"n": int(small.sum()), "army_median": round(float(np.median(army[small])), 1),
+                                         "pros_median": round(float(np.median(yt_s[small])), 1),
+                                         "model_median": round(float(np.median(pred[small])), 1),
+                                         "model_over_army": round(float(np.mean(pred[small] > army[small])), 3)}
+    model.d.update(sizer=sz, sizer_features=list(SIZER_FEATURES))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    model.save(out_dir / "model.pkl")
+    (out_dir / "report.json").write_text(json.dumps(rep, indent=1), encoding="utf-8")
+    return rep
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pros", action="store_true")
-    ap.add_argument("--model", action="store_true")
+    ap.add_argument("--train", action="store_true")
     ap.add_argument("--gary", nargs="*", default=[], help="rounds (or replays) of Gary's: the same labeller")
     ap.add_argument("--limit", type=int)
-    ap.add_argument("--dump", help="the pros' labelled ticks to this JSON (a sample to read by hand)")
+    ap.add_argument("--out", help="the model's folder (default runs/intent/TvZ_T_<time>: what Gary loads as newest)")
     a = ap.parse_args()
     if a.pros:
         rows = label_games(pro_games(a.limit))
         describe("modern TvZ pros (Terran)", rows)
-        if a.dump:
-            Path(a.dump).write_text(json.dumps(rows[:4000], default=float), encoding="utf-8")
-        if a.model:
-            model(rows)
+        if a.train:
+            out = Path(a.out) if a.out else REPO / "runs" / "intent" / f"TvZ_T_{time.strftime('%Y%m%d-%H%M%S')}"
+            print(json.dumps(train(rows, out), indent=1))
+            print(f"saved {out / 'model.pkl'}")
     for g in a.gary:
         describe(f"Gary: {g}", label_games(gary_games(g)))
 

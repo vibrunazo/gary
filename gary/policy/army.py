@@ -51,6 +51,8 @@ class ArmySpec:
                                   # channel, own AIR_FIGHTERS by cell (supply x2), and a number, 1 for a cluster of them
     ctarget: bool = False         # then a map channel: 1 at the cell the cluster's commitment sends it to (army dataset v6:
                                   # the pros' re-orders keep their course, a model without it drew each one anew)
+    intent: bool = False          # then numbers: the cluster's tactical intent, one-hot (gary/policy/tactical.py INTENTS;
+                                  # the pros' labelled from their ticks, train/tactical_intent.py; Gary's from option intent)
 
     def _extra(self) -> list[str]:
         return [n for n in ("losses", "static", "known", "unseen") if getattr(self, n)] + (["flyers"] if self.air else []) +             (["ctarget"] if self.ctarget else [])
@@ -70,7 +72,7 @@ class ArmySpec:
     @property
     def n_global(self) -> int:
         return 8 + len(self.own_types) + 2 * len(self.seen_types) + (COMMIT_INPUTS if self.commit else 0) + \
-            (OTHER_INPUTS if self.others else 0) + (1 if self.air else 0)
+            (OTHER_INPUTS if self.others else 0) + (1 if self.air else 0) + (INTENT_INPUTS if self.intent else 0)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -83,6 +85,7 @@ COMMIT_INPUTS = 3                 # the group's commitment: engaging, moving (on
 OTHER_INPUTS = 4                  # the other clusters: supply shares committed to engage and to move, the nearest's
                                   # distance and whether it engages (others_inputs)
 COMMIT_AGE_S = 120                # an order older than this is no commitment (ingest/army_dataset.py COMMIT_S)
+INTENT_INPUTS = 5                 # the cluster's tactical intent, one-hot (gary/policy/tactical.py INTENTS; none: all 0)
 STATIC_SUPPLY = {146: 12, 162: 12, 125: 12}   # ground static defense, each worth this (supply x2): sunken, cannon, bunker
 STATIC_GONE_PX = 7 * 32           # a known static defense (or building) is gone when own units are this close and don't see it
 UNSEEN_PER = 4                    # the unseen channel's unit: seconds (255: 17 minutes or more)
@@ -135,7 +138,8 @@ def others_inputs(centers: list[int], sups: list[float], commits: list[int], arm
 def encode_global(spec: ArmySpec, frame: np.ndarray, eco: np.ndarray, group_sup: np.ndarray,
                   units: np.ndarray, seen: np.ndarray, seen_mem: np.ndarray, own_army: np.ndarray,
                   enemy_army_mem: np.ndarray, commit: np.ndarray | None = None,
-                  others: np.ndarray | None = None, air: np.ndarray | None = None) -> np.ndarray:
+                  others: np.ndarray | None = None, air: np.ndarray | None = None,
+                  intent: np.ndarray | None = None) -> np.ndarray:
     """(n, n_global) numbers. eco: minerals, gas, supply used x2, supply max x2; group_sup x2;
     units / seen / seen_mem: (n, 228) counts (seen_mem: the most seen at once in MEMORY_S);
     own_army, enemy_army_mem: army supply x2 (enemy: of seen_mem); commit: (n, COMMIT_INPUTS) when
@@ -152,6 +156,12 @@ def encode_global(spec: ArmySpec, frame: np.ndarray, eco: np.ndarray, group_sup:
         parts.append(others if others is not None else np.tile(np.array([[0, 0, 1, 0]], np.float32), (len(frame), 1)))
     if spec.air:
         parts.append((air if air is not None else np.zeros(len(frame), np.float32)).reshape(-1, 1))
+    if spec.intent:                  # (intent: (n,) INTENTS index, -1 none)
+        one = np.zeros((len(frame), INTENT_INPUTS), np.float32)
+        if intent is not None:
+            k = np.asarray(intent).astype(np.int64).reshape(-1)
+            one[np.nonzero(k >= 0)[0], k[k >= 0]] = 1
+        parts.append(one)
     return np.concatenate([p.astype(np.float32) for p in parts], axis=1)
 
 
@@ -356,7 +366,7 @@ class ArmyTracker:
                     del memory[tag]
 
     def inputs(self, obs: dict, group: list[dict], commit: tuple[int, float] | None = None,
-               target: int = -1) -> tuple[np.ndarray, np.ndarray]:
+               target: int = -1, intent: int | None = None) -> tuple[np.ndarray, np.ndarray]:
         """grid (9, 256) and numbers for ordering `group` (own units) now; commit: the group's commitment
         (0 none, 1 engage, 2 move) and its age in seconds, for a model with spec.commit; target: the cell that
         commitment sends it to (-1 none), for spec.ctarget."""
@@ -400,7 +410,8 @@ class ArmyTracker:
                              np.array([seen_mem @ ARMY_SUPPLY], np.float32),
                              commit_inputs(np.array([commit[0] if commit else 0]),
                                            np.array([commit[1] if commit else COMMIT_AGE_S])) if self.spec.commit else None,
-                             air=np.array([float(bool(group) and all(u["type"] in AIR_FIGHTERS for u in group))], np.float32))
+                             air=np.array([float(bool(group) and all(u["type"] in AIR_FIGHTERS for u in group))], np.float32),
+                             intent=np.array([-1 if intent is None else intent]))
         return g[None], glob
 
 

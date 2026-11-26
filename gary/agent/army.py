@@ -35,7 +35,7 @@ from gary import terran as T
 from gary.agent.gary import Gary
 from gary.agent.intents import Intent
 from gary.policy.attribution import explain_army
-from gary.policy.army import GRID, STATIC_SUPPLY, ArmyModel, ArmyTracker, is_building, supply_x2
+from gary.policy.army import COMMIT_AGE_S, GRID, STATIC_SUPPLY, ArmyModel, ArmyTracker, is_building, supply_x2
 from gary.policy.belief import ARMY_SUPPLY
 from gary.races import AIR_FIGHTERS
 
@@ -99,6 +99,28 @@ POST_CALM = 10 * 24                 # ...back on the post after this long withou
 RESCOUT_BY = 270 * 24               # a scout lost before 4:30 is replaced (once)
 
 
+HOLD_INTENT = 4                         # gary/policy/tactical.py INTENTS.index("HOLD")
+
+
+def _tactical(g, memory=None):
+    """Option intent's turn rule (gary/agent/tactical.py), with the newest intent model for the matchup; none: it stands
+    aside (g.tactical None)."""
+    from gary.agent.tactical import Tactical
+    from gary.policy.tactical import IntentModel, model_path
+    path = model_path(g.matchup, g.race.letter)
+    if path is None:
+        g.say(f"intent: no intent model for {g.race.letter} in {g.matchup}: the layer stands aside")
+        g.tactical = None
+        return _Aside()
+    g.tactical = Tactical(g, IntentModel.load(path))
+    return g.tactical
+
+
+class _Aside:
+    def step(self, obs, mine, done):
+        return None
+
+
 def cell_dist(a: int, b: int) -> int:
     return max(abs(a // GRID - b // GRID), abs(a % GRID - b % GRID))
 
@@ -136,7 +158,7 @@ class LearnedArmy:
         from gary.agent.army_rules import ClusterRules, EnemyMemory, LordHunt, Posts, Raid
         self.memory = EnemyMemory(g) if rules else None
         from gary.agent.calm import Calm
-        turn = {"posts": Posts, "raid": Raid, "lords": LordHunt, "calm": Calm}
+        turn = {"posts": Posts, "raid": Raid, "lords": LordHunt, "calm": Calm, "intent": _tactical}
         self.turn_rules = [turn[r](g, self.memory) for r in rules if r in turn]
         self.cluster_rules = ClusterRules(g, self.memory, "join" in rules, "sweep" in rules, "press" in rules,
                                           lambda x, y: self.tracker.cell(x, y), cell_dist) \
@@ -589,7 +611,14 @@ class LearnedArmy:
             elif c not in self.commitments:
                 self.locked = None
         current = self._commitment_entry(here, air)
-        grid, glob = self.tracker.inputs(obs, group, (held, age), current[2] if current is not None else -1)
+        tac = getattr(g, "tactical", None)          # (option intent: the cluster's intent an input, its target the destination)
+        ik, itarget = None, None
+        if tac is not None and not air:            # (a detachment's units take the intent layer's orders: the rest here)
+            ik, itarget, group = tac.cluster_intent(group)
+            if ik == HOLD_INTENT:                  # (HOLD is no commitment in force, as the pros' ticks label it: an old
+                held, age = 0, COMMIT_AGE_S        # one doesn't carry over into the intent's input)
+        grid, glob = self.tracker.inputs(obs, group, (held, age), current[2] if current is not None else -1,
+                                         intent=ik if ik is not None and ik >= 0 else None)
         where, kind = self.model.predict(grid, glob)
         q = kind[0].astype(np.float64)
         if self.engage_bias:                   # (between engage and move only: keep's odds, so the order rate, as they were)
@@ -655,7 +684,10 @@ class LearnedArmy:
             pf[keep_cells] = p[keep_cells]
             p = pf
         entry = self._commitment_entry(here, air) if self.hold_target and k == held and not by.startswith("forced") else None
-        if entry is not None and p[entry[2]] > 0 and p[entry[2]] >= np.sort(p)[-5]:
+        if itarget is not None and far[itarget]:
+            best = int(itarget)                 # (the intent's target: the clusters of one intent go to one place)
+            by = f"{by}, the intent's target"
+        elif entry is not None and p[entry[2]] > 0 and p[entry[2]] >= np.sort(p)[-5]:
             best = entry[2]                     # (the same commitment again: its destination held)
             by = f"{by}, its destination held"
         else:

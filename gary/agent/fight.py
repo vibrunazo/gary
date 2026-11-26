@@ -631,6 +631,8 @@ class ReinforceRule:
         at_home = near_home(mine, enemy_fighters(obs, g.slot))
         if not at_home:
             return False
+        if getattr(g, "tactical", None) is not None:   # (option intent: into a detachment short of its size, else its group)
+            return g.tactical.reinforce(new, at_home)
         cx, cy = sum(u["x"] for u in new) / len(new), sum(u["y"] for u in new) / len(new)
         target = min(at_home, key=lambda e: math.dist((e["x"], e["y"]), (cx, cy)))
         if g.block_rally is not None:                       # (blocking a choke: right behind the block)

@@ -296,6 +296,13 @@ class RoleModel:
         """The per-unit extras as this model reads them: the budget column and the key one-hot when it was trained
         with them (without keys given: none for every unit)."""
         extra = self._with_budget(extra, budget)
+        if self.config.get("intent"):       # (train/roles.py --intent: the fight's tactical intent, set by its caller)
+            from gary.policy.tactical import INTENTS
+            one = np.zeros(extra.shape[:-1] + (len(INTENTS),), extra.dtype)
+            k = getattr(self, "intent", -1)
+            if k is not None and 0 <= k < len(INTENTS):
+                one[..., k] = 1
+            extra = np.concatenate([extra, one], -1)
         if self.config.get("keys"):
             k = np.full(extra.shape[:-1], -1) if keys is None else np.asarray(keys)[:extra.shape[0]]
             extra = np.concatenate([extra, key_onehot(k).astype(extra.dtype)], -1)

@@ -61,6 +61,8 @@ LATE_WORDS = {"odds": "Gary's build model kept choosing other things", "money": 
               "hands": "no worker was free to build it", "busy": "the building that makes it was busy"}
 COMMIT_WORDS = {"keep": "keep its current orders", "engage": "attack", "move": "move"}
 DOING_WORDS = {"none": "no orders", "engage": "attacking", "move": "moving"}
+INTENT_WORDS = {"DEFEND_BASE": "defend its base", "ATTACK": "attack", "RETREAT": "pull back", "GATHER": "gather",
+                "HOLD": "hold where it stood"}
 LAYER_WORDS = {"roles": "fight micro", "army": "the army's orders", "calm": "out-of-fight movement"}
 HANDS_WORDS = {"free": "idle", "macro": "production", "roles": "fight micro", "roles:queued": "fight micro",
                "executor:mine": "sending workers to mine", "executor:gas": "sending workers to gas",
@@ -534,6 +536,25 @@ def q4(g: Game, minute: float) -> Answer:
     f = int(minute * 1440)
     f0 = f - 30 * 24
     a = Answer(4, f"Why did your army attack, hold or pull back at {clock(f)}?", f)
+    ints = g.where("decision", 0, f + 1, layer="intent")     # (option intent: the army's intent, gary/agent/tactical.py)
+    main = [d for d in ints if d["choice"] in INTENT_WORDS]
+    if main:
+        d = main[-1]
+        ins = d.get("in") or {}
+        why = d.get("by", "")
+        pros = ", ".join(f"{INTENT_WORDS[k].split(' ')[0]} {p:.0%}" for k, p in sorted(d.get("top") or [], key=lambda kp: -kp[1])[:3])
+        a.say(f"From {clock(d['f'])} the army's plan was to {INTENT_WORDS[d['choice']]}"
+              + (f" toward tile {ins['target']}" if ins.get("target") else "")
+              + f": its main group of {ins.get('units')} units ({ins.get('army', 0):.0%} of the army's supply) at tile "
+              f"{ins.get('at')}" + (f", with {ins['threat']:g} supply of Zerg at its bases" if ins.get("threat") else "")
+              + ". " + (f"When it changed, the intent model (learned from the pros' armies) gave {pros}." if pros
+                        else "It was chosen by the intent model." if not why.startswith("forced") else "It was forced (a test)."),
+              d)
+    dets = [d for d in ints if d["choice"].startswith("DEFEND_BASE (") and f0 <= d["f"] <= f]
+    for d in dets[-2:]:
+        ins = d.get("in") or {}
+        a.say(f"{clock(d['f'])}: {ins.get('units')} units ({ins.get('supply')} supply) were sent to defend tile {ins.get('at')} "
+              f"against {ins.get('threat')} supply of Zerg, about what the pros send there; the rest kept the plan.", d)
     com = g.where("decision", f0, f + 1, layer="commit")
     if not com:
         a.say(f"No army decision in {clock(f0)}-{clock(f)}: Gary's army model was not asked (no group of units due).")

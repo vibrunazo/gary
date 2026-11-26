@@ -1088,6 +1088,8 @@ class RoleLearned(RoleRules):
         rows, tags, center, by_tag = snap
         from gary.policy.roles import order_budget
         budget = order_budget(g.hi)
+        if getattr(g, "tactical", None) is not None:   # (option intent: the fight's units' tactical intent, an input)
+            self.model.intent = g.tactical.intent_index(list(tags))
         keys = np.array(g.motor.keys_of(list(tags))) if self.model.config.get("keys") or self.together or self.by_key \
             else None
         shared: dict[int, float] = {}                    # key -> its units' shared uniform (together)
@@ -1332,6 +1334,8 @@ class RoleAhead(RoleRules):
             return None
         from gary.policy.roles import order_budget
         budget = order_budget(g.hi)
+        if getattr(g, "tactical", None) is not None:
+            self.model.intent = g.tactical.intent_index(list(tags))
         probs, moves = self.model.predict_move(rows, extra, obs["frame"] * 42 / 1000, budget)
         odds = self.model.rates(probs) if self.rates else probs
         names = self.model.config.get("roles")

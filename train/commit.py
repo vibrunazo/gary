@@ -119,13 +119,18 @@ def load_player(args: tuple) -> tuple:
         one[np.nonzero(ct >= 0)[0], 0, ct[ct >= 0]] = 1
         grid = np.concatenate([grid, one], 1)
     commit = d[f"p{i}_tick_commit"][idx]
+    if spec.intent:                                     # (the cluster's intent, labelled from the ticks: train/tactical_intent.py)
+        from train.tactical_intent import cluster_intents
+        intents = cluster_intents(path, i)[idx].astype(np.int64)
+    else:
+        intents = np.full(len(idx), -1, np.int64)
     glob = encode_global(spec, frames.astype(np.float32), d[f"p{i}_tick_eco"][idx].astype(np.float32),
                          grid[:, 8].sum(1).astype(np.float32), d[f"p{i}_tick_units"][idx].astype(np.float32),
                          d[f"p{i}_tick_seen"][idx].astype(np.float32), seen_mem, own_sup[t], seen_mem @ ARMY_SUPPLY,
                          commit_inputs(commit, d[f"p{i}_tick_age"][idx]), others[idx] if others is not None else None,
-                         d[f"p{i}_tick_air"][idx].astype(np.float32) if spec.air else None)
+                         d[f"p{i}_tick_air"][idx].astype(np.float32) if spec.air else None, intent=intents)
     return (grid, glob.astype(np.float16), d[f"p{i}_tick_label"][idx].astype(np.int64),
-            d[f"p{i}_tick_target"][idx].astype(np.int64), commit.astype(np.int64), frames)
+            d[f"p{i}_tick_target"][idx].astype(np.int64), commit.astype(np.int64), frames, intents)
 
 
 def load(js: list, spec: ArmySpec, workers: int, max_ticks: int = MAX_TICKS) -> dict:
@@ -134,7 +139,7 @@ def load(js: list, spec: ArmySpec, workers: int, max_ticks: int = MAX_TICKS) -> 
         results = pool.map(load_player, [(j, spec.to_dict(), max_ticks) for j in js], chunksize=16)
         for job, res in zip(js, monitor.track(results, len(js), "player-games loaded")):
             parts[job[2]].append(res)
-    return {("test" if held else "train"): tuple(np.concatenate([r[k] for r in rs]) for k in range(6))
+    return {("test" if held else "train"): tuple(np.concatenate([r[k] for r in rs]) for k in range(7))
             for held, rs in parts.items()}
 
 
@@ -150,6 +155,17 @@ def widen(base: ArmyModel, spec: ArmySpec) -> ArmyNet:
     w = state["inp.weight"]
     state["inp.weight"] = torch.cat([w, torch.zeros(w.shape[0], spec.channels - w.shape[1], *w.shape[2:])], 1)
     net.load_state_dict(state, strict=False)
+    return net
+
+
+def widen_glob(net: ArmyNet, spec: ArmySpec) -> ArmyNet:
+    """A commit model's network with its numbers widened to spec.n_global (new weights zero: it starts as it was)."""
+    w = net.glob[0].weight.data
+    if w.shape[1] < spec.n_global:
+        lin = torch.nn.Linear(spec.n_global, w.shape[0])
+        lin.weight.data = torch.cat([w, torch.zeros(w.shape[0], spec.n_global - w.shape[1])], 1)
+        lin.bias.data = net.glob[0].bias.data.clone()
+        net.glob[0] = lin
     return net
 
 
@@ -175,6 +191,9 @@ def main() -> None:
                          "army dataset v6)")
     ap.add_argument("--ctarget", action="store_true",
                     help="the cell the cluster's commitment sends it to as a map channel (ArmySpec.ctarget; army dataset v6)")
+    ap.add_argument("--intent", action="store_true",
+                    help="the cluster's tactical intent as numbers (ArmySpec.intent; labelled by train/tactical_intent.py); "
+                         "with --init, the model's numbers widened from zero")
     ap.add_argument("--max-ticks", type=int, default=MAX_TICKS,
                     help="samples per player-game (all of army dataset v5's 16,549 TvZ games fit at 60)")
     ap.add_argument("--rule-labels", nargs="+", default=[],
@@ -196,13 +215,17 @@ def main() -> None:
     base = ArmyModel.load(start)
     spec = ArmySpec(base.spec.race, base.spec.own_types, base.spec.seen_types, commit=True, losses=True, others=args.others,
                     static=args.static, known=args.known, unseen=args.unseen, air=args.air,
-                    ctarget=args.ctarget)
+                    ctarget=args.ctarget, intent=args.intent)
     if args.eval:
         evaluated = ArmyModel.load(args.eval)
         spec = evaluated.spec
     if args.init:
         initial = ArmyModel.load(args.init)
         spec = initial.spec
+        if args.intent and not spec.intent:
+            from dataclasses import replace
+            spec = replace(spec, intent=True)
+            initial.net = widen_glob(initial.net, spec)
     t0 = time.time()
     keep = GameFilter.from_args(args)
     js = jobs(args.matchup, args.race, version=args.data, keep=keep)
@@ -214,8 +237,8 @@ def main() -> None:
         rule = rule_samples(args.rule_labels, spec, args.workers, args.rule_undefended)
         print(f"rule labels: train {len(rule['train'][2]):,} (x{args.rule_weight}), test {len(rule['test'][2]):,}", flush=True)
         data["train"] = tuple(np.concatenate([a] + [b] * args.rule_weight) for a, b in zip(data["train"], rule["train"]))
-    grid, glob, label, target, commit, _ = data["train"]
-    tg, tglob, tl, tt, tc, tf = data["test"]
+    grid, glob, label, target, commit, _, _ = data["train"]
+    tg, tglob, tl, tt, tc, tf, ti = data["test"]
     print(f"{len(js)} player-games; ticks train {len(label):,} (keep/engage/move {np.bincount(label, minlength=3)}), "
           f"test {len(tl):,} ({time.time() - t0:.0f} s)", flush=True)
     net = (evaluated.net if args.eval else initial.net if args.init else widen(base, spec)).to(device)
@@ -250,6 +273,12 @@ def main() -> None:
         out["hysteresis"] = {name: [round(float((tl[tc == c] == ENGAGE).mean()), 3), round(float(p[tc == c, ENGAGE].mean()), 3)]
                              for c, name in ((1, "committed engage"), (2, "committed move"), (0, "none")) if (tc == c).any()}
         out["where_top5"] = round(float((w5[o] == tt[o, None]).any(1).mean()), 3) if o.any() else None
+        if spec.intent:                                      # (the pros' keep / engage / move given the intent, and the model's)
+            from gary.policy.tactical import INTENTS
+            out["by_intent"] = {name: {"n": int((ti == k).sum()),
+                                       "pros": [round(float((tl[ti == k] == c).mean()), 3) for c in (KEEP, ENGAGE, MOVE)],
+                                       "model": [round(float(p[ti == k, c].mean()), 3) for c in (KEEP, ENGAGE, MOVE)]}
+                                for k, name in enumerate(INTENTS) if (ti == k).any()}
         if spec.air:                                         # (the flyers' clusters alone: v6)
             a = tglob[:, -1] > 0.5
             if a.any() and order[a].any() and not order[a].all():
@@ -262,7 +291,7 @@ def main() -> None:
                                                round(float((p[oa, ENGAGE] / (p[oa, ENGAGE] + p[oa, MOVE])).mean()), 3)],
                               "where_top5": round(float((w5[oa] == tt[oa, None]).any(1).mean()), 3) if oa.any() else None}
         if rule is not None and len(rule["test"][2]):        # (where the rule acts: does the model do as it does?)
-            rg, rx, _, rt, _, _ = rule["test"]
+            rg, rx, _, rt, _, _ = rule["test"][:6]
             rp, rw5 = predict(rg, rx)
             out["rule"] = {"p_engage": round(float(rp[:, ENGAGE].mean()), 3),
                            "where_top5": round(float((rw5 == rt[:, None]).any(1).mean()), 3), "n": int(len(rt))}

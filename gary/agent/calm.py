@@ -112,8 +112,9 @@ class Calm:
                 extra = np.concatenate([extra, map_extras(tags, positions, self._ground(), t.mw, t.mh, g.flip)], 1)
             odds = self.model.rates(self.model.predict(rows, extra, time_s))
             ps, pf, standing, small = [], [], [], []
+            tac = getattr(g, "tactical", None)  # (option intent: a unit alone is sent to its group by that layer)
             for i, t in enumerate(tags[:MAX_UNITS]):
-                if t not in calm:
+                if t not in calm or (tac is not None and tac.lone_free(t)):
                     continue
                 q = odds[i] / odds[i].sum()
                 n = max(1.0, (now - self.drawn_at.get(t, now - STEP)) / STEP)
@@ -126,7 +127,7 @@ class Calm:
                         pf.append(1 - (1 - float(q[self.k_far])) ** n)
             # far: the standing units no cluster the commit model is asked about holds (under SMALL supply), at their mean
             # far odds, to the calm_far model's point (the pros send such bunches far: docs/PROGRESS.md 2026-11-19)
-            if small and self.far is not None and self.rng.random() < float(np.mean(pf)):
+            if small and self.far is not None and tac is None and self.rng.random() < float(np.mean(pf)):
                 self._order(rows, extra, time_s, small, by_tag, tags, float(np.mean(pf)), self.far, "far", now)
                 standing = [i for i in standing if i not in small]
             # one decision a bunch, as the pros give one command to a bunch (a median 10 units): at its units' mean odds

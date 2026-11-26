@@ -335,3 +335,159 @@ opponent). The minimum detectable effects use the per-game spread in G4299a (80%
 4. **Coach Q4** on the intent records.
 5. **The 16-game screen**, then 48 and 96 per `AGENTS.md`. Separately: the live army-size read (section 1) before any
    live verdict.
+
+## 7. Steps 1–3 done (2026-11-26; 0 games)
+
+**The user's decisions:**
+- The defence's size is learned (no scripted stop-gap).
+- `commit` takes the intent as an input only, with no kind mask.
+- Live game 1 gets a quick 0-game read.
+
+**Live game 1, 0:00–3:55, against gate 4's 32 style-2 games** (the medians):
+- **Workers:** 7, 11, 15 and 18 at 1, 2, 3 and 3:55 minutes; gate 4's 7, 11, 15 and 19.
+- **SCVs ordered:** 18 against 18.
+- **Marines:** 1 against 1.5.
+- **Depots:** 2 against 2.
+- **The Factory:** 3:11 against 2:58.
+- **The Command Center:** 3:55 against 3:44.
+- **The bank:** 190 minerals at 2:00 (gate 4 52), from the Barracks' two failed placements.
+
+Nothing beyond those retries slowed it over LAN. The army's poverty came after the zerglings at 4:00.
+
+**The labeller's fix.** A kept commitment whose destination is unknown is labelled by its kind. The pros' `HOLD` ticks
+with a commitment in force went from 9% to 0%. The shares moved little:
+
+| DEFEND_BASE | ATTACK | RETREAT | GATHER | HOLD |
+|---|---|---|---|---|
+| 25.0% | 36.6% | 3.2% | 29.0% | 6.2% |
+
+The labeller and the numbers live in `gary/policy/tactical.py`, shared by the data and play. Every number comes from
+the army tracker's own 16×16 grid, the economy and the commitment, so play reads what the data counted.
+
+### The intent model
+
+`train/tactical_intent.py --train` writes `runs/intent/TvZ_T_20261126-022348`. Held out: 469 games, 55,162 ticks.
+
+| | Model (log-loss, accuracy) | Time and map |
+|---|---|---|
+| All ticks (the hazard and the next head combined) | 0.358, 0.866 | 1.271, 0.409 |
+| Ticks with a new order (the honest score) | **0.786, 0.646** | 1.258, 0.401 |
+| The next head, given a switch | **0.412, 0.820** | 1.441, 0.320 |
+| The next head, a switch with a new order | **0.438, 0.809** | 1.398, 0.338 |
+
+**The switch hazard:** AUC 0.894. At confidence 0.9 or more (52% of ticks) the model is right 0.978 of the time; at
+0.8–0.9, 0.877; at 0.6–0.8, 0.717.
+
+**The army's cohesion** (the share of the own army within 2 cells of the cluster and of its destination, the share in
+the cluster, the clusters). The next head on switches with a new order scores 0.438 with these numbers and 0.463
+without them. For GATHER→ATTACK, the next head's AUC among the switches out of GATHER is 0.939 with them and 0.931
+without. So the launch is learned from them inside the heads, with no hand threshold, though they add little the other
+numbers didn't already carry.
+
+### The defence's size
+
+A median regression on the pros' threatened moments; held out, 29,345 of them.
+- **Error:** 7.3 supply against 9.6 for a constant.
+- **By the threat's supply:**
+
+| Threat (supply) | Pros' median | Model's median |
+|---|---|---|
+| 0–2 | 5.0 | 7.7 |
+| 2–6 | 6.0 | 7.7 |
+| 6–12 | 8.0 | 9.4 |
+| 12 or more | 13.0 | 14.4 |
+
+- **A small army early (6 supply or less, by 4:30; 620 moments):** an army of 5, the pros send 4 (median) and the model
+  says 5. In 54% of those moments the size is above the whole army, so nearest units up to the size take everything
+  there, as asked.
+
+### The commit model with the intent
+
+`runs/commit_intent/TvZ_T_intent`, fine-tuned 2 epochs from the deployed one on the modern games. Its control is
+`TvZ_T_control`, the same without the intent.
+
+| Held out (47,819 ticks) | Control | Intent |
+|---|---|---|
+| Order vs keep, AUC | 0.774 | 0.806 |
+| Engage vs move, AUC | 0.769 | 0.991 |
+| Destination in the top 5 | 0.340 | 0.378 |
+
+Engage against move is near-certain given the intent, partly by definition: the intent's kind is the order's.
+
+What the pros do under each intent, against the model:
+
+| Intent | Pros: keep / engage / move | Model: keep / engage / move |
+|---|---|---|
+| ATTACK | 0.68 / 0.32 / 0.00 | 0.72 / 0.28 / 0.01 |
+| RETREAT | 0.35 / 0.00 / 0.65 | 0.37 / 0.00 / 0.63 |
+| GATHER | 0.70 / 0.00 / 0.30 | 0.68 / 0.01 / 0.32 |
+| DEFEND_BASE | 0.82 / 0.16 / 0.03 | 0.84 / 0.14 / 0.02 |
+| HOLD | 1.00 / 0 / 0 | 0.99 / 0.01 / 0.00 |
+
+### The role model with the intent: a negative result
+
+`runs/roles_intent/intent`, trained as the deployed one (`--decisions --move --attended --budget --again`) with the
+intent one-hot on every unit. Its control is `runs/roles_intent/control`, the same without it.
+- **Accuracy (held out):** 0.482, against the control's 0.496. On 6,000 sampled held-out snapshots, 0.560 against
+  0.582.
+- **The pros' close-in does not fall under a retreat:**
+
+| Intent | Pros' close-in, all | Pros' close-in, outnumbered | Control's close-in (outnumbered) | Intent model's close-in (outnumbered) |
+|---|---|---|---|---|
+| ATTACK | 0.049 | 0.050 | 0.064 | 0.073 |
+| RETREAT | 0.078 | 0.138 | 0.084 | 0.124 |
+
+A retreat in contact means units close in to cover it. The intent model follows that a little, and the control
+doesn't.
+
+**The decision:** `gt1dev+intent` keeps the deployed role model. The intent role model is option `intentroles`, for the
+record.
+
+### Play
+
+**`gary/agent/tactical.py`, option `intent`.** The intent is decided on its own 5-s clock in the arbiter's turn
+(`look`), whoever has the hands: in an army turn it never ran while a fight held the hands. The provider:
+- holds the intent at the hazard, then draws the next one (the game's seed and the side's);
+- picks the target from the commit model's destination odds on the intent's side;
+- makes a switch an event: the main cluster is asked at once;
+- sizes and leases a `DEFEND_BASE` detachment, nearest ground units first, and ends it after 20 s quiet;
+- sends lone units, out of contact, to their group (never a sieged tank).
+
+**The leaves:**
+- **`commit`:** takes the cluster's intent as an input and the intent's target as its destination when it is 2 or more
+  cells away. A cluster with detachment units orders only the main intent's.
+- **Under `HOLD`:** the commitment input reads none, as the data labels `HOLD`. An old commitment doesn't carry into
+  the intent's input; this is not a mask.
+- **The calm layer:** leaves lone units to the intent layer, and stops its far sends.
+- **The reinforce rule:** hands new units to a short detachment, else to their group; never alone into a fight.
+- **The control groups:** follow the intent's groups, one type of a group on a key, flyers apart.
+- **Its orders:** carry their own source, `intent`.
+- **Coach Q4:** cites the active intent (its kind, start, group, target, the threat, the model's odds at the switch)
+  and the detachments, in plain words.
+
+**`tests/test_intent_pipe.py`.** One headless game to 12:00. At each minute from 6:00, a deep copy per intent plays
+15 s with that intent forced, 35 arms over 7 moments:
+
+| Criterion | Result |
+|---|---|
+| 1. The forced intent's units' orders to its target (within 2 cells), 90% or more | **66% of 64: fail.** `commit engage` 71% of 21, `commit move` 64% of 42. The misses are a target under 2 cells away (the model's own draw then) and a question before the switch took effect |
+| 2. The arms' orders differ pairwise in 80% of the moments or more | **3 of 7 moments: fail.** In the other 4 the army gave the same or no commit orders whatever the intent: a fight held the hands, or the main intent's units weren't in an asked cluster in those 15 s |
+| 3. No intent order over a fight's or a rule's units | **0: pass.** Its 9 lease conflicts were all over the army layer's own moves |
+| 4. The defence's size about the pros' | **Pass:** 7.6 supply against a threat of 1 with an army of 30 (the pros' median 5); 5 of an army of 5 at 4:00 |
+| 5. The commit model's odds follow the intent | **Pass.** Keep / engage / move: ATTACK 0.08 / 0.92 / 0.00, RETREAT 0.10 / 0.01 / 0.89, GATHER 0.14 / 0.05 / 0.81, DEFEND_BASE 0.30 / 0.65 / 0.04 |
+
+**Criterion 5 under HOLD:** 0.45 / 0.54 / 0.01 offline, where a commitment was in force. In play the HOLD input clears
+it; the HOLD arms still gave one engage or move a moment, the question before the switch.
+
+**The specialists:**
+- 0 orders to sieged tanks in the arms, 0 tanks unsieged.
+- All 17 control-group keys held one unit type, and no key mixed flyers with ground units.
+
+**Decision 2 (a mask or not).** The numbers above are its evidence. The input moves `commit`'s odds as the pros' do.
+The orders reach the target 64–71% of the time, short of 90%, for reasons outside the kind (the target's distance, the
+question's timing, the hands).
+
+**The regression tests:**
+- `test_parity` (gt1, gz1, gp1 unchanged), `test_smoke_game`, `test_pairs`, `test_live`, `test_card_macro`,
+  `test_trunk_faithful` and `test_matchups` pass.
+- `tests/test_inputs.py` fails only #67's five blocks, unchanged.

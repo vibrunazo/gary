@@ -2308,6 +2308,20 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **TacticalIntent v0 built and pipe-checked (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §7).** Option `intent` on gt1dev
+  (gary/agent/tactical.py, gary/policy/tactical.py), nothing in gt1dev itself: the intent model (a switch hazard, AUC 0.894,
+  and the next intent, 0.438 against time-and-map's 1.398 on switches with a new order; the cohesion numbers 0.463
+  without), the defence's size learned (held out 7.3 supply off against a constant's 9.6; 5 for an army of 5 at 4:00),
+  the commit model with the intent as an input only (order AUC 0.806 against its control's 0.774; P(engage | ATTACK)
+  0.28, the pros' 0.32), the calm layer, reinforce rule and control groups routed by it, coach Q4 citing it. The role
+  model with the intent read worse than its control (0.482 against 0.496) and the pros' close-in rises under a retreat
+  (0.078, 0.138 outnumbered), so the deployed one stays (option intentroles for the record). The labeller's HOLD fixed
+  (9% of the pros' HOLD ticks had a commitment in force, now 0%). Live game 1's 0:00-3:55 matched gate 4's style 2
+  (workers 18 against 19; one Marine, 1.5), the Barracks' retries aside. tests/test_intent_pipe.py (35 forced arms): the
+  orders reach the intent's target 66% (criterion 90%), the arms differ at 3 of 7 moments (80%), no intent order over a
+  fight's or rule's units, the defence's size and the commit model's odds as the pros', sieged tanks untouched and every
+  key one type, flyers apart. Parity, smoke, pairs, live, matchups pass; test_inputs only #67's.
+
 - **Phase 2 begun: TacticalIntent v0, the 0-game read, the labeller and the offline model (2026-11-26; 0 games).**
   Details and the design in docs/TACTICAL_INTENT.md.
   - *What leaves fighters to die alone* (eval/alone.py, new: replays re-simulated and joined with the records, the pros
