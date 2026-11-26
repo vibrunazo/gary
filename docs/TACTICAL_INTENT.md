@@ -789,8 +789,9 @@ ATTACK and HOLD keep while RETREAT and GATHER move to their targets. No two arms
 intent reaches the army when the commit model acts, and the misses are its keep draws (its keep odds rose with the
 channel-8 fix). Criteria 3-5 pass; sieged tanks and keys clean. P(move) at the gather points, 0.56 against the pros'
 0.38, is still open. The unforced main
-under GATHER: keep / engage / move 31 / 1 / 14 (moves 30%; the screen's 62%, the pros' 30%), 0 hops at the target, 6
-re-targets. One game: a rate, not a measure.
+under GATHER: keep / engage / move 31 / 1 / 14 (moves 30%; the screen's 62%, the pros' 30%), 6 re-targets
+(the hop counter read 0, but it matches the clamp's "near the intent's target", which only DEFEND_BASE gives after
+Option 1: it could not see GATHER's hops; §12 counts them from the re-targets). One game: a rate, not a measure.
 
 **The 48 (written before it runs).** IN304a (`gt1dev+intent`) against IB304a (`gt1dev`, replayed on the same code), both
 against gz1, the ladder maps, seeds 4004-4009 (8 maps x 6 = 48 games each), 30 minutes, `--gg 0`, paired by map and
@@ -826,16 +827,23 @@ against gz1, the 8 ladder maps x seeds 4004-4009, 30 minutes, `--gg 0`, 48 paire
 Results: the intent build won 2, lost 6 and had 40 at time; the baseline won 3, lost 6 and had 39 at time.
 
 **The screen's gain went with the code change, not the seeds.**
-- The same 16 starts (seeds 4004-4005) give the intent build 0.277 at its attacks (IN303a 0.422), the baseline 0.338
-  (IB303a 0.275).
+- On the screen's starts (seeds 4004-4005; 13 paired games with attacks in both) the paired difference is -0.060
+  (intent 0.277, baseline 0.338), against the screen's +0.149 on 15 (0.422 against 0.275). The baseline rose there
+  too, so the same starts are a check of direction, not a measure.
 - The baseline's own share over all 48 is unchanged (0.281; the screen's 0.275), so the intent build lost it.
 - Under IN303a the attacks a commit move began carried 0.63 of the army (median) and a commit engage's 0.54; under
   IN304a they carry 0.42 and 0.33.
 - Two things changed between the screen and the 48: the channel-8 fix (the commit model keeps more: GATHER moves 62% to
   34% of its questions) and Option 1 (the gather point follows the commit model's draws instead of the clamp holding
-  the army near it). The likely reading: the screen's GATHER shuffles were re-sending the main cluster to one point
-  every few seconds, and that is what gathered the army before attacks. Which of the two took it is not separable
-  from these rounds (a 16-game screen with the clamp back for GATHER and ATTACK would separate them).
+  the army near it).
+- **The records separate them (0 games).** Under IN304a the main gets far fewer orders within an intent's spell: an
+  ATTACK spell sends 0.20 commit orders for the main (IN303a 1.09), 89% of them none (71%); GATHER 0.81 (1.77), 74%
+  none (63%); DEFEND_BASE 0.13 (0.56), 91% none (73%). The commit model keeps on most questions since the channel-8
+  fix, and the spells are short (10-11 s median), so most intents end before the main is sent anywhere; Option 1 acts
+  only at the target, after an order has gone. The main's share of the army on entering ATTACK hardly moved (0.62
+  median, IN303a 0.67). So the screen's share at attacks rode on the commit model's spread group channel, which made
+  it move: the channel-8 fix took it, not Option 1. A switch of intent sends nothing by itself; in the pros' data an
+  intent begins with an order (the labeller labels it from a commitment), a state Gary now rarely holds.
 
 **Intent fidelity.**
 - The commit model under GATHER: keep / engage / move 1,961 / 12 / 1,035, moves 34% (the pros' 30%; the screen's
@@ -855,11 +863,15 @@ Results: the intent build won 2, lost 6 and had 40 at time; the baseline won 3, 
   GATHER moved away from the pros' (38% against 29%), ATTACK too (28% against 37%); HOLD a little nearer.
 - The defence: the main defended 332 times (threat median 17.5 supply), 201 detachments (median 28 supply), nobody
   went 190 times (threat median 5; 35 of them against more than 20 supply).
-- **Coach Q4** at 7, 11 and 15 minutes of four games (Attitude 4004, KnockOut 4005, Odyssey 4007, Radeon 4009): all 12
-  answers cite the intent in force, its target, the model's odds at the switch and the commit decisions under it. One
-  GATHER held 8:18 to past 11:00 with 20 supply of Zerg at Gary's bases (Odyssey).
+- **Coach Q4** at 7, 11 and 15 minutes of four games (Attitude 4004, KnockOut 4005, Odyssey 4007, Radeon 4009): each of
+  the 12 opens on the intent in force, its target and the model's odds at the switch (two read in full, the rest by
+  that line). One GATHER held 8:18 to past 11:00 with 20 supply of Zerg at Gary's bases (Odyssey 4007).
+- **Hops:** GATHER's re-targets landing within 2 cells of the cluster: 90 in 48 games (1.9 a game; the screen's
+  shuffles 269 in 16, 17 a game), 29% of its 307 re-targets (the pros' moves at their gather point stay within 2
+  cells 40% of the time, §10).
 
 **Read.** Not measurably worse in score or gap, nearer the pros on GATHER's commit kinds, but the measure the layer
-was built for (the army's share at attacks, §5) no longer moves, and the labelled shares drift toward GATHER. The second
-48 (IN304b against IB304b, `--first 4010`) runs per AGENTS.md; what gathered the army on the screen is the open
-question.
+was built for (the army's share at attacks, §5) no longer moves, and the labelled shares drift toward GATHER. The cause is
+in the records: since the channel-8 fix the commit model keeps through most intent spells, so the intent rarely reaches
+the main. The second 48 (IN304b against IB304b, `--first 4010`) started per AGENTS.md; it measures this build, which
+the cause may change (the user's call).

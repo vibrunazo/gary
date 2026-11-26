@@ -2313,10 +2313,12 @@ plan and the full log).
   - Paired score -0.005 [-0.078, +0.062]; gap all windows +0.019 [-0.030, +0.058]: not measurably different.
   - The army's share at attacks +0.001 [-0.044, +0.047] (the screen's +0.149 [+0.081, +0.216]), ground fighters in no
     asked cluster -0.008 [-0.045, +0.033] (the screen's -0.050): the screen's gains are gone with the channel-8 fix
-    and Option 1; on the screen's own 16 starts the intent build's share fell 0.422 to 0.277, the baseline's didn't.
+    and Option 1 (on the screen's starts, 13 paired games, -0.060 against its +0.149 on 15).
   - Attacks fewer (3.2 a game against 4.3). GATHER's commit moves 34% (the pros' 30%, the screen's 62%); labelled
     GATHER 38% of ticks (the pros' 29%).
-  - The second 48 (`--first 4010`) runs; what gathered the army on the screen is open.
+  - The cause, from the records: since the channel-8 fix the commit model keeps through most intent spells (an ATTACK
+    spell sends the main 0.20 orders, the screen's 1.09; 89% none), so a switch of intent rarely moves the main.
+    Option 1 acts only after an order. The second 48 (`--first 4010`) started.
 - **The army tracker's group channel as the data holds it; TacticalIntent's Option 1 (2026-11-26; 0 games;
   docs/TACTICAL_INTENT.md §11).**
   - The commit model's inputs at Gary's 59 gather points, swapped group by group against 2,616 pros' GATHER-at-target
@@ -2328,7 +2330,7 @@ plan and the full log).
   - Option 1, the user's call: the 2-cell clamp for DEFEND_BASE only; GATHER's move and ATTACK's engage at the target
     move the target, as the labeller does. Pipe check: criterion 1 96%; criterion 2 fails, 4 of 7 army-active
     moments (the misses are arms that keep: no two acting arms sent the same order); GATHER's commit moves 30% of its
-    questions (the screen's 62%, the pros' 30%), no hops.
+    questions (the screen's 62%, the pros' 30%); its hop counter was blind to GATHER after Option 1 (§11-12).
   - The 48 (IN304a against IB304a, seeds 4004-4009) launched with its minimum detectable effect written (§11).
 - **TacticalIntent v0, the user's checks before the 48 (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §10).**
   - "Nobody went" against more than 20 supply: 10 of IN303a's 15 were real, with losses at home after 9. A defence
