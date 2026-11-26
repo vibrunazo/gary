@@ -73,9 +73,11 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
 - **The strict drills again on gt0.54dev (open):** gate 2's 18 of 20 was measured under the old strict mask (Comsat
   and upgrades masked); the 20 drills played again say whether it holds, and whether strict's turrets come back to
   gt1dev's (7.0 by 7:30 in style 1, the pros 7.3; DR300a1 10.8). docs/PROGRESS.md, gt0.54dev.
-- **A building decided while its builders walk is not counted (open, diagnosed):** `queued_builds` in
-  gary/agent/macro.py takes no `note_decision` until handed, so the model decides it again (a third of gt1dev's turret
-  decisions). Count it at the decision, as a queued unit is, and check with tests/test_inputs.py.
+- **tests/test_inputs.py fails at gt0.54dev (open):** the Terran's macro and critic "decided" off at 21% of the moments,
+  mostly Missile Turrets (play counts a build at its hand-off to a walking builder, the replay at its placement; 5% when
+  first checked), and the Zerg's placement inputs (workers, minute, bases held). Find when it began and fix or list it
+  with its issue. Related: turret decisions come in bursts (a third within 2 s of the one before, G4299a), not through
+  `queued_builds` (docs/PROGRESS.md, gt0.54dev).
 - **Phase 2 (open, not started; docs/REFOCUS.md §4.3):** to be planned in its own session. From gate 3's review: the
   coach's Q3 (buildings drawn at 2-6%) and Q4 (the army model's "keep" at 86%) call for mid-game directives and a
   top-down tactical intent layer: 3-5 modes with intent-conditioned leaves and ArmyNet's heatmap, `TacticalIntent` in

@@ -2337,11 +2337,17 @@ plan and the full log).
     decisions, the model gave the next 36% (0.08 with that group zeroed): the pros' turrets come in a ring (0.7 by 5:30,
     5.5 by 6:30), so one decided reads as the ring begun. Bug A's fix should take strict back to gt1dev's turrets; the
     drills' re-run is its check.
-  - *An undercount in every build* (not patched): a building the macro decides while its builders are all on their way
-    waits in `queued_builds` without `note_decision` until it is handed (gary/agent/macro.py: a unit queued the same way
-    is noted at once), so neither the history nor pendown's pending counts it, and the next query decides another: 3.3 of
-    gt1dev's 10.0 turret decisions by 7:30 in style 1 came within 2 s of the previous one (strict 4.9 of 15). A model's
-    input counted as its training data counts it, so a fix is adopted on tests/test_inputs.py and the records.
+  - *The turret bursts, and no undercount* (corrected 2026-11-26, 0 games; the entry first blamed `queued_builds`): 236
+    of G4299a's 747 turret decisions by 7:30 came within 2 s of the one before (DR300a1 40 of 127), but not through the
+    queue: a building already queued is passed over (macro.py, "queued already") and is the goal again before any query
+    once it can start, and only 39 turrets were queued in G4299a's first 7:30. The bursts are builds handed to parked
+    builders, each noted at the hand-off and seen by the next query (tests/test_inputs.py's game: three decided at
+    6:28-6:29, play's "decided" 3 at 6:31). Counting a queued build at its decision (tried as option qnote, not kept) moves
+    play further from the data: play already counts ahead of the replay, which counts the build command at the
+    placement, after the walk. tests/test_inputs.py fails at gt0.54dev with or without it: the Terran's decided (and the
+    critic's) off at 21% of 107 moments, mostly Missile Turrets (it was 5% when the block was first checked, 2026-10-31),
+    and the Zerg's placement inputs at 3 of 12 blocks (6 buildings). The bursts' cause in the model is open: the pros
+    build turrets in rings too.
 
 - **Phase 1 completed: the user's sign-off and the docs closeout (2026-11-25; 0 games).**
   - The user signed Phase 1 off on gate 2 (18 of 20), gate 4 (passed) and their review of the coach's answers as gate 3's
