@@ -35,6 +35,7 @@ END_S = 20                         # a detachment's threat gone this long: it en
 ALONE = 6 * 32                     # no other fighter this near: alone (gary/agent/sightings.py)
 CONTACT = 8 * 32                   # an enemy fighter this near: in contact (the roles' then)
 JOIN_EVERY = 2 * 24
+MAX_DETACHMENTS = 2                # detachments at once (docs/TACTICAL_INTENT.md §4: one main intent and at most two)
 GRID = 16
 
 
@@ -56,6 +57,7 @@ class Tactical:
         self.forced: str | None = None     # (the pipe check's: an intent forced for the main)
         self.joining: set[int] = set()     # units alone this layer sends to their group
         self.types: dict[int, int] = {}    # unit tag -> type (a detachment's supply)
+        self.hold_clears = False           # option intentholdclear: under HOLD the commit model reads no commitment in force
 
     # --- what the leaves read -----------------------------------------------------------------------------------------
     def intent_of(self, tag: int) -> dict | None:
@@ -239,7 +241,7 @@ class Tactical:
                     self.of[t] = self.main["id"]
                 LOG.decision(g.hi.side, "intent", now, "DEFEND_BASE ended", None, None, {"units": len(d["units"])},
                              "the threat gone" if d["units"] else "its units gone", then=f"{d['id']} -> {self.main['kind']}")
-        if not scene.threat or self.main["kind"] == "DEFEND_BASE":
+        if not scene.threat or self.main["kind"] == "DEFEND_BASE" or len(self.details) >= MAX_DETACHMENTS:
             return
         cell = max(scene.threat, key=lambda c: float((scene.g[3] + scene.g[7]).reshape(GRID, GRID)[c]))
         if any(dist(cell, d["cell"]) <= 1 for d in self.details):

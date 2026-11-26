@@ -2310,17 +2310,23 @@ plan and the full log).
   The blind pack BE297 keeps the old wording (it was built before).
 - **TacticalIntent v0 built and pipe-checked (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §7).** Option `intent` on gt1dev
   (gary/agent/tactical.py, gary/policy/tactical.py), nothing in gt1dev itself: the intent model (a switch hazard, AUC 0.894,
-  and the next intent, 0.438 against time-and-map's 1.398 on switches with a new order; the cohesion numbers 0.463
-  without), the defence's size learned (held out 7.3 supply off against a constant's 9.6; 5 for an army of 5 at 4:00),
-  the commit model with the intent as an input only (order AUC 0.806 against its control's 0.774; P(engage | ATTACK)
-  0.28, the pros' 0.32), the calm layer, reinforce rule and control groups routed by it, coach Q4 citing it. The role
-  model with the intent read worse than its control (0.482 against 0.496) and the pros' close-in rises under a retreat
-  (0.078, 0.138 outnumbered), so the deployed one stays (option intentroles for the record). The labeller's HOLD fixed
-  (9% of the pros' HOLD ticks had a commitment in force, now 0%). Live game 1's 0:00-3:55 matched gate 4's style 2
-  (workers 18 against 19; one Marine, 1.5), the Barracks' retries aside. tests/test_intent_pipe.py (35 forced arms): the
-  orders reach the intent's target 66% (criterion 90%), the arms differ at 3 of 7 moments (80%), no intent order over a
-  fight's or rule's units, the defence's size and the commit model's odds as the pros', sieged tanks untouched and every
-  key one type, flyers apart. Parity, smoke, pairs, live, matchups pass; test_inputs only #67's.
+  and the next intent, 0.438 against time-and-map's 1.398 on switches with a new order; 0.463 without the cohesion
+  numbers), the defence's size learned (held out 7.3 supply off, a constant's 9.6; 5 for an army of 5 at 4:00), the
+  commit model with the intent as an input only (order AUC 0.806, its control 0.774), the calm layer, reinforce rule and
+  control groups routed by it, coach Q4 citing it. The role model with the intent: no gain on its control (0.482 against
+  0.496, the deployed 0.482), and the pros' close-in rises under a retreat (0.078; 0.138 outnumbered): it stays out
+  (option intentroles). The labeller's HOLD fixed (9% of the pros' HOLD ticks had a commitment in force, now 0%). Live
+  game 1's 0:00-3:55 matched gate 4's style 2 (workers 18 against 19; one Marine, 1.5), the Barracks' retries aside.
+  Feature parity in play (84 decisions against the replay's labels): the cluster read as its top-left unit, fixed to its
+  densest cell (distances matching 77-81%, were 24-48%). tests/test_intent_pipe.py (35 forced arms): after a real switch
+  56 of 58 orders reach the intent's target (83% over all arms, the misses the test's own), the arms differ at 4 of 7
+  moments (criterion 80%), no intent order over a fight's or rule's units; the input obeyed for every intent but HOLD
+  with a commitment in force (6 keep, 4 engage), which option intentholdclear fixes (the user's call). Unforced:
+  GATHER 72%, ATTACK 22%, DEFEND_BASE 6% of the time, holds 14-40 s (the pros' 15-20), 1.65 switches a minute;
+  detachments (capped at two) held half the army while active, all of it against a 32-supply attack at 7:00 (the pros'
+  a fifth to a quarter): the sizing in share or with a "nobody goes" model is the user's call. Sieged tanks untouched,
+  keys one type, flyers apart; every matchup plays with the option (it stands aside outside TvZ). Parity, smoke, pairs,
+  live pass; test_inputs only #67's.
 
 - **Phase 2 begun: TacticalIntent v0, the 0-game read, the labeller and the offline model (2026-11-26; 0 games).**
   Details and the design in docs/TACTICAL_INTENT.md.

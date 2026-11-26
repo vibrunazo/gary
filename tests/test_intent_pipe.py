@@ -43,8 +43,9 @@ def _cell(t, x, y):
 def test_intent_pipe(report: dict | None = None):
     try:
         from eval.match import Match
+        import os
         with contextlib.redirect_stdout(io.StringIO()):
-            m = Match(1, "gt1dev+intent", REPO / "tests" / "fixtures" / "replays" / "stardata_tvz_standard_ozp3w.rep",
+            m = Match(1, os.environ.get("PIPE_MANIFEST", "gt1dev+intent"), REPO / "tests" / "fixtures" / "replays" / "stardata_tvz_standard_ozp3w.rep",
                       opponent="gz1dev")
     except Exception as e:                      # no game data, env DLL or models here
         print(f"skip: {e}")
@@ -52,15 +53,23 @@ def test_intent_pipe(report: dict | None = None):
     from eval.pairs import _copy, _play
     from gary.agent.army import cell_dist
     from gary.races import AIR_FIGHTERS
+    from gary.policy.army import supply_x2
     g = m.gary
     assert getattr(g, "tactical", None) is not None, "gt1dev+intent built without its intent layer (no intent model?)"
     out = {"to_target": [], "hold_orders": [], "differ": [], "conflicts": 0, "conflicts_contact": 0, "sieged_ordered": 0, "conflict_takers": {}, "intent_over": {}, "by_origin": {},
            "sieged_unsieged": 0, "moments": 0, "commit": {k: [] for k in INTENTS}, "roles": {k: [] for k in INTENTS},
-           "keys": []}
+           "keys": [], "questions": Counter(), "taken": {k: Counter() for k in INTENTS}, "miss": Counter(), "hit": Counter(),
+           "det_n": [], "det_share": []}
     next_at = START
     while m.game.frame < UNTIL and not m.done:
         with contextlib.redirect_stdout(io.StringIO()):
             m.step()
+        if g.tactical.main is not None and m.game.frame % 24 == 0:        # (the unforced main line: its detachments)
+            o = g.hi.observe()
+            sup = {u["tag"]: supply_x2(u["type"]) for u in o["units"] if u["owner"] == g.slot and u["type"] in g.army_types}
+            total = sum(sup.values()) or 1
+            out["det_n"].append(len(g.tactical.details))
+            out["det_share"].append(sum(sup.get(t, 0) for d in g.tactical.details for t in d["units"]) / total)
         if m.game.frame < next_at or g.tactical.main is None:
             continue
         from gary.env import GameError
@@ -86,6 +95,17 @@ def test_intent_pipe(report: dict | None = None):
             after = ag.hi.observe()
             still = {u["tag"] for u in after["units"] if u["owner"] == g.slot and u["type"] == 30}
             target = ag.tactical.main.get("target") if ag.tactical.main else None
+            switched = [r for r in recs if r.get("kind") == "decision" and r.get("layer") == "intent"
+                        and str(r.get("by", "")).startswith("forced")]
+            f_sw = switched[0]["f"] if switched else None
+            for r in recs:                             # (each commit question in the arm: before the switch, or after it
+                if r.get("kind") != "decision" or r.get("layer") != "commit" or r.get("side") != "T":
+                    continue                           # with the forced intent, another, or a detachment's)
+                ins = r.get("in") or {}
+                when = "no switch (already that intent)" if f_sw is None else "before the switch" if r["f"] < f_sw else                     "after, a detachment's" if ins.get("of") == "detachment" else                     "after, the forced intent" if ins.get("intent") == INTENTS.index(kind) else "after, another intent"
+                out["questions"][when] += 1
+                if when in ("after, the forced intent", "no switch (already that intent)") and ins.get("of") == "main":
+                    out["taken"][kind][str(r.get("choice", "")).split(" ")[0]] += 1
             orders = [r for r in recs if r.get("kind") == "decision" and r.get("choice") == "army order" and r.get("side") == "T"
                       and str(r.get("by", "")).startswith(("commit", "intent"))]   # (where the army goes; calm's hops are local)
             mine = {u["tag"] for u in after["units"] if u["owner"] == g.slot}
@@ -100,6 +120,8 @@ def test_intent_pipe(report: dict | None = None):
                 cells.append(c)
                 if kind != "HOLD" and target is not None:
                     out["to_target"].append(cell_dist(c, target) <= 2)
+                    key = (kind, "switched" if f_sw is not None else "no switch", "before" if f_sw is not None and r["f"] < f_sw else "after")
+                    (out["hit"] if cell_dist(c, target) <= 2 else out["miss"])[key] += 1
                     out["by_origin"].setdefault(str(r.get("by")), []).append(cell_dist(c, target) <= 2)
                 out["sieged_ordered"] += len(tags & sieged)
             if kind == "HOLD":
@@ -126,6 +148,7 @@ def test_intent_pipe(report: dict | None = None):
             ts = {types[t] for t in tags if t in types}
             out["keys"].append((len(ts) <= 1, not (ts & set(AIR_FIGHTERS) and ts - set(AIR_FIGHTERS))))
     _sizer(g, out)
+    _unforced(out)
     _print(out)
     if report is not None:
         report.update(out)
@@ -169,6 +192,25 @@ def _offline(g, obs, out) -> None:
     model.intent = -1
 
 
+def _unforced(out) -> None:
+    """The main line's own intents (its records): shares of time, hold lengths, switches a minute; its detachments."""
+    from gary.decision_log import LOG
+    recs = [r for r in LOG.records if r.get("kind") == "decision" and r.get("layer") == "intent" and r.get("side") == "T"]
+    main = [r for r in recs if r["choice"] in INTENTS]
+    dets = [r for r in recs if str(r["choice"]).startswith("DEFEND_BASE (")]
+    spans = Counter()
+    holds = {k: [] for k in INTENTS}
+    for a, b in zip(main, main[1:] + [{"f": UNTIL}]):
+        spans[a["choice"]] += b["f"] - a["f"]
+        holds[a["choice"]].append((b["f"] - a["f"]) / 24)
+    tot = sum(spans.values()) or 1
+    out["unforced"] = {"shares": {k: round(spans[k] / tot, 3) for k in INTENTS},
+                       "hold_median_s": {k: round(float(np.median(v)), 1) for k, v in holds.items() if v},
+                       "switches_a_minute": round(len(main) / max(1e-9, (UNTIL - (main[0]["f"] if main else 0)) / 1440), 2),
+                       "detachments": [(r["f"] // 1440, (r.get("in") or {}).get("units"), (r.get("in") or {}).get("supply"),
+                                        (r.get("in") or {}).get("threat"), (r.get("in") or {}).get("army")) for r in dets]}
+
+
 def _sizer(g, out) -> None:
     """The defence's size in made-up states: the pros' medians (train/tactical_intent.py report) are the yardstick."""
     m = g.tactical.model
@@ -201,6 +243,15 @@ def _print(out) -> None:
     rm = {k: round(float(np.mean(v)), 3) for k, v in out["roles"].items() if v}
     print(f"   the role model's close-in by intent input: {rm or 'no fight at the moments'}"
           + (f" ({'PASS' if rm['RETREAT'] <= min(rm.values()) + 1e-9 else 'FAIL'})" if rm else ""))
+    print("unforced main line: " + str(out.get("unforced")))
+    dn, ds = out["det_n"], out["det_share"]
+    print(f"   detachments at once: max {max(dn) if dn else 0}; their share of the army's supply: peak {max(ds) if ds else 0:.2f}, "
+          f"mean while any {np.mean([x for x, n in zip(ds, dn) if n]) if any(dn) else 0:.2f}")
+    print("commit questions in the arms: " + str(dict(out["questions"])))
+    print("   the main's kind taken after the switch, by forced intent (keep / engage / move): " +
+          "; ".join(f"{k} {[c[x] for x in ('keep', 'engage', 'move')]}" for k, c in out["taken"].items()))
+    print("   orders to the target, hits / misses by (forced, switch, before/after): " +
+          "; ".join(f"{k}: {out['hit'][k]}/{out['miss'][k]}" for k in sorted(set(out['hit']) | set(out['miss']))))
     print(f"specialists: orders to sieged tanks in the arms {out['sieged_ordered']}, tanks unsieged during the arms "
           f"{out['sieged_unsieged']}; control-group keys of one type {sum(a for a, _ in out['keys'])}/{len(out['keys'])}, "
           f"flyers never with ground {sum(b for _, b in out['keys'])}/{len(out['keys'])}")

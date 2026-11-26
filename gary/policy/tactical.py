@@ -65,8 +65,9 @@ class Scene:
         self.enemy = cells((g[3] > 0) | (g[7] > 0))
         self.losses = cells(self.loss > 0)
         self.threat = [c for c in self.home if near(c, self.enemy, 1) or near(c, self.losses, 0)]
-        cc = cells(g[8] > 0)
-        self.center = cc[0] if cc else self.main
+        # (the cluster's densest cell: the data's channel 8 holds the cluster's supply at its centre alone, play's at each
+        # unit's cell, so the first cell read play's top-left unit; tests/test_intent_pipe.py's parity check, 2026-11-26)
+        self.center = divmod(int(np.argmax(g[8])), GRID) if g[8].any() else self.main
         en = (g[3] + g[7]).reshape(GRID, GRID)
         around = {(y + dy, x + dx) for y, x in self.threat for dy in (-1, 0, 1) for dx in (-1, 0, 1)
                   if 0 <= y + dy < GRID and 0 <= x + dx < GRID}

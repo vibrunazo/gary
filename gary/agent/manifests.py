@@ -704,6 +704,9 @@ OPTIONS = {
     # rule and the control groups routed by it; intentroles: the role model with the intent too (runs/roles_intent)
     "intent": lambda m: _intent(m),
     "intentroles": lambda m: _intent_roles(m),
+    # with intent: under HOLD the commit model reads no commitment in force (the pros' HOLD ticks have none), so an old
+    # commitment doesn't carry into the intent's input (a rule over the input, the user's call: docs/TACTICAL_INTENT.md §7)
+    "intentholdclear": lambda m: m["army"].update(intent_hold_clears=True),
     # army_rules.py ClusterRules (Gary-Z's, shared): join, a cluster under the main one's size walks to it rather than
     # deciding alone (Gary-T's attacks: 0.26 late arrivals per fighter there, the pros' 0.06, eval/attacks.py); sweep,
     # the main body attacks a packet it outweighs; press, far ahead and nothing at home, it attacks the buildings
@@ -1894,6 +1897,8 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
                                  scout=m["army"].get("scout", True), types=m["army"].get("types"),
                                  rules=m["army"].get("rules", ()))
             g.army.commit_floor = m["army"].get("commit_floor")
+            if getattr(g, "tactical", None) is not None:      # (option intent's layer: built by its turn rule)
+                g.tactical.hold_clears = m["army"].get("intent_hold_clears", False)
             g.army.hunt_ahead = m["army"].get("hunt_ahead")
             g.army.hunt_split = m["army"].get("hunt_split", False)
             g.army.static_odds = m["army"].get("static_odds")

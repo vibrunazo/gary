@@ -456,8 +456,8 @@ record.
 **The leaves:**
 - **`commit`:** takes the cluster's intent as an input and the intent's target as its destination when it is 2 or more
   cells away. A cluster with detachment units orders only the main intent's.
-- **Under `HOLD`:** the commitment input reads none, as the data labels `HOLD`. An old commitment doesn't carry into
-  the intent's input; this is not a mask.
+- **Under `HOLD`, with option `intentholdclear` only:** the commitment input reads none, as the data labels `HOLD`, so
+  an old commitment doesn't carry into the intent's input. It is a rule over an input, so it is the user's call (below).
 - **The calm layer:** leaves lone units to the intent layer, and stops its far sends.
 - **The reinforce rule:** hands new units to a short detachment, else to their group; never alone into a fight.
 - **The control groups:** follow the intent's groups, one type of a group on a key, flyers apart.
@@ -465,27 +465,87 @@ record.
 - **Coach Q4:** cites the active intent (its kind, start, group, target, the threat, the model's odds at the switch)
   and the detachments, in plain words.
 
-**`tests/test_intent_pipe.py`.** One headless game to 12:00. At each minute from 6:00, a deep copy per intent plays
-15 s with that intent forced, 35 arms over 7 moments:
+**Two fixes before the final pipe run.**
+- **Feature parity** (one game of `gt1dev+intent`, its replay rebuilt by the army dataset's builder and labelled, 84
+  decisions paired with ticks): the cluster's position was its top-left unit in play. The data's channel 8 holds the
+  cluster at its centre cell alone; play's holds every unit's cell. Read as the densest cell, `d_main` matches 81% of
+  pairs (was 48%), `d_enemy_bld` 77% (24%), the cohesion share 93% (66%). The rest match 85–99%, except the "enemy army
+  seen in 30 s" memory: 48% off by more than 2 supply, the difference `tests/test_inputs.py` lists as intended for the
+  army model.
+- **The detachments capped at two** (§4 says at most two; nothing enforced it).
+
+**`tests/test_intent_pipe.py`, final** (one headless game to 12:00, a deep copy per intent at each minute from 6:00, 15 s
+each with the intent forced, 35 arms over 7 moments):
 
 | Criterion | Result |
 |---|---|
-| 1. The forced intent's units' orders to its target (within 2 cells), 90% or more | **66% of 64: fail.** `commit engage` 71% of 21, `commit move` 64% of 42. The misses are a target under 2 cells away (the model's own draw then) and a question before the switch took effect |
-| 2. The arms' orders differ pairwise in 80% of the moments or more | **3 of 7 moments: fail.** In the other 4 the army gave the same or no commit orders whatever the intent: a fight held the hands, or the main intent's units weren't in an asked cluster in those 15 s |
+| 1. The forced intent's units' commit and intent orders to its target, 90% or more | **83% of 87 over all arms. After a real switch: 56 of 58 (97%)** (ATTACK 21/23, RETREAT 29/29, GATHER 5/5, DEFEND_BASE 1/1). The misses are the test's own: 10 are a forced GATHER on a main already gathering (no switch, its old target kept) and 3 a question before the switch |
+| 2. The arms' orders differ pairwise in 80% of the moments or more | **4 of 7: fail.** At the other 3 the arms gave no or the same commit questions (a fight held the hands) |
 | 3. No intent order over a fight's or a rule's units | **0: pass.** Its 9 lease conflicts were all over the army layer's own moves |
-| 4. The defence's size about the pros' | **Pass:** 7.6 supply against a threat of 1 with an army of 30 (the pros' median 5); 5 of an army of 5 at 4:00 |
-| 5. The commit model's odds follow the intent | **Pass.** Keep / engage / move: ATTACK 0.08 / 0.92 / 0.00, RETREAT 0.10 / 0.01 / 0.89, GATHER 0.14 / 0.05 / 0.81, DEFEND_BASE 0.30 / 0.65 / 0.04 |
+| 4. The defence's size about the pros' | **Pass** on made-up states: 7.6 supply against a threat of 1 in an army of 30 (the pros' median 5); 5 of an army of 5 at 4:00 |
+| 5. The commit model's odds follow the intent | **Pass**, see Decision 2 below |
 
-**Criterion 5 under HOLD:** 0.45 / 0.54 / 0.01 offline, where a commitment was in force. In play the HOLD input clears
-it; the HOLD arms still gave one engage or move a moment, the question before the switch.
+**Decision 2's evidence, the kind taken.** The main cluster's questions after the switch with the forced intent as
+input (45; 11 more where the main already had it):
+
+| Forced | keep / engage / move |
+|---|---|
+| ATTACK | 2 / 9 / 0 |
+| RETREAT | 1 / 0 / 12 |
+| GATHER | 1 / 0 / 9 |
+| DEFEND_BASE | 4 / 7 / 0 |
+| HOLD | 6 / 4 / 0 |
+
+Every intent but HOLD is obeyed through the input alone. HOLD is not, where a commitment is in force: the data's HOLD
+never has one. The offline odds say the same (keep 0.54, engage 0.44 under HOLD). Criterion 5's "keep largest under
+HOLD" passed by a hair.
+
+Option `intentholdclear` (not in `intent`) makes the commit model read no commitment under HOLD. With it the HOLD arms
+took 9 / 1 / 0 (keep / engage / move), against 5 / 4 / 1 without it, in the run before the centre fix. It is a rule over
+an input, so the user's call, as a mask would be.
+
+**The unforced main line** (the same game, its own intents from 6:00 to 12:00):
+
+| Intent | Share of time | Hold median (s) | The pros' hold median (s) |
+|---|---|---|---|
+| GATHER | 72% | 40 | 15 |
+| ATTACK | 22% | 27 | 20 |
+| DEFEND_BASE | 6% | 14 | 20 |
+| RETREAT | 0% | | 5 |
+| HOLD | 0% | | 15 |
+
+It switches 1.65 times a minute. The labeller on the same game's replay saw GATHER 65, ATTACK 15 and DEFEND_BASE 9 of 89
+ticks.
+
+**The detachments in that game:**
+
+| Minute | Units | Supply | Enemy supply at home | Army supply |
+|---|---|---|---|---|
+| 7 | 20 | 20 | 32 | 24 |
+| 8 | 9 | 9 | 22 | 29 |
+| 8 | 6 | 6 | 0 (losses only) | 28 |
+| 10 | 9 | 9 | 5.5 | 29 |
+
+- **At most two at once.** While any was active they held half the army's supply on average, and at peak all of it:
+  the 32-supply attack at 7:00 took 20 of 24.
+- **The pros' detachments are a fifth to a quarter of their army.** Gary's army is small at 7–8 minutes (24–29
+  supply), and the sizer works in supply, not share.
+- **A threat of losses alone still detached 6.** The sizer's median never says "nobody", where the pros send no one in
+  19–32% of threatened moments.
+- **Open, the user's call:**
+  - the size as a share of the army, or with a model of whether anyone goes;
+  - the main itself switching to DEFEND_BASE on a large threat (it did, 6% of the time), not a detachment;
+  - as now.
 
 **The specialists:**
 - 0 orders to sieged tanks in the arms, 0 tanks unsieged.
-- All 17 control-group keys held one unit type, and no key mixed flyers with ground units.
+- All 18 control-group keys held one unit type, and no key mixed flyers with ground units.
 
-**Decision 2 (a mask or not).** The numbers above are its evidence. The input moves `commit`'s odds as the pros' do.
-The orders reach the target 64–71% of the time, short of 90%, for reasons outside the kind (the target's distance, the
-question's timing, the hands).
+**Coverage.** `tests/test_matchups.py` with `GARY_TEST_T=gt1dev+intent`: all six matchups play (the layer stands aside
+where there is no intent model: every matchup but TvZ).
+
+**About the role model's result.** The control and the deployed model share one recipe (0.496 and 0.482 held out), so
+the intent model's 0.482 is no gain rather than worse.
 
 **The regression tests:**
 - `test_parity` (gt1, gz1, gp1 unchanged), `test_smoke_game`, `test_pairs`, `test_live`, `test_card_macro`,

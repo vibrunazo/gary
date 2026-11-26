@@ -615,8 +615,8 @@ class LearnedArmy:
         ik, itarget = None, None
         if tac is not None and not air:            # (a detachment's units take the intent layer's orders: the rest here)
             ik, itarget, group = tac.cluster_intent(group)
-            if ik == HOLD_INTENT:                  # (HOLD is no commitment in force, as the pros' ticks label it: an old
-                held, age = 0, COMMIT_AGE_S        # one doesn't carry over into the intent's input)
+            if ik == HOLD_INTENT and tac.hold_clears:   # (option intentholdclear: HOLD is no commitment in force, as the
+                held, age = 0, COMMIT_AGE_S        # pros' ticks label it, so an old one doesn't carry into the input)
         grid, glob = self.tracker.inputs(obs, group, (held, age), current[2] if current is not None else -1,
                                          intent=ik if ik is not None and ik >= 0 else None)
         where, kind = self.model.predict(grid, glob)
@@ -647,6 +647,9 @@ class LearnedArmy:
         names = ["keep", "engage", "move"]
         self._seen = {"units": len(group), "at": self._cell_name(here),
                       "commitment": f"{names[held] if held else 'none'}, {age:.0f} s"} | ({"air": True} if air else {})
+        if tac is not None and not air:            # (option intent: the intent the question read, and whose units)
+            self._seen |= {"intent": ik, "of": "main" if tac.main and all(
+                tac.of.get(u["tag"], tac.main["id"]) == tac.main["id"] for u in group) else "detachment"}
         options = [[n, round(float(q[i]), 3)] for i, n in enumerate(names)]
         why = explain_army(self.model, grid, glob, lambda w, kd: kd[:, k])
         item = dict(frame=hi.frame, grid=grid[0].astype(np.float16), glob=glob[0].astype(np.float16), choice=k,
