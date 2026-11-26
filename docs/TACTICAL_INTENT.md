@@ -770,15 +770,25 @@ TvZ games of the v5 army dataset, built as train/commit.py builds them):
 question, the densest cell for a commitment question (army.py `_committed`, the intent layer's read). A model's input
 counted as its data counts it: it changes every build that uses the army or commit model (gt1, gz1, gp1 and the dev
 builds); the parity hashes are recorded again with it. tests/test_inputs.py passes (214 moments), every matchup plays.
-IB303a, the screen's baseline, ran without it, so the 48's baseline is replayed.
+IB303a, the screen's baseline, ran without it, so the 48's baseline is replayed. Through the real code path (KnockOut
+seed 4005 replayed on the fixed code to 15:30, every commit question of the main at its GATHER target captured at the
+model): 5 such questions (59 before: the hops are gone), each with channel 8 in exactly one cell holding the group's
+supply as the numbers give it, P(move) 0.47 median. (tests/test_inputs.py reads the army with an empty group, so its
+pass says nothing of channel 8.)
 
 **Option 1** (`army.py`, `Tactical.retarget`): at the intent's target, GATHER's move and ATTACK's engage draw their cell
 as any commit order does, and the drawn cell becomes the main's target (the intent and its clock unchanged);
 DEFEND_BASE keeps the clamp. tests/test_intent_pipe.py's criterion 1 now compares each order with the target in force
 when it was given.
 
-**The pipe check with both** (one game, KnockOut seed 4004, 7 moments): criterion 1 96% of 96 (pass); criterion 2 4 of
-7, all 7 army-active (the user accepted 4 of 7); criteria 3-5 pass; sieged tanks and keys clean. The unforced main
+**The pipe check with both** (one game, KnockOut seed 4004, 7 moments): criterion 1 96% of 96 (pass; an order that moved
+the target counts as a hit by construction, 2 of the 96); **criterion 2 fails: 4 of 7, all 7 army-active** (the user's
+4 of 7 was accepted when the misses were fights holding the hands; the commit message of 5457ef2 called this one
+accepted, wrongly). The three misses, read arm by arm: at 6:00 all five arms keep; at 9:00 and 12:00 DEFEND_BASE,
+ATTACK and HOLD keep while RETREAT and GATHER move to their targets. No two arms that acted sent the same order: the
+intent reaches the army when the commit model acts, and the misses are its keep draws (its keep odds rose with the
+channel-8 fix). Criteria 3-5 pass; sieged tanks and keys clean. P(move) at the gather points, 0.56 against the pros'
+0.38, is still open. The unforced main
 under GATHER: keep / engage / move 31 / 1 / 14 (moves 30%; the screen's 62%, the pros' 30%), 0 hops at the target, 6
 re-targets. One game: a rate, not a measure.
 
@@ -795,3 +805,61 @@ seed.
 - **Intent fidelity**: GATHER's commit moves per question against the pros' 30%, hops at the target, intent shares
   and hold lengths against the pros' (§5), and Coach Q4 at three moments of four games.
 - Deaths alone are not judged here (the fight layer's, TODO).
+
+## 12. The first 48 (2026-11-26; IN304a against IB304a)
+
+**The round.** As written in §11: `gt1dev+intent` (IN304a) against `gt1dev` (IB304a), both on the channel-8 fix,
+against gz1, the 8 ladder maps x seeds 4004-4009, 30 minutes, `--gg 0`, 48 paired games. Measured with
+`eval/paired.py`, `eval/gap_windows.py`, `eval/alone.py` (paired by map and seed, bootstrap over games),
+`train/tactical_intent.py --gary` and the records.
+
+| Measure | Baseline (IB304a) | Intent (IN304a) | Paired difference, 90% | The screen's (§9) | Read |
+|---|---|---|---|---|---|
+| Paired score by supply | 0.505 | 0.500 | -0.005 [-0.078, +0.062] | -0.109 [-0.281, +0.062] | Not resolved: the second 48 runs |
+| The army's share at attacks (games' mean of medians) | 0.281 | 0.282 | +0.001 [-0.044, +0.047] | **+0.149 [+0.081, +0.216]** | **The screen's gain is gone** |
+| Late arrivals per fighter there | 0.111 | 0.108 | -0.017 [-0.056, +0.022] | +0.018 | None |
+| Attacks a game | 4.3 | 3.2 | **-1.1 [-1.8, -0.5]** | -0.9 | Fewer, as on the screen |
+| Ground fighters in no asked cluster (5-20 min) | 0.119 | 0.112 | -0.008 [-0.045, +0.033] | -0.050 [-0.079, -0.021] | The screen's drop is gone |
+| Deaths alone | 0.203 | 0.198 | -0.004 [-0.039, +0.031] | -0.008 | None (the fight layer's) |
+| Gap, all windows | 0.491 | 0.510 | +0.019 [-0.030, +0.058] | +0.008 | Same; no window resolved (0-5 min -0.027, 20-25 +0.022) |
+
+Results: the intent build won 2, lost 6 and had 40 at time; the baseline won 3, lost 6 and had 39 at time.
+
+**The screen's gain went with the code change, not the seeds.**
+- The same 16 starts (seeds 4004-4005) give the intent build 0.277 at its attacks (IN303a 0.422), the baseline 0.338
+  (IB303a 0.275).
+- The baseline's own share over all 48 is unchanged (0.281; the screen's 0.275), so the intent build lost it.
+- Under IN303a the attacks a commit move began carried 0.63 of the army (median) and a commit engage's 0.54; under
+  IN304a they carry 0.42 and 0.33.
+- Two things changed between the screen and the 48: the channel-8 fix (the commit model keeps more: GATHER moves 62% to
+  34% of its questions) and Option 1 (the gather point follows the commit model's draws instead of the clamp holding
+  the army near it). The likely reading: the screen's GATHER shuffles were re-sending the main cluster to one point
+  every few seconds, and that is what gathered the army before attacks. Which of the two took it is not separable
+  from these rounds (a 16-game screen with the clamp back for GATHER and ATTACK would separate them).
+
+**Intent fidelity.**
+- The commit model under GATHER: keep / engage / move 1,961 / 12 / 1,035, moves 34% (the pros' 30%; the screen's
+  62%). 307 GATHER re-targets, 90 of them within 2 cells of the cluster (29%; the pros' moves at their gather point
+  stay within 2 cells 40% of the time, §10). The other intents' kinds: DEFEND_BASE engages 7% (the pros 16%), ATTACK
+  16% (32%), RETREAT moves 32% (65%), HOLD keeps 95%.
+- The layer's time shares: DEFEND_BASE 27%, ATTACK 27%, RETREAT 1.1%, GATHER 41%, HOLD 3.4%; 3.09 switches a minute
+  (the screen's 2.54); hold medians 10-11 s (the pros' 15-20 s), HOLD's 71 s.
+- The labeller over the replays (shares of main-cluster ticks):
+
+| | DEFEND_BASE | ATTACK | RETREAT | GATHER | HOLD |
+|---|---|---|---|---|---|
+| Pros | 25.0% | 36.6% | 3.2% | 29.0% | 6.2% |
+| Baseline (IB304a) | 22.9% | 33.0% | 0.8% | 27.8% | 15.5% |
+| Intent (IN304a) | 20.2% | 27.6% | 0.6% | 38.2% | 13.3% |
+
+  GATHER moved away from the pros' (38% against 29%), ATTACK too (28% against 37%); HOLD a little nearer.
+- The defence: the main defended 332 times (threat median 17.5 supply), 201 detachments (median 28 supply), nobody
+  went 190 times (threat median 5; 35 of them against more than 20 supply).
+- **Coach Q4** at 7, 11 and 15 minutes of four games (Attitude 4004, KnockOut 4005, Odyssey 4007, Radeon 4009): all 12
+  answers cite the intent in force, its target, the model's odds at the switch and the commit decisions under it. One
+  GATHER held 8:18 to past 11:00 with 20 supply of Zerg at Gary's bases (Odyssey).
+
+**Read.** Not measurably worse in score or gap, nearer the pros on GATHER's commit kinds, but the measure the layer
+was built for (the army's share at attacks, §5) no longer moves, and the labelled shares drift toward GATHER. The second
+48 (IN304b against IB304b, `--first 4010`) runs per AGENTS.md; what gathered the army on the screen is the open
+question.

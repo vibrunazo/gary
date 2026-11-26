@@ -82,7 +82,8 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   nobody-went redraw on losses added; GATHER's hops come from §8's clamp (wrong for GATHER and ATTACK, the labeller
   re-targets) and the commit model's move odds in Gary's states. The commit model's P(move) at gather points came from
   channel 8 spread over the units' cells (the data: one cell), fixed in every build (§11); Option 1 (the clamp for
-  DEFEND_BASE only, GATHER and ATTACK re-targeted). The 48 (IN304a against IB304a) running.
+  DEFEND_BASE only, GATHER and ATTACK re-targeted). The first 48 (§12): paired score -0.005, the army's share at
+  attacks +0.001 (the screen's +0.149 gone with the fix and Option 1); the second 48 (IN304b against IB304b) running.
   A fight-layer follow-up, apart from intent: deaths alone in contact (88% under the role model). Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Plus the early G4
   check (the same card under the pro and a lower HumanProfile).
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept

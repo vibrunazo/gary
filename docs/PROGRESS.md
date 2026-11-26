@@ -2308,6 +2308,15 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **TacticalIntent's first 48 (2026-11-26; IN304a against IB304a, gz1, seeds 4004-4009, gg 0;
+  docs/TACTICAL_INTENT.md §12).**
+  - Paired score -0.005 [-0.078, +0.062]; gap all windows +0.019 [-0.030, +0.058]: not measurably different.
+  - The army's share at attacks +0.001 [-0.044, +0.047] (the screen's +0.149 [+0.081, +0.216]), ground fighters in no
+    asked cluster -0.008 [-0.045, +0.033] (the screen's -0.050): the screen's gains are gone with the channel-8 fix
+    and Option 1; on the screen's own 16 starts the intent build's share fell 0.422 to 0.277, the baseline's didn't.
+  - Attacks fewer (3.2 a game against 4.3). GATHER's commit moves 34% (the pros' 30%, the screen's 62%); labelled
+    GATHER 38% of ticks (the pros' 29%).
+  - The second 48 (`--first 4010`) runs; what gathered the army on the screen is open.
 - **The army tracker's group channel as the data holds it; TacticalIntent's Option 1 (2026-11-26; 0 games;
   docs/TACTICAL_INTENT.md §11).**
   - The commit model's inputs at Gary's 59 gather points, swapped group by group against 2,616 pros' GATHER-at-target
@@ -2317,8 +2326,9 @@ plan and the full log).
     before; the pros' rows 0.38).
   - Every build's play changes (parity recorded again); tests/test_inputs.py and every matchup pass.
   - Option 1, the user's call: the 2-cell clamp for DEFEND_BASE only; GATHER's move and ATTACK's engage at the target
-    move the target, as the labeller does. Pipe check: criterion 1 96%; GATHER's commit moves 30% of its questions
-    (the screen's 62%, the pros' 30%), no hops.
+    move the target, as the labeller does. Pipe check: criterion 1 96%; criterion 2 fails, 4 of 7 army-active
+    moments (the misses are arms that keep: no two acting arms sent the same order); GATHER's commit moves 30% of its
+    questions (the screen's 62%, the pros' 30%), no hops.
   - The 48 (IN304a against IB304a, seeds 4004-4009) launched with its minimum detectable effect written (§11).
 - **TacticalIntent v0, the user's checks before the 48 (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §10).**
   - "Nobody went" against more than 20 supply: 10 of IN303a's 15 were real, with losses at home after 9. A defence
