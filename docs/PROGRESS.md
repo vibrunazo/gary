@@ -2308,6 +2308,14 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **TacticalIntent's 96 (2026-11-26; IN304a+b against IB304a+b, gz1, seeds 4004-4015, gg 0;
+  docs/TACTICAL_INTENT.md §13).**
+  - Paired score -0.034 [-0.089, +0.018] (MDE 0.083), gap all windows -0.007 [-0.049, +0.031]: not measurably worse.
+  - The army's share at attacks +0.051 [+0.012, +0.090] (0.289 to 0.340; the pros' 0.45), ground fighters in no asked
+    cluster -0.028 [-0.050, -0.004]: a third and a half of the screen's gains. The halves: +0.001 and +0.107 on the
+    same code, so the first 48's "gone" was noise.
+  - Commit orders the main gets within an intent's spell follow the share across IN303a, IN304a and IN304b (ATTACK
+    1.09, 0.20, 0.42); most spells still end with none. Labelled GATHER over the pros' (33-38% against 29%).
 - **TacticalIntent's first 48 (2026-11-26; IN304a against IB304a, gz1, seeds 4004-4009, gg 0;
   docs/TACTICAL_INTENT.md §12).**
   - Paired score -0.005 [-0.078, +0.062]; gap all windows +0.019 [-0.030, +0.058]: not measurably different.

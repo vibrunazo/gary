@@ -842,7 +842,8 @@ Results: the intent build won 2, lost 6 and had 40 at time; the baseline won 3, 
   fix, and the spells are short (10-11 s median), so most intents end before the main is sent anywhere; Option 1 acts
   only at the target, after an order has gone. The main's share of the army on entering ATTACK hardly moved (0.62
   median, IN303a 0.67). So the screen's share at attacks rode on the commit model's spread group channel, which made
-  it move: the channel-8 fix took it, not Option 1. A switch of intent sends nothing by itself; in the pros' data an
+  it move: the channel-8 fix took it, not Option 1. (Overstated: the second 48 on the same code moved the share +0.107,
+  §13.) A switch of intent sends nothing by itself; in the pros' data an
   intent begins with an order (the labeller labels it from a commitment), a state Gary now rarely holds.
 
 **Intent fidelity.**
@@ -875,3 +876,52 @@ was built for (the army's share at attacks, §5) no longer moves, and the labell
 in the records: since the channel-8 fix the commit model keeps through most intent spells, so the intent rarely reaches
 the main. The second 48 (IN304b against IB304b, `--first 4010`) started per AGENTS.md; it measures this build, which
 the cause may change (the user's call).
+
+## 13. The second 48 and the 96 (2026-11-26; IN304b against IB304b, seeds 4010-4015)
+
+**The round.** The same code and arms as §12, seeds 4010-4015 (`--first 4010`), run per AGENTS.md for a close 48.
+The intent build won 0, lost 10, 38 at time; the baseline won 4, lost 9, 35 at time.
+
+| Measure | Second 48 (B - A) | All 96 (B - A) | Baseline / intent over 96 |
+|---|---|---|---|
+| Paired score by supply | | -0.034 [-0.089, +0.018] (MDE at 96: 0.083) | 0.497 / 0.464 |
+| The army's share at attacks | **+0.107 [+0.044, +0.169]** | **+0.051 [+0.012, +0.090]** | 0.289 / 0.340 (pros' target 0.45, §5) |
+| Ground fighters in no asked cluster | -0.048 [-0.072, -0.025] | **-0.028 [-0.050, -0.004]** | 0.123 / 0.095 |
+| Fighters alone, 5-20 min samples | -0.049 [-0.076, -0.024] | -0.023 [-0.042, -0.003] | 0.111 / 0.089 |
+| Late arrivals per fighter | -0.015 [-0.039, +0.011] | -0.016 [-0.039, +0.008] | 0.093 / 0.084 |
+| Deaths alone | -0.019 [-0.048, +0.013] | -0.011 [-0.035, +0.012] | 0.226 / 0.214 |
+| Attacks a game | -0.6 [-1.3, +0.1] | -0.9 [-1.3, -0.4] | 4.2 / 3.3 |
+| Gap, all windows | | -0.007 [-0.049, +0.031]; no window resolved | 0.465 / 0.458 |
+
+**The halves disagree on the share** (+0.001 and +0.107 on the same code, each about +-0.06), so §12's "the gain is
+gone" was a half's noise read as a verdict. Over 96 the intent build moves the army's share at attacks and the
+fighters in no asked cluster, about a third of the screen's +0.149 and half of its -0.050, with no measurable cost in
+score or gap.
+
+**The records per spell, all three intent rounds** (commit orders sent for the main within an intent's spell):
+
+| | ATTACK | GATHER | DEFEND_BASE | Share at attacks (B - A) |
+|---|---|---|---|---|
+| IN303a (the screen, before the channel-8 fix) | 1.09 (71% none) | 1.77 (63%) | 0.56 (73%) | +0.149 |
+| IN304a | 0.20 (89%) | 0.81 (74%) | 0.13 (91%) | +0.001 |
+| IN304b | 0.42 (81%) | 1.14 (70%) | 0.11 (92%) | +0.107 |
+
+The orders an intent's spell gets follow the share across the three rounds, and most spells still end with no order
+for the main: the intent reaches the army only through the commit model's non-keep draws. That stands as §12 found it;
+only its verdict on the share was wrong.
+
+**Intent fidelity over the 96.**
+- Labelled shares (main-cluster ticks): intent GATHER 38.2% / 32.7% (the halves), ATTACK 27.6% / 34.5%; baseline
+  GATHER 27.8% / 30.9%, ATTACK 33.0% / 36.3%; the pros' 29.0% and 36.6%. The intent build gathers more than the pros.
+- The layer, second half: DEFEND_BASE 24%, ATTACK 33%, RETREAT 1.3%, GATHER 36%, HOLD 5.4%; 2.79 switches a minute;
+  hold medians 10-11 s (the pros' 15-20 s). GATHER's commit moves 36% (the pros' 30%); 89 hops in 48 games (1.9 a game,
+  as in the first half).
+- The defence: the main defended 277 times, 171 detachments (median 30 supply), nobody went 188 times (56 of them
+  against more than 20 supply, the first half's 35).
+
+**Read.** By the promotion rule's shape (for an option: not measurably worse in 96, nearer the pros on its fidelity
+measure): not measurably worse in score (interval holds zero, under the MDE) or gap, and the army's share at attacks
+and the fighters outside asked clusters move toward the pros' (0.289 to 0.340 against their 0.45; 0.123 to 0.095
+against their 0.085). Against it: GATHER labelled about 6 points over the pros' and ATTACK 5 under, holds half the
+pros' length, nobody going against 20+ supply, and most intents never reaching the main. Not folded into gt1dev yet:
+the user's call.
