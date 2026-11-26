@@ -2308,6 +2308,41 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **gt0.54dev, the strict card's two bugs, and the turret flood diagnosed (2026-11-25; 0 games).** Two live LAN TvZ games
+  against the user (runs/live/live_20261125, style 2 with no strategy; live_20261125_g2, `gt1dev+scansample+shadow+trunk`
+  `--strategy "practice standard bio, strict"`, so with answers.py on).
+  - *Bug A, the strict mask:* strict masked every off-card one-off before the horizon (10:26 for style 1), the key items
+    the card covers or not. Game 2 had no Comsat from 4:36 to 9:39 (22 draws masked) and no Infantry Weapons (16), so
+    the scan sampler never scanned. The fix: strict masks only the off-card one-offs the card covers (a style's card: the
+    taxonomy's key items; a replay's card covers every one-off, unchanged). Re-applied to the masks of the 41 strict games
+    on record (DR299a*, DR300a*, game 2): still masked are the covered items off the card (Science Facility, Stim Packs off
+    style 1, the first Machine Shop, the second Factory) and every card item drawn before its window. Freed: Control
+    Tower, Armory, Comsat, Ion Thrusters, Infantry Weapons, the second Refinery, Spider Mines, Siege Mode, the second
+    Starport, Infantry Armor.
+  - *Bug B, milestones reopened:* `_open` read the live count. Game 2's Barracks #3 lost at 8:41 was asked for again at
+    8:45 (a Control Tower dropped for it), and its natural lost at 10:21 made "Command Center #1 due at 2:42" the goal at
+    10:26 (a Science Vessel dropped), its money held in the card's reserve to 14:48. The fix: a milestone whose building
+    stood (finished or not; a placement not started does not count, it can still fail) is met for good, and past the
+    horizon the card emits, reserves and masks nothing.
+  - tests/test_card_macro.py (new, a stand-in Gary) holds both and fails on the old code; test_trunk_faithful, test_parity
+    (gt1, gz1, gp1 byte-identical), test_smoke_game, test_pairs, test_live (a strict card) and test_matchups pass.
+    Gate 2's 18 of 20 was measured under the old mask, so it is stale until the 20 drills are played again.
+  - *The turrets* (diagnosis only; the same extractor for Gary and the pros, eval/style_adherence.py's, Missile Turrets
+    ordered by 7:30): the modern style-1 pros on the ladder maps 7.3 (p90 10; 9.2 by 10:00; the first at 5:36). gt1dev
+    without a card plays like them: G4299a's style 1, 7.0 (10.0 by 10:00, the first at 6:01). The flood is strict's:
+    DR300a1 10.8 (16.2 by 10:00, the first at 5:10), game 2 11 (14). The Engineering Bay stands at the same time with or
+    without the card (3:41, 3:33; the pros 3:48), but strict decided no Infantry Weapons by 7:30 (gt1dev 0.93, the pros
+    0.95) and no Comsat: those draws fell to the next in the dice's order, the turret at 33-42%. The odds rest on "its
+    decisions so far": game 2's first turret was a dice draw at 2% (5:02), and 15 s later, with one turret among its
+    decisions, the model gave the next 36% (0.08 with that group zeroed): the pros' turrets come in a ring (0.7 by 5:30,
+    5.5 by 6:30), so one decided reads as the ring begun. Bug A's fix should take strict back to gt1dev's turrets; the
+    drills' re-run is its check.
+  - *An undercount in every build* (not patched): a building the macro decides while its builders are all on their way
+    waits in `queued_builds` without `note_decision` until it is handed (gary/agent/macro.py: a unit queued the same way
+    is noted at once), so neither the history nor pendown's pending counts it, and the next query decides another: 3.3 of
+    gt1dev's 10.0 turret decisions by 7:30 in style 1 came within 2 s of the previous one (strict 4.9 of 15). A model's
+    input counted as its training data counts it, so a fix is adopted on tests/test_inputs.py and the records.
+
 - **Phase 1 completed: the user's sign-off and the docs closeout (2026-11-25; 0 games).**
   - The user signed Phase 1 off on gate 2 (18 of 20), gate 4 (passed) and their review of the coach's answers as gate 3's
     blind part.

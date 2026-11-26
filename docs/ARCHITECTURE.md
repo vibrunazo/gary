@@ -697,7 +697,9 @@ It was built as a sampler because the pros' scan timing barely depends on what t
 - **Held by the macro (Arm B):**
   - a milestone's money is reserved ahead of it;
   - the milestone is emitted as the macro's goal before its time;
-  - off-card one-offs are masked before the card's horizon.
+  - off-card one-offs the card covers are masked before the card's horizon (a style's card covers the taxonomy's key
+    items, so a Comsat or an upgrade is never masked; a replay's card covers every one-off);
+  - past the horizon it emits, reserves and masks nothing, and a milestone met once is never reopened (gt0.54dev).
 - **In use:** strict mode (option `strict`) is the drill mode.
 
 **What to play** (`gary/agent/strategy.py`). §6.1's *z*, as built, is a `StrategySpec`:

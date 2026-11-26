@@ -1446,7 +1446,11 @@ MANIFESTS["gt1dev"] = {**manifest_of("gt1+again+refresh+incontact+batch+grouping
 # gt0.53dev (2026-11-25): a building's worker sets out ahead of its gas as of its minerals (gasahead): style 3's first
 # Factory was handed when its 100 gas came and placed 9-28 s later (DR299a3)
                                      "+gasahead"),
-                       "version": "gt0.53dev"}
+# gt0.54dev (2026-11-25; the card held by the macro, gary/agent/card_macro.py, so only with strict, armb or a strategy):
+# strict masks only the off-card one-offs a style's card covers (a live strict game had no Comsat from 4:35 to 11:02);
+# a milestone met once is never reopened, and nothing is emitted or reserved past the card's horizon (its natural lost
+# at 10:21, it dropped a Science Vessel for "Command Center #1 due at 2:42" and held its money to 14:40)
+                       "version": "gt0.54dev"}
 
 # gz0.2dev: gz1 without the stop-gaps over its learned layers (unscripted): the Zerg side of TvZ self-play;
 # gz0.3dev: the overlord's history its own (ownsupply: the pros' history in its inputs held their 9-supply overlord,

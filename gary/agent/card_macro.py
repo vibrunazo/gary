@@ -19,8 +19,10 @@ median time t (the replay's clock: 42 ms a frame) and with tol, the pros' 90th p
             the card covers (a style's card covers the taxonomy's key items, taxonomy/discover.py KEY_ITEMS: off it, under
             half the style's pros make it by 8:00; a Comsat, an upgrade or an Armory is no key item, so the card says
             nothing of them and they are never masked) under MASK_P of the model's odds; in strict mode every off-card
-            one-off, and any card item drawn before its window (t - tol). An item of an active trunk directive is never
-            masked. MASK_P written from step 7a-7b's records (32 games, style 1, 2026-11-24): of the covered items off
+            one-off the card covers (all of them for a replay's card, which covers every one-off), and any card item
+            drawn before its window (t - tol). An item of an active trunk directive is never masked.
+  horizon   past it (the last milestone's t + tol) the card emits, reserves and masks nothing; and a milestone met once
+            (its building stood, its research done) is met for good: one lost later is not asked for again MASK_P written from step 7a-7b's records (32 games, style 1, 2026-11-24): of the covered items off
             the card before the horizon, the first Machine Shop (8 decisions under 0.10, 3 over) and Science Facility
             (6, 10), nothing else; without the coverage the Comsat (20 of 50), the infantry upgrades (29 of 49) and the
             Barracks after the third (41 of 51) would have been masked.
@@ -70,6 +72,7 @@ class CardPlan:
         self.source = source
         self.masked = 0
         self.money_wait: dict[tuple[str, int], tuple[int, int]] = {}    # due milestones waiting for money -> (lead, since)
+        self.achieved: set[tuple[str, int]] = set()             # milestones met once (their building stood): never reopened
 
     # --- what Gary has ---------------------------------------------------------------------------------------------
     def _count(self, item: str, mine: list[dict]) -> int:
@@ -88,6 +91,20 @@ class CardPlan:
         if item not in self.item:
             return 0
         return self._count(item, mine) - (self.initial or {}).get(item, 0)
+
+    def _started(self, item: str, mine: list[dict]) -> int:
+        """The item's units that stand (finished or not; research and upgrades done), less the start's: what latches a
+        milestone (have() also counts a building placed and not started, or the build in the hands, which can still
+        fail)."""
+        from gary.agent.macro import EXPAND, RESEARCH, UPGRADE
+        act, uid = self.item[item]
+        g = self.g
+        if act in (RESEARCH, UPGRADE):
+            n = self._count(item, mine)
+        else:
+            ut = g.race.town_hall if act == EXPAND else uid
+            n = sum(1 for u in mine if g.race.in_mode.get(u["type"], u["type"]) == ut)
+        return n - (self.initial or {}).get(item, 0)
 
     def start(self, mine: list[dict]) -> None:
         """At the first step: the starting items, and the card's record."""
@@ -121,10 +138,23 @@ class CardPlan:
 
     # --- emit, reserve, mask ---------------------------------------------------------------------------------------
     def _open(self, mine: list[dict]):
-        """The milestones not had yet, in order of time: (milestone, its emission frame)."""
+        """The milestones not had yet, in order of time: (milestone, its emission frame). None past the horizon (the
+        card is an opening: a live strict game's natural lost at 10:21 asked for "Command Center #1 due at 2:42" and
+        held its money to 14:40), and none met once (a milestone whose building stood is met for good: lost later,
+        rebuilding it is the model's to decide)."""
+        if self.g.hi.frame >= self.horizon:
+            self.money_wait.clear()
+            return []
         out = []
         for m in self.card:
-            if m["item"] in self.item and self.have(m["item"], mine) < m["n"]:
+            key = (m["item"], m["n"])
+            if key in self.achieved or m["item"] not in self.item:
+                continue
+            if self._started(m["item"], mine) >= m["n"]:
+                self.achieved.add(key)
+                self.money_wait.pop(key, None)
+                continue
+            if self.have(m["item"], mine) < m["n"]:
                 out.append((m, frame_of(m["t"] - EMIT_AHEAD_S)))
         return out
 
@@ -261,7 +291,10 @@ class CardPlan:
             return None
         if not one_off:
             return None
-        if self.mode == "strict":
+        if self.mode == "strict" and (self.covers is None or (item, n) in self.covers):
+            # (a style's card speaks only of the key items it covers: a Comsat or an upgrade off them is no departure
+            # from it; masked, a live strict game had no Comsat from 4:35 to 11:02, so not one scan, and the strict
+            # drills decided no Comsat and no Infantry Weapons by 7:30, DR300a1)
             return f"card: {item} #{n} is off the card (strict)"
         if (self.covers is None or (item, n) in self.covers) and p < MASK_P:
             return f"card: {item} #{n} is off the card, under {MASK_P:.0%}"

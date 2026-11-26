@@ -114,7 +114,8 @@ and its line removed; a new one gets an issue and a line).
   hashes again (`tests/test_parity.py --record`) in its commit, with the reason; `tests/test_matchups.py`
   plays every matchup that can play; `tests/test_trunk_faithful.py` re-queries the trunk's saved branch scores in memory
   (their P_pro, their minimal flips, under 1 ms a query) after a change to the trunk, its tables or its records;
-  `tests/test_live.py` (a minute) plays each race's dev build through the live
+  `tests/test_card_macro.py` (a second) holds the card the macro carries (its mask, a milestone met once, the
+  horizon) after a change to `gary/agent/card_macro.py`; `tests/test_live.py` (a minute) plays each race's dev build through the live
   launcher on a stand-in for the bridge, after any change to the live path (`gary/scr_env.py`, `gary/play.py`) or to
   what the agent asks of the game (a new `Game` method, a new observation field).
 - "Why did Gary do that?" is answered from the game's records (`python -m eval.why`) before writing a

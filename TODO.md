@@ -70,6 +70,12 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
 - **`gasahead` into every build (open, after Phase 1):** the builder sent ahead of its gas is in gt1dev only
   (gt0.53dev). Fold it into gt1, gz1, gp1 and the other dev builds with a version bump each. gt1, gz1 and gp1 must then
   record their parity hashes again, with the reason in the commit.
+- **The strict drills again on gt0.54dev (open):** gate 2's 18 of 20 was measured under the old strict mask (Comsat
+  and upgrades masked); the 20 drills played again say whether it holds, and whether strict's turrets come back to
+  gt1dev's (7.0 by 7:30 in style 1, the pros 7.3; DR300a1 10.8). docs/PROGRESS.md, gt0.54dev.
+- **A building decided while its builders walk is not counted (open, diagnosed):** `queued_builds` in
+  gary/agent/macro.py takes no `note_decision` until handed, so the model decides it again (a third of gt1dev's turret
+  decisions). Count it at the decision, as a queued unit is, and check with tests/test_inputs.py.
 - **Phase 2 (open, not started; docs/REFOCUS.md §4.3):** to be planned in its own session. From gate 3's review: the
   coach's Q3 (buildings drawn at 2-6%) and Q4 (the army model's "keep" at 86%) call for mid-game directives and a
   top-down tactical intent layer: 3-5 modes with intent-conditioned leaves and ArmyNet's heatmap, `TacticalIntent` in
