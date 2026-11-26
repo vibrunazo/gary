@@ -2308,6 +2308,24 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **Why most intents send the main nothing, and the threats nobody went to (2026-11-26; 0 games; IN304a+b's records;
+  docs/TACTICAL_INTENT.md §15).**
+  - 58-65% of the main's intent spells never ask it: the main in a fight is the role model's (the arbiter passes units
+    within 12 tiles of a fight's centre over), and the intent switches on its clock.
+  - Where it is asked, the first question comes 1-3 s after the switch, and the commit model mostly keeps: ATTACK
+    P(act) 0.25.
+  - Clearing the old commitment lowers that (0.13) and multiplies the hazard by 3.9 on the pros' standing ticks. Not
+    proposed.
+  - The pros' switch is an order (ATTACK: engage 92-100%), and a standing pros' ATTACK or GATHER never lacks a
+    commitment. When Gary's hazard fires, the main has none in 67% (ATTACK) and 59% (GATHER), the pros' 2%: the short
+    holds.
+  - Proposed, 0 games first: the intent's age as a commit-model input (as the labeller counts it), and the commitment
+    in contact as the data counts it. A 16-game screen after, on measures expected to move severalfold.
+  - The 91 "nobody goes" draws against 20+ supply: in 37 the main already stood there, and 18 more were defended
+    within 120 s on a redraw. Of the 36 left, the threat lasted 37 s (median), with own fighters near on half its ticks
+    and losses no larger than where the main stood. Over 60 s with own fighters rarely near: 4 of 91.
+  - Odyssey 4007's 8:18-11:02 GATHER began with the main at the threat and a detachment holding. The 10:20 decline was
+    redrawn 5 s later on Gary's losses, and 21 units went.
 - **gt0.55dev: TacticalIntent folded into gt1dev (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §14).** The user's call
   on the 96: `gt1dev` is now `gt1dev+intent` as IN304a+b played it (the built manifests equal, the version aside; the
   playing builds and the other dev builds unchanged). TvZ only: elsewhere there is no intent model and the layer stands

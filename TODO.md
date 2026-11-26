@@ -84,7 +84,11 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   channel 8 spread over the units' cells (the data: one cell), fixed in every build (§11); Option 1 (the clamp for
   DEFEND_BASE only, GATHER and ATTACK re-targeted). The 96 (§12-13): paired score -0.034 [-0.089, +0.018], the army's
   share at attacks +0.051 [+0.012, +0.090], fighters in no asked cluster -0.028; most intent spells send the main no
-  order. Folded into gt1dev on the user's call (gt0.55dev, §14).
+  order. Folded into gt1dev on the user's call (gt0.55dev, §14). Why (§15, 0 games): the main in a fight is never
+  asked (58-65% of spells), and a switch out of contact rarely brings an order. The commit model can't tell a fresh
+  intent from a standing one, and the hazard reads the missing commitment (none when it fires 67%, the pros' 2%; x3.9).
+  Proposed, 0 games first: the intent's age as a commit input, and the commitment in contact as the data counts it;
+  then a 16-game screen. The 91 nobody-went draws are mostly covered (4 of 91 uncontested over 60 s).
   A fight-layer follow-up, apart from intent: deaths alone in contact (88% under the role model). Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Plus the early G4
   check (the same card under the pro and a lower HumanProfile).
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept

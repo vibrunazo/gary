@@ -945,3 +945,126 @@ plays TvZ only: in the other matchups there is no intent model, and it stands as
   - On the fold: the Zerg's placement `minute` off at 60% of 5. The Terran's "decided" is at 12%, under the bar.
   - The Terran's change changes the game the test plays, so which of #67's lines cross the bar moves. No new kind of
     difference appears.
+
+## 15. Why most intents send the main nothing, and the threats nobody went to (2026-11-26; 0 games)
+
+Read on IN304a+b's records (96 games), their saved commit-model inputs (each record's `rl` row; re-queried, the odds
+within 0.001 of the recorded), the replays' re-simulated ticks, and 300 modern pros' TvZ games (37,195 main-cluster
+ticks, the labeller of §2). No scripted order on a switch was tried. The requested read was what the commit model
+would do if a switch cleared the old commitment.
+
+### Check 1: entering an intent
+
+**Most spells never ask the main.** Of the main's intent spells, these got no commit question for the main at all:
+DEFEND_BASE 60% of 1,576, ATTACK 65% of 2,151, RETREAT 62% of 208, GATHER 58% of 2,329.
+- In those spells no cluster was asked, and 77-91% of them had a fight.
+- The arbiter gives the army layer only units more than 12 tiles from a fight's centre (arbiter.py `_army`), so the
+  main in contact is the role model's.
+- The intent switches on its 5 s clock all the same. These spells are short: 9-15 s mean, against 27-39 s for spells
+  where the main was asked.
+
+**When asked, the first question comes at once.** Median 1.0-2.8 s after the switch, 31-36% on the switch's frame
+(HOLD 75%). The commit model mostly keeps:
+
+| First question after a switch | Its commitment (none / engage / move) | P(act), as played | P(act), commitment cleared |
+|---|---|---|---|
+| ATTACK (763) | 43% / 13% / 44% | 0.25 | 0.13 |
+| GATHER (970) | 45% / 25% / 30% | 0.38 | 0.36 |
+| DEFEND_BASE (636) | 47% / 15% / 38% | 0.10 | 0.06 |
+| RETREAT (79) | 29% / 32% / 39% | 0.47 | 0.38 |
+
+Under ATTACK with no commitment the model keeps at 0.93 (median) and acts 9% of the time. With a move commitment it
+keeps at 0.62, and at 0.90 once cleared. **Clearing the old commitment makes it keep more, not less.**
+
+**The pros' switch is an order.** The labeller reads a pros' intent from the tick's order, so at a pros' switch tick
+the order comes with it:
+- ATTACK: engage 92-100% of the time, whatever the commitment in force (none 3%, engage 44%, move 53%).
+- GATHER: move 69-92%.
+- RETREAT: move 77-92%.
+- A standing pros' ATTACK or GATHER tick never has no commitment (0.0% of 20,196).
+
+The commit model learned mostly from the standing ticks. Under ATTACK the pros' rows keep 68%, and its inputs do not
+tell a fresh intent from a standing one. So at Gary's switch it answers as for a standing intent.
+
+**The hazard reads the missing commitment.** The intent model's switch head on the pros' standing ticks:
+
+| Pros' standing ticks | As they are | Commitment set to none | Commitment set to the other kind |
+|---|---|---|---|
+| ATTACK (4,000) | 0.115 | 0.454 (x3.9) | move: 0.146 (x1.3) |
+| GATHER (4,000) | 0.153 | 0.593 (x3.9) | engage: 0.177 (x1.2) |
+| DEFEND_BASE (4,000) | 0.070 | 0.159 (x2.3) | |
+
+The next-intent head hardly moves: from ATTACK, GATHER 0.68-0.72.
+
+The commitment the hazard read when it fired was rebuilt from the records: the latest sent commit order within 120 s
+whose path passes within 2 cells of the main's cell, as army.py `_commitment`.
+
+| The intent that ended | Gary: no commitment when the hazard fired | The pros: no commitment at the switch |
+|---|---|---|
+| ATTACK | 67% | 2% |
+| GATHER | 59% | 2% |
+| DEFEND_BASE | 63% | 14% |
+| RETREAT | 27% | 1% |
+
+Where the first question found the intent's own kind, spells lasted longer: ATTACK with an engage commitment 20 s
+median against 15 s, GATHER with a move commitment 31 s against 18 s.
+
+**Read.** The short holds (10-11 s against the pros' 15-20 s) come with a commitment the pros' standing intents never
+lack. It is missing for two reasons: the main in contact is never asked, and a switch out of contact rarely brings an
+order. From ATTACK the next intent is GATHER (the model's 0.68-0.72; 70-82% of Gary's ATTACK spells), so an ATTACK cut
+short by the hazard hands its time to GATHER.
+That is consistent with GATHER's excess (33-38% against 29%), but it is not measured as its cause.
+
+**The proposal (input parity, no scripted order).**
+1. **The intent's age as a commit-model input.** Ticks since the cluster's intent began: on the pros' rows as the
+   labeller counts `held`, in play from the intent's `since`.
+   - At a pros' switch the order follows 92-100% (ATTACK), at a standing tick 20-31%. The model can learn the
+     difference only if it sees it.
+   - 0 games: train/commit.py --intent with the input, checked held-out (P(act | the first tick) by intent against
+     the pros'). Then re-query IN304's 13,677 saved main questions with the age from the records.
+2. **The commitment in contact.** In the pros' data a fighting cluster's orders renew its commitment. In Gary the
+   role model's orders in contact are not commitments, so the main's lapses to none and the hazard reads it at x3.9.
+   - 0 games first: read how ingest/army_dataset.py counts the pros' orders in contact.
+   - Then either count the role model's orders as the data counts them, or ask the commit model about the main in
+     contact as the data has it.
+- Not proposed: clearing the commitment on a switch. It lowers P(act), and the hazard reads "none" at x3.9.
+- A 16-game screen only after both, judged on measures expected to move severalfold:
+  - spells with no order for the main: 86% of ATTACK's;
+  - no commitment when the hazard fires: 67% against the pros' 2%;
+  - hold medians: 10-11 s against 15-20 s.
+- The army's share at attacks (0.34 against 0.45) needs 48 games.
+
+### Check 2: the threats nobody went to
+
+**91 draws** of "nobody goes" against more than 20 supply (IN304a 35, IN304b 56; threat median 32, P(send) median
+0.64). Each was followed in the records and on the replay's 5 s ticks. A threat "lasts" until it has been gone 20 s
+(the layer's END_S). It is read from the grid's in-sight and 30 s memory channels, so up to 30 s of memory counts.
+
+| The draws | n | A defence of it within 120 s | The threat lasted (median, p75) | Own fighters within a cell (share of its ticks) | Own supply there (median) | Losses there (mean) |
+|---|---|---|---|---|---|---|
+| The main within 2 cells already | 37 | | 59 s, 116 s | 92% | 17 | 15.7 |
+| Main away, defended later | 18 | all | 34 s, 67 s | 76% | 4 | 22.1 |
+| Main away, no defence in 120 s | 36 | none | 37 s, 70 s | 51% (none on any tick: 8) | 0 | 14.8 |
+
+- Losses are the grid's loss weights: an SCV 2, a building 4, a fighter its supply x2.
+- Over all 91, a defence of the same threat (a detachment, or the main switched to DEFEND_BASE, within 2 cells) came
+  within 120 s for 37: 7 within 10 s, 13 within 30 s, 23 within 60 s, median 42 s.
+  - Each of these is a redraw on a doubled threat or on Gary's losses at home growing (§10).
+  - 23 draws were drawn "nobody" again within 120 s.
+- Over 60 s with own fighters near on under a quarter of its ticks: 4 of 91.
+  - Odyssey 4007 27:25, 80 s; Odyssey 4009 23:04, 77 s; Odyssey 4015 28:57, 63 s.
+  - KnockOut 4011 7:45, 60 s, defended after 31 s.
+- **Odyssey 4007's GATHER, 8:18-11:02**, was not uncontested:
+  - It began with the main at the threatened cell (threat 20 at its own cell, (17,108)).
+  - A 13-unit detachment held the base from 7:35 until the threat was gone at 8:56.
+  - At 10:20 nobody went against 20 supply at (17,124). Five seconds later the threat was 32 and Gary's losses at home
+    had grown: the redraw sent 21 units.
+
+**Read.** Real attacks do not slip past for long.
+- In 41% of the draws the main already stands at the threat.
+- Where nobody goes and nobody comes within 120 s, the threat lasts about as long as elsewhere, own fighters are near
+  half its ticks, and the losses there are no larger than where the main stood.
+- Long uncontested threats are 4 of 91, three of them after 23:00.
+- The losses redraw fires.
+- Not judged here: whether the pros would have sent someone in these states. The model's P(send) was a median 0.64,
+  and the 91 are its 1 - P(send) draws.
