@@ -2308,6 +2308,29 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **Phase 2 begun: TacticalIntent v0, the 0-game read, the labeller and the offline model (2026-11-26; 0 games).**
+  Details and the design in docs/TACTICAL_INTENT.md.
+  - *What leaves fighters to die alone* (eval/alone.py, new: replays re-simulated and joined with the records, the pros
+    through the same code; G4299a's 96 games against 60 modern pro games): deaths alone 21% (the pros 9%; the games'
+    mean 0.25 against 0.10), 78% of them outnumbered. Of Gary's 2,207: left alone as the neighbours died 29%, left as the
+    role layer moved the neighbours off 15%, brought alone by a commit order 15% (9% stragglers now in no asked
+    cluster), kept in an asked cluster with no order 8%, moved alone by the calm layer 8%, never in an asked cluster
+    (the 4-supply cutoff) 6%, sent by the reinforce rule 2% (its last order 4%). The army's share at an attack 0.30 (the
+    pros 0.50), late arrivals 0.128 a fighter there (0.052), 46% of them sent by their own cluster's commit engage.
+  - *The commit model's keep is the pros' rate:* 57% of gate 4's questions (the pros' clusters from 5:00 72%), with no
+    commitment in force 82% (93%). Live game 2's six questions, all such clusters, kept at 93-97%. The live games' armies
+    were 0-2 units (game 1, the commit model never asked) and 2-5 (game 2) where gate 4 has 11 at 8:00 and 17 at 10:00.
+  - *The labeller* (train/tactical_intent.py, new; written before reading: DEFEND_BASE, ATTACK, RETREAT, GATHER,
+    HOLD on the main ground cluster's commitment ticks, army dataset v5): the pros' 2,422 games 25.0 / 36.4 / 3.2 / 28.5 /
+    6.9% of ticks, holds a median 20 / 20 / 5 / 15 / 15 s; Gary's 96 15.7 / 43.3 / 1.2 / 27.6 / 12.1%, 20 / 25 / 10 / 20 /
+    25 s. The choice of intent is near the pros'; carrying it out (who goes, who is left out, groups split in contact) is
+    not.
+  - *P(intent | state, belief)* (gradient-boosted trees, 469 held-out games): log-loss 0.472 against the time-and-map
+    baseline's 1.279 and persistence's 0.631, Brier 0.247, accuracy 0.845, calibrated (0.95 right at 0.9+). At the
+    switches it leans on persistence (1.90 against the baseline's 1.45); a switch hazard (AUC 0.784) and a next-intent
+    head given a switch (0.564 against 1.358, accuracy 0.745) beat it, so the design decodes the two at the pros'
+    hazard. The plan belief adds nothing measurable (0.469 without it).
+
 - **Gate 2 again on gt0.54dev, live game 1 read, and the pros' anti-mutalisk choice (2026-11-26; 20 games).**
   - *The 20 strict drills (DR302a1-3, DR300a's setup: gt1dev+strict+told<N> against gz1dev+noarmy+told1, the four
     maps from seed 4004, 11 minutes, gg off), expected before they played: 18 of 20 or better, and style 1's turrets by

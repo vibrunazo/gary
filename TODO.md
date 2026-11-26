@@ -75,10 +75,13 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   first checked), and the Zerg's placement inputs (workers, minute, bases held). Find when it began and fix or list it
   with its issue. Related: turret decisions come in bursts (a third within 2 s of the one before, G4299a), not through
   `queued_builds` (docs/PROGRESS.md, gt0.54dev).
-- **Phase 2 (open, not started; docs/REFOCUS.md §4.3):** to be planned in its own session. From gate 3's review: the
-  coach's Q3 (buildings drawn at 2-6%) and Q4 (the army model's "keep" at 86%) call for mid-game directives and a
-  top-down tactical intent layer: 3-5 modes with intent-conditioned leaves and ArmyNet's heatmap, `TacticalIntent` in
-  gary/agent/contracts.py. Plus the early G4 check (the same card under the pro and a lower HumanProfile).
+- **Phase 2 (open, started 2026-11-26; docs/REFOCUS.md §4.3):** TacticalIntent v0's 0-game read, labeller, offline
+  model and design are in docs/TACTICAL_INTENT.md, for the user's review before any wiring or game. Next once
+  approved: the pros' intent labels into the commit and role datasets and their retraining, the provider
+  (gary/agent/tactical.py) with tests/test_intent_pipe.py, the leaves' routing, coach Q4, then a 16-game screen with its
+  MDE written. Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Open from the
+  read: Gary's live armies were 0-5 units (gate 4's 11-17 at 8-10 minutes): what starved live production is its own
+  0-game read. Plus the early G4 check (the same card under the pro and a lower HumanProfile).
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept
   discovery only if that audit calls for it.
 - **The army (narrowed in round two):** no hold on the commit model's commitments (measured as not missing); the retreat
