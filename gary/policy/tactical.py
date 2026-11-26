@@ -1,5 +1,6 @@
 """The army's tactical intents (docs/TACTICAL_INTENT.md; option `intent`): the labeller of a cluster's intent, the
-numbers the intent model reads, and the models (the intent's switch hazard and next intent, the defence's size).
+numbers the intent model reads, and the models (the intent's switch hazard and next intent, the defence: whether
+anyone goes and its size).
 
 Shared by the data (train/tactical_intent.py, on the army dataset's commitment ticks) and play
 (gary/agent/tactical.py, on the army tracker's grid for the same cluster), so play reads what the data counted: every
@@ -127,13 +128,13 @@ def sizer_features(scene: Scene, frame: int, n_clusters: int) -> dict:
 
 class IntentModel:
     """The intent model (train/tactical_intent.py --train): a switch hazard (does the cluster's intent change in the next
-    TICK s), the next intent given a switch, and the defence's size (the pros' supply sent or standing at a threatened
-    base, a median)."""
+    TICK s), the next intent given a switch, and the defence at a threatened base as a hurdle: does anyone go, and the
+    supply that goes when someone does (the pros' median)."""
 
     def __init__(self, d: dict, path: Path | None = None):
         self.d, self.path = d, path
-        self.hazard, self.next, self.sizer = d["hazard"], d["next"], d.get("sizer")
-        self.features, self.sizer_features = d["features"], d.get("sizer_features", SIZER_FEATURES)
+        self.hazard, self.next, self.send, self.sizer = d["hazard"], d["next"], d["send"], d["sizer"]
+        self.features, self.sizer_features = d["features"], d["sizer_features"]
 
     @classmethod
     def load(cls, path) -> "IntentModel":
@@ -161,10 +162,12 @@ class IntentModel:
             out[int(x["prev"])] = 0.0
         return out / out.sum() if out.sum() > 0 else np.full(len(INTENTS), 1 / len(INTENTS))
 
+    def p_send(self, x: dict) -> float:
+        """The odds that anyone defends a threatened base in this state (the pros send nobody in a fifth to a third)."""
+        return float(self.send.predict_proba(self._x(x, self.sizer_features))[0, 1])
+
     def defend_size(self, x: dict) -> float:
-        """The pros' median supply defending a threatened base in this state (0 without a sizer)."""
-        if self.sizer is None:
-            return 0.0
+        """The pros' median supply defending a threatened base in this state, given that someone does."""
         return max(0.0, float(self.sizer.predict(self._x(x, self.sizer_features))[0]))
 
 

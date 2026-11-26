@@ -548,13 +548,23 @@ def q4(g: Game, minute: float) -> Answer:
               + f": its main group of {ins.get('units')} units ({ins.get('army', 0):.0%} of the army's supply) at tile "
               f"{ins.get('at')}" + (f", with {ins['threat']:g} supply of Zerg at its bases" if ins.get("threat") else "")
               + ". " + (f"When it changed, the intent model (learned from the pros' armies) gave {pros}." if pros
-                        else "It was chosen by the intent model." if not why.startswith("forced") else "It was forced (a test)."),
+                        else "It was forced (a test)." if why.startswith("forced")
+                        else f"The pros' armies defend in that state {ins.get('p_send', d.get('p', 0)):.0%} of the time, and "
+                             f"with about {ins.get('size', 0):g} supply, half its main group or more, so the whole group went "
+                             f"rather than a part of it." if "the main defends" in why
+                        else "It was chosen by the intent model."),
               d)
-    dets = [d for d in ints if d["choice"].startswith("DEFEND_BASE (") and f0 <= d["f"] <= f]
+    dets = [d for d in ints if d["choice"].startswith("DEFEND_BASE") and d["choice"] != "DEFEND_BASE ended"
+            and f0 <= d["f"] <= f]
     for d in dets[-2:]:
         ins = d.get("in") or {}
-        a.say(f"{clock(d['f'])}: {ins.get('units')} units ({ins.get('supply')} supply) were sent to defend tile {ins.get('at')} "
-              f"against {ins.get('threat')} supply of Zerg, about what the pros send there; the rest kept the plan.", d)
+        if d["choice"].endswith("nobody goes"):
+            a.say(f"{clock(d['f'])}: {ins.get('threat')} supply of Zerg at tile {ins.get('at')}, and nobody went: the pros' "
+                  f"armies defend in that state {ins.get('p_send', 0):.0%} of the time, and the draw said no.", d)
+        else:
+            a.say(f"{clock(d['f'])}: {ins.get('units')} units ({ins.get('supply')} supply) were sent to defend tile "
+                  f"{ins.get('at')} against {ins.get('threat')} supply of Zerg, about what the pros send there; the rest "
+                  f"kept the plan.", d)
     com = g.where("decision", f0, f + 1, layer="commit")
     if not com:
         a.say(f"No army decision in {clock(f0)}-{clock(f)}: Gary's army model was not asked (no group of units due).")

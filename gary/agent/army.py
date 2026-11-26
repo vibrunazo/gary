@@ -615,8 +615,8 @@ class LearnedArmy:
         ik, itarget = None, None
         if tac is not None and not air:            # (a detachment's units take the intent layer's orders: the rest here)
             ik, itarget, group = tac.cluster_intent(group)
-            if ik == HOLD_INTENT and tac.hold_clears:   # (option intentholdclear: HOLD is no commitment in force, as the
-                held, age = 0, COMMIT_AGE_S        # pros' ticks label it, so an old one doesn't carry into the input)
+            if ik == HOLD_INTENT:              # (HOLD is no commitment in force, as the pros' ticks label it: an old one
+                held, age = 0, COMMIT_AGE_S        # doesn't carry into the input; input parity, not a mask)
         grid, glob = self.tracker.inputs(obs, group, (held, age), current[2] if current is not None else -1,
                                          intent=ik if ik is not None and ik >= 0 else None)
         where, kind = self.model.predict(grid, glob)
@@ -687,6 +687,13 @@ class LearnedArmy:
             pf[keep_cells] = p[keep_cells]
             p = pf
         entry = self._commitment_entry(here, air) if self.hold_target and k == held and not by.startswith("forced") else None
+        if itarget is not None and not far[itarget]:   # (at the intent's target: the model's cell within 2 of it, as the
+            p = p * np.array([cell_dist(c, itarget) <= 2 for c in range(GRID * GRID)])   # labeller holds the intent;
+            if p.sum() <= 0:                    # leaving it is the intent model's switch, not this order's)
+                LOG.decision(g.hi.side, "commit", hi.frame, names[k], q[k], options, self._seen, by,
+                             then="at the intent's target: its commitment stands", rl=rl, why=why)
+                return None
+            by = f"{by}, near the intent's target"
         if itarget is not None and far[itarget]:
             best = int(itarget)                 # (the intent's target: the clusters of one intent go to one place)
             by = f"{by}, the intent's target"

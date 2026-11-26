@@ -551,3 +551,80 @@ the intent model's 0.482 is no gain rather than worse.
 - `test_parity` (gt1, gz1, gp1 unchanged), `test_smoke_game`, `test_pairs`, `test_live`, `test_card_macro`,
   `test_trunk_faithful` and `test_matchups` pass.
 - `tests/test_inputs.py` fails only #67's five blocks, unchanged.
+
+## 8. The user's calls, applied (2026-11-26; 0 games)
+
+**The calls:**
+- `HOLD` clears the commitment input, folded into `intent`: the pros' `HOLD` ticks have none, so this is input
+  parity with the labeller, not a mask. Option `intentholdclear` is gone. No kind mask on any intent.
+- The defence is a hurdle: a learned P(anyone defends | state) on the same threatened moments, then the size given a
+  defence. No detachment while the main is `DEFEND_BASE`. A size of half the main's supply or more switches the main
+  itself to `DEFEND_BASE`, rather than carving most of it off.
+- Criterion 2 is accepted at 4 of 7 and is now read over army-active moments. A forced intent is always a fresh one,
+  with its own target.
+
+**A correction to §4's premise.** The pros' detachments are not "a fifth to a quarter of the army".
+- §4's table was computed some other way. On 200 games with the sizer's own definition (12,933 threatened moments),
+  nobody defends in 23%.
+- Given a defence, the median force is **0.92 of the army** (quartiles 0.52–1.00):
+
+| Minute | Army (median) | Sent (median) | Share (median) | Share under half |
+|---|---|---|---|---|
+| 0–6 | 7 | 7 | 1.00 | 2% |
+| 6–10 | 16 | 13 | 1.00 | 14% |
+| 10–15 | 31 | 17 | 0.78 | 36% |
+| 15+ | 65 | 30 | 0.50 | 50% |
+
+So the half-the-army rule matches the pros: their defences are mostly the whole army, and a true detachment (under
+half) is 24% of them, mostly after 10 minutes.
+
+**The model** (`runs/intent/TvZ_T_20261126-092552`; the hazard and next heads unchanged, AUC 0.894, 0.438):
+- **Does anyone go,** held out (29,345 moments): AUC 0.746; nobody 22.7% against the pros' 23.0%.
+
+| Threat | Pros: nobody | Model: nobody |
+|---|---|---|
+| 0–2 supply | 35.9% | 33.4% |
+| 2–6 | 27.7% | 28.2% |
+| 6–12 | 23.3% | 26.6% |
+| 12+ | 19.0% | 18.6% |
+| Losses only, no enemy seen | 45.0% | 41.2% |
+
+- **The size given a defence:** off by 4.66 supply, against 9.06 for a constant. Pros' median against the model's, by
+  threat band: 9/10, 9/10, 11/12, 15/16.
+- **A small army early** (6 supply or less, by 4:30): nobody 18.4% against the model's 16.2%; the size 5 against 5.
+
+**In play** (`gary/agent/tactical.py`):
+- Whether anyone goes is drawn once per threat (the game's seed and the side's), and drawn again only if the threat
+  doubles. A threat nobody went to is forgotten 20 s after it ends.
+- A size of half the main's ground supply or more switches the main to `DEFEND_BASE`, toward the threat.
+- Coach Q4 cites all three outcomes: nobody went, a detachment, or the whole group.
+
+**One more leaf fix.** A cluster already within 2 cells of its intent's target drew its own cell 4–9 cells away (4 of
+41 of the main's orders in the arms). The labeller would call that a different intent (`DEFEND_BASE` is within a cell
+of the threat, `GATHER` any other move), so leaving is the intent model's switch to make, not this order's. Now, at the
+target, the commit model's cell is drawn among those within 2 cells of it. This restricts where it goes, not the kind.
+
+**`tests/test_intent_pipe.py`, again** (35 arms over 7 moments):
+
+| Criterion | Result |
+|---|---|
+| 1. Orders after the switch to the target | **100% of 93: pass** (before the switch, 6 more, not counted; the join's and the detachments' orders excluded, the test judging a unit by its intent when ordered) |
+| 2. Arms differ, army-active moments | **4 of 5: pass** (all moments 4 of 7) |
+| 3. Intent orders over a fight's or a rule's units | **0: pass** |
+| 4. The defence | **Pass.** P(anyone defends) 0.69–0.74 against threats of 1–20 supply with an army of 30; 0.71 on losses alone; size given a defence 11–12 (the pros' 9–15). 2 supply against an army of 5 at 4:00: P 0.93, size 4.9, so the main defends |
+| 5. The commit model follows the input | **Pass.** Keep / engage / move offline: `HOLD` 0.42 / 0.57 / 0.01 with no commitment, the largest keep of the five but not above its engage at these moments |
+
+- **The main's kind after the switch** (keep / engage / move): `DEFEND_BASE` 6/4/0, `ATTACK` 4/6/0, `RETREAT` 2/0/8,
+  `GATHER` 2/2/7, `HOLD` 8/3/0.
+- **Specialists:** 0 orders to sieged tanks, 0 unsieged, 16 of 16 keys one type, flyers apart.
+- **The unforced main line:**
+  - shares `GATHER` 50%, `ATTACK` 29%, `DEFEND_BASE` 21%;
+  - 1.92 switches a minute;
+  - one detachment (14 of 34 supply);
+  - the main defended twice;
+  - nobody went five times, two of those against 76–80 supply (P 0.54 and 0.76): the "seen in 30 s" memory inflates
+    the threat, as in §4.
+
+**Regression tests:**
+- Parity (gt1, gz1, gp1 unchanged), smoke, pairs and live pass.
+- `tests/test_matchups.py` with `gt1dev+intent` plays all six matchups.

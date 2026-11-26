@@ -14,8 +14,9 @@ gary/policy/tactical.py FEATURES (with the army's cohesion: the share of the own
 of its destination, the clusters), the intent of the tick before and how long it has held. Two heads of gradient-boosted
 trees, decoded in play at the pros' hazard: does it switch now, and to what. Baselines: the time-and-map frequencies
 and persistence; the score where the pro gave a new order (the labeller's own rule sets HOLD and a standing defence from
-inputs) is the one that counts. The defence's size: the supply the pros send or keep at a threatened base (every
-cluster sent within a cell of the threat, or standing within 2 cells of it), a median regression on SIZER_FEATURES.
+inputs) is the one that counts. The defence: the supply the pros send or keep at a threatened base (every cluster sent
+within a cell of the threat, or standing within 2 cells of it), as a hurdle on SIZER_FEATURES: does anyone go (a
+classifier), and how much when someone does (a median regression on those moments).
 Games split 80/20 by sha1.
 
     python -m train.tactical_intent --pros                 # label the modern TvZ Terrans: frequencies, hold lengths
@@ -227,7 +228,8 @@ def train(rows: list[dict], out_dir: Path) -> dict:
     trs = [r for r in tr if r["intent"] != r["prev"]]
     nx = HistGradientBoostingClassifier(max_iter=300, learning_rate=0.08, random_state=0, categorical_features=cat)
     nx.fit(X(trs), y(trs))
-    model = IntentModel({"hazard": hz, "next": nx, "features": list(FEATURES), "intents": list(INTENTS)})
+    model = IntentModel({"hazard": hz, "next": nx, "features": list(FEATURES), "intents": list(INTENTS),
+                         "send": None, "sizer": None, "sizer_features": list(SIZER_FEATURES)})     # (the defence's below)
     # the combined odds: stay with 1 - P(switch), else the next head's
     Xt, yt = X(te), y(te)
     ps = hz.predict_proba(Xt)[:, 1]
@@ -276,32 +278,46 @@ def train(rows: list[dict], out_dir: Path) -> dict:
                                    "p_attack_without": round(float(pn2[ga, 1].mean()), 3),
                                    "auc_with": round(float(roc_auc_score(ga[gx], pn[gx, 1])), 3),
                                    "auc_without": round(float(roc_auc_score(ga[gx], pn2[gx, 1])), 3)}
-    # the defence's size
+    # the defence: does anyone go (a classifier), and how much goes when someone does (a median regression on the moments
+    # someone defended): a hurdle model, so a losses-only or small threat can send nobody, as the pros do in 19-32%
     s_tr = [r["sizer"] for r in tr if r["sizer"] is not None]
     s_te = [r["sizer"] for r in te if r["sizer"] is not None]
     SX = lambda q: np.array([[s["x"][f] for f in SIZER_FEATURES] for s in q], np.float32)
     sy = lambda q: np.array([s["y"] for s in q], np.float32)
-    sz = HistGradientBoostingRegressor(loss="quantile", quantile=0.5, max_iter=300, random_state=0).fit(SX(s_tr), sy(s_tr))
-    pred = sz.predict(SX(s_te))
-    yt_s = sy(s_te)
-    base = np.median(sy(s_tr))
-    rep["sizer"] = {"n_test": len(s_te), "mae": round(float(np.mean(np.abs(pred - yt_s))), 2),
-                    "mae_constant_median": round(float(np.mean(np.abs(base - yt_s))), 2), "constant": float(base)}
-    xs = SX(s_te)
+    go = HistGradientBoostingClassifier(max_iter=300, learning_rate=0.08, random_state=0).fit(SX(s_tr), sy(s_tr) > 0)
+    xs, yt_s = SX(s_te), sy(s_te)
+    pg = go.predict_proba(xs)[:, 1]
     th = xs[:, SIZER_FEATURES.index("threat_sup")]
     army = xs[:, SIZER_FEATURES.index("own_army")]
     minute = xs[:, SIZER_FEATURES.index("minute")]
-    rep["sizer_by_threat"] = {name: {"n": int(m.sum()), "pros_median": round(float(np.median(yt_s[m])), 1),
-                                     "model_median": round(float(np.median(pred[m])), 1)}
-                              for name, m in (("0-2", th <= 2), ("2-6", (th > 2) & (th <= 6)), ("6-12", (th > 6) & (th <= 12)),
-                                              ("12+", th > 12)) if m.any()}
+    lossh = xs[:, SIZER_FEATURES.index("loss_home")]
+    sent = yt_s > 0
+    rep["send"] = {"n_test": len(s_te), "auc": round(float(roc_auc_score(sent, pg)), 3),
+                   "pros_nobody": round(float(1 - sent.mean()), 3), "model_nobody": round(float(1 - pg.mean()), 3)}
+    bands = (("0-2", th <= 2), ("2-6", (th > 2) & (th <= 6)), ("6-12", (th > 6) & (th <= 12)), ("12+", th > 12),
+             ("losses only (no enemy seen)", (th == 0) & (lossh > 0)))
+    rep["send_by_threat"] = {name: {"n": int(m.sum()), "pros_nobody": round(float(1 - sent[m].mean()), 3),
+                                    "model_nobody": round(float(1 - pg[m].mean()), 3)} for name, m in bands if m.any()}
+    s_tr1 = [s for s in s_tr if s["y"] > 0]
+    sz = HistGradientBoostingRegressor(loss="quantile", quantile=0.5, max_iter=300, random_state=0).fit(SX(s_tr1), sy(s_tr1))
+    pred = sz.predict(xs)
+    base = np.median(sy(s_tr1))
+    rep["sizer"] = {"n_test_sent": int(sent.sum()), "mae": round(float(np.mean(np.abs(pred[sent] - yt_s[sent]))), 2),
+                    "mae_constant_median": round(float(np.mean(np.abs(base - yt_s[sent]))), 2), "constant": float(base)}
+    rep["sizer_by_threat"] = {name: {"n": int((m & sent).sum()), "pros_median": round(float(np.median(yt_s[m & sent])), 1),
+                                     "model_median": round(float(np.median(pred[m & sent])), 1),
+                                     "pros_share_of_army": round(float(np.median(yt_s[m & sent] / np.maximum(army[m & sent], 1))), 2),
+                                     "model_half_army_or_more": round(float(np.mean(pred[m & sent] >= 0.5 * army[m & sent])), 3)}
+                              for name, m in bands if (m & sent).any()}
     small = (army <= 6) & (minute <= 4.5)
     if small.any():
         rep["sizer_small_army_early"] = {"n": int(small.sum()), "army_median": round(float(np.median(army[small])), 1),
-                                         "pros_median": round(float(np.median(yt_s[small])), 1),
+                                         "pros_nobody": round(float(1 - sent[small].mean()), 3),
+                                         "model_nobody": round(float(1 - pg[small].mean()), 3),
+                                         "pros_median_sent": round(float(np.median(yt_s[small & sent])), 1) if (small & sent).any() else None,
                                          "model_median": round(float(np.median(pred[small])), 1),
                                          "model_over_army": round(float(np.mean(pred[small] > army[small])), 3)}
-    model.d.update(sizer=sz, sizer_features=list(SIZER_FEATURES))
+    model.d.update(send=go, sizer=sz, sizer_features=list(SIZER_FEATURES))
     out_dir.mkdir(parents=True, exist_ok=True)
     model.save(out_dir / "model.pkl")
     (out_dir / "report.json").write_text(json.dumps(rep, indent=1), encoding="utf-8")

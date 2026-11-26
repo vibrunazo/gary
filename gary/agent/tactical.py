@@ -7,9 +7,12 @@ Every TICK seconds, on the army's main ground cluster's grid (the army tracker's
     intent drawn from the next head's odds; a new one's target is the commit model's destination odds' likeliest cell on
     the intent's side (enemy presence for ATTACK, the threatened home cells for DEFEND_BASE, nearer the main for
     RETREAT, anywhere else for GATHER, none for HOLD);
-  - enemy fighters at home while the main intent is elsewhere: a detachment, the nearest ground fighters up to the
-    pros' median supply defending in that state (the model's sizer), attack-moved to the threat; it ends after END_S
-    with no enemy there (the pros' DEFEND_BASE hold, median 20 s), its units back to the main intent.
+  - enemy fighters at home while the main intent is elsewhere: whether anyone goes is drawn from the model's odds
+    (the pros send nobody in a fifth to a third of such moments), once a threat and again if it doubles; if someone
+    does, the pros' median supply defending in that state (the model's sizer, given a defence): under half the main's
+    supply, a detachment of the nearest ground fighters, attack-moved to the threat, ending after END_S with no enemy
+    there (the pros' DEFEND_BASE hold, median 20 s), its units back to the main intent; half or more, the main itself
+    switches to DEFEND_BASE (no army carved in two).
 Each unit belongs to one intent (`of`). The leaves read it (docs/TACTICAL_INTENT.md §4): the commit model takes its
 cluster's intent as an input and the intent's target as its destination (gary/agent/army.py); the role model the fight's
 intent (gary/agent/roles.py); the calm layer leaves alone units to this layer, which sends them to their group; the
@@ -48,6 +51,7 @@ class Tactical:
         self.rng = random.Random(f"intent/{g.game_seed}/{g.hi.slot}")
         self.main: dict | None = None      # {"id", "kind", "since", "target", "rid", "ticks"}
         self.details: list[dict] = []      # DEFEND_BASE detachments: {"id", "cell", "point", "units", "size", "since", "quiet", "rid"}
+        self.declined: list[dict] = []     # threats nobody went to: {"cell", "threat", "quiet"}
         self.of: dict[int, str] = {}       # unit tag -> its intent's id
         self.queue: list[Intent] = []
         self.next = 0
@@ -57,7 +61,6 @@ class Tactical:
         self.forced: str | None = None     # (the pipe check's: an intent forced for the main)
         self.joining: set[int] = set()     # units alone this layer sends to their group
         self.types: dict[int, int] = {}    # unit tag -> type (a detachment's supply)
-        self.hold_clears = False           # option intentholdclear: under HOLD the commit model reads no commitment in force
 
     # --- what the leaves read -----------------------------------------------------------------------------------------
     def intent_of(self, tag: int) -> dict | None:
@@ -164,7 +167,7 @@ class Tactical:
         self.last_x = x
         if self.forced is not None:
             kind, p, by = self.forced, 1.0, "forced (the pipe check)"
-            switch = self.main is None or self.main["kind"] != kind
+            switch = self.main is None or self.main["kind"] != kind or not self.main["trigger"].startswith("forced")
         elif self.main is None:
             q = self.model.p_next(x)
             kind = INTENTS[int(np.argmax(q))]
@@ -179,18 +182,8 @@ class Tactical:
             else:
                 kind, p, by = self.main["kind"], 1 - ps, f"model: held (switch {ps:.0%})"
         if switch:
-            target = self._target(kind, scene, grid, glob, here)
-            self.n += 1
-            iid = f"I{self.n}"
             top = None if self.forced else [[k, round(float(v), 3)] for k, v in zip(INTENTS, self.model.p_next(x))]
-            r = LOG.decision(g.hi.side, "intent", now, kind, p, top,
-                             {"units": len(group), "army": round(x["cluster_share"], 2), "at": self._name(here),
-                              "target": self._name(target) if target is not None else None,
-                              "threat": round(scene.threat_sup, 1), "cohesion": round(x["army_near_cluster"], 2)},
-                             by, then=f"{prev or 'none'} -> {kind}")
-            self.main = {"id": iid, "kind": kind, "since": now, "target": target, "rid": LOG.link(r)["id"] if r else None,
-                         "ticks": 1, "trigger": by}
-            g.army.next_ask, g.army.ask_turn = now, 0      # (a switch is an event: the main cluster asked now, biggest first)
+            self._switch(kind, self._target(kind, scene, grid, glob, here), p, top, by, group, x, scene, here, now)
         else:
             self.main["ticks"] += 1
             if self.main["kind"] in ("ATTACK", "DEFEND_BASE", "RETREAT") and self.main.get("target") is None:
@@ -198,7 +191,23 @@ class Tactical:
         for u in army:
             if self.of.get(u["tag"]) not in {d["id"] for d in self.details}:
                 self.of[u["tag"]] = self.main["id"]
-        self._detachments(obs, army, scene, len(ground), now)
+        self._detachments(obs, army, scene, len(ground), now, (group, x, here))
+
+    def _switch(self, kind: str, target: int | None, p: float, top, by: str, group, x: dict, scene: Scene, here: int,
+                now: int, extra: dict | None = None) -> None:
+        """A new main intent: its record, and the main cluster asked now (a switch is an event)."""
+        g = self.g
+        prev = self.main["kind"] if self.main else None
+        self.n += 1
+        r = LOG.decision(g.hi.side, "intent", now, kind, p, top,
+                         {"units": len(group), "army": round(x["cluster_share"], 2), "at": self._name(here),
+                          "target": self._name(target) if target is not None else None,
+                          "threat": round(scene.threat_sup, 1), "cohesion": round(x["army_near_cluster"], 2),
+                          **(extra or {})},
+                         by, then=f"{prev or 'none'} -> {kind}")
+        self.main = {"id": f"I{self.n}", "kind": kind, "since": now, "target": target,
+                     "rid": LOG.link(r)["id"] if r else None, "ticks": 1, "trigger": by}
+        g.army.next_ask, g.army.ask_turn = now, 0      # (biggest cluster first)
 
     def _target(self, kind: str, scene: Scene, grid, glob, here: int) -> int | None:
         """The intent's target: the commit model's destination odds' likeliest cell on the intent's side."""
@@ -226,10 +235,11 @@ class Tactical:
         p = w * np.array(ok, np.float64)
         return int(p.argmax()) if p.max() > 0 else None
 
-    def _detachments(self, obs: dict, army: list[dict], scene: Scene, n_ground: int, now: int) -> None:
+    def _detachments(self, obs: dict, army: list[dict], scene: Scene, n_ground: int, now: int, main_at) -> None:
         g = self.g
+        threat = lambda c: near(c, scene.threat, 1)
         for d in list(self.details):                        # (ends: the threat gone END_S)
-            if near(d["cell"], scene.threat, 1):
+            if threat(d["cell"]):
                 d["quiet"] = None
             elif d["quiet"] is None:
                 d["quiet"] = now
@@ -241,18 +251,49 @@ class Tactical:
                     self.of[t] = self.main["id"]
                 LOG.decision(g.hi.side, "intent", now, "DEFEND_BASE ended", None, None, {"units": len(d["units"])},
                              "the threat gone" if d["units"] else "its units gone", then=f"{d['id']} -> {self.main['kind']}")
+        for d in list(self.declined):                       # (a threat nobody went to, forgotten once gone END_S)
+            if threat(d["cell"]):
+                d["quiet"] = None
+            elif d["quiet"] is None:
+                d["quiet"] = now
+            if d["quiet"] is not None and now - d["quiet"] >= END_S * 24:
+                self.declined.remove(d)
         if not scene.threat or self.main["kind"] == "DEFEND_BASE" or len(self.details) >= MAX_DETACHMENTS:
             return
         cell = max(scene.threat, key=lambda c: float((scene.g[3] + scene.g[7]).reshape(GRID, GRID)[c]))
         if any(dist(cell, d["cell"]) <= 1 for d in self.details):
             return
-        size = self.model.defend_size(sizer_features(scene, now, n_ground))
-        if size < 1.0:
+        old = next((d for d in self.declined if dist(cell, d["cell"]) <= 1), None)
+        if old is not None and scene.threat_sup < max(2 * old["threat"], old["threat"] + 2):
+            return                                          # (nobody went: decided once a threat, again if it doubles)
+        sx = sizer_features(scene, now, n_ground)
+        ps = self.model.p_send(sx)
+        info = {"threat": round(scene.threat_sup, 1), "at": self._name(cell[0] * GRID + cell[1]), "army": len(army),
+                "p_send": round(ps, 3)}
+        if self.rng.random() >= ps:                         # (the decoder: drawn, the game's seed and the side's)
+            if old is not None:
+                self.declined.remove(old)
+            self.declined.append({"cell": cell, "threat": scene.threat_sup, "quiet": None})
+            LOG.decision(g.hi.side, "intent", now, "DEFEND_BASE: nobody goes", 1 - ps, None, info,
+                         f"model: P(anyone defends) {ps:.0%}, drawn", then=f"the {self.main['kind']} army carries on")
             return
+        size = self.model.defend_size(sx)
         point = g.army.tracker.center(cell[0] * GRID + cell[1])
         free = [u for u in army if u["type"] not in AIR_FIGHTERS and self.of.get(u["tag"]) == self.main["id"]]
-        free.sort(key=lambda u: math.dist((u["x"], u["y"]), point))
+        main_sup = sum(supply_x2(u["type"]) for u in free) / 2
+        info.update(size=round(size, 1), main_supply=round(main_sup, 1))
+        if size >= 0.5 * main_sup:                          # (half the main or more: the main defends, not a detachment)
+            if self.forced is None:
+                group, x, here = main_at
+                self._switch("DEFEND_BASE", cell[0] * GRID + cell[1], ps, None,
+                             f"model: P(anyone defends) {ps:.0%} drawn, its size {size:.0f} half the main's "
+                             f"{main_sup:.0f} supply or more: the main defends", group, x, scene, here, now,
+                             {"p_send": info["p_send"], "size": info["size"], "main_supply": info["main_supply"]})
+                for u in free:
+                    self.of[u["tag"]] = self.main["id"]
+            return
         take, sup = [], 0.0
+        free.sort(key=lambda u: math.dist((u["x"], u["y"]), point))
         for u in free:
             if sup >= size:
                 break
@@ -266,10 +307,9 @@ class Tactical:
         self.details.append(d)
         for u in take:
             self.of[u["tag"]] = d["id"]
-        r = LOG.decision(g.hi.side, "intent", now, "DEFEND_BASE (detachment)", None, None,
-                         {"units": len(take), "supply": round(sup, 1), "size": round(size, 1),
-                          "threat": round(scene.threat_sup, 1), "at": self._name(d["target"]), "army": len(army)},
-                         "model: the pros' median defence in this state",
+        info.update(units=len(take), supply=round(sup, 1))
+        r = LOG.decision(g.hi.side, "intent", now, "DEFEND_BASE (detachment)", ps, None, info,
+                         f"model: P(anyone defends) {ps:.0%} drawn, the pros' median defence in this state",
                          then=f"{len(take)} of the {self.main['kind']} army's units, the rest carry on")
         d["rid"] = LOG.link(r)["id"] if r else None
         go = [u["tag"] for u in take if math.dist((u["x"], u["y"]), point) > ALONE]

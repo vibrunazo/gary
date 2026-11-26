@@ -2308,6 +2308,16 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **TacticalIntent v0, the user's calls applied (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §8).** `HOLD`'s
+  commitment clear folded into option `intent` (input parity with the labeller; option intentholdclear gone). The
+  defence is a hurdle: P(anyone defends), held out AUC 0.746, nobody 22.7% against the pros' 23.0% and by threat band
+  within 3 points (losses only 41% against 45%); the size given a defence off by 4.66 supply against a constant's 9.06.
+  It is drawn once a threat. A size of half the main or more switches the main to DEFEND_BASE. Corrected premise: the
+  pros' defences are 0.92 of their army (median; all of it before 10:00, half after 15:00), true detachments a quarter
+  of them, not "a fifth to a quarter of the army". At its intent's target a cluster's commit cell stays within 2 cells
+  of it (4 of 41 of the main's orders left it before). tests/test_intent_pipe.py: criteria 1-5 pass (after the switch
+  93 of 93 to the target; the arms differ at 4 of 5 army-active moments); specialists clean. Parity, smoke, pairs,
+  live, matchups pass.
 - **TacticalIntent v0 built and pipe-checked (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §7).** Option `intent` on gt1dev
   (gary/agent/tactical.py, gary/policy/tactical.py), nothing in gt1dev itself: the intent model (a switch hazard, AUC 0.894,
   and the next intent, 0.438 against time-and-map's 1.398 on switches with a new order; 0.463 without the cohesion
