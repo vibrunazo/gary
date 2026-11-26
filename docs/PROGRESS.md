@@ -2308,6 +2308,47 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **Gate 2 again on gt0.54dev, live game 1 read, and the pros' anti-mutalisk choice (2026-11-26; 20 games).**
+  - *The 20 strict drills (DR302a1-3, DR300a's setup: gt1dev+strict+told<N> against gz1dev+noarmy+told1, the four
+    maps from seed 4004, 11 minutes, gg off), expected before they played: 18 of 20 or better, and style 1's turrets by
+    7:30 back toward gt1dev's 7.0 (#66):* **18 of 20**, gate 2 holds. Styles 1 and 2 8 of 8 each, style 3 2 of 4, the
+    same two misses as DR300a3 (the first Factory +23 s on Attitude, +26 on Fighting Spirit, tol 21): the openings play
+    as before the fix, which touches nothing before the first masked one-off. The items the fix frees came (by 10:00 a
+    game, style 1: Comsat 0 to 2.6 decisions, Control Tower 0 to 1.9, Infantry Weapons 0 to 1.1, Armory 0.25) and moved
+    no milestone out of its tolerance (the Starport met 20 of 20, median +11 s; DR300a +2). The strict masks a game fell
+    from 36 to 10 (style 1), 34 to 1 (style 2), 39 to 7 (style 3). Turrets ordered by 7:30 (the same extractor as the
+    pros'): style 1 10.8 to 8.8 (by 10:00 16.2 to 13.8; the pros 7.3 and 9.2, gt1dev without a card 7.0 and 10.0),
+    style 2 8.2 to 5.5 (the pros 5.9), style 3 6.0 to 5.0 (the pros 3.0); Infantry Weapons by 7:30 in style 1 0 to 0.75
+    (the pros 0.95). Style 1's turrets come down most of the way, not all.
+  - *Live game 1 (gt0.53dev, style 2 rolled, no strategy; the records don't name the map), 0 games:* the first
+    Barracks, decided at 1:09.9 with 52 minerals and placed "at the natural by its front" by the placement model (95%),
+    started at 1:47 (the pros order it at a median 1:28). Its builder walked 20 s (PARK_FOR) and was placed at 1:32.2
+    regardless of money, 0.4 s after the SCV queued behind the depot trained (about 103 minerals: refused, "failed for
+    money"); the retry at 1:37.5 by another SCV at another spot (about 145 by the income, judged at 1:41.5 with 176:
+    "didn't start"), the third at 1:47.2. No wall was tried: simcity is not in gt1dev, the Barracks and two depots at the
+    natural's front came from the placement model's odds and the pros' tiles. The 8 zerglings at 3:59.8 met one Marine
+    (the macro's style 2, Factory and vultures: SCVs, the natural's Command Center placed at 3:55, a Factory; one Marine
+    decided by 3:38) and no bunker (the natural bunker rule is off in gt1 and gt1dev; style 2's bunker by 8:00 38% of
+    gate 4's games, the pros 61%). The early-pool posture would not have held them: the scout saw a Hatchery at the
+    natural at 1:52 and the Pool at 2:15 (a hatchery first); its "zerglings before 4:00" trigger (gt1) would have fired
+    at the first zergling, 3:49.5, ten seconds before the eight. The two Marines died alone (4:08 holding fire, 4:16 the
+    reinforce rule's attack-move into the eight).
+  - *PREP_VS_MUTA's evidence, 0 games (train/pro_branch.py's moments: the cross-fitted plan belief every 30 s from 2:30
+    to 10:00, modern TvZ Terrans; P(spire first) summed over the spire plans; cells by style group, looked, minute and own
+    state, the contrast the same cell under 0.2, 25 games a cell; written before the table was read):* the Spire belief is
+    at 0.8 or more in most moments (1,448 of the style-1 games' cells pooled), so matched low-belief cells are few. Pooled,
+    a Missile Turret within 120 s with an Engineering Bay and no turret: style 1 0.28 (belief under 0.2, 33 games) to 0.84
+    (0.8 or more, 1,471); styles 2-3 0.38 (0.2-0.5) to 0.89; an Engineering Bay within 120 s 0.46 to 0.82 (style 1). Matched,
+    two style-1 cells have both sides: looked, 6-8 minutes, 1-2 turrets had, 0.96 [0.90, 0.98] against 0.42 [0.26, 0.60]
+    (separated); looked, 8-10 minutes, 3 or more had, 0.34 against 0.31 (not). Styles 2-3 have no matched low-belief cell
+    with 25 games. So the belief separates the ring's start in style 1 where it can be tested, nothing past the ring, and
+    styles 2-3 can't be tested matched. Against lurkers the pros cut turrets (by 10:00, style 1: 3.1 against lurker first in
+    65 games, 9.6 against spire first in 1,313; styles 2-3 3.3 and 7.2), and gate 4's Gary (answers off) did not (style 2:
+    7.5 placed against lurkers, 8.1 against spires, placements with retries): retiring answers.py needs the lurker turret
+    cut too. The mineral lines: the pros' TvZ turrets by 10:00 47% on a mineral side (the natural's 30%, a newer base 5%),
+    Gary's in gate 4 36% (the natural's 19%, a newer base 14%), from the placement model's odds: a placement-model gap,
+    not a rule's.
+
 - **gt0.54dev, the strict card's two bugs, and the turret flood diagnosed (2026-11-25; 0 games).** Two live LAN TvZ games
   against the user (runs/live/live_20261125, style 2 with no strategy; live_20261125_g2, `gt1dev+scansample+shadow+trunk`
   `--strategy "practice standard bio, strict"`, so with answers.py on).

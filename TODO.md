@@ -70,10 +70,7 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
 - **`gasahead` into every build (open, after Phase 1):** the builder sent ahead of its gas is in gt1dev only
   (gt0.53dev). Fold it into gt1, gz1, gp1 and the other dev builds with a version bump each. gt1, gz1 and gp1 must then
   record their parity hashes again, with the reason in the commit.
-- **The strict drills again on gt0.54dev (open):** gate 2's 18 of 20 was measured under the old strict mask (Comsat
-  and upgrades masked); the 20 drills played again say whether it holds, and whether strict's turrets come back to
-  gt1dev's (7.0 by 7:30 in style 1, the pros 7.3; DR300a1 10.8). docs/PROGRESS.md, gt0.54dev.
-- **tests/test_inputs.py fails at gt0.54dev (open):** the Terran's macro and critic "decided" off at 21% of the moments,
+- [#67](https://github.com/vibrunazo/gary/issues/67) **tests/test_inputs.py fails at gt0.54dev (open):** the Terran's macro and critic "decided" off at 21% of the moments,
   mostly Missile Turrets (play counts a build at its hand-off to a walking builder, the replay at its placement; 5% when
   first checked), and the Zerg's placement inputs (workers, minute, bases held). Find when it began and fix or list it
   with its issue. Related: turret decisions come in bursts (a third within 2 s of the one before, G4299a), not through
