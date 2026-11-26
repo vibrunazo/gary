@@ -7,7 +7,8 @@ decisions, the lease conflicts. Needs the game data and the models (skips withou
 Printed, with the pass criteria written before the check was run (docs/TACTICAL_INTENT.md §5; 1, 2 and 4 restated
 2026-11-26 by the user's calls, §8):
   1. the commit layer's and the intent layer's orders to a forced intent's units after its switch go to its target
-     (within 2 cells), 90% or more (HOLD: none); the calm layer's hops are local by design and not counted. A forced
+     in force when they are given (within 2 cells; GATHER's move and ATTACK's engage at the target move it, as the
+     labeller does, 2026-11-26), 90% or more (HOLD: none); the calm layer's hops are local by design and not counted. A forced
      intent is always a fresh one (its own target), even where the main already had that kind;
   2. the five arms' orders differ pairwise in 80% of the army-active moments or more (a moment where some arm's army
      was asked; where a fight holds the hands no arm's is, criterion 3's other side);
@@ -107,11 +108,29 @@ def test_intent_pipe(report: dict | None = None):
                                  bool(intent.units) and all(tac.of.get(t, mid) != mid for t in intent.units)))
                 return _orig(intent)
             ag.motor.start = _start
+            moved = []                         # (the main's target moved by its own order: frame, old, new; Option 1)
+
+            def _retarget(cell, _orig=ag.tactical.retarget, _ag=ag, _moved=moved):
+                old = _ag.tactical.main.get("target") if _ag.tactical.main else None
+                _orig(cell)
+                _moved.append((_ag.hi.frame, old, int(cell)))
+            ag.tactical.retarget = _retarget
             sieged = {u["tag"] for u in obs["units"] if u["owner"] == g.slot and u["type"] == 30}
             recs = _play(m.game, arm, ARM)
             after = ag.hi.observe()
             still = {u["tag"] for u in after["units"] if u["owner"] == g.slot and u["type"] == 30}
-            target = ag.tactical.main.get("target") if ag.tactical.main else None
+            end_target = ag.tactical.main.get("target") if ag.tactical.main else None
+
+            def _target_at(f, _moved=moved, _end=end_target):
+                """The main's target in force at frame f (as its orders were given)."""
+                if not _moved:
+                    return _end
+                t = _moved[0][1]
+                for fr, _, new in _moved:
+                    if fr <= f:
+                        t = new
+                return t
+            target = end_target
             switched = [r for r in recs if r.get("kind") == "decision" and r.get("layer") == "intent"
                         and str(r.get("by", "")).startswith("forced")]
             f_sw = switched[0]["f"] if switched else None
@@ -124,9 +143,11 @@ def test_intent_pipe(report: dict | None = None):
                 if when in ("after, the forced intent", "no switch (already that intent)") and ins.get("of") == "main":
                     out["taken"][kind][str(r.get("choice", "")).split(" ")[0]] += 1
                     ch = str(r.get("choice", ""))
+                    target = _target_at(r["f"] - 1)
                     if " to (" in ch and kind != "HOLD" and target is not None and r.get("then") == "sent":
                         at, to = (_tile_cell(ag, s_) for s_ in (ins.get("at"), ch.split(" to ")[1]))
                         key = ("the intent's target" if str(r.get("by")).endswith("the intent's target") else
+                               "the intent's new target" if str(r.get("by")).endswith("the intent's new target") else
                                "near the intent's target" if "near the intent's target" in str(r.get("by")) else
                                "own cell, the cluster at the target" if cell_dist(at, target) < 2 else "own cell, the cluster away")
                         out["dest"][(kind, key)].append(cell_dist(to, target))
@@ -151,6 +172,7 @@ def test_intent_pipe(report: dict | None = None):
                 to = r["in"]["to"]                     # (tiles, the order's cell centre)
                 c = ag.army.tracker.cell(to[0] * 32 + 16, to[1] * 32 + 16)
                 cells.append(c)
+                target = _target_at(r["f"])            # (the target in force when it was given: GATHER and ATTACK move it)
                 if kind != "HOLD" and target is not None and f_sw is not None and r["f"] < f_sw:
                     out["before"].append(cell_dist(c, target) <= 2)        # (before the switch: not the forced intent's)
                 elif kind != "HOLD" and target is not None:
@@ -253,9 +275,11 @@ def _unforced(out) -> None:
             by_intent[name] = [c["keep"], c["engage"], c["move"]]
     shuffles = sum(1 for r in com if (r.get("in") or {}).get("intent") == INTENTS.index("GATHER")
                    and "near the intent's target" in str(r.get("by")) and r.get("then") == "sent")
+    retargets = Counter(INTENTS[(r.get("in") or {}).get("intent")] for r in com
+                        if str(r.get("by")).endswith("the intent's new target") and r.get("then") == "sent")
     out["unforced"] = {"shares": {k: round(spans[k] / tot, 3) for k in INTENTS},
                        "hold_median_s": {k: round(float(np.median(v)), 1) for k, v in holds.items() if v},
-                       "commit_keep_engage_move": by_intent, "gather_moves_at_target": shuffles,
+                       "commit_keep_engage_move": by_intent, "gather_moves_at_target": shuffles, "retargets": dict(retargets),
                        "switches_a_minute": round(len(main) / max(1e-9, (UNTIL - (main[0]["f"] if main else 0)) / 1440), 2),
                        "detachments": [(r["f"] // 1440, (r.get("in") or {}).get("units"), (r.get("in") or {}).get("supply"),
                                         (r.get("in") or {}).get("threat"), (r.get("in") or {}).get("army")) for r in dets],

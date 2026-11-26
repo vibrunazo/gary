@@ -280,6 +280,15 @@ class ArmyTracker:
         gy = GRID - 1 - gy if self.fy else gy
         return int((gx + 0.5) * self.mw / GRID), int((gy + 0.5) * self.mh / GRID)
 
+    def densest(self, group: list[dict]) -> int:
+        """The cell with the most of the group's supply (the lowest of ties): a cluster's centre as the data's
+        commitment ticks hold it (ingest/army_dataset.py clusters, numpy's argmax)."""
+        sup: dict[int, int] = {}
+        for u in group:
+            c = self.cell(u["x"], u["y"])
+            sup[c] = sup.get(c, 0) + supply_x2(u["type"])
+        return min(sup, key=lambda c: (-sup[c], c))
+
     def _now(self, obs: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Channels 0-5 (own / visible enemy army, workers, buildings), own and visible enemy
         unit counts by type."""
@@ -366,10 +375,11 @@ class ArmyTracker:
                     del memory[tag]
 
     def inputs(self, obs: dict, group: list[dict], commit: tuple[int, float] | None = None,
-               target: int = -1, intent: int | None = None) -> tuple[np.ndarray, np.ndarray]:
+               target: int = -1, intent: int | None = None, center: int | None = None) -> tuple[np.ndarray, np.ndarray]:
         """grid (9, 256) and numbers for ordering `group` (own units) now; commit: the group's commitment
         (0 none, 1 engage, 2 move) and its age in seconds, for a model with spec.commit; target: the cell that
-        commitment sends it to (-1 none), for spec.ctarget."""
+        commitment sends it to (-1 none), for spec.ctarget; center: the cell channel 8 holds the group at (None: its
+        units' mean position, an order's selection centre; a commitment question passes densest(group))."""
         self.remember(obs)
         g, units, seen = self._now(obs)
         if self.extra_units is not None:
@@ -395,11 +405,13 @@ class ArmyTracker:
                     g[self.spec.channel("flyers"), self.cell(u["x"], u["y"])] += supply_x2(u["type"])
         if self.spec.ctarget and target >= 0:
             g[self.spec.channel("ctarget"), target] = 1
-        group_sup = 0
-        for u in group:
-            s = supply_x2(u["type"])
-            g[8, self.cell(u["x"], u["y"])] += s
-            group_sup += s
+        group_sup = sum(supply_x2(u["type"]) for u in group)
+        if group:                              # (channel 8: the group's supply in one cell, as the data holds it: an
+            if center is None:                 # order's at the selection's centre, a commitment tick's at the cluster's
+                center = self.cell(sum(u["x"] for u in group) / len(group), sum(u["y"] for u in group) / len(group))
+            g[8, center] += group_sup          # densest cell (ingest/army_dataset.py). Until 2026-11-26 play spread it over
+            # each unit's cell: at GATHER points the commit model's P(move) read 0.92 (median) where the same moments
+            # with it in one cell read 0.56, the pros' 0.38 (docs/TACTICAL_INTENT.md §11)
         g = np.minimum(g, 255)
         me = obs["me"]
         eco = np.array([[me["minerals"], me["gas"], me["supply_used"] * 2, me["supply_max"] * 2]], np.float32)

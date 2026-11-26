@@ -91,6 +91,13 @@ class Tactical:
         it = self.intent_of(group[0]["tag"])
         return (INTENTS.index(it["kind"]), it.get("target"), group) if it is not None else (-1, None, group)
 
+    def retarget(self, cell: int) -> None:
+        """The main intent's target moved by its own order (GATHER's move on, ATTACK's engage elsewhere), as the labeller
+        carries the destination: the intent and its clock unchanged."""
+        if self.main is not None and self.main.get("target") is not None:
+            self.main["target"] = int(cell)
+            self.main["retargets"] = self.main.get("retargets", 0) + 1
+
     def groups(self, army: list[dict]) -> list[list[dict]]:
         """The control groups' partition: the main intent's ground units, each detachment's, the flyers apart."""
         out: dict[str, list[dict]] = {}
@@ -157,7 +164,8 @@ class Tactical:
         spec = g.army.model.spec
         prev = self.main["kind"] if self.main else None
         t = g.army.tracker.copy() if hasattr(g.army.tracker, "copy") else g.army.tracker
-        grid, glob = t.inputs(obs, group, (held, age), -1, intent=INTENTS.index(prev) if prev else None)
+        grid, glob = t.inputs(obs, group, (held, age), -1, intent=INTENTS.index(prev) if prev else None,
+                              center=t.densest(group))
         g9 = grid[0][:9]
         loss = grid[0][spec.channel("losses")] if spec.losses else None
         scene = Scene(g9, loss)

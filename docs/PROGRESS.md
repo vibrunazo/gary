@@ -2308,6 +2308,18 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **The army tracker's group channel as the data holds it; TacticalIntent's Option 1 (2026-11-26; 0 games;
+  docs/TACTICAL_INTENT.md §11).**
+  - The commit model's inputs at Gary's 59 gather points, swapped group by group against 2,616 pros' GATHER-at-target
+    rows: only channel 8 (the group) moved P(move), 0.80 to 0.46 (the pros' 0.41 to 0.73).
+  - The data holds the group's supply in one cell (an order's centre, a tick's densest cell); play spread it over each
+    unit's cell, in every build. Fixed in `ArmyTracker.inputs`: Gary's same inputs read P(move) 0.56 median (0.92
+    before; the pros' rows 0.38).
+  - Every build's play changes (parity recorded again); tests/test_inputs.py and every matchup pass.
+  - Option 1, the user's call: the 2-cell clamp for DEFEND_BASE only; GATHER's move and ATTACK's engage at the target
+    move the target, as the labeller does. Pipe check: criterion 1 96%; GATHER's commit moves 30% of its questions
+    (the screen's 62%, the pros' 30%), no hops.
+  - The 48 (IN304a against IB304a, seeds 4004-4009) launched with its minimum detectable effect written (§11).
 - **TacticalIntent v0, the user's checks before the 48 (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §10).**
   - "Nobody went" against more than 20 supply: 10 of IN303a's 15 were real, with losses at home after 9. A defence
     followed within 2 minutes in 14, at 5–31 s in 12. The draw is now made again when home losses grow.

@@ -745,3 +745,53 @@ Q4 also printed it as a detachment ("None supply"). It is fixed in `eval/coach.p
     not the commitment input. Which inputs drive them is open.
 
 **The 48 is not launched:** item 1 is not clean, and the clamp is the user's call.
+
+## 11. What drove GATHER's move odds, Option 1, and the 48 (2026-11-26)
+
+**The user's calls.** Option 1: the 2-cell clamp only for DEFEND_BASE; GATHER's move and ATTACK's engage at the target
+move the intent's target, as the labeller carries them. First a 0-game check of which input drives the commit model's
+P(move) at Gary's gather points.
+
+**The check (0 games).** The commit model's inputs were captured at the 59 questions of the KnockOut seed 4005 replay
+(the main under GATHER within 2 cells of its target) and compared with 2,616 pros' GATHER-at-target rows (196 modern
+TvZ games of the v5 army dataset, built as train/commit.py builds them):
+- P(move): Gary 0.92 median (0.80 mean); the pros' rows 0.38 (0.41), the pros moved on 0.37 of them.
+- Each input group swapped between the two sets (mean P(move), Gary's rows with the pros' group / the pros' with
+  Gary's): every number group and every other map channel within 0.07 of the base. **Channel 8, the group: 0.80 to
+  0.46, and the pros' 0.41 to 0.73.**
+- Channel 8 in the data holds the cluster's whole supply in one cell: an order's at the selection's centre, a
+  commitment tick's at the cluster's densest cell (ingest/army_dataset.py). Every pros' row has it in exactly 1 cell.
+  Play put each unit's supply in its own cell: 4 cells median at Gary's gather points. A play-against-training
+  mismatch, in every build: tests/test_inputs.py reads the army's inputs with an empty group, so it never compared it.
+  §7's fix read the cluster's position as its densest cell; the channel itself stayed spread.
+- Gary's same 59 inputs with channel 8 in its densest cell: P(move) 0.56 median (0.54 mean).
+
+**The fix** (`ArmyTracker.inputs`, `densest`): the group's supply in one cell, the mean position's for an order
+question, the densest cell for a commitment question (army.py `_committed`, the intent layer's read). A model's input
+counted as its data counts it: it changes every build that uses the army or commit model (gt1, gz1, gp1 and the dev
+builds); the parity hashes are recorded again with it. tests/test_inputs.py passes (214 moments), every matchup plays.
+IB303a, the screen's baseline, ran without it, so the 48's baseline is replayed.
+
+**Option 1** (`army.py`, `Tactical.retarget`): at the intent's target, GATHER's move and ATTACK's engage draw their cell
+as any commit order does, and the drawn cell becomes the main's target (the intent and its clock unchanged);
+DEFEND_BASE keeps the clamp. tests/test_intent_pipe.py's criterion 1 now compares each order with the target in force
+when it was given.
+
+**The pipe check with both** (one game, KnockOut seed 4004, 7 moments): criterion 1 96% of 96 (pass); criterion 2 4 of
+7, all 7 army-active (the user accepted 4 of 7); criteria 3-5 pass; sieged tanks and keys clean. The unforced main
+under GATHER: keep / engage / move 31 / 1 / 14 (moves 30%; the screen's 62%, the pros' 30%), 0 hops at the target, 6
+re-targets. One game: a rate, not a measure.
+
+**The 48 (written before it runs).** IN304a (`gt1dev+intent`) against IB304a (`gt1dev`, replayed on the same code), both
+against gz1, the ladder maps, seeds 4004-4009 (8 maps x 6 = 48 games each), 30 minutes, `--gg 0`, paired by map and
+seed.
+- **Paired score.** 48 paired games resolve about 0.10-0.15 (90% interval +-0.07 to +-0.12: the screen's +-0.17 on 16
+  games, scaled; AGENTS.md's 0.06-0.14 for 96). A difference under 0.10 is not resolved; if the interval holds zero
+  and the point is within 0.10, the second 48 (`--first 4010`) runs, per AGENTS.md.
+- **Army share at attacks** (eval/alone.py): the screen's +0.149 [+0.081, +0.216] on 16; 48 resolve about +-0.04, so
+  the expected rise shows or doesn't.
+- **Ground fighters in no asked cluster** (13% to 9% on the screen): resolves a change of about 3 points.
+- **Gap per window** (eval/gap_windows.py): all windows about +-0.04 at 48; per window wider.
+- **Intent fidelity**: GATHER's commit moves per question against the pros' 30%, hops at the target, intent shares
+  and hold lengths against the pros' (§5), and Coach Q4 at three moments of four games.
+- Deaths alone are not judged here (the fight layer's, TODO).

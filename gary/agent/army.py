@@ -99,7 +99,7 @@ POST_CALM = 10 * 24                 # ...back on the post after this long withou
 RESCOUT_BY = 270 * 24               # a scout lost before 4:30 is replaced (once)
 
 
-HOLD_INTENT = 4                         # gary/policy/tactical.py INTENTS.index("HOLD")
+DEFEND_INTENT, ATTACK_INTENT, GATHER_INTENT, HOLD_INTENT = 0, 1, 3, 4   # gary/policy/tactical.py INTENTS
 
 
 def _tactical(g, memory=None):
@@ -618,7 +618,8 @@ class LearnedArmy:
             if ik == HOLD_INTENT:              # (HOLD is no commitment in force, as the pros' ticks label it: an old one
                 held, age = 0, COMMIT_AGE_S        # doesn't carry into the input; input parity, not a mask)
         grid, glob = self.tracker.inputs(obs, group, (held, age), current[2] if current is not None else -1,
-                                         intent=ik if ik is not None and ik >= 0 else None)
+                                         intent=ik if ik is not None and ik >= 0 else None,
+                                         center=self.tracker.densest(group) if group else None)
         where, kind = self.model.predict(grid, glob)
         q = kind[0].astype(np.float64)
         if self.engage_bias:                   # (between engage and move only: keep's odds, so the order rate, as they were)
@@ -687,7 +688,8 @@ class LearnedArmy:
             pf[keep_cells] = p[keep_cells]
             p = pf
         entry = self._commitment_entry(here, air) if self.hold_target and k == held and not by.startswith("forced") else None
-        if itarget is not None and not far[itarget]:   # (at the intent's target: the model's cell within 2 of it, as the
+        at_target = itarget is not None and not far[itarget]
+        if at_target and ik == DEFEND_INTENT:  # (DEFEND_BASE at its target: the model's cell within 2 of it, as the
             p = p * np.array([cell_dist(c, itarget) <= 2 for c in range(GRID * GRID)])   # labeller holds the intent;
             if p.sum() <= 0:                    # leaving it is the intent model's switch, not this order's)
                 LOG.decision(g.hi.side, "commit", hi.frame, names[k], q[k], options, self._seen, by,
@@ -702,6 +704,10 @@ class LearnedArmy:
             by = f"{by}, its destination held"
         else:
             best = int(self.rng.choice(len(p), p=p / p.sum())) if self.draw else int(p.argmax())
+        if at_target and (ik, k) in ((GATHER_INTENT, 2), (ATTACK_INTENT, 1)) and tac is not None:
+            tac.retarget(best)                  # (GATHER moving on, ATTACK engaging elsewhere: the same intent with a new
+            by = f"{by}, the intent's new target"   # target, as the labeller carries them; not clamped to 2 cells of the
+            # old one: 60% of the pros' moves at their gather point leave it, and the clamp made Gary's hops, §10-11)
         if self.unit_commits_on:
             own = self._commitment_entry(here, air)
             free = []
