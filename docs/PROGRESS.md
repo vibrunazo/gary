@@ -2308,6 +2308,16 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **TacticalIntent v0, the user's checks before the 48 (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §10).**
+  - "Nobody went" against more than 20 supply: 10 of IN303a's 15 were real, with losses at home after 9. A defence
+    followed within 2 minutes in 14, at 5–31 s in 12. The draw is now made again when home losses grow.
+  - ATTACK's 7-minute hold is the state, not a bug: the replay reproduced it, the hazard median 0.008 at the target in
+    contact, engages renewed.
+  - GATHER's hops: the commitment-input fix never fired. At a fixed state P(move) is 0.72–0.98 whatever the commitment
+    reads; the pros move on 36% of ticks at their gather point, and 60% of those moves leave its 2 cells.
+  - The labeller re-targets GATHER and ATTACK on a move, so §8's clamp is wrong for them (right for DEFEND_BASE). It
+    and the model's move odds in Gary's states make the hops.
+  - The 48 is held for the user's call on the clamp.
 - **TacticalIntent v0's 16-game screen (2026-11-26; IN303a against IB303a, 32 games; docs/TACTICAL_INTENT.md §9).**
   gt1dev+intent against gt1dev replayed on the same code, both against gz1, the ladder maps, seeds 4004-4005, gg 0,
   paired.

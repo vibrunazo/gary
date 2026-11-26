@@ -8,7 +8,8 @@ Every TICK seconds, on the army's main ground cluster's grid (the army tracker's
     the intent's side (enemy presence for ATTACK, the threatened home cells for DEFEND_BASE, nearer the main for
     RETREAT, anywhere else for GATHER, none for HOLD);
   - enemy fighters at home while the main intent is elsewhere: whether anyone goes is drawn from the model's odds
-    (the pros send nobody in a fifth to a third of such moments), once a threat and again if it doubles; if someone
+    (the pros send nobody in a fifth to a third of such moments), once a threat and again if it doubles or Gary's losses
+    at home grow (both model inputs); if someone
     does, the pros' median supply defending in that state (the model's sizer, given a defence): under half the main's
     supply, a detachment of the nearest ground fighters, attack-moved to the threat, ending after END_S with no enemy
     there (the pros' DEFEND_BASE hold, median 20 s), its units back to the main intent; half or more, the main itself
@@ -51,7 +52,7 @@ class Tactical:
         self.rng = random.Random(f"intent/{g.game_seed}/{g.hi.slot}")
         self.main: dict | None = None      # {"id", "kind", "since", "target", "rid", "ticks"}
         self.details: list[dict] = []      # DEFEND_BASE detachments: {"id", "cell", "point", "units", "size", "since", "quiet", "rid"}
-        self.declined: list[dict] = []     # threats nobody went to: {"cell", "threat", "quiet"}
+        self.declined: list[dict] = []     # threats nobody went to: {"cell", "threat", "loss", "quiet"}
         self.of: dict[int, str] = {}       # unit tag -> its intent's id
         self.queue: list[Intent] = []
         self.next = 0
@@ -263,17 +264,19 @@ class Tactical:
         cell = max(scene.threat, key=lambda c: float((scene.g[3] + scene.g[7]).reshape(GRID, GRID)[c]))
         if any(dist(cell, d["cell"]) <= 1 for d in self.details):
             return
-        old = next((d for d in self.declined if dist(cell, d["cell"]) <= 1), None)
-        if old is not None and scene.threat_sup < max(2 * old["threat"], old["threat"] + 2):
-            return                                          # (nobody went: decided once a threat, again if it doubles)
         sx = sizer_features(scene, now, n_ground)
+        old = next((d for d in self.declined if dist(cell, d["cell"]) <= 1), None)
+        grown = scene.threat_sup >= max(2 * old["threat"], old["threat"] + 2) if old is not None else True
+        if old is not None and not grown and sx["loss_home"] <= old["loss"]:
+            return                                          # (nobody went: decided once a threat, again if it doubles or
+                                                            # Gary loses more at home: a model input, so a new state)
         ps = self.model.p_send(sx)
         info = {"threat": round(scene.threat_sup, 1), "at": self._name(cell[0] * GRID + cell[1]), "army": len(army),
                 "p_send": round(ps, 3)}
         if self.rng.random() >= ps:                         # (the decoder: drawn, the game's seed and the side's)
             if old is not None:
                 self.declined.remove(old)
-            self.declined.append({"cell": cell, "threat": scene.threat_sup, "quiet": None})
+            self.declined.append({"cell": cell, "threat": scene.threat_sup, "loss": sx["loss_home"], "quiet": None})
             LOG.decision(g.hi.side, "intent", now, "DEFEND_BASE: nobody goes", 1 - ps, None, info,
                          f"model: P(anyone defends) {ps:.0%}, drawn", then=f"the {self.main['kind']} army carries on")
             return

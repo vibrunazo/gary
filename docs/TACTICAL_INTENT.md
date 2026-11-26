@@ -692,3 +692,56 @@ The labelled shares hardly moved: `RETREAT` stays at 1.4% (expected 3%), and lat
 repository). Each cites the intent in force, its target, the model's odds at the switch, the defence (detachment,
 the whole group, or nobody) and the commit decisions behind it. A bug the read found: when the main itself defended,
 Q4 also printed it as a detachment ("None supply"). It is fixed in `eval/coach.py`.
+
+## 10. Before the 48: the user's three checks (2026-11-26; 0 games)
+
+**"Nobody went" against more than 20 supply (IN303a's 15).**
+- The replays' commitment ticks separate Zerg in sight at the threat from Zerg only remembered (seen in 30 s):
+  - 10 of the 15 had 8 or more supply in sight, and 9 were followed by losses at home within a minute (up to 110 loss
+    units, Odyssey 21:12);
+  - about 3 were ghosts: nothing in sight and no losses.
+- The main army defended soon after:
+  - 14 of the 15 were followed by a defence within 2 minutes, at 5–31 s in 12 of them, 51 and 109 s in two;
+  - over all 64 "nobody" draws, a defence followed within 2 minutes in 55, median 21 s.
+- **The fix:** the draw is now made again when Gary's losses at home grow since it (`loss_home`, a model input), as
+  well as when the threat doubles. In the pipe check's game it did not fire (the same five draws as before).
+
+**ATTACK held 10:00 to past 15:00 (Attitude seed 4004).** Not a bug.
+- The game replayed with the same seed and code reproduced it exactly.
+- The layer decided every 5 s: 62 ticks, switch odds median 0.008, at most 0.24 (P of no switch in all of them 0.22).
+- The army sat at its target in contact, its engage commitment renewed every 17–83 s. The labeller would call each of
+  those ticks ATTACK too, so the model's hazard is right for the state. The state is self-fed: orders at the target
+  keep the commitment fresh, the shape GATHER's hops have.
+
+**GATHER's hops: item 1 as specified does not fix them, and the cause is elsewhere.**
+- **As specified** (the commitment input read as a move to the target on entering GATHER): it never fired. At the
+  gather point the commitment was already a move near the target. The replayed KnockOut seed 4005 matched the round's
+  records exactly: 69 moves, 43 of them hops.
+- **Two variants, tried and reverted:**
+  - the move aged from the intent's start;
+  - the same shared with the intent model, gone after 120 s, with the GATHER target 2+ cells away.
+
+  They gave 18 of 50 and 40 of 94 hops on games that part after their first changed decision: game path, not effect.
+- **At a fixed state** (59 questions of the main at its GATHER target, the same grid with the commitment input
+  varied), P(move):
+
+| Commitment input | none | engage 5 s | move 5 s | move 30 s | move 60 s | move 120 s |
+|---|---|---|---|---|---|---|
+| P(move), median | 0.88 | 0.98 | 0.92 | 0.84 | 0.76 | 0.72 |
+
+  No commitment input brings it near the pros'. The real one at those questions was a move, 5 s median: Gary's own last
+  hop.
+- **The pros at their gather point** (3,904 GATHER ticks within 2 cells of the destination, 300 games):
+  - a new move order on 36% of ticks (41% away from it);
+  - that move goes a median 3 cells from the cluster;
+  - 60% of those moves leave the old destination's 2 cells.
+- **The labeller:** a move from a GATHER cluster to any cell that isn't a threat or a retreat is GATHER with a new
+  destination. In the data, GATHER re-targets as it goes.
+- **So two things make the hops:**
+  - **The §8 clamp.** It is wrong for GATHER and ATTACK, whose moves the labeller keeps in the same intent with a new
+    destination, and right only for DEFEND_BASE. It squeezes every drawn move into a 2-cell hop; 60% of the pros' leave.
+  - **The commit model's move odds in Gary's states.** 0.72–0.98 at the gather point, where the pros move on 36% of
+    ticks, and the same model scores the pros' own GATHER ticks at 0.32 (§7). The high odds come from Gary's states,
+    not the commitment input. Which inputs drive them is open.
+
+**The 48 is not launched:** item 1 is not clean, and the clamp is the user's call.

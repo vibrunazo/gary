@@ -245,8 +245,17 @@ def _unforced(out) -> None:
         spans[a["choice"]] += b["f"] - a["f"]
         holds[a["choice"]].append((b["f"] - a["f"]) / 24)
     tot = sum(spans.values()) or 1
+    com = [r for r in LOG.records if r.get("kind") == "decision" and r.get("layer") == "commit" and r.get("side") == "T"]
+    by_intent = {}
+    for k, name in enumerate(INTENTS):
+        c = Counter(str(r.get("choice", "")).split(" ")[0] for r in com if (r.get("in") or {}).get("intent") == k)
+        if c:
+            by_intent[name] = [c["keep"], c["engage"], c["move"]]
+    shuffles = sum(1 for r in com if (r.get("in") or {}).get("intent") == INTENTS.index("GATHER")
+                   and "near the intent's target" in str(r.get("by")) and r.get("then") == "sent")
     out["unforced"] = {"shares": {k: round(spans[k] / tot, 3) for k in INTENTS},
                        "hold_median_s": {k: round(float(np.median(v)), 1) for k, v in holds.items() if v},
+                       "commit_keep_engage_move": by_intent, "gather_moves_at_target": shuffles,
                        "switches_a_minute": round(len(main) / max(1e-9, (UNTIL - (main[0]["f"] if main else 0)) / 1440), 2),
                        "detachments": [(r["f"] // 1440, (r.get("in") or {}).get("units"), (r.get("in") or {}).get("supply"),
                                         (r.get("in") or {}).get("threat"), (r.get("in") or {}).get("army")) for r in dets],
