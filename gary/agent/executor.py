@@ -24,6 +24,7 @@ from gary.agent.macro import TOWN_HALLS, WAIT
 from gary.decision_log import LOG
 from gary.interface import screen_of
 from gary.mapinfo import Base
+from gary.policy.macro import GAS_INSIDE
 
 SELECT_TRIES = 6                      # clicks on a building that select nothing before it's left alone...
 UNSELECTABLE_FOR = 60 * 24            # ...for this long (live, one took 1,335 clicks and froze production)
@@ -161,6 +162,7 @@ class Executor:
         self.sent_home = {}                           # worker tag -> the frame a builder was walked home by the minimap
         self.looked_due = {}                          # worker tag -> the frame the sweep last looked at it as due
         self.next_gas_pull = 0
+        self.gas_seen: dict[int, int] = {}            # worker on gas tag -> the frame it was last in sight (on_gas)
         self.next_rearm = 0
         self._terrain_cache = None                    # see terrain()
         self._ramp = None                             # rerally: (spot inside the main's ramp, its bottom), or False
@@ -808,19 +810,38 @@ class Executor:
             return
         hi.box(max(0, x - 4), max(0, y - 4), min(hi.p.viewport[0] - 1, x + 4), min(hi.p.viewport[1] - 1, y + 4))
 
+    def look_gas(self, obs: dict) -> None:
+        """Every turn (gary/agent/arbiter.py), whoever has the hands: when each worker Gary counts on gas was last in
+        sight (on_gas: out of sight longer than GAS_INSIDE, it is gone, not inside its refinery)."""
+        f = self.g.hi.frame
+        on = set().union(*self.g.gas_workers.values()) if self.g.gas_workers else set()
+        for u in obs["units"]:
+            if u["owner"] == self.g.slot and u["tag"] in on:
+                self.gas_seen[u["tag"]] = f
+
     def on_gas(self, obs: dict, refinery: int) -> int:
         """Workers on this refinery: the ones Gary sent that are still on gas (on a gas order, just
-        out of the refinery, or out of sight: a worker inside a refinery isn't visible), and any
-        worker seen heading into it or building it (the SCV that built it starts on gas by itself)."""
+        out of the refinery, or out of sight a moment: a worker inside a refinery isn't visible), and any
+        worker seen heading into it or building it (the SCV that built it starts on gas by itself).
+        Out of sight longer than GAS_INSIDE, it is gone, not inside: a dead one stayed counted for good, and
+        with its five dead the live game of 2026-11-26 kept 0 SCVs on gas from 14:01 to the end, the target 3
+        (docs/PROGRESS.md)."""
         g = self.g
+        f = g.hi.frame
         seen = {u["tag"]: u for u in obs["units"] if u["owner"] == g.slot}
+        for t in seen:
+            if t in self.gas_seen:
+                self.gas_seen[t] = f
 
         def on_it(u):
             return u["order"] in O.GAS_ORDERS or u["order"] == CONSTRUCTING and u.get("order_target") == refinery
         alive = {w for w in g.gas_workers.get(refinery, set())
-                 if w not in seen or on_it(seen[w]) or seen[w]["order"] == RESET_HARVEST}
+                 if (w not in seen and f - self.gas_seen.get(w, f) <= GAS_INSIDE) or w in seen and
+                 (on_it(seen[w]) or seen[w]["order"] == RESET_HARVEST)}
         alive |= {t for t, u in seen.items() if u["type"] == g.race.worker and on_it(u)
                   and u.get("order_target") == refinery}
+        for w in alive:
+            self.gas_seen.setdefault(w, f)
         g.gas_workers[refinery] = alive
         return len(alive)
 

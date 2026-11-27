@@ -73,12 +73,16 @@ def _row(d, i: int, k: int):
 
 def label_player(d, i: int, rows: bool = False):
     """The main cluster's ticks: intent, the numbers, the tick's label, the commitment and its target (v6); with rows,
-    every tick row's intent too (-1: a flyers' cluster)."""
+    every tick row's intent too (-1: a flyers' cluster), and its age in ticks (-1: none): the main's as the labeller
+    counts `held` (0 on the tick its intent began), another cluster's continued from the tick before's row of the same
+    intent within 2 cells (the data keeps no cluster's identity; play counts it from the intent's `since`)."""
     keys = set(d.files)
     n = len(d[f"p{i}_tick_frame"])
     per_row = np.full(n, -1, np.int8)
+    per_age = np.full(n, -1, np.int16)
     air = d[f"p{i}_tick_air"] if f"p{i}_tick_air" in keys else np.zeros(n)
     out, dest, prev, held = [], None, None, 0
+    last: tuple[int, list] = (-10**9, [])                  # (frame, [(center, intent, age)]) of the tick before
     for f, ks, main in _frames(d, i):
         if main is None:
             continue
@@ -86,10 +90,17 @@ def label_player(d, i: int, rows: bool = False):
         intent, dest = label(scene, lab, tgt, com, dest)
         if rows:
             per_row[main] = INTENTS.index(intent)
+            per_age[main] = held if intent == prev else 0
+            here = [(scene.center, per_row[main], int(per_age[main]))]
+            before = last[1] if f - last[0] <= TICK * 24 + 2 else []
             for k in ks:
                 if k != main and not air[k]:
                     s2, l2, t2, c2, _ = _row(d, i, k)
                     per_row[k] = INTENTS.index(label(s2, l2, t2, c2, None)[0])
+                    same = [a for c, it, a in before if it == per_row[k] and dist(c, s2.center) <= 2]
+                    per_age[k] = max(same) + 1 if same else 0
+                    here.append((s2.center, per_row[k], int(per_age[k])))
+            last = (f, here)
         x = features(scene, d[f"p{i}_tick_eco"][main], f, com, age, dest[0] if dest else None,
                      sum(1 for k in ks if not air[k]), prev, held)
         ct = int(d[f"p{i}_tick_ctarget"][main]) if f"p{i}_tick_ctarget" in keys else None
@@ -98,7 +109,7 @@ def label_player(d, i: int, rows: bool = False):
                     "sizer": _defence(d, i, ks, scene, f) if scene.threat else None})
         held = held + 1 if intent == prev else 1
         prev = intent
-    return (out, per_row) if rows else out
+    return (out, per_row, per_age) if rows else out
 
 
 def _defence(d, i: int, ks: list[int], scene: Scene, f: int) -> dict:
@@ -120,6 +131,12 @@ def _defence(d, i: int, ks: list[int], scene: Scene, f: int) -> dict:
 def cluster_intents(path, i: int) -> np.ndarray:
     """Every tick row's intent (INTENTS index; -1 for a flyers' cluster), cached beside nothing: cheap enough to redo."""
     return label_player(np.load(path), i, rows=True)[1]
+
+
+def cluster_intent_ages(path, i: int) -> tuple[np.ndarray, np.ndarray]:
+    """Every tick row's intent and its age in ticks (-1 none): the commit model's inputs with --intent-age."""
+    _, intents, ages = label_player(np.load(path), i, rows=True)
+    return intents, ages
 
 
 def main_intents(path, i: int) -> tuple[np.ndarray, np.ndarray]:

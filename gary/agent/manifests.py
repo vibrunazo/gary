@@ -704,6 +704,7 @@ OPTIONS = {
     # rule and the control groups routed by it; intentroles: the role model with the intent too (runs/roles_intent)
     "intent": lambda m: _intent(m),
     "intentroles": lambda m: _intent_roles(m),
+    "intentage": lambda m: _intent_age(m),
     # army_rules.py ClusterRules (Gary-Z's, shared): join, a cluster under the main one's size walks to it rather than
     # deciding alone (Gary-T's attacks: 0.26 late arrivals per fighter there, the pros' 0.06, eval/attacks.py); sweep,
     # the main body attacks a packet it outweighs; press, far ahead and nothing at home, it attacks the buildings
@@ -1281,6 +1282,17 @@ def _intent(m: dict) -> None:
     if isinstance(old, dict) and old.get("TvZ") == INTENT_COMMIT:     # (already on: gt1dev has it since gt0.55dev)
         return
     m["army"]["model"] = {"TvZ": INTENT_COMMIT, "*": old}
+
+
+INTENT_AGE_COMMIT = "runs/commit_intent/TvZ_T_intentage/model.pt"   # (--intent --intent-age --init INTENT_COMMIT, 2 epochs)
+
+
+def _intent_age(m: dict) -> None:
+    """Option intentage (with intent): the commit model with the intent's age as an input too (ArmySpec.intent_age: its
+    first tick apart from its standing ones, as the labeller counts them; docs/TACTICAL_INTENT.md §16)."""
+    _intent(m)
+    old = m["army"]["model"]
+    m["army"]["model"] = {**old, "TvZ": INTENT_AGE_COMMIT}
 
 
 def _intent_roles(m: dict) -> None:

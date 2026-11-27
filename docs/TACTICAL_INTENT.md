@@ -1068,3 +1068,150 @@ That is consistent with GATHER's excess (33-38% against 29%), but it is not meas
 - The losses redraw fires.
 - Not judged here: whether the pros would have sent someone in these states. The model's P(send) was a median 0.64,
   and the 91 are its 1 - P(send) draws.
+
+## 16. Input parity: the intent's age and the commitment in contact (2026-11-26; 0 games)
+
+The two input-parity steps §15 proposed, approved by the user with 0 games: each step is checked offline, then the
+16-game screen is written down (below), not run.
+
+### Step 1: the intent's age as a commit-model input
+
+**The input** (`ArmySpec.intent_age`, `gary/policy/army.py` `intent_age_inputs`): two numbers after the intent's
+one-hot. The first is 1 on the intent's first tick. The second is its ticks x 5 s / 120 s, capped at 1.
+- **The pros' rows:** the main cluster's age is counted as the labeller counts `held`: 0 on the tick its intent
+  began. The data keeps no cluster's identity, so another cluster's age carries on from the tick before's row of the
+  same intent within 2 cells (`train/tactical_intent.py` `cluster_intent_ages`).
+- **In play:** the age is counted from the intent's `since` (`Tactical.intent_age_s`), as ticks of 5 s. Questions
+  0-5 s after a switch are its first tick.
+- **The model:** `runs/commit_intent/TvZ_T_intentage` is `TvZ_T_intent` fine-tuned 2 more epochs on the modern games
+  with the age (`train/commit.py --intent --intent-age --init`; its new weights start at zero). Its control,
+  `TvZ_T_intent_more`, has the same 2 epochs without the age.
+- **The option:** `intentage` (with `intent`) plays it. It is not in any build.
+
+**Held out** (47,875 ticks): order against keep AUC 0.806 (deployed), 0.817 (control), 0.845 (age). The
+destination's top 5: 0.378, 0.391, 0.388.
+
+| Held out, P(act) | Pros | Deployed | Control | Age |
+|---|---|---|---|---|
+| ATTACK, first tick (3,791) | 0.637 | 0.363 | 0.397 | **0.592** |
+| ATTACK, standing (13,892) | 0.230 | 0.262 | 0.264 | **0.229** |
+| GATHER, first tick (3,846) | 0.573 | 0.389 | 0.358 | **0.568** |
+| GATHER, standing (11,309) | 0.208 | 0.300 | 0.258 | **0.224** |
+| DEFEND_BASE, first tick (2,347) | 0.333 | 0.182 | 0.188 | **0.321** |
+| DEFEND_BASE, standing (8,538) | 0.142 | 0.151 | 0.153 | **0.138** |
+| RETREAT, first tick (639) | 0.892 | 0.667 | 0.680 | **0.827** |
+| RETREAT, standing (418) | 0.289 | 0.571 | 0.587 | 0.450 |
+| HOLD (both) | 0.000 | 0.010 | 0.003 | 0.002-0.003 |
+
+**No tick-0 degeneracy.** The labeller reads a pros' intent from the tick's order, so the first tick is partly the
+label's. Three checks show the model did not learn a shortcut:
+- **The pros' first ticks are not all orders.** 36% of ATTACK's and 43% of GATHER's keep. Those are switches made by
+  the commitment's kind, or by a threat. The model's first-tick P(act) matches the pros' share; it is not near 1.
+- **The kind on the orders:** the argmax kind on the first tick's orders, ATTACK 0.45 to 0.83 and GATHER 0.52 to 0.82.
+  On standing orders it fell (0.30 to 0.27, 0.37 to 0.25), and the standing P(act) went to the pros'. The age
+  separates the two kinds of ticks; it does not give away the order.
+- **The destination does not move with the age.** On the first tick's orders the cell is top 1 / top 5: ATTACK
+  0.142 / 0.409 (control 0.142 / 0.413), GATHER 0.073 / 0.213 (0.073 / 0.219). It stays below the standing ticks
+  (ATTACK 0.156 / 0.464). The age tells the model when, not where.
+
+**IN304a+b's 13,679 saved main questions** re-queried with the age from the records (seconds since the main's
+switch; every question's intent matches its record):
+
+| Gary's questions, P(act) first tick / standing | Deployed | Control | Age |
+|---|---|---|---|
+| ATTACK (3,829; 752 first) | 0.243 / 0.154 | 0.282 / 0.168 | **0.480** / 0.122 |
+| GATHER (6,347; 1,090) | 0.382 / 0.336 | 0.384 / 0.293 | **0.607** / 0.258 |
+| DEFEND_BASE (2,227; 467) | 0.094 / 0.081 | 0.098 / 0.079 | **0.210** / 0.069 |
+| RETREAT (182; 92) | 0.454 / 0.398 | 0.460 / 0.405 | **0.642** / 0.285 |
+
+- **Per spell, as a draw** (1 - the product of keep over a spell's questions; spells never asked send none): ATTACK
+  sends none in 85% (deployed), 84% (control) and 81% (age) of 2,179 spells. GATHER: 71%, 71%, 68%.
+- **Why so little:** 64% of ATTACK's spells and 58% of GATHER's are never asked (§15: the main is in a fight). The age
+  helps only spells where the main is asked; step 2 is about the rest.
+- This is a static read: an order on the first tick changes the states after it.
+
+**tests/test_intent_pipe.py** (one game, 7 moments; the code with the gas fix below):
+
+| | gt1dev | gt1dev+intentage |
+|---|---|---|
+| Criterion 1 | 94% of 69 (pass) | 100% of 55 (pass) |
+| Criterion 2 | 3 of 5 army-active moments (fail; 3 of 6 moments) | **4 of 5 (pass; 4 of 7 moments)** |
+| The main after a forced ATTACK (keep / engage / move) | 8 / 4 / 0 | 6 / 7 / 0 |
+
+Criteria 3-5 pass on both. One game: the arms diverge after the first different order, so the moments differ.
+
+### Step 2: the commitment in contact, as the data counts it
+
+**How the pros' data counts it** (`ingest/army_dataset.py`):
+- **The orders:** every order to army units in the replay's commands counts: move, attack-move, attack or patrol,
+  with at least 4 supply of fighters selected (the resim's `army` lines). Whose hand gave it is not recorded, so a
+  micro order counts as much as a macro one.
+- **What makes one a commitment:** an order that sends its selection 2 or more cells. Engage if its target is within
+  a cell of known enemy presence, move otherwise.
+- **A cluster's commitment:** the last such order within 120 s whose path, from the selection's centre to the target,
+  passes within 2 cells of the cluster.
+- **So a fight keeps its commitment:** the pros' orders in contact renew it whenever they move a group 2+ cells
+  (chasing, pulling back), and shorter ones leave the order that brought the cluster there standing.
+
+**In play** (`army.py`): only the commit model's sent orders are commitments (`self.commitments`). The role model's
+orders, `roles` and `roles:queued`, and the intent layer's, calm's and the rules' are not, even when they send 4+
+supply 2+ cells.
+
+**Measured on IN304a+b's own replays.** `ingest/army_dataset.py` was run on Gary's games
+(`data/interim/army_gary/v6`): the main's commitment at each intent switch, as play counted it (rebuilt from the
+records as in §15) against as the data counts it.
+
+| The intent that ended | Switches | No commitment, play's count | No commitment, the data's count | The pros' (§15) |
+|---|---|---|---|---|
+| ATTACK | 2,151 | 67% | **24%** | 2% |
+| GATHER | 2,328 | 59% | **23%** | 2% |
+| DEFEND_BASE | 1,576 | 63% | **21%** | 14% |
+| RETREAT | 208 | 27% | **8%** | 1% |
+
+The hazard's switches alone: ATTACK 69% to 24%, GATHER 61% to 23%.
+
+Where play had none and the data a commitment, the order that made it (order records within 6 frames of its time):
+- ATTACK's 933: the intent layer's own orders 27%, the role model's 39% (`roles:queued` 24%, `roles` 8%, both 7%),
+  calm 16%, `rule:load` 13%.
+- GATHER's 869: the intent layer 28%, the role model 40%, calm 15%, `rule:load` 13%.
+- A load into a bunker is not one of the data's order kinds, so `rule:load` is most likely another order in the
+  same frames. Read this split as approximate.
+
+**The play-side fix (proposed, not built).** Count Gary's own army orders as the data counts them, whoever gives
+them.
+- **Where:** one hook where every command is sent with the selection (`gary/interface.py`, where each sent order is
+  recorded). It is play's twin of the resim's `print_army_command`.
+- **What it does:** for a move, attack-move, attack or patrol whose selection holds 4+ supply of fighters (2+ of
+  flyers for an air cluster) and is sent 2+ cells from its centre, append (frame, from cell, to cell, engage/move,
+  air) to the army's commitments. Engage when the target is within a cell of known enemy presence (the tracker's
+  grid, as `engaging()`). The commit model's own orders already append theirs.
+- **What it is not:** it is input parity, not a rule. No order changes; the commit model's and the intent model's
+  commitment inputs are counted as their data counts them.
+- **Its effect:** it changes every build whose commit or intent model reads the commitment (gt1, gz1, gp1 and the dev
+  builds), so parity is recorded again, and tests/test_inputs.py should compare the commitment at commit questions.
+- **Expected:** the main's "none" at the switch from 67% to about 24% (ATTACK), 59% to 23% (GATHER), per the table.
+  The remaining gap to the pros' 2% is the clusters' and cells' matching (records' cells against the data's densest
+  cell) and Gary's own order pattern.
+
+### The 16-game screen (written before it runs; not launched)
+
+**What runs:** `gt1dev+intentage` with the commitment fix (one new option, `incontact`, or folded into the arm) against
+`gt1dev` on the same code. Both play gz1 on the 8 ladder maps, seeds 4004-4005 (16 paired games), 30 minutes,
+`--gg 0`, paired by map and seed. The baseline is replayed on this code.
+
+**What it judges, on measures expected to move severalfold** (16 games resolve those, not the score):
+
+| Measure | Now (IN304a+b, gt1dev's arm) | The pros' | Expected | Read as moved if |
+|---|---|---|---|---|
+| The main has no commitment when the hazard fires (ATTACK / GATHER) | 67% / 59% | 2% / 2% | about 24% / 23% (step 2) | under 40% |
+| ATTACK spells that send the main no commit order | 86% | ATTACK's first tick acts 64% | under 70% | under 75% |
+| Hold medians, ATTACK / GATHER | 10-11 s | 15-20 s | 14 s or more | a third longer |
+| P(act) at the first question after a switch (ATTACK) | 0.25 | 0.64 (held out) | 0.45-0.60 | over 0.40 |
+
+**Watched, not judged at 16:**
+- The paired score by supply. 16 games resolve about +-0.17 (the §9 screen's): only a loss beyond it stops the arm.
+- The army's share at attacks (0.34, the pros' 0.45: needs 48 games).
+- GATHER's labelled share (33-38%, the pros' 29%).
+- Deaths alone.
+
+**Next if it moves:** a 48 against the same baseline (MDE about 0.10-0.15 by supply), per AGENTS.md.

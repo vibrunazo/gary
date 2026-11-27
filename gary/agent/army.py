@@ -612,14 +612,15 @@ class LearnedArmy:
                 self.locked = None
         current = self._commitment_entry(here, air)
         tac = getattr(g, "tactical", None)          # (option intent: the cluster's intent an input, its target the destination)
-        ik, itarget = None, None
+        ik, itarget, iage = None, None, None
         if tac is not None and not air:            # (a detachment's units take the intent layer's orders: the rest here)
+            iage = tac.intent_age_s(group)         # (before the group narrows to the intent's own units)
             ik, itarget, group = tac.cluster_intent(group)
             if ik == HOLD_INTENT:              # (HOLD is no commitment in force, as the pros' ticks label it: an old one
                 held, age = 0, COMMIT_AGE_S        # doesn't carry into the input; input parity, not a mask)
         grid, glob = self.tracker.inputs(obs, group, (held, age), current[2] if current is not None else -1,
                                          intent=ik if ik is not None and ik >= 0 else None,
-                                         center=self.tracker.densest(group) if group else None)
+                                         center=self.tracker.densest(group) if group else None, intent_age_s=iage)
         where, kind = self.model.predict(grid, glob)
         q = kind[0].astype(np.float64)
         if self.engage_bias:                   # (between engage and move only: keep's odds, so the order rate, as they were)
@@ -649,7 +650,7 @@ class LearnedArmy:
         self._seen = {"units": len(group), "at": self._cell_name(here),
                       "commitment": f"{names[held] if held else 'none'}, {age:.0f} s"} | ({"air": True} if air else {})
         if tac is not None and not air:            # (option intent: the intent the question read, and whose units)
-            self._seen |= {"intent": ik, "of": "main" if tac.main and all(
+            self._seen |= {"intent": ik, "intent_age": None if iage is None else round(iage, 1), "of": "main" if tac.main and all(
                 tac.of.get(u["tag"], tac.main["id"]) == tac.main["id"] for u in group) else "detachment"}
         options = [[n, round(float(q[i]), 3)] for i, n in enumerate(names)]
         why = explain_army(self.model, grid, glob, lambda w, kd: kd[:, k])

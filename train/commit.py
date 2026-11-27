@@ -119,18 +119,21 @@ def load_player(args: tuple) -> tuple:
         one[np.nonzero(ct >= 0)[0], 0, ct[ct >= 0]] = 1
         grid = np.concatenate([grid, one], 1)
     commit = d[f"p{i}_tick_commit"][idx]
+    ages = np.full(len(idx), -1, np.int64)
     if spec.intent:                                     # (the cluster's intent, labelled from the ticks: train/tactical_intent.py)
-        from train.tactical_intent import cluster_intents
-        intents = cluster_intents(path, i)[idx].astype(np.int64)
+        from train.tactical_intent import cluster_intent_ages
+        intents, all_ages = cluster_intent_ages(path, i)
+        intents, ages = intents[idx].astype(np.int64), all_ages[idx].astype(np.int64)
     else:
         intents = np.full(len(idx), -1, np.int64)
     glob = encode_global(spec, frames.astype(np.float32), d[f"p{i}_tick_eco"][idx].astype(np.float32),
                          grid[:, 8].sum(1).astype(np.float32), d[f"p{i}_tick_units"][idx].astype(np.float32),
                          d[f"p{i}_tick_seen"][idx].astype(np.float32), seen_mem, own_sup[t], seen_mem @ ARMY_SUPPLY,
                          commit_inputs(commit, d[f"p{i}_tick_age"][idx]), others[idx] if others is not None else None,
-                         d[f"p{i}_tick_air"][idx].astype(np.float32) if spec.air else None, intent=intents)
+                         d[f"p{i}_tick_air"][idx].astype(np.float32) if spec.air else None, intent=intents,
+                         intent_age=ages)
     return (grid, glob.astype(np.float16), d[f"p{i}_tick_label"][idx].astype(np.int64),
-            d[f"p{i}_tick_target"][idx].astype(np.int64), commit.astype(np.int64), frames, intents)
+            d[f"p{i}_tick_target"][idx].astype(np.int64), commit.astype(np.int64), frames, intents, ages)
 
 
 def load(js: list, spec: ArmySpec, workers: int, max_ticks: int = MAX_TICKS) -> dict:
@@ -139,7 +142,7 @@ def load(js: list, spec: ArmySpec, workers: int, max_ticks: int = MAX_TICKS) -> 
         results = pool.map(load_player, [(j, spec.to_dict(), max_ticks) for j in js], chunksize=16)
         for job, res in zip(js, monitor.track(results, len(js), "player-games loaded")):
             parts[job[2]].append(res)
-    return {("test" if held else "train"): tuple(np.concatenate([r[k] for r in rs]) for k in range(7))
+    return {("test" if held else "train"): tuple(np.concatenate([r[k] for r in rs]) for k in range(8))
             for held, rs in parts.items()}
 
 
@@ -194,6 +197,9 @@ def main() -> None:
     ap.add_argument("--intent", action="store_true",
                     help="the cluster's tactical intent as numbers (ArmySpec.intent; labelled by train/tactical_intent.py); "
                          "with --init, the model's numbers widened from zero")
+    ap.add_argument("--intent-age", action="store_true",
+                    help="with --intent, the intent's age as numbers too (ArmySpec.intent_age: 1 on its first tick, and its "
+                         "ticks; the pros' as the labeller counts held); with --init, widened from zero")
     ap.add_argument("--max-ticks", type=int, default=MAX_TICKS,
                     help="samples per player-game (all of army dataset v5's 16,549 TvZ games fit at 60)")
     ap.add_argument("--rule-labels", nargs="+", default=[],
@@ -215,7 +221,7 @@ def main() -> None:
     base = ArmyModel.load(start)
     spec = ArmySpec(base.spec.race, base.spec.own_types, base.spec.seen_types, commit=True, losses=True, others=args.others,
                     static=args.static, known=args.known, unseen=args.unseen, air=args.air,
-                    ctarget=args.ctarget, intent=args.intent)
+                    ctarget=args.ctarget, intent=args.intent or args.intent_age, intent_age=args.intent_age)
     if args.eval:
         evaluated = ArmyModel.load(args.eval)
         spec = evaluated.spec
@@ -225,6 +231,10 @@ def main() -> None:
         if args.intent and not spec.intent:
             from dataclasses import replace
             spec = replace(spec, intent=True)
+            initial.net = widen_glob(initial.net, spec)
+        if args.intent_age and not spec.intent_age:    # (after the intent's numbers: widened from zero, it starts as it was)
+            from dataclasses import replace
+            spec = replace(spec, intent=True, intent_age=True)
             initial.net = widen_glob(initial.net, spec)
     t0 = time.time()
     keep = GameFilter.from_args(args)
@@ -237,8 +247,8 @@ def main() -> None:
         rule = rule_samples(args.rule_labels, spec, args.workers, args.rule_undefended)
         print(f"rule labels: train {len(rule['train'][2]):,} (x{args.rule_weight}), test {len(rule['test'][2]):,}", flush=True)
         data["train"] = tuple(np.concatenate([a] + [b] * args.rule_weight) for a, b in zip(data["train"], rule["train"]))
-    grid, glob, label, target, commit, _, _ = data["train"]
-    tg, tglob, tl, tt, tc, tf, ti = data["test"]
+    grid, glob, label, target, commit = data["train"][:5]
+    tg, tglob, tl, tt, tc, tf, ti, ta = data["test"]
     print(f"{len(js)} player-games; ticks train {len(label):,} (keep/engage/move {np.bincount(label, minlength=3)}), "
           f"test {len(tl):,} ({time.time() - t0:.0f} s)", flush=True)
     net = (evaluated.net if args.eval else initial.net if args.init else widen(base, spec)).to(device)
@@ -279,6 +289,23 @@ def main() -> None:
                                        "pros": [round(float((tl[ti == k] == c).mean()), 3) for c in (KEEP, ENGAGE, MOVE)],
                                        "model": [round(float(p[ti == k, c].mean()), 3) for c in (KEEP, ENGAGE, MOVE)]}
                                 for k, name in enumerate(INTENTS) if (ti == k).any()}
+            # the intent's first tick against its standing ones (the labeller's switch is an order, so the input is
+            # read off the label there: the checks of tick-0 degeneracy are the kind's and destination's accuracy apart)
+            top1 = w5[:, 0] == tt
+            top5 = (w5 == tt[:, None]).any(1)
+            out["by_intent_age"] = {}
+            for k, name in enumerate(INTENTS):
+                for part, m in (("first tick", (ti == k) & (ta == 0)), ("standing", (ti == k) & (ta > 0))):
+                    if m.sum() < 20:
+                        continue
+                    om = m & o
+                    out["by_intent_age"][f"{name}, {part}"] = {
+                        "n": int(m.sum()), "pros_act": round(float(order[m].mean()), 3),
+                        "model_act": round(float(1 - p[m, KEEP].mean()), 3),
+                        "kind_acc": round(float((p[m].argmax(1) == tl[m]).mean()), 3),
+                        "kind_acc_on_orders": round(float((p[om].argmax(1) == tl[om]).mean()), 3) if om.any() else None,
+                        "where_top1": round(float(top1[om].mean()), 3) if om.any() else None,
+                        "where_top5": round(float(top5[om].mean()), 3) if om.any() else None}
         if spec.air:                                         # (the flyers' clusters alone: v6)
             a = tglob[:, -1] > 0.5
             if a.any() and order[a].any() and not order[a].all():

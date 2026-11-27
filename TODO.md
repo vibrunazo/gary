@@ -75,6 +75,13 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   first checked), and the Zerg's placement inputs (workers, minute, bases held). Find when it began and fix or list it
   with its issue. Related: turret decisions come in bursts (a third within 2 s of the one before, G4299a), not through
   `queued_builds` (docs/PROGRESS.md, gt0.54dev).
+- [#69](https://github.com/vibrunazo/gary/issues/69) **A gas unit's goal waits its full 30 s while no gas can come
+  (open, proposed):** in the live game of 2026-11-26, Goliaths and a Siege Tank were held 7 x 30 s at 36 gas with no
+  worker on gas, stopping production for 3.5 minutes. The cause before it, dead workers counted on gas, is fixed
+  (docs/PROGRESS.md). The decoder change (`plan()`: no gas coming, can't now) waits for approval.
+- [#68](https://github.com/vibrunazo/gary/issues/68) **`rax_by` rebuilds the first producer at any time (open):** it
+  fired at 14:12 of the same game after the only Barracks died. It needs an opening horizon, or retirement as the card
+  macro owns the opening (docs/REFOCUS.md, one rule at a time).
 - **Phase 2 (open, started 2026-11-26; docs/REFOCUS.md §4.3):** TacticalIntent v0 is built as option `intent`,
   pipe-checked and amended by the user's calls (docs/TACTICAL_INTENT.md §8: HOLD's clear folded in, the defence a
   hurdle with the main defending at half the army). The 16-game screen is done (§9): the army's share at attacks
@@ -89,6 +96,18 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   intent from a standing one, and the hazard reads the missing commitment (none when it fires 67%, the pros' 2%; x3.9).
   Proposed, 0 games first: the intent's age as a commit input, and the commitment in contact as the data counts it;
   then a 16-game screen. The 91 nobody-went draws are mostly covered (4 of 91 uncontested over 60 s).
+  Both steps checked in 0 games (§16):
+  - The age input (option `intentage`) brings the held-out P(act) on an intent's first tick to the pros': ATTACK 0.59
+    against their 0.64. Its standing ticks go to theirs too (0.23). There is no tick-0 shortcut, and the destination
+    is unchanged.
+  - Re-queried on IN304's questions, ATTACK's first question acts 0.48 (it was 0.24). The spells sending none fall only
+    85% to 81%, because most are never asked.
+  - The pipe check's criterion 2 passes on one game (4 of 5 army-active moments; gt1dev 3 of 5).
+  - The commitment as the data counts it (every army order of 4+ supply sent 2+ cells, whoever gives it) would cut
+    the main's "none" at the switch from 67% to 24% (ATTACK) and 59% to 23% (GATHER), measured on Gary's own replays
+    through ingest/army_dataset.py.
+  - The play-side fix is designed (an interface hook), not built. The 16-game screen is written down, waiting for
+    approval.
   A fight-layer follow-up, apart from intent: deaths alone in contact (88% under the role model). Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Plus the early G4
   check (the same card under the pro and a lower HumanProfile).
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept

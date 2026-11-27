@@ -80,6 +80,8 @@ class FixedPriority:
         tracker = getattr(self.g.macro, "tracker", None)
         if tracker is not None and tracker.look_every and self.g.hi.frame - tracker.last_look >= tracker.look_every:
             tracker.look(self.g.hi.observe())    # (option seenall: the macro model's view between its queries)
+        if not self.g.hi.pending and hasattr(self.g.executor, "look_gas"):
+            self.g.executor.look_gas(self.g.hi.observe())   # (its workers on gas last in sight, hands or not)
         tac = getattr(self.g, "tactical", None)  # (option intent: the army's intent decided on its clock, hands or not)
         if tac is not None and not self.g.hi.pending:
             tac.look(self.g.hi.observe())
