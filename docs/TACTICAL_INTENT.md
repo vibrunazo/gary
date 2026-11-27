@@ -1285,3 +1285,26 @@ them.
 **Read:** three of the four criteria moved severalfold, as written. The fourth missed its bar by one point, with the
 cause identified (the main in a fight is not asked). The score is not measurably worse at 16. Per §16 the next step
 is a 48 against the same baseline; it is not launched (it waits for approval), and nothing is folded.
+
+## 18. The 48 (2026-11-27; IN306a against IB306a)
+
+**Written before it ran.**
+- **Arms:** `gt1dev+intentage+ordercommit` (IN306a) against `gt1dev` (IB306a), both against gz1. The 8 ladder maps,
+  seeds 4006-4011 (`--first 4006`: fresh, not the screen's 4004-4005), 48 paired games each, 30 minutes, `--gg 0`,
+  paired by map and seed. Code at a29feea, unchanged.
+- **The paired score by supply:**
+  - The MDE planned is about 0.10-0.15, a 90% interval of about +-0.07-0.12.
+  - The screen's own pairing (eval/paired.py: spread 0.188, 96 games resolve +-0.031) puts 48 at about +-0.044.
+  - If the interval holds 0 and the point is within 0.10, the decision is a second 48 (`--first 4012`) before any fold.
+- **The army's share at attacks** (eval/alone.py): resolves about +-0.04 at 48 (the screen's baseline 0.27-0.29;
+  the pros' 0.45).
+- **Ground fighters in no asked cluster, and deaths alone:** about +-0.03-0.04.
+- **Fidelity: do §17's gains hold on fresh seeds?**
+  - The main has no commitment when the hazard fires (ATTACK / GATHER).
+  - ATTACK spells that send the main no commit order.
+  - Hold medians (ATTACK / GATHER).
+  - ATTACK's first-question P(act).
+  - Labelled intent shares, attacks a game, late arrivals, and the gap per window (eval/gap_windows.py).
+  - The defence, including "nobody went" against more than 20 supply.
+- **Coach Q4:** 12 answers (7, 11 and 15 minutes of 4 games), in runs/league/IN306a/q4_review.txt (not in the
+  repository). Quirks to look for: load-rule overrides, and slow moves after a switch (§17).
