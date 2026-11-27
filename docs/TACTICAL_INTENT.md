@@ -1195,7 +1195,7 @@ them.
 
 ### The 16-game screen (written before it runs; not launched)
 
-**What runs:** `gt1dev+intentage` with the commitment fix (one new option, `incontact`, or folded into the arm) against
+**What runs:** `gt1dev+intentage` with the commitment fix (one new option, `ordercommit`; first named `incontact`, an older option's name, so it never ran) against
 `gt1dev` on the same code. Both play gz1 on the 8 ladder maps, seeds 4004-4005 (16 paired games), 30 minutes,
 `--gg 0`, paired by map and seed. The baseline is replayed on this code.
 

@@ -564,7 +564,7 @@ class LearnedArmy:
         return "army"
 
     def note_orders(self, obs: dict) -> None:
-        """Option incontact: Gary's own orders to army units counted as commitments as the pros' data counts them
+        """Option ordercommit: Gary's own orders to army units counted as commitments as the pros' data counts them
         (ingest/army_dataset.py, the resim's army lines): a move, attack-move, attack or patrol whose selection holds 4+
         supply of fighters (the ground's; 2+ of flyers, the air's) sent 2+ cells from its centre, engage if its cell is
         next to known enemy presence, whoever gave it (the role model in contact, the intent layer, calm, the rules).

@@ -2308,17 +2308,49 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
-- **The commitment in contact counted as the data counts it: option `incontact` (2026-11-26; docs/TACTICAL_INTENT.md
+- **The local data rebuilt after a data loss; parity recorded again (2026-11-27; 0 games).**
+  - A scratch-copy cleanup removed most of `data/interim`, `data/gamedata`, `data/maps` and 1,267 modern replays (the
+    first cwal pack's August to early September games). The replays are restored; 13 of 18,886 are not (10 of them
+    TvZ). The repo's AGENTS.md now bans `git worktree` in this repo.
+  - Rebuilt: the inventory, every pack's build orders, the game data, the ladder maps (ingest/ladder_maps.py: KnockOut
+    and Radeon from other replays of the same map), the re-simulations of the modern games and of the old TvZ and ZvZ
+    ones (TvZ 18,061 simulated, 17,754 to the end; ZvZ 9,216 and 9,112, as before), the TvZ and ZvZ macro datasets of
+    both eras and PvZ's modern ones, and gz1's pro-history tables (TvZ 16,552 player-games, ZvZ 17,864, PvZ 2,660).
+  - The styles. The TvZ Terran tech clusters were re-run on the old-era games, as first: 9,208 clustered (9,211 first),
+    ids 1-4 the same builds. The Zerg plans were also re-run on the old-era games: the 11 ids and names are the ones the
+    models were trained with. Every catalogue's ids now equal its model's. PvT Terran's tenth plan, two barracks and
+    two factories, is 24 of 2,456 modern games (0.98%), under label_all's 1% cut. Its ids are now pinned to the ones
+    T_all_v2all learned (`PINNED`).
+  - Check against the games: every style told in the league rounds since 2026-11-01 is rolled again exactly (84 build,
+    matchup and seed combinations, and 8 mirror ones).
+  - Not rebuilt: gt1's strategy-selector table (data/interim/selector/tvz_styles.json). The 1,680 games it was counted
+    from are gone. gt1 played style 4 on every ladder map in its 96 recorded games; it now plays unsteered (the user's
+    call).
+  - Parity recorded again, for the restored data, the gas-worker fix and gt1 unsteered; identical on two runs after.
+    Against the hashes from before the loss: PvT (Fighting Spirit 8001) is identical. In ZvZ only the records differ
+    (the probabilities printed from the rebuilt history; screens and traces identical). TvZ and TvT differ (gt1
+    unsteered).
+  - The suite: smoke, pairs, live (test_live_strategy too), matchups (playing and dev builds, six matchups) pass.
+    test_intent_pipe: criterion 1 94% on gt1dev (§11: 96%), 92% on gt1dev+intentage+ordercommit; criterion 2 3 of 5
+    and 4 of 6. test_inputs fails on #67's lines only (the Terran's "decided" Missile Turret column, 12% on gt1dev and
+    22% with the hook; the Zerg's placement minute).
+- **The commitment in contact counted as the data counts it: option `ordercommit` (2026-11-26; docs/TACTICAL_INTENT.md
   §16).**
   - In the pros' data (ingest/army_dataset.py), every army order of 4+ supply sent 2+ cells is a commitment, whoever's
     hand gave it. In play only the commit model's own orders were.
   - Gary's own replays (IN304a+b), read through the data's code, put the main's "none" at the intent's switches at
     24% (ATTACK) and 23% (GATHER). Play's count is 67% and 59%.
   - The orders missing are the role model's in contact (about 40%), the intent layer's (27%) and calm's (15%).
-  - `incontact`: the interface notes each sent order with its selection (`Interface.army_orders`), and the army counts
+  - `ordercommit`: the interface notes each sent order with its selection (`Interface.army_orders`), and the army counts
     it on its next turn (`Army.note_orders`) by the data's rules. No order changes.
-  - In a 12-minute smoke game, the main's commit questions had a commitment in 39 of 70 (gt1dev: 24 of 26 in a game
-    that went differently).
+  - First named `incontact`, which an older option already was (the role model deciding in contact, in gt1dev): in
+    the options table the older one won, so `gt1dev+incontact` built gt1dev and the hook never ran. Renamed before
+    any round. Its first smoke game (and the suite run on "gt1dev+intentage+incontact") was the age input alone.
+  - With the hook on (12 minutes, KnockOut 4004 against gz1): the main had no commitment at 4 of 21 intent switches
+    (19%; ATTACK 1 of 6, GATHER 1 of 6).
+  - Against the data's count on the same game (its replay through ingest/army_dataset.py): "none" 19% in play and
+    19% in the data at the 21 intent switches, and 8% and 8% at the 73 commit questions. The kind (engage or move)
+    agrees at 90% and 97%.
 - **The intent's age as a commit-model input: option `intentage` (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §16).**
   - The input: 1 on the intent's first tick and its age. The pros' age is counted as the labeller counts `held`,
     Gary's from the intent's `since`.

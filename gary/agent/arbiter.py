@@ -82,7 +82,7 @@ class FixedPriority:
             tracker.look(self.g.hi.observe())    # (option seenall: the macro model's view between its queries)
         if not self.g.hi.pending and getattr(self.g.hi, "army_orders", None) and self.g.army is not None \
                 and hasattr(self.g.army, "note_orders"):
-            self.g.army.note_orders(self.g.hi.observe())    # (option incontact: every army order as the data counts it)
+            self.g.army.note_orders(self.g.hi.observe())    # (option ordercommit: every army order as the data counts it)
         if not self.g.hi.pending and hasattr(self.g.executor, "look_gas"):
             self.g.executor.look_gas(self.g.hi.observe())   # (its workers on gas last in sight, hands or not)
         tac = getattr(self.g, "tactical", None)  # (option intent: the army's intent decided on its clock, hands or not)

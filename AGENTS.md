@@ -101,6 +101,7 @@ and its line removed; a new one gets an issue and a line).
 
 ## Working rules
 
+- Never use `git worktree` in this repository (solo repo; wait or use `git stash`/in-place checkouts, and never symlink or junction `data/` folders into temporary directories).
 - Never edit agent code while a league round runs: each game is a new process importing the code.
 - Stopping a job's shell leaves its pool workers running: stop a run with `python -m eval.stop <pid>` (or
   `--match <text>`), which kills its whole process tree. Killed re-simulator calls aren't indexed as failures, so

@@ -51,6 +51,15 @@ T_PLAN_ITEMS = {("Barracks", 1): "rax1", ("Barracks", 2): "rax2", ("Barracks", 3
 T_OPENINGS = (("cc2", "expansion first"), ("fact1", "factory first"), ("rax2", "two barracks"))
 ZVZ_NINE_POOL = 72                       # s: a pool-first ZvZ pool before this is a 9-pool
 P_OPENINGS = (("gate1", "gateway first"), ("nexus2", "nexus first"), ("forge", "forge first"))
+# Catalogues whose plans are pinned to the ids the trained models learned (runs/macro_exp/*_v2all: their spec.styles),
+# so a plan near MIN_SHARE can't drop out or move when the corpus changes: PvT Terran's tenth plan, two barracks and two
+# factories, is 24 of 2,456 modern games (0.98%) in the corpus rebuilt after the 2026-11-26 data loss, and was in the
+# catalogue T_all_v2all was trained with (ids 20-29, "other" 30)
+PINNED = {("PvT", "T"): ["factory first, three factories", "factory first, two factories",
+                         "expansion first, three factories", "factory first, starport first",
+                         "expansion first, two factories", "two barracks, three factories", "factory first, one factory",
+                         "expansion first, starport first", "two barracks, starport first",
+                         "two barracks, two factories"]}
 P_TECHS = (("robo", "robotics first"), ("citadel", "citadel first"), ("stargate", "stargate first"))
 
 
@@ -123,13 +132,13 @@ def zerg_plan(r: dict, matchup: str) -> str:
     return ", ".join(plan)
 
 
-def label_plans(rows: list[dict], plan_of_row, first: int) -> tuple[dict, dict]:
+def label_plans(rows: list[dict], plan_of_row, first: int, pinned: list[str] | None = None) -> tuple[dict, dict]:
     """Each game's plan by the rules; the plans of at least MIN_SHARE of the modern games named from first on, the
-    rest "other"."""
+    rest "other" (pinned: these plans, in this order, the ids a model was trained with)."""
     plan = {f"{r['rel_path']}|{r['player']}": plan_of_row(r) for r in rows}
     modern = Counter(plan[f"{r['rel_path']}|{r['player']}"] for r in rows if is_modern(r))
     n = max(1, sum(modern.values()))
-    kept = [p for p, c in modern.most_common() if c / n >= MIN_SHARE]
+    kept = list(pinned) if pinned else [p for p, c in modern.most_common() if c / n >= MIN_SHARE]
     names = {first + i: p for i, p in enumerate(kept)}
     names[first + len(kept)] = "other"
     ids = {p: k for k, p in names.items()}
@@ -145,7 +154,7 @@ LABELLERS = {
     ("PvT", "P"): lambda rs, tax: label_protoss(rs, tax, MATCHUP_FROM[("PvT", "P")]),
     ("PvZ", "P"): lambda rs, tax: label_protoss(rs, tax, MATCHUP_FROM[("PvZ", "P")]),
     ("PvP", "P"): lambda rs, tax: label_protoss(rs, tax, MATCHUP_FROM[("PvP", "P")]),
-    ("PvT", "T"): lambda rs, tax: label_plans(rs, terran_plan, MATCHUP_FROM[("PvT", "T")]),
+    ("PvT", "T"): lambda rs, tax: label_plans(rs, terran_plan, MATCHUP_FROM[("PvT", "T")], PINNED[("PvT", "T")]),
     ("TvT", "T"): lambda rs, tax: label_plans(rs, terran_plan, MATCHUP_FROM[("TvT", "T")]),
     ("PvZ", "Z"): lambda rs, tax: label_plans(rs, lambda r: zerg_plan(r, "PvZ"), MATCHUP_FROM[("PvZ", "Z")]),
     ("ZvZ", "Z"): lambda rs, tax: label_plans(rs, lambda r: zerg_plan(r, "ZvZ"), MATCHUP_FROM[("ZvZ", "Z")]),

@@ -129,7 +129,7 @@ class HumanInterface:
         # every unit command Gary's hands issued, as a replay records it: (frame, kind, unit tags, x, y,
         # target tag), kinds as in gary/policy/fight_memory.py (the command model's memory)
         self.commands: list[tuple] = []
-        # option incontact (gary/agent/army.py note_orders): each sent order to units, with its selection as it stood,
+        # option ordercommit (gary/agent/army.py note_orders): each sent order to units, with its selection as it stood,
         # for the army to count as the pros' data counts orders (None: off)
         self.army_orders: list[dict] | None = None
         self._last_cmd: tuple | None = None
