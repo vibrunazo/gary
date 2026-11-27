@@ -222,6 +222,8 @@ class Tactical:
                          {"units": len(group), "army": round(x["cluster_share"], 2), "at": self._name(here),
                           "target": self._name(target) if target is not None else None,
                           "threat": round(scene.threat_sup, 1), "cohesion": round(x["army_near_cluster"], 2),
+                          "commitment": ("none", "engage", "move")[int(x["commit"])] if int(x["commit"]) in (0, 1, 2)
+                          else None, "commit_age": round(float(x["age"])),
                           **(extra or {})},
                          by, then=f"{prev or 'none'} -> {kind}")
         self.main = {"id": f"I{self.n}", "kind": kind, "since": now, "target": target,

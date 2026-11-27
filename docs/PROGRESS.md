@@ -2308,6 +2308,46 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **The commitment in contact counted as the data counts it: option `incontact` (2026-11-26; docs/TACTICAL_INTENT.md
+  §16).**
+  - In the pros' data (ingest/army_dataset.py), every army order of 4+ supply sent 2+ cells is a commitment, whoever's
+    hand gave it. In play only the commit model's own orders were.
+  - Gary's own replays (IN304a+b), read through the data's code, put the main's "none" at the intent's switches at
+    24% (ATTACK) and 23% (GATHER). Play's count is 67% and 59%.
+  - The orders missing are the role model's in contact (about 40%), the intent layer's (27%) and calm's (15%).
+  - `incontact`: the interface notes each sent order with its selection (`Interface.army_orders`), and the army counts
+    it on its next turn (`Army.note_orders`) by the data's rules. No order changes.
+  - In a 12-minute smoke game, the main's commit questions had a commitment in 39 of 70 (gt1dev: 24 of 26 in a game
+    that went differently).
+- **The intent's age as a commit-model input: option `intentage` (2026-11-26; 0 games; docs/TACTICAL_INTENT.md §16).**
+  - The input: 1 on the intent's first tick and its age. The pros' age is counted as the labeller counts `held`,
+    Gary's from the intent's `since`.
+  - The model is `runs/commit_intent/TvZ_T_intentage`, 2 epochs from TvZ_T_intent. Its control has the same 2 epochs
+    without the age.
+  - Held out, P(act) on the first tick, the pros' / the control / with the age: ATTACK 0.637 / 0.397 / 0.592, GATHER
+    0.573 / 0.358 / 0.568. On standing ticks: ATTACK 0.230 / 0.264 / 0.229.
+  - No tick-0 shortcut: the pros keep on 36-43% of first ticks, and the destination's accuracy is unchanged (ATTACK top
+    5: 0.409 against 0.413).
+  - On IN304's 13,679 saved main questions, ATTACK's first question acts 0.48 (0.24 deployed). The spells sending the
+    main nothing fall only from 85% to 81%, because most are never asked.
+  - tests/test_intent_pipe.py criterion 2 passes on one game: 4 of 5 army-active moments, against gt1dev's 3 of 5.
+- **Workers on gas counted when dead (2026-11-26; a bug fix; every build).**
+  - In a live TvZ game against a human, the main's Refinery stopped at 14:01 with the gas target at 3. Its five gas
+    SCVs had died at 13:51-14:11.
+  - `Executor.on_gas` counted a worker out of sight as inside its refinery for good, so the dead ones stayed on gas and
+    nobody was sent. refill_gas ran at least 4 times in 14:01-15:16 and sent nobody.
+  - Without gas, the macro held a Goliath or Siege Tank as its goal for its full 30 s, seven times, and decided
+    nothing else meanwhile (#69).
+  - The gas head's input "seconds since the last decision" grew with it (39 s at 15:20, 80 s at 16:00). It turned the
+    head from 3 workers to 0 at 15:16. With that input set back to 0-30 s, the head says 3 at every moment from 15:10
+    to 16:00 (the macro inputs rebuilt from the game's snapshots).
+  - The fix: out of sight longer than GAS_INSIDE (3 s, the macro tracker's own), a worker is gone. Every turn now
+    records when the workers on gas were last seen (`Executor.look_gas`). The game's snapshots replayed through it count
+    0 after 14:20, where the old code kept 2.
+  - Parity recorded again for this reason: the first difference is the Zerg refilling an Extractor whose drone was
+    gone (KnockOut 4004, 7:35).
+  - The 30 s wait for gas that can't come is a separate decoder change, held for approval (#69). `rax_by` firing at
+    14:12 after the only Barracks died is #68.
 - **Why most intents send the main nothing, and the threats nobody went to (2026-11-26; 0 games; IN304a+b's records;
   docs/TACTICAL_INTENT.md §15).**
   - 58-65% of the main's intent spells never ask it: the main in a fight is the role model's (the arbiter passes units

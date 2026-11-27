@@ -705,6 +705,10 @@ OPTIONS = {
     "intent": lambda m: _intent(m),
     "intentroles": lambda m: _intent_roles(m),
     "intentage": lambda m: _intent_age(m),
+    # army.py note_orders: every army order of 4+ supply sent 2+ cells counted as a commitment, whoever gave it, as
+    # ingest/army_dataset.py counts the pros' (the role model's in contact, the intent layer's, calm's): the commit and
+    # intent models' commitment inputs as their data has them (docs/TACTICAL_INTENT.md §16)
+    "incontact": lambda m: m["army"].update(orders_commit=True),
     # army_rules.py ClusterRules (Gary-Z's, shared): join, a cluster under the main one's size walks to it rather than
     # deciding alone (Gary-T's attacks: 0.26 late arrivals per fighter there, the pros' 0.06, eval/attacks.py); sweep,
     # the main body attacks a packet it outweighs; press, far ahead and nothing at home, it attacks the buildings
@@ -1923,6 +1927,8 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
             g.army.hold_target = m["army"].get("hold_target", False)
             g.army.unit_commits_on = m["army"].get("unit_commits", False)
             g.army.gather_on = m["army"].get("gather", False)
+            if m["army"].get("orders_commit") and hasattr(g.hi, "army_orders"):
+                g.hi.army_orders = []                    # (option incontact: the interface notes each sent order)
             if m["army"].get("army_seen"):
                 g.army.tracker.extra_units = g.army.unseen_own
     rule = lambda r: RULES[r](g, **m["fight"].get("rule_options", {}).get(r, {}))

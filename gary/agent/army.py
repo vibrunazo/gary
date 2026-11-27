@@ -563,6 +563,52 @@ class LearnedArmy:
                               "fight": 0.0, "done": [], "boxes": 0}, "army"))
         return "army"
 
+    def note_orders(self, obs: dict) -> None:
+        """Option incontact: Gary's own orders to army units counted as commitments as the pros' data counts them
+        (ingest/army_dataset.py, the resim's army lines): a move, attack-move, attack or patrol whose selection holds 4+
+        supply of fighters (the ground's; 2+ of flyers, the air's) sent 2+ cells from its centre, engage if its cell is
+        next to known enemy presence, whoever gave it (the role model in contact, the intent layer, calm, the rules).
+        Only the commit model's own orders counted before: the main's commitment was none at 67% of the intent's
+        ATTACK switches where the data's count reads 24% (docs/TACTICAL_INTENT.md §16). Input parity, not a rule: no
+        order changes."""
+        from gary.policy.army import is_building, is_worker, supply_x2
+        orders = getattr(self.g.hi, "army_orders", None)
+        if not orders:
+            return
+        todo = list(orders)
+        orders.clear()
+        enemy = None
+        for o in todo:
+            if o["cmd"] == "rclick":
+                kind = "attack" if o["target_owner"] is not None and o["target_owner"] != self.g.slot and \
+                    o["target_owner"] < 8 else "move"
+            elif o["cmd"] == "order":
+                kind = {14: "amove", 10: "attack", 11: "attack", 6: "move", 152: "patrol"}.get(o["order"])
+            else:
+                kind = None
+            sel = [(t, x, y) for t, x, y in o["units"] if not is_building(t) and not is_worker(t) and supply_x2(t) > 0]
+            if kind is None or not sel:
+                continue
+            sup = sum(supply_x2(t) for t, _, _ in sel)
+            air = sum(supply_x2(t) for t, _, _ in sel if t in AIR_FIGHTERS)
+            if sup < 8 and air < 4:
+                continue
+            here = self.tracker.cell(sum(x for _, x, _ in sel) / len(sel), sum(y for _, _, y in sel) / len(sel))
+            to = self.tracker.cell(o["x"], o["y"])
+            if cell_dist(here, to) < MOVE_CELLS:
+                continue                            # (shorter: fighting or standing in place, a keep in the data)
+            if enemy is None:
+                m = np.asarray(self.tracker.copy().inputs(obs, [])[0][0]).reshape(-1, GRID, GRID)
+                enemy = (m[3] > 0) | (m[6] > 0) | (m[7] > 0)
+            ty, tx = divmod(to, GRID)
+            k = 1 if enemy[max(0, ty - 1):ty + 2, max(0, tx - 1):tx + 2].any() else 2
+            for is_air, part, least in ((False, sup - air, 8), (True, air, 4)):
+                if part < least:
+                    continue
+                if any(c[2] == to and c[3] == k and c[4] == is_air and o["frame"] - c[0] <= 48 for c in self.commitments):
+                    continue                        # (the commit model's own order, already its commitment)
+                self.commitments.append((o["frame"], here, to, k, is_air))
+
     def _commitment_entry(self, here: int, air: bool = False) -> tuple | None:
         """The cluster's commitment as stored (frame, from cell, to cell, kind, air), or None (as _commitment finds it)."""
         from gary.policy.army import COMMIT_AGE_S, path_dist

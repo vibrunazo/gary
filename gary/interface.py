@@ -129,6 +129,10 @@ class HumanInterface:
         # every unit command Gary's hands issued, as a replay records it: (frame, kind, unit tags, x, y,
         # target tag), kinds as in gary/policy/fight_memory.py (the command model's memory)
         self.commands: list[tuple] = []
+        # option incontact (gary/agent/army.py note_orders): each sent order to units, with its selection as it stood,
+        # for the army to count as the pros' data counts orders (None: off)
+        self.army_orders: list[dict] | None = None
+        self._last_cmd: tuple | None = None
         self.last_macro_frame = -10 ** 6      # last train / morph / research / upgrade / build sent
         # what the game made of each production command, in order, (kind, unit or tech, accepted): one it refused isn't
         # in the replay, so a decision it carried didn't happen (the executor takes it back, #47)
@@ -332,6 +336,7 @@ class HumanInterface:
     def _remember(self, cmd: str, order: int, x: int, y: int, target: int) -> None:
         """Log a unit command given to the current selection (see self.commands)."""
         self.commands.append((self.frame, command_kind(cmd, order, target), tuple(self.selection), x, y, target or 0))
+        self._last_cmd = (self.frame, cmd, order, x, y, target or 0)
         del self.commands[:-64]
 
     def _send(self, command: bytes) -> bool:
@@ -851,6 +856,14 @@ class HumanInterface:
             LOG.order(self.side, self.frame, f"{act} ({len(self.selection)} selected)", "sent", by=a.by,
                       units=list(self.selection), to=[int(last[3]), int(last[4])] if last and (last[3] or last[4]) else None,
                       target=int(last[5]) if last and last[5] else None)
+            if self.army_orders is not None and self._last_cmd is not None and self._last_cmd[0] == self.frame:
+                now = {u["tag"]: u for u in self._snapshot(self.history[-1])["units"]}
+                f, cmd, order, x, y, tgt = self._last_cmd
+                self.army_orders.append({"frame": f, "cmd": cmd, "order": order, "x": x, "y": y,
+                                         "target_owner": now[tgt]["owner"] if tgt in now else None,
+                                         "units": [(now[t]["type"], now[t]["x"], now[t]["y"]) for t in self.selection
+                                                   if t in now and now[t]["owner"] == self.slot]})
+                del self.army_orders[:-64]
 
     def _own_tags(self) -> set[int]:
         last = self._snapshot(self.history[-1])
