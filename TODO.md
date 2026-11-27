@@ -106,8 +106,13 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   - The commitment as the data counts it (every army order of 4+ supply sent 2+ cells, whoever gives it) would cut
     the main's "none" at the switch from 67% to 24% (ATTACK) and 59% to 23% (GATHER), measured on Gary's own replays
     through ingest/army_dataset.py.
-  - The play-side fix is designed (an interface hook), not built. The 16-game screen is written down, waiting for
-    approval.
+  - The play-side fix is built: option `ordercommit` (first named `incontact`, an older option's name, so it never ran
+    until renamed). On a test game its commitment matches the data's count on the same replay ("none" 19% and 19%).
+  - The 16-game screen (§17: IN305a, gt1dev+intentage+ordercommit, against IB305a, gt1dev replayed; gz1, 2026-11-27):
+    3 of the 4 criteria move as written. The main has no commitment when the hazard fires in ATTACK 31% and GATHER
+    25% (baseline 75% / 63%). ATTACK's hold median is 15.6 s (6.2 s). ATTACK's first question acts at 0.45 (0.21).
+    The fourth misses narrowly: ATTACK spells sending the main no order are 76% (88%; the bar was under 75%). The
+    paired score is -0.047 [-0.125, +0.031]. Next, if approved: a 48 against the same baseline (no fold yet).
   A fight-layer follow-up, apart from intent: deaths alone in contact (88% under the role model). Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Plus the early G4
   check (the same card under the pro and a lower HumanProfile).
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept

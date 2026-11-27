@@ -2308,6 +2308,20 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **The §16 screen: the intent's age and the commitment as the data counts it (2026-11-27; IN305a against IB305a, 32
+  games; docs/TACTICAL_INTENT.md §17).**
+  - `gt1dev+intentage+ordercommit` against gt1dev replayed, both against gz1 on the 8 ladder maps, seeds 4004-4005,
+    30 minutes, gg 0.
+  - Three of the four pre-written criteria moved. The main has no commitment when the hazard fires: ATTACK 75% → 31%,
+    GATHER 63% → 25% (bar under 40%). Hold medians: ATTACK 6.2 → 15.6 s, GATHER 5.8 → 10.7 s. ATTACK's first question
+    acts at 0.21 → 0.45 (bar over 0.40).
+  - The fourth missed by a point: ATTACK spells that send the main no order went 88% → 76% (bar under 75%). Most
+    ATTACK spells still never ask the main: it is the role model's in a fight (§15).
+  - Watched: the paired score by supply -0.047 [-0.125, +0.031]. Ground fighters in no asked cluster -0.059 [-0.123,
+    -0.012]. Deaths alone -0.049 [-0.094, -0.003]. Attacks a game 2.7 → 4.3. The army's share at attacks +0.012
+    [-0.087, +0.111]. The gap -0.043 [-0.098, +0.034].
+  - Labelled shares: GATHER 38.9% → 28.6% (the pros' 29.0%), ATTACK 27.6% → 34.7% (36.6%).
+  - Next, if approved: a 48 against the same baseline. Nothing is folded.
 - **The local data rebuilt after a data loss; parity recorded again (2026-11-27; 0 games).**
   - A scratch-copy cleanup removed most of `data/interim`, `data/gamedata`, `data/maps` and 1,267 modern replays (the
     first cwal pack's August to early September games). The replays are restored; 13 of 18,886 are not (10 of them

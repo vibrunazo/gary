@@ -1215,3 +1215,73 @@ them.
 - Deaths alone.
 
 **Next if it moves:** a 48 against the same baseline (MDE about 0.10-0.15 by supply), per AGENTS.md.
+
+## 17. The 16-game screen (2026-11-27; IN305a against IB305a)
+
+**The round.**
+- `gt1dev+intentage+ordercommit` (IN305a) against `gt1dev` replayed on the same code (IB305a). Both play gz1 on the 8
+  ladder maps, seeds 4004-4005, 30 minutes, `--gg 0`, paired by map and seed.
+- The commitment option was first named `incontact`, an older option's name (the role model in contact, in gt1dev),
+  and the older entry won, so the hook never ran. It was renamed `ordercommit` before this round. On a test game, its
+  commitment matches the data's count on the same replay: "none" 19% and 19% at 21 intent switches, and 8% and 8% at 73
+  commit questions.
+- Both arms play on the local data rebuilt after the 2026-11-26 loss, with gt1 unsteered (docs/PROGRESS.md). So the
+  baseline is the replayed IB305a, not §13's IN304 figures. Its numbers differ: for example, ATTACK's "none" when the
+  hazard fires is 75% here against §15's 67%.
+- The measures come from the records (the main's commitment the hazard read, spells, first questions), eval/alone.py,
+  eval/paired.py, eval/gap_windows.py and `train/tactical_intent.py --gary`.
+
+**The criteria, written before it ran (§16):**
+
+| Measure | Baseline (IB305a) | ordercommit + intentage (IN305a) | Bar | Read |
+|---|---|---|---|---|
+| The main has no commitment when the hazard fires: ATTACK / GATHER | 75% (238 of 318) / 63% (226 of 357) | **31% (72 of 230) / 25% (66 of 261)** | under 40% | **Moved** (the step-2 estimate was 24% / 23%) |
+| ATTACK spells that send the main no commit order | 88% of 376 | 76% of 281 | under 75% | **Missed, narrowly**: down 12 points |
+| Hold medians: ATTACK / GATHER | 6.2 s / 5.8 s | **15.6 s / 10.7 s** | 14 s or more, or a third longer | **Moved** |
+| P(act) at the first question after an ATTACK switch | 0.21 (asked in 27% of spells) | **0.45** (asked in 44%) | over 0.40 | **Moved** |
+
+- Other kinds: DEFEND_BASE "none" 66% → 14%, first-question P(act) 0.09 → 0.22; RETREAT "none" 42% → 7%, P(act)
+  0.48 → 0.78.
+- Why ATTACK still sends no order in 76% of its spells: more are asked (44%, was 27%), but most still are not. As §15
+  found, the main in a fight is the role model's.
+
+**Watched, not judged at 16:**
+
+| Measure | Baseline | Arm | Paired difference, 90% |
+|---|---|---|---|
+| Paired score by supply | 0.422 | 0.375 | -0.047 [-0.125, +0.031] (within the +-0.17 a 16 resolves; 96 games would resolve +-0.031) |
+| The army's share at attacks (games' median / all attacks' median) | 0.285 / 0.27 | 0.359 / 0.33 | +0.012 [-0.087, +0.111] (the pros' 0.45) |
+| Attacks a game | 2.7 | 4.3 | +1.6 [+0.5, +2.8] |
+| Late arrivals per fighter there | 0.082 | 0.064 | -0.018 [-0.053, +0.017] |
+| Deaths alone (games' mean; all deaths) | 0.257 (20%) | 0.207 (17%) | -0.049 [-0.094, -0.003] |
+| Fighters alone, 5-20 min samples | 0.098 | 0.080 | -0.018 [-0.046, +0.006] |
+| Ground fighters in no asked cluster | 0.129 | 0.069 | -0.059 [-0.123, -0.012] |
+| Gap, all windows (lower: nearer the pros) | 0.488 | 0.446 | -0.043 [-0.098, +0.034]; 25-30 min -0.092 [-0.176, +0.022] |
+
+- Results: the arm had 12 games go the full 30 minutes and lost 4 (T ahead 4, even 4, Z ahead 4). The baseline had
+  11 at time and lost 5 (T ahead 5, even 6).
+- Deaths alone are still the roles' (89% of the arm's alone deaths had the role model's order last).
+
+**Intent shares** (the labeller over each round's replays; the pros' in §2):
+
+| | DEFEND_BASE | ATTACK | RETREAT | GATHER | HOLD | HOLD at 20+ min |
+|---|---|---|---|---|---|---|
+| Pros | 25.0% | 36.6% | 3.2% | 29.0% | 6.2% | 3% |
+| Baseline (IB305a) | 22.1% | 27.6% | 1.1% | 38.9% | 10.3% | 9% |
+| Arm (IN305a) | 23.2% | 34.7% | 0.6% | 28.6% | 12.9% | 10% |
+
+- GATHER's labelled share falls to the pros' (38.9% → 28.6%, the pros' 29.0%). ATTACK rises toward theirs (27.6% →
+  34.7%, the pros' 36.6%). HOLD stays above (12.9%; the first five minutes are 78% HOLD).
+- The layer's own time shares, from its records: ATTACK 27.8% → 34.6%, GATHER 33.7% → 28.6%.
+
+**Coach Q4** (12 answers at 7, 11 and 15 minutes of 4 games; runs/league/IN305a/q4_review.txt, not in the repository).
+- Each answer cites the intent in force, its target, the model's odds at the switch, and the commit decisions under it.
+- Each commit decision now carries the commitment the hook counted. For example: "keep its current orders (84%) for
+  7 units at tile (12,36), attacking for 18 s" (KnockOut 4004, 6:40). Without the hook, an order from another layer is not
+  counted, and such a group reads "no orders for 120 s".
+- One pattern to watch: the main kept an ATTACK-era commitment 29-36 s into a GATHER spell (keep 50-95%) before moving
+  to the gather point (KnockOut 4004, 6:51-6:58).
+
+**Read:** three of the four criteria moved severalfold, as written. The fourth missed its bar by one point, with the
+cause identified (the main in a fight is not asked). The score is not measurably worse at 16. Per §16 the next step
+is a 48 against the same baseline; it is not launched (it waits for approval), and nothing is folded.
