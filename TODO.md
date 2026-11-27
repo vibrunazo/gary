@@ -112,7 +112,11 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
     3 of the 4 criteria move as written. The main has no commitment when the hazard fires in ATTACK 31% and GATHER
     25% (baseline 75% / 63%). ATTACK's hold median is 15.6 s (6.2 s). ATTACK's first question acts at 0.45 (0.21).
     The fourth misses narrowly: ATTACK spells sending the main no order are 76% (88%; the bar was under 75%). The
-    paired score is -0.047 [-0.125, +0.031]. Next, if approved: a 48 against the same baseline (no fold yet).
+    paired score is -0.047 [-0.125, +0.031].
+  - The 48 (§18: IN306a against IB306a, seeds 4006-4011). The commitment and first-question gains held (ATTACK
+    "none" at the hazard 67% → 39%; P(act) 0.25 → 0.48). The holds and the army's measures did not move. The score
+    is measurably worse by supply: -0.083 [-0.161, -0.005]; the critics' intervals hold 0. Not folded. Next, 0 games:
+    where the arm loses supply, and whether intentage or ordercommit carries it.
   A fight-layer follow-up, apart from intent: deaths alone in contact (88% under the role model). Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Plus the early G4
   check (the same card under the pro and a lower HumanProfile).
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept

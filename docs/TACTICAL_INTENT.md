@@ -1308,3 +1308,76 @@ is a 48 against the same baseline; it is not launched (it waits for approval), a
   - The defence, including "nobody went" against more than 20 supply.
 - **Coach Q4:** 12 answers (7, 11 and 15 minutes of 4 games), in runs/league/IN306a/q4_review.txt (not in the
   repository). Quirks to look for: load-rule overrides, and slow moves after a switch (§17).
+
+**Results** (48 paired games; both rounds finished cleanly).
+- The arm had 40 games at time and lost 8 (T ahead 15, even 18, Z ahead 7). The baseline won 4, had 39 at time and
+  lost 5 (T ahead 16, even 17, Z ahead 6).
+- **The paired score by supply: -0.083 [-0.161, -0.005]** (A 0.542, B 0.458). The interval excludes 0: measurably
+  worse. eval/paired.py's spread here is 0.336, so 96 games would resolve +-0.056. By the critics the interval holds
+  0: critic -0.072 [-0.201, +0.060], both critics -0.045 [-0.157, +0.072].
+
+**The intent fidelity: did §17's gains hold on fresh seeds?** (From the records; the baseline is IB306a.)
+
+| Measure | Baseline (IB306a) | Arm (IN306a) | §17 screen (baseline → arm) | Holds? |
+|---|---|---|---|---|
+| The main has no commitment when the hazard fires: ATTACK | 67% (660 of 980) | 39% (311 of 796) | 75% → 31% | **Yes** (bar under 40%) |
+| The same: GATHER | 60% (652 of 1,079) | 36% (308 of 846) | 63% → 25% | **Yes** |
+| The same: DEFEND_BASE / RETREAT | 59% / 21% | 28% / 6% | 66% / 42% → 14% / 7% | Yes |
+| ATTACK spells that send the main no commit order | 85% of 1,129 | 76% of 921 | 88% → 76% | Same as the screen: misses its bar (under 75%) |
+| Hold medians, ATTACK / GATHER | 10.2 s / 10.2 s | 10.7 s / 10.7 s | 6.2 / 5.8 → 15.6 / 10.7 s | **No**: the screen's baseline was low, and the arm's medians barely move |
+| ATTACK's first question: P(act) | 0.25 (asked in 38%) | 0.48 (asked in 38%) | 0.21 → 0.45 | **Yes** (bar over 0.40) |
+| GATHER's first question: P(act) | 0.39 | 0.61 | 0.37 → 0.57 | Yes |
+
+The baseline here equals §15's IN304 figures (ATTACK "none" 67%, holds 10-11 s, P(act) 0.25). So the screen's
+baseline (seeds 4004-4005 only) was the outlier, not this one.
+
+**The army (eval/alone.py, paired by map and seed, 90% bootstrap over games):**
+
+| Measure | Baseline | Arm | Arm - baseline | §17 screen |
+|---|---|---|---|---|
+| Deaths alone (games' mean; all deaths) | 0.189 (15%) | 0.171 (15%) | -0.018 [-0.049, +0.012] | -0.049 [-0.094, -0.003] |
+| The army's share at attacks (games' median; all attacks') | 0.333; 0.30 | 0.298; 0.26 | -0.002 [-0.082, +0.075] | +0.012 |
+| Attacks a game | 3.5 | 3.6 | +0.1 [-0.5, +0.8] | +1.6 [+0.5, +2.8] |
+| Late arrivals per fighter there | 0.103 | 0.120 | +0.018 [-0.018, +0.053] | -0.018 |
+| Fighters alone, 5-20 min | 0.075 | 0.063 | -0.012 [-0.045, +0.012] | -0.018 |
+| Ground fighters in no asked cluster | 0.100 | 0.082 | -0.018 [-0.056, +0.013] | -0.059 [-0.123, -0.012] |
+| Gap, all windows | 0.544 | 0.537 | -0.007 [-0.075, +0.058] | -0.043 |
+
+- The gap per window is even everywhere: 15-20 min -0.028 [-0.081, +0.014], 25-30 min +0.031 [-0.052, +0.092].
+- Deaths alone are still the roles' (81% of the arm's alone deaths had the role model's order last; baseline 80%).
+- At attacks, the arm's late arrivals were more often "no order" (22% against 13%) and less often a commit move (3%
+  against 19%).
+
+**Intent shares and the defence.**
+
+| | DEFEND_BASE | ATTACK | RETREAT | GATHER | HOLD |
+|---|---|---|---|---|---|
+| Pros | 25.0% | 36.6% | 3.2% | 29.0% | 6.2% |
+| Baseline (labelled) | 21.1% | 28.9% | 0.7% | 36.0% | 13.3% |
+| Arm (labelled) | 22.3% | 29.2% | 0.9% | 32.2% | 15.4% |
+
+- GATHER moves toward the pros (36.0% → 32.2%). ATTACK does not (28.9% → 29.2%).
+- Defence, baseline → arm:
+  - the main itself 279 → 240 times;
+  - detachments 200 → 208;
+  - nobody went 209 → 182 (the threat's median 9 → 6 supply);
+  - nobody went against more than 20 supply 67 → 47.
+
+**Coach Q4** (12 answers at 7, 11 and 15 minutes of 4 games; runs/league/IN306a/q4_review.txt, not in the
+repository).
+- Each answer cites the intent, its odds, the defence and the commit decisions, with the hook's commitment.
+- No load-rule overrides showed (§17's quirk). The overrides were fight micro over the army's orders, 2-9 per answer.
+- Two quirks:
+  - Fighting Spirit 4008, 6:41: the main kept a move commitment 57-64 s old into a new GATHER (keep 73-92%). This is
+    §17's slow move after a switch, again.
+  - Odyssey 4007, 13:24: GATHER was drawn at 10% against defend 90%, with 115 Zerg supply at its bases.
+
+**Verdict.**
+- The commitment the hazard reads is now near the data's count, and the first question acts as often as the pros'
+  first ticks. Both fidelity gains held on fresh seeds.
+- The behaviour they were for did not follow: the holds, the army's share at attacks and the fighters in no asked
+  cluster are unchanged at 48.
+- The score is measurably worse by supply (-0.083 [-0.161, -0.005]); by the critics the interval holds 0.
+- §18's rule calls for a second 48 only when the interval holds 0, and this one doesn't. Not folded.
+- Next, 0 games first: find where the arm loses supply (which minutes and which layer's decisions), and which of the
+  two options carries it. The two can be told apart from the records before any arm is played alone.

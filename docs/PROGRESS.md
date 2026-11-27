@@ -2308,6 +2308,19 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **The 48: the intent's age and the commitment as the data counts it (2026-11-27; IN306a against IB306a, 96 games,
+  seeds 4006-4011; docs/TACTICAL_INTENT.md §18).**
+  - The paired score by supply: -0.083 [-0.161, -0.005], measurably worse. By the critics the interval holds 0
+    (-0.072 [-0.201, +0.060]). The arm won 0 and lost 8; the baseline won 4 and lost 5.
+  - The fidelity gains held. The main has no commitment when the hazard fires: ATTACK 67% → 39%, GATHER 60% → 36%.
+    ATTACK's first question acts at 0.25 → 0.48.
+  - What they were for did not follow. Hold medians: 10.2 → 10.7 s (the screen's 6.2 s baseline was the outlier).
+    ATTACK spells sending the main no order: 85% → 76%.
+  - The army is unchanged at 48: the army's share at attacks -0.002 [-0.082, +0.075], ground fighters in no asked
+    cluster -0.018 [-0.056, +0.013], deaths alone -0.018 [-0.049, +0.012], the gap -0.007 [-0.075, +0.058].
+  - GATHER's labelled share 36.0% → 32.2% (the pros' 29.0%). Nobody went against more than 20 supply 67 → 47 times.
+  - Not folded, and no second 48 (the interval excludes 0). Next, 0 games: where the arm loses supply, and which
+    option carries it.
 - **The §16 screen: the intent's age and the commitment as the data counts it (2026-11-27; IN305a against IB305a, 32
   games; docs/TACTICAL_INTENT.md §17).**
   - `gt1dev+intentage+ordercommit` against gt1dev replayed, both against gz1 on the 8 ladder maps, seeds 4004-4005,
