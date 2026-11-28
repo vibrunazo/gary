@@ -1545,3 +1545,12 @@ repository).
   with a version bump. Folding is the user's call. Parity's hashes would stay: its games play gt1, gz1 and
   gp1, not gt1dev. The matchups and the rest of the suite would be run again.
 - `intentage` stays parked.
+
+## 21. `ordercommit` folded into gt1dev (2026-11-28; gt0.56dev; 0 games)
+
+- **The user's call** on §20: option `ordercommit` folded into `gt1dev`, version gt0.56dev. `intentage` stays an
+  option, off.
+- The built manifest of `gt1dev` equals that of `gt1dev+ordercommit` before the fold, the version aside. The option
+  is idempotent, so `gt1dev+ordercommit` still builds the same.
+- gt1, gz1, gp1, gz1dev and gp1dev are unchanged.
+- The checks are the suite in docs/PROGRESS.md's entry of the day, run with the #68 and #69 fixes.
