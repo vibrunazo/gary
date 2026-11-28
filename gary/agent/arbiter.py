@@ -41,6 +41,7 @@ import random
 
 from gary import terran as T
 from gary.decision_log import LOG
+from gary.agent.army import COMMIT_TICK
 from gary.agent.fight import FIGHT_TASKS, INTERRUPTIBLE
 from gary.agent.gary import Gary, Task
 from gary.agent.sightings import Sightings
@@ -59,12 +60,17 @@ class FixedPriority:
     def __init__(self, g: Gary, suspend_builds: bool = False, rotate: bool = False, army_turn: bool = False):
         self.g = g
         self.suspend_builds = suspend_builds
-        # option armyturn: while a fight goes on, the army layer's question, when due, goes before the fight's queued
-        # orders and the macro's turn (the hands free, one task at a time as ever). In a fight the turns went to the
-        # fight layer's half-second turn, its queue, the macro's turn and the chores before the army side came: IN307a's
-        # unasked ATTACK spells had no commit question of any cluster, the last a median 81 s before
-        # (docs/FIGHT_AUDIT.md §5). A question costs no hands unless the model orders.
+        # option armyturn: while a fight goes on, the army layer's question, when due, goes after the fight's queued
+        # orders and before the macro's turn (the hands free, one task at a time as ever), and the macro's turn stays
+        # due. In a fight the turns went to the fight layer's half-second turn, its queue, the macro's turn and the
+        # chores before the army side came: IN307a's unasked ATTACK spells had no commit question of any cluster, the
+        # last a median 81 s before (docs/FIGHT_AUDIT.md §5). A question costs no hands unless something is ordered, so
+        # the throttle counts only those: at most one shared turn that used the hands per COMMIT_TICK, the questions
+        # answered "keep" unthrottled (the army layer asks one cluster a question, so a throttle on every question would
+        # put the main's 5-s tick at 10-15 s with two or three clusters). v1 (before the queue, unthrottled) cut the
+        # role model's actions a minute by 19% (IN308a against IB308a)
         self.army_turn = army_turn
+        self.shared_used = -COMMIT_TICK      # the frame of the last shared turn that used the hands
         # option rotate (Gary-Z's sides): the army, the macro and the chores take the turn in rotation, whoever acted
         # keeping it STREAK actions at most; the fixed order (chores, army, macro) gave the army of the one Gary
         # playing Zerg a fraction of Gary-Z's turns: its join rule fired 35 times to 110 at 5-9 min, and the
@@ -108,8 +114,6 @@ class FixedPriority:
         g.posture.update()
         if posture_mode(g.posture) != mode:
             self._posture_record(mode)
-        if self.army_turn and (who := self._shared_army_turn()):
-            return who
         if g.fight is not None and g.task is None and not hi.pending and getattr(g.fight, "queue", None):
             intent = g.fight.next_queued(hi.observe())   # (a turn's further orders, as the hands come free)
             if intent is not None:
@@ -117,6 +121,8 @@ class FixedPriority:
                 g.motor.start(intent)
                 return "roles:queued"
             g.macro_turn = True
+        if self.army_turn and (who := self._shared_army_turn()):
+            return who                           # (the macro's turn, if due, kept for the next one)
         if g.fight is not None:
             if g.macro_turn and g.task is None and not hi.pending:
                 LOG.owner[g.hi.side] = "macro"
@@ -238,11 +244,13 @@ class FixedPriority:
 
     def _shared_army_turn(self) -> str | None:
         """Option armyturn: a fight going on, the hands free and the army layer's question due, the army layer's turn
-        now, over the units outside the fight (as _army gives it them). Who acted, or None: then the turn goes on as
-        before (a question answered "keep" uses no hands)."""
+        now, over the units outside the fight (as _army gives it them), after the fight's queued orders; not within
+        COMMIT_TICK of the last shared turn that used the hands. Who acted, or None: then the turn goes on as before (a
+        question answered "keep" uses no hands and isn't throttled)."""
         g, hi = self.g, self.g.hi
         if g.fight is None or g.army is None or not g.setup_done or g.task is not None or hi.pending \
-                or getattr(g.fight, "center", None) is None or hi.frame < getattr(g.army, "next_ask", 0):
+                or getattr(g.fight, "center", None) is None or hi.frame < getattr(g.army, "next_ask", 0) \
+                or hi.frame - self.shared_used < COMMIT_TICK:
             return None
         obs = hi.observe()
         mine = [u for u in obs["units"] if u["owner"] == g.slot]
@@ -250,7 +258,10 @@ class FixedPriority:
         cx, cy = g.fight.center
         done = [u for u in done if math.dist((u["x"], u["y"]), (cx, cy)) > 12 * 32]
         LOG.owner[g.hi.side] = "army"
-        return g.army.step(obs, mine, done)
+        who = g.army.step(obs, mine, done)
+        if who or g.task is not None or hi.pending:      # (the hands used: an order, a rule's task)
+            self.shared_used = hi.frame
+        return who
 
     def _army_units(self, done: list[dict]) -> list[dict]:
         """The units the army side may give orders to: not the army's while the posture keeps it home, nor a choke's."""
