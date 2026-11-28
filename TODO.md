@@ -132,7 +132,9 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
     fight layer acts.
   - Built as option `armyturn` (2026-11-28, docs/FIGHT_AUDIT.md §5). Its 16-game screen: the main asked in ATTACK
     spells 35% → 81%, the army's share at attacks +0.092, the score +0.109 by supply. But fight micro fell 19% (bar 10%).
-    Next, for the user's call: v2 (the turn after the fight's queued orders), the same screen.
+    v2 (§6: after the fight's queue, one shared turn that uses the hands a commit tick): the main asked 74%, micro -4%,
+    the score +0.078, but the army's share at attacks -0.006 and more ground fighters outside asked clusters.
+    For the user's call: a 48 of v2 (96 games), parking, or a v3 between.
 - **Phase 2's remaining deliverables** (docs/REFOCUS.md §4.3):
   - The mid-game directives: `PREP_VS_MUTA`, and `PREP_VS_LURKER`'s turret cut, so answers.py can retire and Q3 is
     explained by the trunk. The design and the 0-game counts are in docs/DIRECTIVES.md.

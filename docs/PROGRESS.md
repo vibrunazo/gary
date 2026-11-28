@@ -2308,6 +2308,15 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **armyturn v2 (2026-11-28; IN309a against IB308a, 16 games; docs/FIGHT_AUDIT.md §6).** The shared turn after the
+  fight's queued orders, and at most one that uses the hands a commit tick ("keep" unthrottled).
+  - Met: the main asked in ATTACK spells 35% → 74% (GATHER 79%, DEFEND_BASE 87%); the role model's actions a minute
+    -4% (v1 -19%); late arrivals +0.006; the paired score by supply +0.078 [-0.047, +0.203] (critic +0.092).
+  - Not met: the army's share at attacks -0.006 [-0.130, +0.111] (v1 +0.092).
+  - Also: ground fighters in no asked cluster +0.064 [+0.010, +0.140], and the macro's gap at 5-10 min +0.032
+    [+0.010, +0.056]. The hazard firing with no commitment: ATTACK 41% → 11%. ATTACK's hold 10.2 → 15.3 s.
+  - The main's orders: baseline 518, v1 1,434, v2 893 (engages 152, 576, 354).
+  - Not folded. For the user's call: a 48 of v2 (96 games), parking, or a v3 between the two.
 - **The army side's turn shared: option `armyturn` (2026-11-28; 0-game check, then IN308a against IB308a, 32 games;
   docs/FIGHT_AUDIT.md §5).**
   - The 0-game check: in IN307a's unasked ATTACK spells no cluster was asked at all, the last question a median 81 s

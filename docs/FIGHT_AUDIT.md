@@ -251,3 +251,44 @@ parity is unchanged. The bars are §5's:
 
 Also read: the macro's gap (the shared turn now sits before the macro's), deaths alone, attacks a game, the hazard
 firing with no commitment, and Coach Q4.
+
+**v2's results** (IN309a, 16 games, paired with IB308a; v1 is IN308a, from §5).
+
+| Measure | Baseline (IB308a) | v1 (IN308a) | v2 (IN309a) | Pros | Bar | v2 |
+|---|---|---|---|---|---|---|
+| The main asked in ATTACK / GATHER / DEFEND_BASE spells | 35% / 39% / 56% | 81% / 88% / 99% | **74% / 79% / 87%** | first tick acts 64% | ATTACK at least 64% | **Met** |
+| The army's share at attacks, paired | | +0.092 [+0.008, +0.176] | -0.006 [-0.130, +0.111] | 0.59 | up by more than 0.07 | **Not met** |
+| Late arrivals per fighter there, paired | | +0.042 [-0.008, +0.091] | +0.006 [-0.046, +0.062] | 0.05 | not up | **Met** |
+| The role model's actions a minute, 5-30 min, paired | 40.1 | 32.4 (-19%) | 38.7, -1.4 [-6.3, +3.7] (-4%) | | within 10% | **Met** |
+| The paired score: supply / critic / both critics | | +0.109 / -0.029 / +0.072 | +0.078 [-0.047, +0.203] / +0.092 [-0.053, +0.251] / +0.121 [-0.011, +0.263] | | not measurably worse | **Met** |
+
+**The secondary reads, v2 against the baseline (paired, 90%):**
+- The macro's gap (eval/gap_windows.py, macro features):
+  - 5-10 min +0.032 [+0.010, +0.056], further from the pros;
+  - 25-30 min -0.152 [-0.212, -0.009], nearer;
+  - all windows +0.013 [-0.093, +0.095].
+  The shared turn now sits before the macro's, and the early macro pays a little.
+- Deaths alone +0.001 [-0.031, +0.035] (v1 -0.039).
+- Attacks a game 2.9 → 3.8.
+- Fighters alone +0.032 [+0.001, +0.062], and **ground fighters in no asked cluster +0.064 [+0.010, +0.140]**: more
+  spread, where v1 was even.
+- The records: the hazard fired with no commitment, ATTACK 41% → 11%, GATHER 35% → 9%; ATTACK spells sending the
+  main no order 83% → 57%; ATTACK's hold median 10.2 → 15.3 s.
+- Results: won 0, lost 5 (the baseline lost 6).
+- Coach Q4 (4 answers, runs/league/IN309a/q4_review.txt): clean, the intent and its odds, then the questions with their
+  counted commitment.
+
+**Why v2 sits between.** The main's questions: baseline 2,073, v1 5,723, v2 3,184. Its orders sent: 518, 1,434 and 893,
+of them engages 152, 576 and 354. The throttle halves v1's extra engages, and the army's share at attacks moves with
+v1's, not with v2's.
+
+**Verdict.**
+- v2 keeps the fight's micro and the score and asks the main, but it does not meet the army's share at attacks. The
+  16 games resolve that measure only to about +-0.12 here, wider than the planned +-0.07.
+- It spreads the army more (ground fighters in no asked cluster up), and it costs the macro a little at 5-10 minutes.
+- Neither version meets every bar: v1 has the army's share and costs the micro, v2 keeps the micro and doesn't move
+  the share.
+- Not folded, no 48. For the user's call:
+  - (a) a 48 of v2 against a fresh 48 of gt1dev (96 games: the share and the spread resolve to about +-0.04);
+  - (b) park the option, written up here, and turn to Track 2;
+  - (c) a v3 between them (the throttle at half a commit tick), with the same 16-game screen.
