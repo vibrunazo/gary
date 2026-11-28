@@ -231,3 +231,23 @@ command in flight, and a question that orders nothing hands the turn on. tests/t
 - Not folded, and no 48 yet. Proposed: **armyturn v2**, the shared turn after the fight's queued orders and before the
   macro's turn, so the role model keeps its queue's throughput and the army layer takes the macro's slot after each
   fight command, at most once a commit tick. Then the same 16-game screen with the same bars, against this baseline.
+
+## 6. armyturn v2 (2026-11-28)
+
+**The change:**
+- The shared turn goes after the fight's queued orders and before the macro's turn, which stays due.
+- At most one shared turn that used the hands per COMMIT_TICK (5 s). Questions answered "keep" use no hands and aren't
+  throttled: a throttle on every call would push the main's 5-s tick to 10-15 s, since the army layer asks one
+  cluster a question.
+
+**The screen, written before it runs:** gt1dev+armyturn v2 (IN309a) against gz1, the same 8 ladder maps and seeds
+4004-4005, 30 minutes, `--gg 0`. It is paired against IB308a: gt1dev's code is unchanged since IB308a played, and
+parity is unchanged. The bars are §5's:
+- the main asked in ATTACK spells at least 64%;
+- the army's share at attacks up by more than 0.07;
+- late arrivals not up;
+- the role model's actions a minute in fights within 10%;
+- the paired score not measurably worse.
+
+Also read: the macro's gap (the shared turn now sits before the macro's), deaths alone, attacks a game, the hazard
+firing with no commitment, and Coach Q4.
