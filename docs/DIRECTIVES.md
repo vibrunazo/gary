@@ -1,289 +1,130 @@
-# Phase 2's mid-game directives and the early G4 check (design, 0 games; 2026-11-28)
 
-docs/REFOCUS.md §4.3 leaves two Phase 2 items besides the intent layer:
-- the mid-game directives, `PREP_VS_MUTA` and `PREP_VS_LURKER`'s turret cut, so `gary/agent/answers.py` can retire
-  and Coach Q3 is explained by the trunk;
-- one early G4 test.
+## 8. The pivot: directives as labels for conditioned leaves. Step 1's audit (2026-11-28; 0 games)
 
-This file has the 0-game counts and the design for both. Nothing is built yet; each step waits for the user's call.
+The user's direction: the trunk emits discrete directive labels (`PREP_VS_MUTA`, `PREP_VS_LURKER`), and the learned
+leaves, MacroNet and PlacementModel, take them as inputs. This replaces the trunk's shopping lists, a scripted turret
+ring and a q90 mask. This audit reads what the unconditioned leaves already do, and what conditioning would need.
 
-## 1. What answers.py still does (gt1 and gt1dev both: `answers: True`, `mutas: True`)
+### 8.1 What the leaves already do with answers.py off
 
-`noanswers` is an option, not in gt1dev. It was on only in Phase 1's rounds (`+scansample+noanswers+shadow+trunk`).
+The rounds: G4299a (answers off, `gt1dev+scansample+noanswers+shadow+trunk`, 96 games against gz1) against RD285a
+(answers on, gt1dev, 96 games against gz1), both from 2026-11-25. Also IN307a (answers on, gt0.56dev's code) and the
+modern pros. gt1dev already plays the PlacementModel (option `place`).
 
-In IN307a's records (48 games, gt0.56dev's code, against gz1):
+**Against the Spire** (spire-first games; times from the Spire's order):
 
-| Job | Where | What it does | IN307a (48 games) | Successor |
+| | Answers off (G4299a, 72) | Answers on (RD285a, 69) | IN307a (43) | Pros (2,196) |
 |---|---|---|---|---|
-| Read the Zerg's plan | `observe` | mutas on a Spire or mutalisk seen; lurkers on a lurker, its egg, or a Den with Lair and no Spire | (every game) | the trunk's plan belief (`gary/policy/plan_belief.py`, cross-fitted) |
-| Tech scan (STOP-GAP) | `tech_scan` | a scan of their main at 6:30 and 8:30 when nothing is read | 42 scans | `scansample` (Phase 1's build), then the learned scan model |
-| The mutalisk turret ring | `next_goal`, `turret_goal` | an Engineering Bay and an Academy, then turrets in every mineral line, 2 per base, nearest the Zerg first, at a spot off the mining paths | 686 turret goals, 26 Engineering Bay and Academy goals | **`PREP_VS_MUTA`** (new, §2) |
-| The mutalisk turret gate | `allows` | the model's own turrets held until every mineral line has its own | 555 turret decisions passed over | the ring as the directive's goal; no veto |
-| The lurker answer | `next_goal` | Factory, Machine Shop, Siege Mode, 2 tanks, Starport, Control Tower, Science Facility, 2 vessels, Irradiate, 4 tanks | 15 goals (games read as lurkers) | `PREP_VS_LURKER` (built in Phase 1, option `trunk`; without Irradiate and the later tanks) |
-| The lurker turret cut | `allows` | turrets beyond one a base refused while the plan reads lurkers | (no lurker-first game in IN307a) | **`PREP_VS_LURKER`'s turret cut** (§3) |
+| An Engineering Bay by +300 s; its median time | 99%; -24 s | 100%; -34 s | 100%; -50 s | 99%; +32 s |
+| A turret by +300 s; the first's median time | 97%; +75 s | 100%; +72 s | 100%; +64 s | 97%; +96 s |
+| Turrets ordered by +300 s, median (quartiles) | 9 (7-13) | 9 (7-11) | 9 (7-11) | 8 (6-10) |
+| Turrets within 10 min of the Spire, median | 11 | 12 | 12 | 10 |
+| Settled bases with a turret by their minerals at +150 s | 82% (89 of 109) | 84% (89 of 106) | 86% (56 of 65) | 88% (422 of 479; 400 games) |
+| Turrets by a mineral line (within 10 tiles of its minerals) | 51% | 62% | 58% | 44% |
+| ...of those, on a workers' lane | 33% | 25% | 24% | 43% |
+| By a mineral line, before / after seeing a Spire or Mutalisk | 62% / 46% | 62% / 62% | 62% / 57% | 47% / 45% (600 games, the sightings' first sight of the plan's tech) |
 
-## 2. `PREP_VS_MUTA`: the counts
+- **SCVs lost at 6-12 minutes** can't be read here. The records' deaths are the army's units only; it needs a replay
+  pass, a new measure for the screen.
+- **Reading:**
+  - With answers.py off, the unconditioned MacroNet already makes the pros' anti-mutalisk build: an Engineering Bay
+    before the Spire, a turret by +75 s, 9 by +300 s, 82% of the settled lines covered.
+  - The PlacementModel's turrets after a Spire is seen stand by a mineral line as often as the pros' (46% against 45%).
+    The pros' Terrans don't move their turrets to the lines on seeing it, unlike the Protoss's cannons (14% → 51%,
+    ingest/placement_dataset.py).
+  - The executor keeps the mineral-side turrets off the lanes (24-33% on one, the pros 43%). There is no tile-level
+    gap.
+  - answers.py's ring adds a little coverage (+2-4 points) and more turrets by the lines than the pros put there (62%
+    against 44%).
+- **Against lurkers** (lurker-first games running 10 minutes past Lurker Aspect; times from it):
 
-The modern pros on the ladder maps, 2,196 spire-first TvZ games, the Spire at a median 4:00. Each item is the first
-of its kind ordered, timed from the Spire's order; the interval is a 90% Wilson interval. Gary is IN307a, with
-answers.py on: 43 spire-first games, the Spire at 4:48.
-
-| Item | Pros: by +150 s | Pros: by +300 s [90%] | Pros: median from the Spire | Gary: by +300 s | Gary: median |
-|---|---|---|---|---|---|
-| Engineering Bay | 98% | 99% [99, 99] | +32 s (40% before the Spire) | 100% | -50 s |
-| Missile Turret | 94% | 97% [97, 98] | +96 s | 100% | +64 s |
-| Academy | 72% | 88% [87, 89] | -16 s | 100% | -58 s |
-| Comsat Station | 62% | 81% [79, 82] | +70 s | 98% | +41 s |
-| Armory | 32% | 43% [42, 45] | +42 s | 40% | +39 s |
-| Goliath | 10% | 13% [12, 14] | +88 s | 21% | +76 s |
-| Valkyrie | 19% | 26% [24, 27] | +105 s | 14% | +260 s |
-| Starport | 36% | 87% [86, 89] | +201 s | 86% | +196 s |
-| Science Facility | 5% | 45% [43, 47] | +263 s | 50% | +247 s |
-| Science Vessel | 3% | 16% [15, 17] | +262 s | 10% | +283 s |
-| Turrets ordered by +300 s (median, quartiles) | | 8 (6-10) | | 9 (7-11) | |
-
-By the Terran's style:
-- **Style 1, standard bio** (1,442 games): Engineering Bay and Academy 100%, the turret at +94 s, 9 turrets by +300 s,
-  Goliaths 0%, a Comsat at +62 s.
-- **Style 2, Factory and vultures** (489 games): an Armory 95% at +24 s, Goliaths 51%, Valkyries 55%, the Academy
-  late (59% by +300 s), 7 turrets.
-- **Style 3, Factory and Starport** (257 games): the Starport already there (97% before the Spire), Control Tower 92% by
-  +150 s, Science Vessels 32%, 6 turrets.
-
-eval/answer_time.py against the Spire:
-
-| | First turret | Turrets by +150 s | Turrets within 10 minutes |
+| | Answers off + trunk (G4299a, 7) | Answers on (RD285a, 9) | Pros (126) |
 |---|---|---|---|
-| Pros (2,144 games) | +96 s | 6 | 10 (8-12) |
-| Gary, IN307a (43 games) | +64 s | 6 | 12 (10-14) |
+| Turrets within 10 min of the tech, median | 7 | 6 | 5 |
+| First detection | +29 s | +54 s | +34 s |
+| Siege Mode / the first Siege Tank | +163 / +165 s | +148 / +153 s | +174 / +157 s |
+| The first Science Vessel | +148 s | +226 s | +256 s |
 
-**Reading:**
-- With answers.py on, Gary's anti-mutalisk build is already the pros' in kind and count, its turrets about 30 s
-  early.
-- What answers.py adds is the ring: turrets in the mineral lines, nearest the Zerg first. That is what a human's
-  mutalisks punish (human game 1, docs/PROGRESS.md v0.25).
-- `PREP_VS_MUTA` must keep this, not improve on it. Its gain is the trunk owning it: Q3 explained by the pros'
-  frequency, and one owner of the macro (§3.3).
-- **The belief** (`runs/plan_belief/TvZ_T_oof_20261124`, cross-fitted, summed over the four spire-first plans)
-  separates the spire-first games well only from 6:00. AUC by minute: 0.62 at 3:00, 0.74 at 4:00, 0.83 at 5:00,
-  0.95 at 6:00, 0.99 at 7:00. In modern TvZ 89% of games are spire-first, so the pros' Engineering Bay and first
-  turret are mostly the base rate, ordered before the Spire is seen. The table must keep this: against a low
-  belief the contrast cell is high too, and the branch is started by the base rate in the early minutes.
+  §3's told-lurker drills (4 games each) had turrets 5 with the answers, 9 without and 11 under the trunk. The lurker
+  side is where the leaves differ from the pros most. It is thin in games: gz1 plays lurker-first in 7-9 of 96.
 
-## 3. `PREP_VS_LURKER`'s turret cut: the counts
+### 8.2 The data and the models, after the loss
 
-Turrets ordered within 10 minutes of Lurker Aspect (eval/answer_time.py), against gz1dev told the lurker style (4
-games each, Phase 1's rounds):
+| | On disk | Missing |
+|---|---|---|
+| data/interim/macro/v1 | TvZ 2,426 modern + 14,127 old; ZvZ 2,825 + 6,107; PvZ 2,660 modern | TvT, PvT, PvP, and PvZ's old games. The shared Terran model learned TvZ, PvT and TvT |
+| data/interim/placement | none (lost) | every matchup's: modern games only, re-played in-process (ingest/placement_dataset.py) |
+| The plan belief's out-of-fold odds (runs/plan_belief/TvZ_T_oof_20261124) | modern TvZ Terran, 2,431 games, 2:30-10:00 every 30 s | the old era. The OOF holds only modern games, though the model trained on 16,480 |
+| data/interim/sightings | TvZ_T modern, 2,423 games (rebuilt) | `--era all` for an all-era OOF |
+| The models | runs/macro_exp/T_all_v2all (8.2 min to train, 8.2 M samples, 6 epochs); runs/placement/TvZ_T_20261109 (4 s, 95 k samples) | |
 
-| | Turrets within 10 min of the tech |
+**Directive labels, causal:**
+- At each of a game's belief samples, the directive state is what the trunk would set from the cross-fitted odds (no
+  fold saw the game) and the table (§7's rule), held between samples and after 10:00.
+- Every macro and placement sample of a modern TvZ Terran game gets the bits at its time. Every other sample gets
+  "unknown": the other matchups, the old era, and the moments before 2:30.
+- In play the trunk's pinned belief model gives them. Play and data differ only by the cross-fitting, as the trunk's
+  P_pro already does.
+
+**Thin lurkers:**
+- Modern lurker-first games are 137; the PREP_VS_LURKER bit would be on in a few hundred moments.
+- An all-era OOF needs the sightings `--era all` (16,000 games, about 40 minutes at 6 workers, from §7's 6 minutes for
+  2,400) and train/plan_belief.py's out-of-fold pass on them. It brings the old era's lurker-first games: lurker-first
+  is 17.5% of all eras' TvZ Zerg plans, 3,163 games (the v2 catalogue).
+
+**The inputs:**
+- MacroNet's FeatureSpec (gary/policy/macro.py) already carries categories with an unknown slot (`styles`, `maps`,
+  `matchups`). A `directives` field would take three slots per directive: off, on, unknown. The spec lists the
+  directives by name, race-keyed as trunk.DIRECTIVES is; a matchup without them reads unknown.
+- PlacementModel's `encode` (gary/policy/placement.py) takes the same bits on its global row.
+- The FeatureSpec travels with each model, so the deployed models stay as they are.
+
+**The wall clock (offline, 0 league games), for the Terran:**
+
+| Step | Time |
 |---|---|
-| Pros (41 modern games running 10 minutes past it) | 5 (quartiles 2-8) |
-| answers.py on (SC291a4) | 5 |
-| answers.py off (NA292a4) | 9 |
-| The trunk's PREP_VS_LURKER, no cut (TK293a4) | 11 |
+| TvT's old games re-simulated (about 2,700) | about 7 min |
+| TvT and PvT macro datasets (about 7,000 games) | about 16 min |
+| The directive labels joined to the macro and placement samples | minutes |
+| TvZ Terran placement dataset (about 2,400 modern games re-played) | about 10 min |
+| T_all retrained with the directive inputs; the TvZ placement model | about 10 min; seconds |
+| Optional, the all-era OOF: sightings `--era all`, then the belief's out-of-fold pass | about 40 min + its training |
+| **Total** | **about 1-1.5 h, or 2-2.5 h with the all-era OOF** |
 
-The cut matters. Without it the model builds about twice the pros' turrets against lurkers. That is gas and
-minerals the lurker answer (Siege Mode, tanks, vessels) needs.
+**The tools:**
+- **eval/match.py `--gg`:** unaffected. Each critic (gary/policy/value.py) carries its own FeatureSpec in its
+  checkpoint (train/value.py builds it from the saved spec), so a new MacroNet spec doesn't reach it unless the critics
+  are retrained.
+- **Coach Q3:** eval/coach.py's answer already prints each macro decision's attribution (gary/policy/attribution.py
+  `explain_macro`: the odds with an input group zeroed, "what weighed most").
+  - With the directive bits as their own group, read as unknown when "zeroed", Q3 gains the counterfactual: "the
+    anti-mutalisk directive (without it 12%)". That is the model's odds shift, about a millisecond a decision.
+  - The other half is a line joining the directive's record: the trunk's branch_select records already hold the
+    belief, the cell, P_pro and n. Q3 would cite it next to the decision the bit moved.
 
-## 4. Coach Q3 now (IN307a, 12 answers: 6, 8 and 10 minutes of 4 games)
+### 8.3 Step 2, proposed
 
-The answers name, for every macro decision in the minute, the model's odds or the rule that set it.
-- Turrets: 17. Six were set by answers.py ("chosen by a fixed rule (an answer to the zerg's plan)"). Eleven were the
-  model's dice at 4-42%.
-- Tech buildings and research: 10. Nine were the model's dice (a Factory at 5%, a Starport at 8%, a Science Facility
-  by summed odds), and one was answers.py.
-- None is explained by the trunk: neither directive is in gt1dev.
-
-Under the two directives, the ring's turrets and the anti-mutalisk and anti-lurker items would read as the trunk's
-goals, with the pros' frequency, n and the belief that started them (as `PREP_VS_LURKER`'s do in Phase 1's records).
-
-## 5. The design
-
-One owner, one rule at a time (docs/REFOCUS.md §3.3). Race-keyed: the directive tables are keyed by (race, enemy race),
-as `trunk.DIRECTIVES` is. Every matchup without a table says "not enough evidence" and plays on.
-
-1. **`PREP_VS_MUTA`** (TvZ, the Terran):
-   - **Its items:** an Engineering Bay, then the ring, one turret in each settled base's mineral line, then a second
-     per line (the pros' 8 by +300 s, 6-10), nearest the Zerg first. The Academy and Comsat stay the model's: the
-     pros' style 1 has them before the Spire already, and style 2 doesn't.
-   - **The table:** train/pro_branch.py gains the branch. Its event: the next missing item of the chain within
-     WINDOW_S (120 s). Its belief: the cross-fitted P(spire first), summed over the four spire-first plans, in the
-     same BUCKETS. Its own state: the chain's progress. MINUTES as for the lurker branch, MIN_N 25, the BACKOFF,
-     and the contrast at the finest low-belief cell.
-   - **The looked split** needs the pros' sighting states (ingest/sighting_dataset.py). Those were lost on
-     2026-11-26 with data/interim and must be rebuilt first: 0 games, an offline step over the modern TvZ
-     re-simulations. The lurker branch's table was built with them, so its refresh needs them too.
-   - **The ring's placement** moves out of answers.py into a shared, race-keyed helper, used by the directive's turret
-     goals. It takes the race's static anti-air (a Missile Turret; later a Spore Colony and a Photon Cannon) and the
-     mineral line's spot off the mining paths (turret_goal's `near`, `avoid` and `level_at`).
-   - **No veto of the model's own turrets**: the ring is the directive's goal, and rules nudge, never veto.
-   - **Concurrent with `PREP_VS_LURKER`** (§3.2): both can be active; the turret cut is off while `PREP_VS_MUTA` is.
-2. **`PREP_VS_LURKER`'s turret cut:**
-   - While `PREP_VS_LURKER` is active and `PREP_VS_MUTA` is not, the macro's turret decisions beyond the pros' 90th
-     percentile of turrets are masked. That percentile is taken for the minute under a lurker-first belief, from the
-     same table's pro moments, in place of answers.py's fixed one a base.
-   - It is a mask of the model's choice, so it gets its full STOP-GAP entry in AGENTS.md, as the pros' caps per minute
-     have, with its replacement: the model with the belief as an input.
-3. **Retirement:**
-   - With both directives on, answers.py's jobs are covered: its plan read by the belief, its scan by `scansample`.
-     The option `noanswers` then joins gt1dev with `trunk` and `scansample`, as Phase 1's build had them.
-   - answers.py's entry leaves AGENTS.md, and the module retires once gt1 follows.
-
-**The order, one rule at a time:**
-1. The sighting dataset rebuilt, and the table built (0 games).
-2. `PREP_VS_MUTA` with answers.py's mutalisk jobs off, against gt1dev.
-3. The turret cut.
-4. `noanswers+trunk+scansample` against gt1dev, the whole replacement, before a fold.
-
-## 6. The screens, written before they run
-
-**`PREP_VS_MUTA`: a 16-game screen.** gt1dev+trunk with the mutalisk answers off against gt1dev, both against gz1:
-- gz1 goes spire-first in about 90% of games (43 of 48 in IN307a);
-- the 8 ladder maps, seeds 4004-4005, 30 minutes, `--gg 0`, paired by map and seed.
-
-| Measure | Now (IN307a) | Pros | Bar (moved enough, or held) |
-|---|---|---|---|
-| The first turret from the Spire, median | +64 s | +96 s | within 30 s of the pros' |
-| Turrets by +300 s, median | 9 | 8 | 6-10 |
-| An Engineering Bay by +150 s | 98% | 98% | at least 90% |
-| Mineral lines with a turret by +150 s, per settled base | a new measure, to add to eval/answer_time.py (a turret within 10 tiles of the line's minerals) | the same measure | not below gt1dev's |
-| SCVs lost at 6-12 minutes (paired) | a new measure, from the records' deaths | | not measurably more |
-| Q3: anti-mutalisk turret and item decisions explained by the trunk | 0% | | at least 80% |
-| The paired score by supply | | | not measurably worse (16 games: about +-0.17) |
-
-**The turret cut: 8 drills.** gt1dev+trunk with the cut against gt1dev+trunk without it, against gz1dev told the
-lurker style (the suite's plan 4), on 4 maps × 2 seeds:
-- turrets within 10 minutes of Lurker Aspect: about 5 with the cut (pros 5, quartiles 2-8), against 9-11 without;
-- the lurker answer's timings from the tech (Siege Mode, the first tank, the first vessel) no later.
-
-**The whole replacement** (`noanswers+trunk+scansample` against gt1dev): 48 paired games. The bar is the paired score
-not measurably worse (about +-0.08), with each screen's fidelity measures held.
-
-## G4. The early G4 check (spec)
-
-- **What exists:**
-  - `gary/interface.py` PROFILES holds `pro` (fitted to the pros' select-to-command time, 7 actions a second),
-    `b_rank` (3.5 a second, reaction 300 ms), `b_rank_widescreen`, and `c_rank` (2.2 a second, reaction 400 ms, wider
-    scatter).
-  - eval/match.py's headless game reads a manifest's `hands` key, defaulting to `pro`. No option sets it yet, and
-    `Match` (the tools' replays) always uses `pro`.
-  - The drills grade a strict card against its milestones (eval/drills.py, the Phase 1 gate 2 tolerance).
-- **Needed (one small option, later):** `hands_b` and `hands_c`, setting the manifest's `hands`.
-- **The test:** the same opening card, strict (gt1dev+strict+told1, the standard bio card), against gz1dev told 1.
-  Under `pro`, then under `b_rank` and `c_rank`: 4 maps × 2 seeds each, 8 games a profile (24 games), the same seeds.
-- **Read:**
-  - the card's milestones met (eval/drills.py, the same tolerance);
-  - the supply gap per window (eval/gap_windows.py: the macro's, at 2-10 minutes);
-  - the hands: actions a minute, reaction time to a unit hit (eval/reaction.py), and camera moves a minute (the pov
-    logs).
-- **Expected:** milestones held under `b_rank` (the macro decides what, the hands only when), a later and wider spread
-  under `c_rank`, and actions a minute falling with the profile. A collapse of milestones under `b_rank` would mean
-  the build depends on pro hands: G4 is then not one system with many bands.
-- It is a sanity run of the profiles, not a strength test: no win rates are judged.
-
-## 7. Track 2, step 1: the sightings rebuilt and the `PREP_VS_MUTA` table (2026-11-28; 0 games)
-
-**The sighting dataset** (ingest/sighting_dataset.py `--race T --matchup TvZ --era modern`, lost on 2026-11-26):
-- 2,423 of 2,426 modern games; 3 failed, each with "no T town hall" for its slot. 37,908 samples, about 6 minutes on 6
-  workers. data/interim/sightings/TvZ_T.npz, not in the repository.
-- It matches the cross-fitted belief (runs/plan_belief/TvZ_T_oof_20261124): 36,945 of its 37,292 modern samples
-  (99.1%) have a sighting state.
-- **PREP_VS_LURKER's table**, rebuilt on it with train/pro_branch.py, has the same 367 cells as Phase 1's pinned
-  table (runs/selector/TvZ_T_PREP_VS_LURKER_chainA_20261124.json). The largest difference in P_pro is 0.02, the mean
-  0.0004. Some cells have up to 11 fewer games: the replays not restored and the sightings that failed. The meta is the
-  same. The extended script builds it the same, cell for cell.
-
-**The `PREP_VS_MUTA` table** (runs/selector/TvZ_T_PREP_VS_MUTA_20261128.json; train/pro_branch.py `--branch
-PREP_VS_MUTA`):
-- **Its own state:** the ring as play would count it, by turrets against the bases standing (the start and every
-  Command Center ordered since; no map geometry). 0 is no Engineering Bay; 1 fewer turrets than bases; 2 fewer than
-  twice the bases; 3 the ring had (no moment).
-- **Its event:** the Engineering Bay (at 0) or a Missile Turret (at 1-2) ordered within 120 s.
-- **Its belief:** the summed odds of the four spire-first plans.
-- **The rest as the lurker branch's:** the looked split, MIN_N 25, BACKOFF, and the contrast at the finest
-  low-belief cell. Its minutes are by the minute to 6:30.
-- 20,862 moments of 2,420 modern games. Excerpt, P_pro (n games):
-
-| P(spire first) at least 0.8 | 2:30-3:30 | 3:30-4:30 | 4:30-5:30 | 5:30-6:30 | 6:30-8:00 | 8:00-10:00 |
-|---|---|---|---|---|---|---|
-| No Engineering Bay, unlooked | 0.57 (2,219) | 0.87 (1,568) | 0.88 (1,051) | 0.65 (126) | 0.54 (33) | 0.39 (12) |
-| No Engineering Bay, looked | 0.00 (4) | 0.91 (93) | 0.87 (265) | 0.59 (88) | 0.51 (58) | 0.36 (32) |
-| Fewer turrets than bases, unlooked | 0.02 (102) | 0.70 (738) | 0.94 (1,321) | 0.93 (887) | 0.70 (94) | 0.46 (27) |
-| Fewer turrets than bases, looked | | 1.00 (51) | 0.99 (448) | 0.98 (706) | 0.89 (148) | 0.56 (71) |
-| Under twice the bases, looked | | | 1.00 (2) | 0.96 (401) | 0.80 (160) | 0.53 (129) |
-
-- At a low belief (under 0.2) every cell is 0.28-0.55. Those that reach MIN_N are late: looked, one turret short, at
-  5:30-6:30 0.53 (16) and 6:30-8:00 0.36 (48). The root cell is 0.35 (117 games, its interval's top 0.44).
-
-**The lurker turret caps** (in the table's meta): the pros' Missile Turrets ordered by each minute at moments with
-P(lurker first) at least 0.5, their 90th percentile (median, n games):
-
-| | 5:00 | 6:00 | 7:00 | 8:00 | 9:00 | 10:00 |
-|---|---|---|---|---|---|---|
-| 90th percentile | 1 | 4 | 5 | 6 | 7 | 7 |
-| Median | 0 | 1 | 1 | 2 | 2 | 2 |
-| Games | 35 | 87 | 102 | 101 | 104 | 93 |
-
-Before 5:00 fewer than 25 games: no cap.
-
-**The activation check** (every pro game's samples scored as gary/agent/selector.py scores them: P_pro at least 0.5
-and, under the contrast rule, the interval above the contrast cell's):
-
-**(a) The contrast.** A belief under 0.2 never reaches MIN_N before 5:30. Early on the contrast backs off to the root
-(0.35, top 0.44), so the contrast and the threshold alone take the same samples: the threshold does the work.
-
-**(b, c) As Phase 1's trunk would run it** (the whole chain, started at the first sample that takes, never withdrawn):
-- it starts at 2:30, the first sample, in 100% of the 2,201 spire-first games and 100% of the 137 lurker-first games;
-- in spire-first games that is a median 87 s before the Spire, where the pros' own Engineering Bay comes at +33 s and
-  their first turret at +95 s.
-- The belief is the 89% base rate then, and the 2:30-3:30 cell is 0.57. Not usable as it stands.
-
-**Re-scored every sample** (taking or not, no latch), the table does tell the plans apart:
-
-| Samples that take | before 4:00 | 4:00-6:00 | 6:00-8:00 | 8:00-10:00 |
-|---|---|---|---|---|
-| Spire-first games | 99% | 99% | 77% | 24% |
-| Lurker-first games | 99% | 85% | 14% | 3% |
-
-In lurker-first games, P(spire first) first falls under 0.2 at a median 6.5 minutes (88 of 137 games).
-
-**The pros in the two plans** (games of 8 minutes or more):
-
-| | Engineering Bay by 8:00 | A turret by 8:00 | Turrets by 8:00, median |
-|---|---|---|---|
-| Spire-first (2,317 games) | 98% | 94% | 7 |
-| Lurker-first (132 games) | 92% | 61% | 1 |
-
-The Engineering Bay is the base rate in both plans; the ring is what the plan decides.
-
-**The ring only** (no moment until an Engineering Bay stands; re-scored every sample):
-- **Spire-first games:** taken in 97% (2,142 of 2,201). The first take comes at a median +48 s from the Spire,
-  against the pros' own first turret at +95 s. Samples taking: 92% before 5:00, 100% at 5-6, 96% at 6-8, 25% at 8-10.
-- **Lurker-first games:** taken in 78% early (2 samples a game, median). Samples taking: 71% before 5:00, 80% at 5-6,
-  **21% at 6-8, 3% at 8-10**. It stands down as the belief falls, and the pros' first turret comes by 8:00 in 61% of
-  these games too.
-
-**The proposed activation rule for `PREP_VS_MUTA`** (for the user's call before any code in gary/agent/trunk.py):
-1. **Its items are the ring only.** One Missile Turret a settled base, then two, nearest the Zerg first. They are
-   counted against the bases standing, as the table counts them.
-   - The Engineering Bay stays the macro model's: the pros build it in both plans, and Gary's model orders it by -50 s.
-   - No moment until an Engineering Bay stands, as the lurker branch has none once every chain is had.
-2. **Scored at every belief sample (30 s), not latched.**
-   - Where the cell takes (P_pro at least 0.5; the contrast kept, though it doesn't bind early), the directive asks
-     its next turret as a goal (ASK_AGAIN as now).
-   - Where it doesn't take, the directive stands down: nothing is asked. What is built stays.
-   - This is a new mode for the trunk, a directive "re-scored" rather than "run to its end", written in the directive's
-     own entry. PREP_VS_LURKER keeps its mode.
-3. **The turret cut** (PREP_VS_LURKER's): while PREP_VS_LURKER is active and PREP_VS_MUTA is not taking, the macro's
-   turret decisions above the pros' 90th percentile for the minute are masked (the caps above). A STOP-GAP entry in
-   AGENTS.md, as §5.2.
-4. **The trunk's code changes:**
-   - `ProFrequencyScorer.fields` gains the ring's position, counted from Gary's own turrets and bases.
-   - The trunk gains the re-scored mode and the ring's placement (the shared, race-keyed static anti-air helper,
-     §5.1).
-   - The belief keeps its samples 2:30-10:00; after 10:00 the directive keeps its last state.
-5. **Timing:** the ring's first turret would be asked about 45 s before the pros' median, as Gary's own turrets come
-   now (+64 s against +95 s). A shorter window (60 s) would move it later, if the screen asks for it.
-
-Tests: tests/test_pro_branch.py (the ring's position, the caps' quantile); smoke and parity pass; the lurker table
-built again by the extended script is the same, cell for cell.
+1. **The data** (0 games): rebuild TvT and PvT's macro datasets and the TvZ Terran placement dataset. Optionally run the
+   all-era sightings and OOF, recommended for the lurker side. Join the causal directive bits.
+2. **The leaves** (0 games): T_all and the TvZ Terran placement model, retrained with the directive inputs. The bits are
+   dropped to unknown on a random 20% of the samples where they are known, so the model also learns the unknown case.
+3. **The 0-game gate, written before training** (held-out modern TvZ games, the model's own held-out split):
+   1. **No regression:** held-out top-1 and log loss within 0.005 of the unconditioned model's, overall and per
+      matchup.
+   2. **PREP_VS_MUTA flip:** on held-out spire-first states at 4:30-8:00 with fewer turrets than twice the bases, set the
+      bit off → on. P(Missile Turret) rises in at least 70% of states, and the mean shift is at least half the pros' own
+      difference in turret rate between the table's taking and non-taking moments.
+   3. **PREP_VS_LURKER flip:** on held-out lurker-first states at 6:00-10:00, off → on.
+      - P(Missile Turret) falls in at least 70% of states.
+      - P(Siege Mode) + P(Siege Tank) + P(Science Facility) + P(Science Vessel) rise in at least 70%.
+      - Both shifts point the pros' way.
+   4. **Placement:** P(by the minerals | PREP_VS_MUTA on) - P(… | off) within +-0.05. The pros don't shift (47% / 45%).
+      A spurious shift fails.
+   5. **Unknown:** with the bits unknown, the held-out odds are within 0.01 of the unconditioned model's on the
+      non-TvZ matchups.
+4. **Then the play side:**
+   - the trunk sets the bits from its belief and table (§7's rule, re-scored every sample);
+   - MacroNet and PlacementModel read them;
+   - answers.py's turret jobs and the lurker answer's shopping list are off.
+   - Its 16-game screen is written before it runs: §6's measures, plus the lurker drills' turret count (pros 5) and
+     the lurker answer's timings.

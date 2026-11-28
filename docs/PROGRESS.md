@@ -2308,6 +2308,24 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **The pivot to conditioned leaves, Step 1's audit (2026-11-28; 0 games; docs/DIRECTIVES.md §8).**
+  - With answers.py off (G4299a, 96 games), the unconditioned MacroNet already makes the pros' anti-mutalisk build:
+    a turret at +75 s from the Spire (pros +96 s), 9 by +300 s (8). 82% of the settled mineral lines are covered at
+    +150 s (answers on 84-86%, the pros 88%).
+  - The PlacementModel's turrets after a Spire is seen stand by a mineral line as the pros' do (46% against 45%; the
+    pros' Terrans don't shift: 47% before). The executor keeps them off the workers' lanes.
+  - The gap is the lurker side: turrets within 10 min of Lurker Aspect 7 without the answers, 6 with, the pros 5 (and
+    5 / 9 / 11 in §3's drills).
+  - On disk: macro v1 for TvZ (both eras), ZvZ and PvZ; no TvT or PvT macro data (the shared Terran model learned
+    them), no placement dataset; the belief's out-of-fold odds for the modern era only (137 lurker-first games; all
+    eras 3,163).
+  - The critics keep their own spec (--gg unaffected). Coach Q3's attribution gives the directive's odds shift once its
+    bits are an input group.
+  - Step 2 proposed, about 1-1.5 h offline (2-2.5 h with an all-era out-of-fold pass): rebuild the data, join causal
+    directive bits (off / on / unknown, 20% dropped to unknown), retrain T_all and the TvZ placement model.
+  - Its 0-game flip gate: no regression within 0.005; PREP_VS_MUTA on raises P(turret) in 70%+ of held-out spire-first
+    states; PREP_VS_LURKER on lowers P(turret) and raises the lurker answer's odds in 70%+; placement's shift within
+    +-0.05; unknown within 0.01 elsewhere.
 - **Track 2, step 1: the sightings rebuilt, the `PREP_VS_MUTA` table, the activation check (2026-11-28; 0 games;
   docs/DIRECTIVES.md §7).** `armyturn` parked (the user's call; its code and tests stay, off).
   - The TvZ Terran sighting dataset was rebuilt: 2,423 of 2,426 modern games, 37,908 samples. It matches 99.1% of the
