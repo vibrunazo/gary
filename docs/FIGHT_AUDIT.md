@@ -292,3 +292,8 @@ v1's, not with v2's.
   - (a) a 48 of v2 against a fresh 48 of gt1dev (96 games: the share and the spread resolve to about +-0.04);
   - (b) park the option, written up here, and turn to Track 2;
   - (c) a v3 between them (the throttle at half a commit tick), with the same 16-game screen.
+
+**Parked (the user's call, 2026-11-28).** `armyturn` (v2) stays in the code with its 8 tests, off in every build. It
+is parked after §6's screen: v1 moved the army's share at attacks but cost the fight's micro, and v2 kept the micro but
+didn't move the share. Phase 2 turns to the directives (docs/DIRECTIVES.md). A v3 (the throttle at half a commit
+tick) or v2's 48 is where it would pick up.

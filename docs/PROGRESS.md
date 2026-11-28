@@ -2308,6 +2308,19 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **Track 2, step 1: the sightings rebuilt, the `PREP_VS_MUTA` table, the activation check (2026-11-28; 0 games;
+  docs/DIRECTIVES.md §7).** `armyturn` parked (the user's call; its code and tests stay, off).
+  - The TvZ Terran sighting dataset was rebuilt: 2,423 of 2,426 modern games, 37,908 samples. It matches 99.1% of the
+    belief's samples. PREP_VS_LURKER's table rebuilt on it equals Phase 1's within 0.02 a cell.
+  - train/pro_branch.py has a second branch, PREP_VS_MUTA (the ring counted by turrets against bases, the spire-first
+    belief, by the minute to 6:30), and the lurker turret caps (the pros' 90th percentile at P(lurker) of 0.5 or
+    more: 1, 4, 5, 6, 7, 7 turrets by 5-10 minutes).
+  - Run as Phase 1's trunk runs (the whole chain, latched), it would start at 2:30 in every game of both plans: the
+    belief there is the 89% base rate. The low-belief contrast never reaches MIN_N early.
+  - Re-scored every sample, with the ring only (the Engineering Bay left to the model: the pros build it in 92-98% of
+    both plans): spire-first games take it in 97%, first at +48 s from the Spire (the pros' first turret +95 s).
+    Lurker-first games stand down by 6-8 minutes (21% of samples, 3% at 8-10).
+  - Proposed for the user's call: a re-scored ring-only directive, and the turret cut by the caps.
 - **armyturn v2 (2026-11-28; IN309a against IB308a, 16 games; docs/FIGHT_AUDIT.md §6).** The shared turn after the
   fight's queued orders, and at most one that uses the hands a commit tick ("keep" unthrottled).
   - Met: the main asked in ATTACK spells 35% → 74% (GATHER 79%, DEFEND_BASE 87%); the role model's actions a minute

@@ -180,3 +180,110 @@ not measurably worse (about +-0.08), with each screen's fidelity measures held.
   under `c_rank`, and actions a minute falling with the profile. A collapse of milestones under `b_rank` would mean
   the build depends on pro hands: G4 is then not one system with many bands.
 - It is a sanity run of the profiles, not a strength test: no win rates are judged.
+
+## 7. Track 2, step 1: the sightings rebuilt and the `PREP_VS_MUTA` table (2026-11-28; 0 games)
+
+**The sighting dataset** (ingest/sighting_dataset.py `--race T --matchup TvZ --era modern`, lost on 2026-11-26):
+- 2,423 of 2,426 modern games; 3 failed, each with "no T town hall" for its slot. 37,908 samples, about 6 minutes on 6
+  workers. data/interim/sightings/TvZ_T.npz, not in the repository.
+- It matches the cross-fitted belief (runs/plan_belief/TvZ_T_oof_20261124): 36,945 of its 37,292 modern samples
+  (99.1%) have a sighting state.
+- **PREP_VS_LURKER's table**, rebuilt on it with train/pro_branch.py, has the same 367 cells as Phase 1's pinned
+  table (runs/selector/TvZ_T_PREP_VS_LURKER_chainA_20261124.json). The largest difference in P_pro is 0.02, the mean
+  0.0004. Some cells have up to 11 fewer games: the replays not restored and the sightings that failed. The meta is the
+  same. The extended script builds it the same, cell for cell.
+
+**The `PREP_VS_MUTA` table** (runs/selector/TvZ_T_PREP_VS_MUTA_20261128.json; train/pro_branch.py `--branch
+PREP_VS_MUTA`):
+- **Its own state:** the ring as play would count it, by turrets against the bases standing (the start and every
+  Command Center ordered since; no map geometry). 0 is no Engineering Bay; 1 fewer turrets than bases; 2 fewer than
+  twice the bases; 3 the ring had (no moment).
+- **Its event:** the Engineering Bay (at 0) or a Missile Turret (at 1-2) ordered within 120 s.
+- **Its belief:** the summed odds of the four spire-first plans.
+- **The rest as the lurker branch's:** the looked split, MIN_N 25, BACKOFF, and the contrast at the finest
+  low-belief cell. Its minutes are by the minute to 6:30.
+- 20,862 moments of 2,420 modern games. Excerpt, P_pro (n games):
+
+| P(spire first) at least 0.8 | 2:30-3:30 | 3:30-4:30 | 4:30-5:30 | 5:30-6:30 | 6:30-8:00 | 8:00-10:00 |
+|---|---|---|---|---|---|---|
+| No Engineering Bay, unlooked | 0.57 (2,219) | 0.87 (1,568) | 0.88 (1,051) | 0.65 (126) | 0.54 (33) | 0.39 (12) |
+| No Engineering Bay, looked | 0.00 (4) | 0.91 (93) | 0.87 (265) | 0.59 (88) | 0.51 (58) | 0.36 (32) |
+| Fewer turrets than bases, unlooked | 0.02 (102) | 0.70 (738) | 0.94 (1,321) | 0.93 (887) | 0.70 (94) | 0.46 (27) |
+| Fewer turrets than bases, looked | | 1.00 (51) | 0.99 (448) | 0.98 (706) | 0.89 (148) | 0.56 (71) |
+| Under twice the bases, looked | | | 1.00 (2) | 0.96 (401) | 0.80 (160) | 0.53 (129) |
+
+- At a low belief (under 0.2) every cell is 0.28-0.55. Those that reach MIN_N are late: looked, one turret short, at
+  5:30-6:30 0.53 (16) and 6:30-8:00 0.36 (48). The root cell is 0.35 (117 games, its interval's top 0.44).
+
+**The lurker turret caps** (in the table's meta): the pros' Missile Turrets ordered by each minute at moments with
+P(lurker first) at least 0.5, their 90th percentile (median, n games):
+
+| | 5:00 | 6:00 | 7:00 | 8:00 | 9:00 | 10:00 |
+|---|---|---|---|---|---|---|
+| 90th percentile | 1 | 4 | 5 | 6 | 7 | 7 |
+| Median | 0 | 1 | 1 | 2 | 2 | 2 |
+| Games | 35 | 87 | 102 | 101 | 104 | 93 |
+
+Before 5:00 fewer than 25 games: no cap.
+
+**The activation check** (every pro game's samples scored as gary/agent/selector.py scores them: P_pro at least 0.5
+and, under the contrast rule, the interval above the contrast cell's):
+
+**(a) The contrast.** A belief under 0.2 never reaches MIN_N before 5:30. Early on the contrast backs off to the root
+(0.35, top 0.44), so the contrast and the threshold alone take the same samples: the threshold does the work.
+
+**(b, c) As Phase 1's trunk would run it** (the whole chain, started at the first sample that takes, never withdrawn):
+- it starts at 2:30, the first sample, in 100% of the 2,201 spire-first games and 100% of the 137 lurker-first games;
+- in spire-first games that is a median 87 s before the Spire, where the pros' own Engineering Bay comes at +33 s and
+  their first turret at +95 s.
+- The belief is the 89% base rate then, and the 2:30-3:30 cell is 0.57. Not usable as it stands.
+
+**Re-scored every sample** (taking or not, no latch), the table does tell the plans apart:
+
+| Samples that take | before 4:00 | 4:00-6:00 | 6:00-8:00 | 8:00-10:00 |
+|---|---|---|---|---|
+| Spire-first games | 99% | 99% | 77% | 24% |
+| Lurker-first games | 99% | 85% | 14% | 3% |
+
+In lurker-first games, P(spire first) first falls under 0.2 at a median 6.5 minutes (88 of 137 games).
+
+**The pros in the two plans** (games of 8 minutes or more):
+
+| | Engineering Bay by 8:00 | A turret by 8:00 | Turrets by 8:00, median |
+|---|---|---|---|
+| Spire-first (2,317 games) | 98% | 94% | 7 |
+| Lurker-first (132 games) | 92% | 61% | 1 |
+
+The Engineering Bay is the base rate in both plans; the ring is what the plan decides.
+
+**The ring only** (no moment until an Engineering Bay stands; re-scored every sample):
+- **Spire-first games:** taken in 97% (2,142 of 2,201). The first take comes at a median +48 s from the Spire,
+  against the pros' own first turret at +95 s. Samples taking: 92% before 5:00, 100% at 5-6, 96% at 6-8, 25% at 8-10.
+- **Lurker-first games:** taken in 78% early (2 samples a game, median). Samples taking: 71% before 5:00, 80% at 5-6,
+  **21% at 6-8, 3% at 8-10**. It stands down as the belief falls, and the pros' first turret comes by 8:00 in 61% of
+  these games too.
+
+**The proposed activation rule for `PREP_VS_MUTA`** (for the user's call before any code in gary/agent/trunk.py):
+1. **Its items are the ring only.** One Missile Turret a settled base, then two, nearest the Zerg first. They are
+   counted against the bases standing, as the table counts them.
+   - The Engineering Bay stays the macro model's: the pros build it in both plans, and Gary's model orders it by -50 s.
+   - No moment until an Engineering Bay stands, as the lurker branch has none once every chain is had.
+2. **Scored at every belief sample (30 s), not latched.**
+   - Where the cell takes (P_pro at least 0.5; the contrast kept, though it doesn't bind early), the directive asks
+     its next turret as a goal (ASK_AGAIN as now).
+   - Where it doesn't take, the directive stands down: nothing is asked. What is built stays.
+   - This is a new mode for the trunk, a directive "re-scored" rather than "run to its end", written in the directive's
+     own entry. PREP_VS_LURKER keeps its mode.
+3. **The turret cut** (PREP_VS_LURKER's): while PREP_VS_LURKER is active and PREP_VS_MUTA is not taking, the macro's
+   turret decisions above the pros' 90th percentile for the minute are masked (the caps above). A STOP-GAP entry in
+   AGENTS.md, as §5.2.
+4. **The trunk's code changes:**
+   - `ProFrequencyScorer.fields` gains the ring's position, counted from Gary's own turrets and bases.
+   - The trunk gains the re-scored mode and the ring's placement (the shared, race-keyed static anti-air helper,
+     §5.1).
+   - The belief keeps its samples 2:30-10:00; after 10:00 the directive keeps its last state.
+5. **Timing:** the ring's first turret would be asked about 45 s before the pros' median, as Gary's own turrets come
+   now (+64 s against +95 s). A shorter window (60 s) would move it later, if the screen asks for it.
+
+Tests: tests/test_pro_branch.py (the ring's position, the caps' quantile); smoke and parity pass; the lurker table
+built again by the extended script is the same, cell for cell.

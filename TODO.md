@@ -134,7 +134,7 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
     spells 35% → 81%, the army's share at attacks +0.092, the score +0.109 by supply. But fight micro fell 19% (bar 10%).
     v2 (§6: after the fight's queue, one shared turn that uses the hands a commit tick): the main asked 74%, micro -4%,
     the score +0.078, but the army's share at attacks -0.006 and more ground fighters outside asked clusters.
-    For the user's call: a 48 of v2 (96 games), parking, or a v3 between.
+    **Parked** (the user's call, 2026-11-28): the code and tests stay, off; a v3 or v2's 48 is where it picks up.
 - **Phase 2's remaining deliverables** (docs/REFOCUS.md §4.3):
   - The mid-game directives: `PREP_VS_MUTA`, and `PREP_VS_LURKER`'s turret cut, so answers.py can retire and Q3 is
     explained by the trunk. The design and the 0-game counts are in docs/DIRECTIVES.md.
