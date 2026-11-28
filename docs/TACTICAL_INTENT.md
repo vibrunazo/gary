@@ -1542,6 +1542,6 @@ repository).
 - What the age input brought in §18 is gone, both the first-tick doubling and the mid-game losses. So §19's split
   holds: the age input carried the 48's loss.
 - As a checked inputs-as-data fix (AGENTS.md: adopted on its own check), `ordercommit` is ready to fold into gt1dev
-  with a version bump. Folding is the user's call. Parity would be recorded again: gt1dev is not in the parity
-  games, so its hashes stay; matchups and the suite would be run again.
+  with a version bump. Folding is the user's call. Parity's hashes would stay: its games play gt1, gz1 and
+  gp1, not gt1dev. The matchups and the rest of the suite would be run again.
 - `intentage` stays parked.
