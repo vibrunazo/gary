@@ -122,10 +122,18 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   - Deaths alone: 15-16% of fighter deaths against the pros' 9%, mostly in the role model's hands.
   - The main is withheld from the commit layer within 12 tiles of any fight: a quarter of those fights are
     skirmishes, and the army's share at attacks is 0.3 against the pros' 0.59.
-  - Proposed, for the user's call: (1) rebuild the role datasets with #52's extras, check the role inputs and
-    retrain (0 games); (2) withhold only the fight's members (0-game estimate first, then a screen).
-  A fight-layer follow-up, apart from intent: deaths alone in contact (88% under the role model). Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Plus the early G4
-  check (the same card under the pro and a lower HumanProfile).
+  - **Parked under the maintenance cap** (the user's call, 2026-11-28; docs/REFOCUS.md §6 row 6: real G1 micro work,
+    not a Phase 2 deliverable): option 1, the role datasets rebuilt with #52's extras and the role model retrained; and
+    option 3, the lone retreat. #52 stays open.
+  - Option 2 (the arbiter's seam for the intent's reach) is Phase 2's. Its 0-game check (docs/FIGHT_AUDIT.md §4): no-go
+    as written. The 12-tile radius withholds none of the main (median), and the fight's members would withhold more.
+    What holds the main unasked is the turn: the role model takes 58% of the arbiter's turns in unasked ATTACK
+    spells (the army layer 1%), and those spells last 5.5 s. Proposed instead: the army side's turn shared when the
+    fight layer acts.
+- **Phase 2's remaining deliverables** (docs/REFOCUS.md §4.3):
+  - The mid-game directives: `PREP_VS_MUTA`, and `PREP_VS_LURKER`'s turret cut, so answers.py can retire and Q3 is
+    explained by the trunk. The design and the 0-game counts are in docs/DIRECTIVES.md.
+  - The early G4 check: the same card under the pro and a lower HumanProfile, spec in docs/DIRECTIVES.md §G4.
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept
   discovery only if that audit calls for it.
 - **The army (narrowed in round two):** no hold on the commit model's commitments (measured as not missing); the retreat

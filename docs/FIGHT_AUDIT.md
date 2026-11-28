@@ -102,5 +102,62 @@ IB306a is the same within a few points (ATTACK unasked 62%, skirmishes 24%, main
      rather than adding a rule.
    - Measure: alone deaths after a retreat or pull-back, against the pros'.
 
-Recommended order: 1 then 2. Option 1 makes the role model's inputs right before any fight-layer change is judged.
+**The user's call (2026-11-28):** options 1 and 3 are parked under docs/REFOCUS.md's maintenance cap (§6 row 6). They
+are real G1 micro work, but not Phase 2's deliverables, and #52 stays open. Option 2, the seam for the intent's reach,
+is Phase 2's; its 0-game check is §4.
+
+Recommended order, before that call: 1 then 2. Option 1 makes the role model's inputs right before any fight-layer change is judged.
 Option 2 is the one aimed at the gap that matters most: the army's share at attacks, 0.3 against 0.59.
+
+## 4. Option 2's 0-game check: the radius is not what withholds the main (2026-11-28)
+
+IN307a's 48 replays were re-simulated, and each second of the main's intent spells was read (2,394 spells of a
+second or more). Per second: the main cluster (army.py `_split`, as eval/alone.py `clusters`) and three rules. The
+arbiter's rule now: Gary's units within 12 tiles of the fight's center. `fight.members`: the role model's snapshot,
+own units within FIGHT_OWN (24 tiles) of the center, at most 64 units. "In contact": within FIGHT_NEAR (8 tiles) of an
+engaged enemy fighter. A spell "would ask the main" under a rule if at some second the main has 4+ supply left after
+it.
+
+| | ATTACK | GATHER | DEFEND_BASE |
+|---|---|---|---|
+| Spells | 826 | 902 | 666 |
+| Asked in the records | 48% | 56% | 47% |
+| Would ask the main: the 12-tile radius / members / in contact | 100% / 99% / 100% | 100% / 99% / 100% | 99% / 97% / 99% |
+| Unasked spells' fight seconds: the main's supply (median) | 53 | 62 | 57 |
+| ... withheld by the 12-tile radius / as members / in contact (median share) | 0% / 0% / 0% | 0% / 0% / 0% | 1% / 22% / 2% |
+| ... the withheld members in contact | 13% | 5% | 25% |
+
+- **(a)** In the unasked spells' fight seconds, the main stands outside the fight, not inside its 12 tiles. By the
+  median the radius withholds none of it, and the members rule would withhold more: 22% in DEFEND_BASE. The
+  members are the role model's 24 tiles, wider than the arbiter's 12.
+- **(b)** Under any of the three rules the main would be asked in nearly every spell, the radius included. So the
+  rule is not why 52% of ATTACK spells never ask it.
+- **(c)** Of the units the members rule would withhold, 5-25% are in contact: most are bystanders within 24 tiles.
+
+**What does withhold it** (IN307a's records and traces, the ATTACK spells):
+
+| | Asked | Unasked |
+|---|---|---|
+| The spell's length, median | 22.5 s | 5.5 s |
+| The arbiter's turns: the role model / the army layer | 35% / 9% | **58% / 1%** |
+
+- In `arbiter.py _army`, the fight layer goes first, and when it acts the army layer has no step that turn. The army
+  side's next turn then comes after the macro's and the chores'. In a fight the role model acts almost every turn,
+  with a unit or two (median one unit an action), so the army layer, and with it the main's commit question, waits.
+- The question is spread over the clusters (army.py, `COMMIT_TICK // len(clusters)`). The first one comes a median
+  2.3 s after the switch (p75 7.8 s). 21% of the unasked spells are shorter than that median.
+
+**Go / no-go:**
+- **No-go** for Option 2 as written. Withholding only `fight.members` would not ask the main more often, and would
+  withhold more of it.
+- **A different seam, for the user's call:** the army side's turn shared, not taken. When the fight layer acts, the
+  army layer still asks its clusters outside the fight at its own cadence: their units are none of the fight's, and
+  the hands' budget is the arbiter's either way.
+  - It touches only `arbiter.py _army`, every race (the arbiter is shared). No new rule: the commit model decides as
+    it does now, only on time.
+  - 0 games first: count, in IN307a's traces, the army-side turns the fight layer took while a non-fight cluster
+    of 4+ supply stood, and whether those turns' hands were spent (the hands' budget).
+  - Pre-written for its 16-game screen: the main asked in ATTACK spells (48% now, as the pros' first tick acts at
+    64%); the army's share at attacks (0.27, pros 0.59; 16 games resolve about +-0.07, 48 about +-0.04); late
+    arrivals (0.11, pros 0.05); fight micro not reduced (the role model's actions a minute in fights within 10%);
+    the paired score not measurably worse.

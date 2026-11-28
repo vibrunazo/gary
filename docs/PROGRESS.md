@@ -2308,6 +2308,31 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **Phase 2's directives designed, the intent's seam checked, G4 specified (2026-11-28; 0 games; docs/DIRECTIVES.md,
+  docs/FIGHT_AUDIT.md §4).**
+  - answers.py is on in gt1 and gt1dev (`noanswers` was only in Phase 1's rounds). In IN307a it set 686 mineral-line
+    turret goals and 26 Engineering Bay and Academy goals, passed over 555 of the model's turrets and scanned 42
+    times.
+  - Against the Spire (2,196 modern pro games), Gary with the answers already plays the pros' build. The Engineering
+    Bay and a turret by +300 s 100% (pros 99%, 97%), the first turret at +64 s (+96 s), 9 turrets by +300 s (8).
+  - The belief separates the spire-first games only from 6:00 (AUC 0.95; 0.74 at 4:00), and 89% of modern games are
+    spire-first, so the pros' Engineering Bay and first turret are mostly the base rate.
+  - Against lurkers, the turret cut matters: turrets within 10 minutes of the tech are 5 with answers.py, 9 without and
+    11 under the trunk alone (pros 5).
+  - Q3 on IN307a explains no turret or tech decision by the trunk: 6 turrets by answers.py and 11 by the dice, and 9
+    of 10 tech decisions by the dice.
+  - The design: `PREP_VS_MUTA` (an Engineering Bay, then the mineral-line ring, from a pro table) and the turret cut
+    as a pro-percentile mask under `PREP_VS_LURKER`, then `noanswers+trunk+scansample`, one at a time. The pros'
+    sighting dataset must be rebuilt first (lost on 2026-11-26). The screens' measures are written in.
+  - Fight Audit Option 2's check (IN307a's replays re-simulated, 2,394 spells): the 12-tile radius withholds none of
+    the main (median). Under any rule it would be asked in nearly every spell; the members rule withholds more. No-go.
+  - What withholds the main is the turn: in unasked ATTACK spells (5.5 s, against 22.5 s asked) the role model has
+    58% of the arbiter's turns and the army layer 1%. Proposed instead: the army side's turn shared when the fight
+    layer acts.
+  - G4: profiles pro, b_rank and c_rank exist. A manifest's `hands` is read by eval/match.py but no option sets it.
+    The spec: the same strict card under each profile, 8 games each, read by eval/drills.py, the gap windows and the
+    hands' rates.
+  - Fight Audit options 1 and 3 are parked under the maintenance cap (the user's call).
 - **The fight layer audited (2026-11-28; 0 games; docs/FIGHT_AUDIT.md).** From IN307a's and IB306a's records,
   traces and role draws, and 60 modern pro TvZ games through eval/alone.py.
   - Gary's fighters are alone as often as the pros' (samples 0.045 against 0.046). They die alone more often (15-16% of
