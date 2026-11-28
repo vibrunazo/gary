@@ -2308,6 +2308,19 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **Where the 48 lost, and which option did what (2026-11-27; 0 games; docs/TACTICAL_INTENT.md §19).**
+  - The -0.083 is six pairs. Five are early collapses (the army lost at 7-9 minutes). But over all 48 pairs the early
+    phase is even (losses at 6-10 minutes +0.4 [-2.1, +2.9]). The arm loses more army from 12 minutes on: cumulative
+    +11.5 [+0.1, +22.8] supply at 20 minutes. It engages more under ATTACK late: +1.29 [+0.35, +2.31] a game at 20-30.
+  - The saved commit questions re-queried, 2 x 2:
+    - `ordercommit` hardly changes the commit model (P(act) within 0.02 outside RETREAT); it acts through the hazard.
+    - `intentage` doubles the first question's P(act) (ATTACK 0.24 → 0.48) and lowers the standing ones (GATHER moves
+      0.32 → 0.25). That fits fewer GATHER moves, late arrivals with no order, and more late engages.
+  - Holds stayed flat because `ordercommit` turns "none" spells into "engage" ones, which end at about 16 s. GATHER
+    under an engage commitment (4% → 27% of spells) ends fast (the hazard's p 0.41).
+  - The remaining "none" (39%) is the data's own count: play 34% and the data 33% at 2,615 switches of all 48 games.
+  - Recommendation: park `intentage`. `ordercommit`: a 48 alone against IB306a (48 games), or adoption as an
+    inputs-as-data fix (the user's call). Then the fight layer (the main in a fight, deaths alone) and #69.
 - **The 48: the intent's age and the commitment as the data counts it (2026-11-27; IN306a against IB306a, 96 games,
   seeds 4006-4011; docs/TACTICAL_INTENT.md §18).**
   - The paired score by supply: -0.083 [-0.161, -0.005], measurably worse. By the critics the interval holds 0

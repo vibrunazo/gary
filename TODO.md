@@ -115,8 +115,12 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
     paired score is -0.047 [-0.125, +0.031].
   - The 48 (§18: IN306a against IB306a, seeds 4006-4011). The commitment and first-question gains held (ATTACK
     "none" at the hazard 67% → 39%; P(act) 0.25 → 0.48). The holds and the army's measures did not move. The score
-    is measurably worse by supply: -0.083 [-0.161, -0.005]; the critics' intervals hold 0. Not folded. Next, 0 games:
-    where the arm loses supply, and whether intentage or ordercommit carries it.
+    is measurably worse by supply: -0.083 [-0.161, -0.005]; the critics' intervals hold 0. Not folded.
+  - Why (§19, 0 games): `intentage` changes the commit model, with more first-tick engages and fewer standing GATHER
+    moves. The arm's mid-game losses fit it. `ordercommit` leaves the commit model as it was (within 0.02) and matches
+    the data's count over 48 games. Holds stay flat because the engaged spells it adds end at about 16 s. Proposed:
+    park `intentage`; `ordercommit` alone (a 48 against IB306a) or adopted as an inputs-as-data fix, the user's call;
+    then the fight layer and #69.
   A fight-layer follow-up, apart from intent: deaths alone in contact (88% under the role model). Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Plus the early G4
   check (the same card under the pro and a lower HumanProfile).
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept

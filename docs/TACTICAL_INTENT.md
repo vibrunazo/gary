@@ -1381,3 +1381,94 @@ repository).
 - §18's rule calls for a second 48 only when the interval holds 0, and this one doesn't. Not folded.
 - Next, 0 games first: find where the arm loses supply (which minutes and which layer's decisions), and which of the
   two options carries it. The two can be told apart from the records before any arm is played alone.
+
+## 19. Where the 48 lost, and which option did what (2026-11-27; 0 games)
+
+From IN306a's and IB306a's records, per-minute rows, saved commit questions and replays (no new games).
+
+**Where the -0.083 is.**
+- The 48 pairs' score differences sum to -4.0. The six worst pairs give all of it: 1 at -1.0, 2 at -0.75, 3 at -0.5.
+  The other 42 net 0 (16 at -0.25 against 7 at +0.25, 3 at +0.5 and 1 at +0.75).
+- Five of the six are collapses. The arm lost its early army (10-20 supply) at 7-9 minutes and fell 20+ supply
+  behind for good from minute 9-14 (Backrooms 4009, KnockOut 4006, Odyssey 4006, Octagon 4011, Fighting Spirit
+  4011). Most followed an early ATTACK or a defence with 4-13 supply.
+- But the early phase is even over all 48 pairs:
+  - army supply lost at 6-10 minutes +0.4 [-2.1, +2.9];
+  - games losing 12+ supply then: 29 against 27;
+  - the main's engage orders under ATTACK at 5-10 minutes: 1.96 against 2.02 a game.
+  So which games collapse is not something the arm does more often.
+- Paired trajectories (arm - baseline; 90% bootstrap):
+
+| Minute | 8 | 12 | 15 | 20 | 25 | 30 |
+|---|---|---|---|---|---|---|
+| Terran supply used | +0.0 | -1.6 | -5.5 [-16.9, +6.1] | -4.9 | -9.9 | -9.8 [-29.4, +11.2] |
+| Terran army supply | -0.2 | +0.1 | -1.3 | -2.1 | -5.9 | -6.3 |
+| Workers | -0.2 | -1.7 | -2.9 | -3.8 [-8.9, +1.1] | -4.4 [-9.4, +0.5] | -3.7 |
+| Army supply lost, cumulative | +0.6 | +0.0 | +4.5 | **+11.5 [+0.1, +22.8]** | **+16.5 [+0.1, +33.4]** | +16.9 |
+| Zerg supply used | -0.6 | +4.0 | +4.7 | +8.5 | +7.3 | +13.8 |
+
+- The arms are even to 12 minutes. From there the arm loses more army: losses at 10-15 minutes +4.0 [-0.6, +8.9], at
+  15-20 +7.0 [-1.5, +16.3]. It also engages more under ATTACK late: +1.29 [+0.35, +2.31] a game at 20-30 minutes.
+- At 5-10 minutes it sends fewer GATHER moves: -1.96 [-3.19, -0.77] a game.
+
+**The two options apart: the saved commit questions re-queried** (2 x 2: without or with the age input; the main's
+commitment as play recorded it, or rebuilt as the baseline counts it, from the commit layer's own orders only).
+
+| Intent, tick | IB306a's states: no age / with age | IN306a's states: no age / with age | Commitment swapped (all cells) |
+|---|---|---|---|
+| ATTACK, first | 0.24 / 0.48 | 0.31 / 0.56 | within 0.02 |
+| ATTACK, standing | 0.15 / 0.13 | 0.20 / 0.16 | within 0.02 |
+| GATHER, first (moves) | 0.39 / 0.62 | 0.49 / 0.70 | within 0.02 |
+| GATHER, standing (moves) | 0.32 / 0.25 | 0.37 / 0.27 | within 0.02 |
+| DEFEND_BASE, first / standing | 0.12 / 0.25; 0.09 / 0.09 | 0.14 / 0.30; 0.11 / 0.10 | within 0.02 |
+
+(P(act); for ATTACK nearly all of it engage, for GATHER move.)
+- **`ordercommit` hardly changes the commit model's decisions.** Swapping the commitment moves P(act) by 0.02 or less
+  in all 24 cells outside RETREAT. RETREAT's 8 cells move by 0.03-0.07, on 28-46 questions each. Its effect goes through the intent
+  model's hazard instead (below).
+- **`intentage` is what changes the commit model.** It doubles the first question's P(act). It also lowers the
+  standing ones, GATHER's moves most (0.32 → 0.25). Per question, ATTACK acts 21% more often and GATHER moves 5%
+  less often.
+- That fits what the round shows:
+  - fewer GATHER moves at 5-10 minutes;
+  - late arrivals at attacks less often a commit move (19% → 3%) and more often no order (13% → 22%);
+  - more ATTACK engages late;
+  - labelled HOLD up (13.3% → 15.4%).
+
+**Why the holds stayed flat** (spells by what ended them and the commitment the hazard read then):
+
+| Spell ended by the hazard, with commitment | IB306a: share of spells, median length, hazard's p | IN306a: the same |
+|---|---|---|
+| ATTACK, none | 58%, 10.2 s, 0.54 | 34%, 10.2 s, 0.56 |
+| ATTACK, engage | 15%, 21.0 s, 0.18 | 36%, 16.3 s, 0.19 |
+| ATTACK, move | 13%, 10.7 s, 0.23 | 16%, 15.2 s, 0.27 |
+| GATHER, none | 55%, 5.5 s, 0.54 | 32%, 5.7 s, 0.52 |
+| GATHER, engage | 4%, 10.1 s, 0.29 | **27%, 15.6 s, 0.41** |
+| GATHER, move | 32%, 25.8 s, 0.22 | 30%, 21.4 s, 0.17 |
+| DEFEND_BASE, engage | 17%, 16.0 s, 0.41 | 56%, 16.3 s, 0.35 |
+
+- `ordercommit` turns most of the "none" spells into "engage" ones: the role model's and the intent layer's orders
+  in contact now count. An engaged spell ends at 16 s, not 20-26 s.
+- A GATHER under an engage commitment is a state the labeller seldom makes, since it labels GATHER from moves. The
+  hazard leaves it fast (p 0.41): when Gary's gathering army fights, the intent model switches. This is the data's
+  pattern, not a fault, but it caps GATHER's holds.
+- So the median stays near 10-11 s.
+
+**The 39% "none" at ATTACK's ends is the data's count, not a counting fault.**
+- It is not a selection by the hazard: 38% at all ends, 39% at the hazard's.
+- On all 48 of IN306a's replays through ingest/army_dataset.py, play and the data agree: "none" 34% in play and 33% in
+  the data at 2,615 intent switches, and 20% and 18% at 6,756 commit questions. The kind agrees at 89% and 83%.
+- §16's 24% was measured on IN304's states. The arm's states hold more commitment-free switches. The rest of the gap
+  to the pros' 2% is Gary's own order pattern.
+
+**Recommendation.**
+- **Park `intentage`** (an option, off). It is the option that changes the commit model: more first-tick engages,
+  fewer standing GATHER moves. The round's mid-game losses and late engages fit it.
+- **`ordercommit`** is the inputs-as-data fix, checked: play and data agree over 48 games. It leaves the commit model
+  as it was and changes the hazard as the data would.
+  - Its own effect on the score can be read in a 48 of `gt1dev+ordercommit` alone against IB306a. The baseline is
+    already played on this code with the same seeds, so only 48 games would be needed.
+  - Or it can be adopted on its own check, as AGENTS.md has inputs-as-data fixes. The user's call.
+- **Then pivot.** What the intent layer was meant to fix is in the fight layer: ATTACK spells with no order for the
+  main (76%: the main in a fight is the role model's, §15), and deaths alone (80% under the role model's orders).
+  #69 is also open.
