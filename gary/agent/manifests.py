@@ -1209,6 +1209,10 @@ OPTIONS = {
     "pull_ratio07": _pull(ratio=0.7),       # ...already when the zerg are 0.7 of the army      [239] +1 ± 4
     # a fight interrupts waiting builds: +3 ± 6, [239] +6 ± 4; but 9-pool lost 3 (the bunker comes late)
     "suspend": lambda m: m.update(arbiter="fixed_priority/v2"),
+    # arbiter.py _shared_army_turn: in a fight, the army layer's question when due goes before the fight's queued orders
+    # and the macro's turn, over the units outside the fight (docs/FIGHT_AUDIT.md §5: in IN307a's unasked ATTACK spells
+    # the army layer asked no cluster, its last question a median 81 s before; the fight had 58% of the turns)
+    "armyturn": lambda m: m.update(army_turn=True),
 }
 
 
@@ -1985,7 +1989,8 @@ def build_gary(hi, mapinfo, manifest: str | dict, style: int | str | None = None
     if m["arbiter"] == "drill/v1":
         g.arbiter = DrillArbiter(g, seed, interruptions)
     else:
-        g.arbiter = FixedPriority(g, suspend_builds=m["arbiter"] == "fixed_priority/v2", rotate=m.get("rotate", False))
+        g.arbiter = FixedPriority(g, suspend_builds=m["arbiter"] == "fixed_priority/v2", rotate=m.get("rotate", False),
+                                  army_turn=m.get("army_turn", False))
         g.announce = announcement(g.version, style, models)
     if m.get("shadow") and g.macro is not None and mapinfo is not None and g.matchup == "TvZ" and g.race.letter == "T":
         from gary.agent.shadow import Shadow

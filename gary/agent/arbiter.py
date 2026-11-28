@@ -56,9 +56,15 @@ STREAK = 3                                 # option rotate: actions in a row one
 
 
 class FixedPriority:
-    def __init__(self, g: Gary, suspend_builds: bool = False, rotate: bool = False):
+    def __init__(self, g: Gary, suspend_builds: bool = False, rotate: bool = False, army_turn: bool = False):
         self.g = g
         self.suspend_builds = suspend_builds
+        # option armyturn: while a fight goes on, the army layer's question, when due, goes before the fight's queued
+        # orders and the macro's turn (the hands free, one task at a time as ever). In a fight the turns went to the
+        # fight layer's half-second turn, its queue, the macro's turn and the chores before the army side came: IN307a's
+        # unasked ATTACK spells had no commit question of any cluster, the last a median 81 s before
+        # (docs/FIGHT_AUDIT.md §5). A question costs no hands unless the model orders.
+        self.army_turn = army_turn
         # option rotate (Gary-Z's sides): the army, the macro and the chores take the turn in rotation, whoever acted
         # keeping it STREAK actions at most; the fixed order (chores, army, macro) gave the army of the one Gary
         # playing Zerg a fraction of Gary-Z's turns: its join rule fired 35 times to 110 at 5-9 min, and the
@@ -102,6 +108,8 @@ class FixedPriority:
         g.posture.update()
         if posture_mode(g.posture) != mode:
             self._posture_record(mode)
+        if self.army_turn and (who := self._shared_army_turn()):
+            return who
         if g.fight is not None and g.task is None and not hi.pending and getattr(g.fight, "queue", None):
             intent = g.fight.next_queued(hi.observe())   # (a turn's further orders, as the hands come free)
             if intent is not None:
@@ -228,12 +236,34 @@ class FixedPriority:
         return task is None or task.kind in INTERRUPTIBLE or \
             self.suspend_builds and task.kind == "build" and task.stage in BUILD_WAITS
 
-    def _army(self, obs: dict, mine: list[dict], done: list[dict]) -> str | None:
+    def _shared_army_turn(self) -> str | None:
+        """Option armyturn: a fight going on, the hands free and the army layer's question due, the army layer's turn
+        now, over the units outside the fight (as _army gives it them). Who acted, or None: then the turn goes on as
+        before (a question answered "keep" uses no hands)."""
+        g, hi = self.g, self.g.hi
+        if g.fight is None or g.army is None or not g.setup_done or g.task is not None or hi.pending \
+                or getattr(g.fight, "center", None) is None or hi.frame < getattr(g.army, "next_ask", 0):
+            return None
+        obs = hi.observe()
+        mine = [u for u in obs["units"] if u["owner"] == g.slot]
+        done = self._army_units([u for u in mine if u["completed"]])
+        cx, cy = g.fight.center
+        done = [u for u in done if math.dist((u["x"], u["y"]), (cx, cy)) > 12 * 32]
+        LOG.owner[g.hi.side] = "army"
+        return g.army.step(obs, mine, done)
+
+    def _army_units(self, done: list[dict]) -> list[dict]:
+        """The units the army side may give orders to: not the army's while the posture keeps it home, nor a choke's."""
         g = self.g
         if g.posture.army_home:          # the army model's moves leave the bunker empty: none now
             done = [u for u in done if u["type"] not in g.army_types]
         if g.block_units:                # closing a choke (block.py)
             done = [u for u in done if u["tag"] not in g.block_units]
+        return done
+
+    def _army(self, obs: dict, mine: list[dict], done: list[dict]) -> str | None:
+        g = self.g
+        done = self._army_units(done)
         if g.fight is not None:
             LOG.owner[g.hi.side] = "fight"
             who = g.fight.decide(obs, mine)
