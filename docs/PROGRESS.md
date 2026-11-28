@@ -2308,6 +2308,19 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **The fight layer audited (2026-11-28; 0 games; docs/FIGHT_AUDIT.md).** From IN307a's and IB306a's records,
+  traces and role draws, and 60 modern pro TvZ games through eval/alone.py.
+  - Gary's fighters are alone as often as the pros' (samples 0.045 against 0.046). They die alone more often (15-16% of
+    deaths against 9%). 85% of those deaths were in the role model's hands and 88% were outnumbered. They follow a
+    retreat or pull-back twice as often as other deaths (16% against 8%).
+  - The main is unasked in 58% of ATTACK spells. In 71% of those the role model is fighting, and a quarter of those
+    fights are skirmishes (at most 3 units an action, at most 1 death). The unasked mains are the big ones (45 units
+    against 28), withheld because they stand within 12 tiles of the fight's center.
+  - The army's share at attacks is 0.27-0.30 (the pros' 0.59), with twice their late arrivals.
+  - The role model's input parity can't be checked: its training datasets were lost on 2026-11-26.
+  - Options: (1) rebuild the response datasets with #52's extras filled, then check the role inputs and retrain;
+    (2) withhold only the fight's members from the commit layer, not 12 tiles around its center; (3) the lone
+    retreat, only if it remains after (1).
 - **gt0.56dev: `ordercommit` folded into gt1dev; #68 and #69 fixed (2026-11-28; 0 games).**
   - The fold is the user's call on §20 (docs/TACTICAL_INTENT.md §21). gt1dev's built manifest equals
     `gt1dev+ordercommit` before it, the version aside. gt1, gz1, gp1, gz1dev and gp1dev are unchanged. `intentage`

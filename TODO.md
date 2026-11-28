@@ -118,6 +118,12 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
     critic -0.068 [-0.168, +0.027]). The hazard keeps the data's count, and the labelled shares are nearer the pros'.
     Ready to fold into gt1dev as an inputs-as-data fix (the user's call). `intentage` stays parked.
   - Folded on the user's call: gt0.56dev (§21). Next: the fight layer's audit (docs/FIGHT_AUDIT.md).
+- **The fight layer (audited 2026-11-28, docs/FIGHT_AUDIT.md; nothing built):**
+  - Deaths alone: 15-16% of fighter deaths against the pros' 9%, mostly in the role model's hands.
+  - The main is withheld from the commit layer within 12 tiles of any fight: a quarter of those fights are
+    skirmishes, and the army's share at attacks is 0.3 against the pros' 0.59.
+  - Proposed, for the user's call: (1) rebuild the role datasets with #52's extras, check the role inputs and
+    retrain (0 games); (2) withhold only the fight's members (0-game estimate first, then a screen).
   A fight-layer follow-up, apart from intent: deaths alone in contact (88% under the role model). Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Plus the early G4
   check (the same card under the pro and a lower HumanProfile).
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept
