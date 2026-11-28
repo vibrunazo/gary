@@ -1472,3 +1472,23 @@ commitment as play recorded it, or rebuilt as the baseline counts it, from the c
 - **Then pivot.** What the intent layer was meant to fix is in the fight layer: ATTACK spells with no order for the
   main (76%: the main in a fight is the role model's, §15), and deaths alone (80% under the role model's orders).
   #69 is also open.
+
+## 20. `ordercommit` alone (2026-11-27; IN307a against IB306a)
+
+**Written before it ran.**
+- **The arm:** `gt1dev+ordercommit` (IN307a; `intentage` off, the user's call after §19) against IB306a (gt1dev,
+  already played on the same code: no code change since a29feea). Both against gz1, the 8 ladder maps, seeds
+  4006-4011, 48 paired games, 30 minutes, `--gg 0`.
+- **The paired score by supply** (eval/paired.py, `--grade all`, so the critics' grades too): the spread at §18
+  (0.336) gives 48 about +-0.08; the MDE is about 0.10-0.15. As a checked inputs-as-data fix, the bar is "not
+  measurably worse": the interval holds 0 or is above it.
+- **§19's predictions, without the age input:**
+  - The mid-game losses go back to the baseline's (IN306a: +11.5 at 20 minutes, +16.5 at 25).
+  - Late arrivals go back to a commit move rather than no order. The early GATHER moves come back, and labelled
+    HOLD stops rising.
+  - The hazard keeps its parity: ATTACK and GATHER "none" when it fires under 40%.
+  - Read alongside: hold medians, ATTACK spells sending the main no order, and the first question's P(act).
+- **The army and the gap** (eval/alone.py, eval/gap_windows.py, `train/tactical_intent.py --gary`): the army's share at
+  attacks (+-0.04), ground fighters in no asked cluster, deaths alone, attacks a game, the gap per window, labelled
+  intent shares, and the defence (nobody went against more than 20 supply).
+- **Coach Q4:** 12 answers (7, 11 and 15 minutes of 4 games) in runs/league/IN307a/q4_review.txt (not in the repository).
