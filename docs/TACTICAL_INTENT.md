@@ -1492,3 +1492,56 @@ commitment as play recorded it, or rebuilt as the baseline counts it, from the c
   attacks (+-0.04), ground fighters in no asked cluster, deaths alone, attacks a game, the gap per window, labelled
   intent shares, and the defence (nobody went against more than 20 supply).
 - **Coach Q4:** 12 answers (7, 11 and 15 minutes of 4 games) in runs/league/IN307a/q4_review.txt (not in the repository).
+
+**Results** (48 paired games).
+- The arm won 4, had 39 at time and lost 5 (T ahead 15, even 15, Z ahead 9). The baseline won 4, had 39 at time and
+  lost 5 (T ahead 16, even 17, Z ahead 6).
+- **The paired score:**
+  - by supply -0.021 [-0.094, +0.047] (spread 0.300: 96 would resolve +-0.050);
+  - by the critic -0.068 [-0.168, +0.027];
+  - by both critics -0.043 [-0.132, +0.044].
+  All three intervals hold 0: **not measurably worse**, the bar. The critic's point leans negative.
+- The pairs: 26 even, 11 better (7 at +0.25, 4 at +0.5), 11 worse (7 at -0.25, 1 at -0.5, 2 at -0.75, 1 at -1.0).
+
+**§19's predictions, with the age input off:**
+
+| Measure | Baseline (IB306a) | Both options (IN306a) | `ordercommit` alone (IN307a) | Read |
+|---|---|---|---|---|
+| Army supply lost, cumulative, at 20 / 25 min (arm - baseline) | | +11.5 [+0.1, +22.8] / +16.5 [+0.1, +33.4] | +5.5 [-4.0, +15.4] / +9.5 [-4.3, +23.1] | Smaller; not measurable |
+| The main's engage orders under ATTACK at 20-30 min (arm - baseline) | | +1.29 [+0.35, +2.31] | -0.12 [-0.62, +0.35] | Back to the baseline's |
+| The main's GATHER moves at 5-10 min, a game | 6.60 | 4.65 | 6.38 | Back |
+| Late arrivals at attacks: commit move / no order | 19% / 13% | 3% / 22% | 12% / 15% | Mostly back |
+| Labelled HOLD | 13.3% | 15.4% | 11.9% | Stops rising, nearer the pros' 6.2% |
+| No commitment when the hazard fires, ATTACK / GATHER | 67% / 60% | 39% / 36% | **33% / 28%** | Parity holds (under 40%) |
+| Hold medians, ATTACK / GATHER | 10.2 / 10.2 s | 10.7 / 10.7 s | 10.5 / 10.8 s | Flat, as §19 found |
+| ATTACK spells sending the main no order | 85% | 76% | 78% | |
+| First question P(act), ATTACK / GATHER | 0.25 / 0.39 | 0.48 / 0.61 | 0.30 / 0.47 | The age input's doubling gone |
+
+**The army and the gap** (paired, 90%):
+- Army: the share at attacks +0.053 [-0.025, +0.132] (games' medians 0.333 and 0.328). Ground fighters in no
+  asked cluster -0.015 [-0.054, +0.011]. Deaths alone +0.002 [-0.024, +0.027] (83% under the role model's orders).
+  Attacks a game 3.5 → 3.8. Late arrivals +0.003 [-0.028, +0.034]. Fighters alone -0.014 [-0.045, +0.005].
+- Gap, all windows: -0.008 [-0.057, +0.029]. 10-15 minutes -0.018 [-0.038, +0.003]; 20-25 minutes -0.048 [-0.089,
+  +0.008]; no window worse.
+- Labelled shares D/A/R/G/H: baseline 21.1/28.9/0.7/36.0/13.3; arm 22.3/31.7/0.9/33.2/11.9; the pros
+  25.0/36.6/3.2/29.0/6.2. ATTACK, GATHER and HOLD are each nearer the pros.
+- Defence, baseline → arm: the main itself 279 → 307, detachments 200 → 191, nobody went 209 → 197; against more
+  than 20 supply 67 → 53.
+
+**Coach Q4** (12 answers at 7, 11 and 15 minutes of 4 games; runs/league/IN307a/q4_review.txt, not in the
+repository).
+- Every answer cites the intent, its odds and the commit decisions with the counted commitment.
+- The load rule's overrides of the army's moves are back in 3 of the 12 (x2 each). Fight micro overrides the army's
+  orders in every fight (2-9 an answer).
+- At Colorless Fate 4010, 6:44, the main defended with 10 units against 50 Zerg supply. It is the same early game
+  as IN306a's on this seed.
+
+**Verdict.**
+- `ordercommit` alone passes its bar: not measurably worse by any grade. The hazard keeps the data's count, and the
+  labelled intent shares are each nearer the pros'.
+- What the age input brought in §18 is gone, both the first-tick doubling and the mid-game losses. So §19's split
+  holds: the age input carried the 48's loss.
+- As a checked inputs-as-data fix (AGENTS.md: adopted on its own check), `ordercommit` is ready to fold into gt1dev
+  with a version bump. Folding is the user's call. Parity would be recorded again: gt1dev is not in the parity
+  games, so its hashes stay; matchups and the suite would be run again.
+- `intentage` stays parked.

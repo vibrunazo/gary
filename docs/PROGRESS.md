@@ -2308,6 +2308,15 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **`ordercommit` alone (2026-11-27; IN307a against IB306a, 48 games, seeds 4006-4011; docs/TACTICAL_INTENT.md §20).**
+  - The paired score by supply -0.021 [-0.094, +0.047], critic -0.068 [-0.168, +0.027], both critics -0.043 [-0.132,
+    +0.044]: not measurably worse, the bar for an inputs-as-data fix.
+  - The hazard keeps the data's count (no commitment when it fires: ATTACK 67% → 33%, GATHER 60% → 28%). The labelled
+    shares are nearer the pros': ATTACK 28.9% → 31.7%, GATHER 36.0% → 33.2%, HOLD 13.3% → 11.9%.
+  - The army is even: share at attacks +0.053 [-0.025, +0.132], deaths alone +0.002, the gap -0.008 [-0.057, +0.029].
+  - §19's split holds: without the age input, the first-tick doubling, the late engages and most of the mid-game
+    losses are gone.
+  - Proposed: fold `ordercommit` into gt1dev (the user's call); `intentage` stays parked.
 - **Where the 48 lost, and which option did what (2026-11-27; 0 games; docs/TACTICAL_INTENT.md §19).**
   - The -0.083 is six pairs. Five are early collapses (the army lost at 7-9 minutes). But over all 48 pairs the early
     phase is even (losses at 6-10 minutes +0.4 [-2.1, +2.9]). The arm loses more army from 12 minutes on: cumulative
