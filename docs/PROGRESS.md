@@ -2308,6 +2308,28 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **gt0.56dev: `ordercommit` folded into gt1dev; #68 and #69 fixed (2026-11-28; 0 games).**
+  - The fold is the user's call on §20 (docs/TACTICAL_INTENT.md §21). gt1dev's built manifest equals
+    `gt1dev+ordercommit` before it, the version aside. gt1, gz1, gp1, gz1dev and gp1dev are unchanged. `intentage`
+    stays an option, off.
+  - #69, every build (gary/agent/macro.py `plan`, `gas_coming`): a decision short of gas while no gas can come is not
+    doable now ("no gas coming"). No gas can come when no worker is on gas, and the gas target is 0 or no gas
+    building stands, is building or is on its way. The decoder takes the next doable decision at once, as for any
+    decision Gary can't carry out, instead of holding the goal for 30 s.
+    - In IB306a and IN307a, 5 and 7 of the goals dropped at 30 s were of this kind (of 196 and 208, both sides).
+  - #68, every build (`first_producer_due`): the first-producer rule (`rax_by`) now fires in the opening only, before
+    6:00 and until a first producer has stood. It has its full entry in AGENTS.md's stop-gaps now.
+    - Before, IB306a and IN307a set it after 6:00 18 and 49 times for the Terran, and 91 and 98 times for gz1's Zerg.
+  - tests/test_macro_rules.py (new, without a game) checks both.
+  - The suite:
+    - Parity is unchanged: its 8-minute games never reach either case. Smoke, pairs, live (test_live_strategy too)
+      and matchups (playing and dev builds, six matchups) pass.
+    - test_intent_pipe on gt1dev: criterion 1 100% of 39.
+    - test_inputs fails, as at every build since #67, on count-timing lines: a building counted at its hand-off to
+      a walking builder, not at its placement. In this game they are the Terran critic's "own all" turrets (28%),
+      the Zerg's "decided" Hatcheries (29%) and the Zerg's placement inputs.
+    - The lines move with any change of play: the same test without the two fixes failed on the Terran's SCV
+      counts, and the test is deterministic for one code (two runs, the same lines).
 - **`ordercommit` alone (2026-11-27; IN307a against IB306a, 48 games, seeds 4006-4011; docs/TACTICAL_INTENT.md §20).**
   - The paired score by supply -0.021 [-0.094, +0.047], critic -0.068 [-0.168, +0.027], both critics -0.043 [-0.132,
     +0.044]: not measurably worse, the bar for an inputs-as-data fix.

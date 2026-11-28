@@ -75,13 +75,6 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   first checked), and the Zerg's placement inputs (workers, minute, bases held). Find when it began and fix or list it
   with its issue. Related: turret decisions come in bursts (a third within 2 s of the one before, G4299a), not through
   `queued_builds` (docs/PROGRESS.md, gt0.54dev).
-- [#69](https://github.com/vibrunazo/gary/issues/69) **A gas unit's goal waits its full 30 s while no gas can come
-  (open, proposed):** in the live game of 2026-11-26, Goliaths and a Siege Tank were held 7 x 30 s at 36 gas with no
-  worker on gas, stopping production for 3.5 minutes. The cause before it, dead workers counted on gas, is fixed
-  (docs/PROGRESS.md). The decoder change (`plan()`: no gas coming, can't now) waits for approval.
-- [#68](https://github.com/vibrunazo/gary/issues/68) **`rax_by` rebuilds the first producer at any time (open):** it
-  fired at 14:12 of the same game after the only Barracks died. It needs an opening horizon, or retirement as the card
-  macro owns the opening (docs/REFOCUS.md, one rule at a time).
 - **Phase 2 (open, started 2026-11-26; docs/REFOCUS.md §4.3):** TacticalIntent v0 is built as option `intent`,
   pipe-checked and amended by the user's calls (docs/TACTICAL_INTENT.md §8: HOLD's clear folded in, the defence a
   hurdle with the main defending at half the army). The 16-game screen is done (§9): the army's share at attacks
@@ -124,6 +117,7 @@ delete list (a rule goes one at a time, on its AGENTS.md measure). RL stays park
   - `ordercommit` alone (§20: IN307a against IB306a, 48 games): not measurably worse (supply -0.021 [-0.094, +0.047],
     critic -0.068 [-0.168, +0.027]). The hazard keeps the data's count, and the labelled shares are nearer the pros'.
     Ready to fold into gt1dev as an inputs-as-data fix (the user's call). `intentage` stays parked.
+  - Folded on the user's call: gt0.56dev (§21). Next: the fight layer's audit (docs/FIGHT_AUDIT.md).
   A fight-layer follow-up, apart from intent: deaths alone in contact (88% under the role model). Then PREP_VS_MUTA's ring start and PREP_VS_LURKER's turret cut, so answers.py can retire. Plus the early G4
   check (the same card under the pro and a lower HumanProfile).
 - **Phase 3 (open, not started):** first the offline ceiling audit (docs/ARCHITECTURE.md §7.6), then residual concept

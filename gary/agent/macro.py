@@ -92,6 +92,7 @@ class LearnedMacro:
         self.log = False                                    # training: log the favorite's decisions too
         self.force: tuple[int, int] | None = None           # training: (frame, decision) taken instead there
         self.rax_by = rax_by
+        self.first_built = False                            # a first producer has stood (rax_by is the opening's only)
         # option (depots): a depot ahead of production, as the scripted builds do: started while each producer has
         # less than 2 supply left. Pros are almost never supply-blocked, so the model has hardly seen the state
         # and gives the depot under its floor once there: Gary-T was blocked in 42 of 48 games at 4-8 minutes, 437
@@ -321,6 +322,18 @@ class LearnedMacro:
                                          int(nat[1] + (to[1] - nat[1]) / d * NAT_BUNKER_TILES * 32))
         return self._nat_bunker_spot
 
+    def first_producer_due(self, frame: int, have: int, race: str, plannable) -> bool:
+        """STOP-GAP (AGENTS.md, the first producer by a time). The first-producer rule (rax_by) is due: none stands or
+        is on its way (have 0), the frame is past rax_by and in the opening (before FIRST_OPENING), and none has stood yet
+        this game; but for the Terran's, only one Gary can plan now (plannable(): a Zerg with its Pool killed and no drone free set the goal and dropped it 459 times in 15 s,
+        round G5). The opening's only, every race (#68: a live game's only Barracks destroyed at 14:08 set it as the goal
+        at 14:12, mid-collapse; IB306a and IN307a set it after 6:00 18 and 49 times for the Terran, 91 and 98 for the
+        Zerg): a rebuild later is the macro model's decision, as the pros' is."""
+        if have:
+            self.first_built = True
+            return False
+        return self.rax_by <= frame < FIRST_OPENING and not self.first_built and (race == "T" or plannable())
+
     def _learned(self, obs: dict, mine: list[dict], done: list[dict], me: dict) -> None:
         g = self.g
         hi = g.hi
@@ -334,9 +347,9 @@ class LearnedMacro:
         first = FIRST_PRODUCER.get(g.race.letter)
         rax = sum(1 for u in mine if u["type"] == first) + sum(1 for r, *_ in g.reserved if r == first) + g.building(first) \
             if self.rax_by is not None and first is not None else 1
-        if not rax and hi.frame >= self.rax_by and (self.goal is None or self.goal["id"] != first) \
-                and ((g.race.letter == "T" and hi.frame < FIRST_OPENING)
-                     or self.plan(BUILD, first, obs, mine, done, me) not in (None, WAIT)):
+        if (self.goal is None or self.goal["id"] != first) and \
+                self.first_producer_due(hi.frame, rax, g.race.letter,
+                                        lambda: self.plan(BUILD, first, obs, mine, done, me) not in (None, WAIT)):
             # (and one can be built now: a Zerg with its Pool killed and no drone free set the goal and dropped it
             # 459 times in 15 s, its macro held: round G5; a Terran too after the opening: with its Barracks all
             # destroyed, in 15 of the 96 games of rounds R50a+b, all lost, it set the goal 7 to 2,955 times a game)
@@ -837,6 +850,12 @@ class LearnedMacro:
             return self._no(f"the pros' cap for this minute ({cap})")   # as many as nine pros in ten ever had by now
         g.executor.why = None
         plan = g.executor.carry_out(act, uid, obs, mine, done, me)
+        if isinstance(plan, dict) and plan is not WAIT and plan.get("cost") and plan["cost"][1] > me["gas"] \
+                and not self.gas_coming(mine):
+            # (short of gas with none to come: it can't be carried out in its timeout, so the next doable decision is
+            # taken now, as for any decision Gary can't carry out; #69: a live game held a Goliath or a Siege Tank as
+            # its goal for its full 30 s seven times at 15:16-18:20, 36 gas banked, no worker on gas, production stopped)
+            return self._no("no gas coming")
         if isinstance(plan, dict) and plan is not WAIT and plan["kind"] == "build" and len(g.parked) >= g.parked_max:
             # (parked_max builders walking at a time: a build decided beyond them waits as a unit waits for its busy
             # building, and the decoder takes the next doable decision meanwhile; held as the goal instead, it stood
@@ -844,6 +863,17 @@ class LearnedMacro:
             plan = g.executor.wait("its builders are all on their way")
         self.why_not = g.executor.why if plan is None or plan is WAIT else None
         return plan
+
+    def gas_coming(self, mine: list[dict]) -> bool:
+        """Gas can come within a goal's timeout: a worker is on gas, or a gas building stands, is building or is on its
+        way and the gas target isn't 0 (None, no gas head: three a gas building)."""
+        g = self.g
+        if sum(len(s) for s in getattr(g, "gas_workers", {}).values()):
+            return True
+        if self.gas_target == 0:
+            return False
+        gb = g.race.gas_building
+        return any(u["type"] == gb for u in mine) or bool(g.building(gb)) or any(r == gb for r, *_ in g.reserved)
 
     def _no(self, why: str) -> None:
         self.why_not = why

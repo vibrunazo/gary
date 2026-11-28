@@ -310,8 +310,21 @@ odds become a choice: dice, hold, floors), and fixes of plain bugs.
   - *Stim* is not a stop-gap: its decision is the stim model's (`gary/policy/stim.py`, learned from the pros'
     stims); the rule is its decoder (every half second, Stim Packs done, an HP floor). Measure that it stays: stims
     per fight and HP at the stim against the pros'.
+- **The first producer by a time** (`rax_by`, every build with a first producer: the Terran's Barracks by 1:18, the
+  Zerg's Spawning Pool by 2:45; `macro.py` first_producer_due, FIRST_PRODUCER). With none standing or on its way past
+  `rax_by`, the producer is set as the macro's goal.
+  - Why scripted: without one nothing held an early pool (4 of v0.11's 9 losses to a 9-pool). A Zerg without its Pool
+    sat on 2,000 minerals with no army to 8:25 (round G1).
+  - Since 2026-11-28 (#68), the opening's only: before FIRST_OPENING (6:00), and never once a first producer has stood.
+    Before, it fired at any time: a live game's only Barracks was destroyed at 14:08 and set as the goal at 14:12,
+    mid-collapse. Rounds IB306a and IN307a set it after 6:00 18 and 49 times for the Terran, and 91 and 98 times for
+    the Zerg.
+  - Replace with the card macro's opening milestones (docs/REFOCUS.md Phase 1, the card's first producer due), or the
+    macro model alone.
+  - Measure: a first producer by 1:30 (the Terran) and by 2:50 (the Zerg) with the rule off, against the pros'. The
+    rule's goals after 6:00: none.
 - **Older rules, to review** (scripted before 2026-10-20; each needs a full entry when next worked on): Gary-Z's
-  alarm and the natural colonies; the first producer by a time (`rax_by`); the v0.16 hunt and base scans; the fight
+  alarm and the natural colonies; the v0.16 hunt and base scans; the fight
   layer's other rules (the Zerg roles' retreat when outweighed; RoleAhead's hand rules in contact, gt1's whole fight
   in contact); Gary-Z's army rules (posts, raid, join, sweep, press).
 
