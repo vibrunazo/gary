@@ -161,3 +161,38 @@ it.
     64%); the army's share at attacks (0.27, pros 0.59; 16 games resolve about +-0.07, 48 about +-0.04); late
     arrivals (0.11, pros 0.05); fight micro not reduced (the role model's actions a minute in fights within 10%);
     the paired score not measurably worse.
+
+## 5. The army side's turn shared (option `armyturn`; 2026-11-28)
+
+**Step 1, 0 games (IN307a's records and traces).**
+- **Do the fight's turns spend the hands?** Yes. `FightLayer.decide` takes the turn only when it starts an order, and
+  the trace's "arbiter" entries are tasks started.
+- **But the hands are not saturated.** In the unasked ATTACK spells, the hands' time went: the fight's tasks 42%, the
+  macro's 22%, chores 8%, the army's 2%, and free 26% (the commands in flight included).
+- **What starves the main is the order of turns.** In a fight they go: the fight's half-second turn, then its queued
+  orders, then the macro's turn after each fight command, then the chores, and only then the army side.
+  - Every unasked spell had no commit question of any cluster, not only of the main.
+  - The last question of any cluster came a median 81 s before the spell ended.
+- **The gap, split:**
+  - spells shorter than one commit tick (5 s): ATTACK 21% of the unasked, GATHER 15%, DEFEND_BASE 0%;
+  - starved, 5 s or longer with no question at all: 79%, 85% and 100%.
+  - Of the asked ATTACK spells, the first question came within 5 s in 67%.
+- So sharing the turn can reach the main without taking the fight's hands: a question the model answers "keep" costs
+  no hands. Go.
+
+**The option** (arbiter.py `_shared_army_turn`, every race, off in every build): in a fight, with the hands free and
+the army layer's question due, the army layer's turn goes before the fight's queued orders and the macro's turn. It
+covers the units outside the fight's 12 tiles, as `_army` gives it them. It never steps with a task on the hands or a
+command in flight, and a question that orders nothing hands the turn on. tests/test_arbiter_turns.py checks it.
+
+**The 16-game screen, written before it runs:** gt1dev+armyturn (IN308a) against gt1dev replayed on the same code
+(IB308a), both against gz1, the 8 ladder maps, seeds 4004-4005, 30 minutes, `--gg 0`, paired by map and seed.
+
+| Measure | Now (IN307a) | Pros | Bar |
+|---|---|---|---|
+| The main asked in ATTACK / GATHER / DEFEND_BASE spells | 48% / 56% / 47% | first tick acts 64% (ATTACK) | ATTACK at least 64% |
+| The army's share at attacks (median) | 0.27 | 0.59 | moved if up by more than 0.07 (16 games' resolution) |
+| Late arrivals per fighter there | 0.11 | 0.05 | not up |
+| The role model's actions a minute in fights | (the baseline's) | | within 10% |
+| The paired score by supply | | | not measurably worse (16 games: about +-0.17) |
+| Coach Q4 (4 answers) | | | the intent and commit attribution clean |
