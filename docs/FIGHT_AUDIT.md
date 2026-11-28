@@ -196,3 +196,38 @@ command in flight, and a question that orders nothing hands the turn on. tests/t
 | The role model's actions a minute in fights | (the baseline's) | | within 10% |
 | The paired score by supply | | | not measurably worse (16 games: about +-0.17) |
 | Coach Q4 (4 answers) | | | the intent and commit attribution clean |
+
+**The screen's results** (IN308a against IB308a, 16 paired games; gz1).
+
+| Measure | Baseline (IB308a) | armyturn (IN308a) | Pros | Bar | Read |
+|---|---|---|---|---|---|
+| The main asked in ATTACK / GATHER / DEFEND_BASE spells | 35% / 39% / 56% | **81% / 88% / 99%** | first tick acts 64% (ATTACK) | ATTACK at least 64% | **Met** |
+| The army's share at attacks (games' median; paired) | 0.50 | 0.48 | 0.59 | up by more than 0.07 | **+0.092 [+0.008, +0.176]: met** |
+| Late arrivals per fighter there (paired) | 0.106 | 0.148 | 0.05 | not up | +0.042 [-0.008, +0.091]: **leaning up, not met** |
+| The role model's actions a minute in fights, 5-30 min (paired) | 40.1 | 32.4 | | within 10% | -7.7 [-13.5, -1.5], -19%: **not met** |
+| The paired score: supply / critic / both critics | 0.281 / 0.203 / 0.129 | 0.391 / 0.174 / 0.201 | | not measurably worse | +0.109 [-0.016, +0.250] / -0.029 [-0.149, +0.104] / +0.072 [-0.033, +0.195]: **met** |
+
+- Further (paired, 90%):
+  - deaths alone -0.039 [-0.076, -0.007], fewer;
+  - attacks a game 2.9 → 4.1, +1.25 [+0.50, +2.00];
+  - ground fighters in no asked cluster -0.009 [-0.039, +0.018];
+  - the gap, all windows, -0.021 [-0.112, +0.045].
+- The records:
+  - the main has no commitment when the hazard fires: ATTACK 41% → 12%, GATHER 35% → 8%;
+  - ATTACK spells sending the main no order: 83% → 48%;
+  - GATHER's hold median: 10.1 → 16.3 s (ATTACK 10.2 → 10.7 s);
+  - ATTACK's first-question P(act): 0.25 → 0.35.
+  - Results: won 1, lost 4 (the baseline won 0, lost 6).
+- **Where the micro went.** The role model's actions fell 21% at 5-30 minutes. Fight time (5-s windows with a role
+  action) fell 8%, and actions per fight window 14% (5.6 → 4.8); units per action are the same (1.8).
+  - The main's commit questions went from 2,073 to 5,723, and the orders it sent from 518 to 1,434: about the
+    model's own 5-s tick (COMMIT_TICK, the data's), where the baseline was starved below it.
+  - The army's share of the hands' time in asked ATTACK spells rose from 9% to 20%. Part of it came out of the role
+    model's queue: the shared turn goes before the fight's queued orders.
+
+**Verdict.**
+- The seam works: the main is asked, the army's share at attacks moved, and the score is not worse.
+- Two pre-written bars were not met: fight micro fell 19% (bar 10%), and late arrivals lean up.
+- Not folded, and no 48 yet. Proposed: **armyturn v2**, the shared turn after the fight's queued orders and before the
+  macro's turn, so the role model keeps its queue's throughput and the army layer takes the macro's slot after each
+  fight command, at most once a commit tick. Then the same 16-game screen with the same bars, against this baseline.

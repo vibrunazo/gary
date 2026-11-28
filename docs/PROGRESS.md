@@ -2308,6 +2308,24 @@ plan and the full log).
   ([L<line> <time>], #<id>) and the facts are unchanged; tests/test_trunk_faithful.py passes; a sweep of all five
   answers at 3, 6, 9, 12 and 15 minutes over 31 games of G4299a and DR300a\* (4,096 lines) finds no internal name left.
   The blind pack BE297 keeps the old wording (it was built before).
+- **The army side's turn shared: option `armyturn` (2026-11-28; 0-game check, then IN308a against IB308a, 32 games;
+  docs/FIGHT_AUDIT.md §5).**
+  - The 0-game check: in IN307a's unasked ATTACK spells no cluster was asked at all, the last question a median 81 s
+    earlier. The turns went to the fight's half-second turn, its queued orders, the macro's turn and the chores before
+    the army side. The hands were free 26% of those spells' time. 21% of the unasked spells were shorter than a commit
+    tick.
+  - The option (arbiter.py `_shared_army_turn`, every race, off in every build): in a fight, the army's question when
+    due goes before the fight's queue and the macro's turn. Tests: tests/test_arbiter_turns.py. Parity is unchanged,
+    the suite passes, and test_inputs fails on #67's lines only.
+  - The screen:
+    - the main asked in ATTACK spells 35% → 81% (GATHER 39% → 88%, DEFEND_BASE 56% → 99%);
+    - the army's share at attacks +0.092 [+0.008, +0.176];
+    - the paired score by supply +0.109 [-0.016, +0.250] (critic -0.029);
+    - deaths alone -0.039 [-0.076, -0.007];
+    - GATHER's hold 10.1 → 16.3 s.
+  - Not met: the role model's actions a minute -19% [-34%, -4%] (bar 10%: actions per fight window -14%, fight time
+    -8%), and late arrivals +0.042 [-0.008, +0.091].
+  - Not folded. Proposed: v2, the shared turn after the fight's queued orders, then the same screen.
 - **Phase 2's directives designed, the intent's seam checked, G4 specified (2026-11-28; 0 games; docs/DIRECTIVES.md,
   docs/FIGHT_AUDIT.md §4).**
   - answers.py is on in gt1 and gt1dev (`noanswers` was only in Phase 1's rounds). In IN307a it set 686 mineral-line
